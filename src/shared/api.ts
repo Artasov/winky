@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_BASE_URL } from './constants';
+import { API_BASE_URL, API_BASE_URL_FALLBACKS } from './constants';
 
 export const createApiClient = (accessToken?: string) => {
   const instance = axios.create({

@@ -14,6 +14,9 @@ const App: React.FC = () => {
   const [config, setConfigState] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [preloadError, setPreloadError] = useState<string | null>(() =>
+    typeof window !== 'undefined' && window.winky ? null : 'Preload-скрипт не загружен.'
+  );
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -30,14 +33,26 @@ const App: React.FC = () => {
   }, []);
 
   const refreshConfig = useCallback(async (): Promise<AppConfig> => {
+    if (!window.winky) {
+      const message = 'Preload-скрипт недоступен.';
+      setPreloadError(message);
+      throw new Error(message);
+    }
     const result = await window.winky.config.get();
     setConfigState(result);
+    setPreloadError(null);
     return result;
   }, []);
 
   const updateConfig = useCallback(async (partial: Partial<AppConfig>): Promise<AppConfig> => {
+    if (!window.winky) {
+      const message = 'Preload-скрипт недоступен.';
+      setPreloadError(message);
+      throw new Error(message);
+    }
     const result = await window.winky.config.update(partial);
     setConfigState(result);
+    setPreloadError(null);
     return result;
   }, []);
 
@@ -75,7 +90,17 @@ const App: React.FC = () => {
   );
 
   useEffect(() => {
-    refreshConfig().finally(() => setLoading(false));
+    const load = async () => {
+      try {
+        await refreshConfig();
+      } catch (error) {
+        console.error('[App] Не удалось загрузить конфигурацию', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void load();
   }, [refreshConfig]);
 
   useEffect(() => {
@@ -98,6 +123,18 @@ const App: React.FC = () => {
     return (
       <div className="flex h-full items-center justify-center bg-slate-950 text-slate-200">
         Загрузка...
+      </div>
+    );
+  }
+
+  if (preloadError || !window.winky) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-slate-950 px-6 text-center text-slate-200">
+        <h1 className="text-2xl font-semibold">Не удалось инициализировать приложение</h1>
+        <p className="max-w-md text-sm text-slate-400">{preloadError ?? 'Веб-приложение не получило доступ к preload-скрипту.'}</p>
+        <p className="text-xs text-slate-500">
+          Перезапустите приложение. Если проблема повторяется, проверьте сборку `dist/main/preload.js`.
+        </p>
       </div>
     );
   }

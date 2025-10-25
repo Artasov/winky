@@ -1,7 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ActionConfig, AppConfig, AuthTokens } from '@shared/types';
+import type { ActionConfig, AppConfig, AuthTokens, AuthResponse } from '@shared/types';
 
 type UpdateConfigPayload = Partial<AppConfig>;
+type LoginResponse = {
+  tokens: AuthTokens;
+  user?: Record<string, unknown>;
+  config: AppConfig;
+};
 
 const api = {
   config: {
@@ -13,6 +18,10 @@ const api = {
   },
   clipboard: {
     writeText: (text: string): Promise<boolean> => ipcRenderer.invoke('clipboard:write', text)
+  },
+  auth: {
+    login: (email: string, password: string): Promise<LoginResponse> =>
+      ipcRenderer.invoke('auth:login', { email, password })
   },
   actions: {
     fetch: (): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:fetch'),

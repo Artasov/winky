@@ -13,6 +13,14 @@ declare global {
     writeText(text: string): Promise<boolean>;
   }
 
+  interface WinkyAuthAPI {
+    login(email: string, password: string): Promise<{
+      tokens: AuthTokens;
+      user?: Record<string, unknown>;
+      config: AppConfig;
+    }>;
+  }
+
   interface WinkyActionsAPI {
     fetch(): Promise<ActionConfig[]>;
     create(action: Omit<ActionConfig, 'id'>): Promise<ActionConfig[]>;
@@ -25,12 +33,13 @@ declare global {
   interface WinkyPreload {
     config: WinkyConfigAPI;
     clipboard: WinkyClipboardAPI;
+    auth: WinkyAuthAPI;
     actions: WinkyActionsAPI;
     windows: WinkyWindowsAPI;
   }
 
   interface Window {
-    winky: WinkyPreload;
+    winky?: WinkyPreload;
   }
 }
 

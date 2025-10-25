@@ -8,6 +8,12 @@ export interface AuthTokens {
   refreshToken: string;
 }
 
+export interface AuthResponse {
+  access: string;
+  refresh: string;
+  user?: Record<string, unknown>;
+}
+
 export interface ActionConfig {
   id: string;
   icon: string;

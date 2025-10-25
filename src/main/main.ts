@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, clipboard } from 'electron';
 import path from 'path';
+import axios from 'axios';
 import { createTray, destroyTray } from './tray';
 import {
   getConfig,
@@ -12,9 +13,11 @@ import {
 import {
   ACTIONS_CREATE_ENDPOINT,
   ACTIONS_ENDPOINT,
-  APP_NAME
+  APP_NAME,
+  AUTH_ENDPOINT,
+  API_BASE_URL_FALLBACKS
 } from '@shared/constants';
-import type { ActionConfig, AppConfig, AuthTokens } from '@shared/types';
+import type { ActionConfig, AppConfig, AuthTokens, AuthResponse } from '@shared/types';
 import { createApiClient } from '@shared/api';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -34,7 +37,8 @@ const createMainWindow = () => {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      devTools: isDev
+      devTools: isDev,
+      sandbox: false
     }
   });
 
@@ -65,7 +69,8 @@ const createSettingsWindow = () => {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      devTools: isDev
+      devTools: isDev,
+      sandbox: false
     }
   });
 
@@ -102,12 +107,56 @@ const registerIpcHandlers = () => {
     return true;
   });
 
+  ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {
+    console.log('[auth:login] IPC received', { email: credentials.email });
+    return login(credentials);
+  });
+
   ipcMain.handle('windows:open-settings', () => {
     createSettingsWindow();
   });
 
   ipcMain.handle('actions:fetch', async () => fetchActions());
   ipcMain.handle('actions:create', async (_event, action: Omit<ActionConfig, 'id'>) => createAction(action));
+};
+
+const login = async ({ email, password }: { email: string; password: string }) => {
+  console.log('[auth:login] sending POST', AUTH_ENDPOINT, { email });
+  let data: AuthResponse | undefined;
+  let lastError: unknown = null;
+
+  for (const baseUrl of API_BASE_URL_FALLBACKS) {
+    const endpoint = `${baseUrl.replace(/\/$/, '')}/auth/login/`;
+    try {
+      ({ data } = await axios.post<AuthResponse>(endpoint, {
+        email,
+        password
+      }));
+      console.log('[auth:login] POST success', endpoint);
+      break;
+    } catch (error: any) {
+      lastError = error;
+      console.error('[auth:login] POST failed', {
+        endpoint,
+        message: error?.message,
+        code: error?.code,
+        status: error?.response?.status,
+        data: error?.response?.data
+      });
+    }
+  }
+
+  if (!data) {
+    console.error('[auth:login] all endpoints failed');
+    throw lastError ?? new Error('Не удалось выполнить запрос авторизации');
+  }
+  const tokens: AuthTokens = {
+    accessToken: data.access,
+    refreshToken: data.refresh
+  };
+  const config = await setAuthTokens(tokens);
+  console.log('[auth:login] tokens stored, returning to renderer');
+  return { tokens, user: data.user, config };
 };
 
 const fetchActions = async (): Promise<ActionConfig[]> => {

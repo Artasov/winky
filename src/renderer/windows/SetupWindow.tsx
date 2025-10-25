@@ -21,13 +21,16 @@ const SetupWindow: React.FC = () => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (requiresOpenAIKey && !openaiKey) {
-      showToast('Укажите OpenAI API Key для работы в режиме API.', 'error');
+    if (requiresOpenAIKey && requiresGoogleKey) {
+      if (!openaiKey && !googleKey) {
+        showToast('Укажите хотя бы один ключ (OpenAI или Google) для API режимов.', 'error');
+        return;
+      }
+    } else if (requiresOpenAIKey && !openaiKey) {
+      showToast('Укажите OpenAI API Key для работы LLM в режиме API или переключитесь на локальный режим.', 'error');
       return;
-    }
-
-    if (requiresGoogleKey && !googleKey) {
-      showToast('Укажите Google API Key для режима API распознавания речи.', 'error');
+    } else if (requiresGoogleKey && !googleKey) {
+      showToast('Укажите Google API Key для распознавания речи в режиме API или переключитесь на локальный режим.', 'error');
       return;
     }
 
@@ -105,6 +108,9 @@ const SetupWindow: React.FC = () => {
                   onChange={(event) => setGoogleKey(event.target.value)}
                   className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
                 />
+                {requiresOpenAIKey && requiresGoogleKey && (
+                  <span className="text-xs text-slate-400">Можно указать любой доступный ключ.</span>
+                )}
               </label>
             </div>
           )}
@@ -146,6 +152,9 @@ const SetupWindow: React.FC = () => {
                   onChange={(event) => setOpenaiKey(event.target.value)}
                   className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
                 />
+                {requiresOpenAIKey && requiresGoogleKey && (
+                  <span className="text-xs text-slate-400">Можно указать любой доступный ключ.</span>
+                )}
               </label>
             </div>
           )}

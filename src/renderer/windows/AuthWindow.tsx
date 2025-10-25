@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { AUTH_ENDPOINT } from '@shared/constants';
-import type { AuthTokens } from '@shared/types';
 import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 
@@ -23,9 +20,12 @@ const AuthWindow: React.FC = () => {
 
     setLoading(true);
     try {
-      const { data } = await axios.post<AuthTokens>(AUTH_ENDPOINT, { email, password });
-      await window.winky.config.setAuth(data);
-      const updated = await refreshConfig();
+      if (!window.winky?.auth) {
+        throw new Error('Preload API недоступен');
+      }
+      console.log('[AuthWindow] login submit', { email });
+      const { config: updated } = await window.winky.auth.login(email, password);
+      await refreshConfig();
       showToast('Авторизация успешна', 'success');
       if (!updated.setupCompleted) {
         navigate('/setup');
@@ -33,7 +33,7 @@ const AuthWindow: React.FC = () => {
         navigate('/main');
       }
     } catch (error) {
-      console.error(error);
+      console.error('[AuthWindow] login failed', error);
       showToast('Не удалось авторизоваться. Проверьте данные и подключение.', 'error');
     } finally {
       setLoading(false);

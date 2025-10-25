@@ -271,17 +271,22 @@ const MainWindow: React.FC = () => {
 
       {displayedActions.length > 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="pointer-events-none absolute h-20 w-20 rounded-full bg-rose-500/25 blur-lg" />
+          <div className="pointer-events-none absolute rounded-full bg-rose-500/20 blur-md" style={{ width: '72px', height: '72px' }} />
           {displayedActions.map((action, index) => {
-            const angleStep = 360 / displayedActions.length;
-            const angle = 90 - angleStep * index;
-            const radius = 46;
+            const total = displayedActions.length;
+            const angleStep = total <= 2 ? 40 : total <= 4 ? 34 : 30;
+            const radius = total <= 2 ? 48 : total <= 4 ? 54 : 60;
+            const startAngle = 90; // начинаем снизу
+            const angleDeg = startAngle - angleStep * index;
+            const angleRad = (angleDeg * Math.PI) / 180;
+            const offsetX = Math.cos(angleRad) * radius;
+            const offsetY = Math.sin(angleRad) * radius;
             return (
               <div
                 key={action.id}
                 className="pointer-events-auto absolute left-1/2 top-1/2 transition-transform duration-200"
                 style={{
-                  transform: `translate(-50%, -50%) rotate(${angle}deg) translate(${radius}px) rotate(${-angle}deg)`
+                  transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`
                 }}
               >
                 <ActionButton

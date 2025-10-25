@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, clipboard, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, clipboard, Menu, screen } from 'electron';
 import path from 'path';
 import axios from 'axios';
 import { createTray, destroyTray } from './tray';
@@ -35,25 +35,6 @@ const MAIN_BOUNDS = { width: 220, height: 220 };
 
 let currentWindowMode: WindowMode | null = null;
 let micWindow: BrowserWindow | null = null;
-let micWindowInteractive = false;
-const MIC_SHAPE_SIZE = 200;
-
-const setMicInteractive = (interactive: boolean) => {
-  if (!micWindow) {
-    return;
-  }
-
-  if (micWindowInteractive === interactive) {
-    return;
-  }
-
-  micWindowInteractive = interactive;
-  console.log('[main] mic window interactive =>', interactive);
-  micWindow.setIgnoreMouseEvents(!interactive, { forward: true });
-  if (interactive) {
-    micWindow.focus();
-  }
-};
 
 const createMainWindow = () => {
   mainWindow = new BrowserWindow({
@@ -124,19 +105,6 @@ const createMicWindow = () => {
   micWindow.setMenuBarVisibility(false);
   micWindow.setAlwaysOnTop(true, 'screen-saver');
   micWindow.setFocusable(true);
-  setMicInteractive(false);
-
-  const offset = Math.max(0, Math.round((MAIN_BOUNDS.width - MIC_SHAPE_SIZE) / 2));
-  if (typeof micWindow.setShape === 'function') {
-    micWindow.setShape([
-      {
-        x: offset,
-        y: offset,
-        width: MIC_SHAPE_SIZE,
-        height: MIC_SHAPE_SIZE
-      }
-    ]);
-  }
 
   if (isDev) {
     void micWindow.loadURL('http://localhost:5173/?window=mic#/main');
@@ -153,7 +121,6 @@ const createMicWindow = () => {
 
   micWindow.on('closed', () => {
     micWindow = null;
-    micWindowInteractive = false;
   });
 
   return micWindow;
@@ -174,13 +141,11 @@ const setWindowMode = (mode: WindowMode) => {
     const mic = createMicWindow();
     mainWindow.hide();
     if (mic) {
-      setMicInteractive(false);
       mic.show();
       mic.focus();
     }
   } else {
     if (micWindow) {
-      setMicInteractive(false);
       micWindow.hide();
     }
     mainWindow.show();
@@ -261,10 +226,6 @@ const registerIpcHandlers = () => {
 
   ipcMain.handle('window:set-mode', (_event, mode: WindowMode) => {
     setWindowMode(mode);
-  });
-
-  ipcMain.handle('mic:set-interactive', (_event, interactive: boolean) => {
-    setMicInteractive(interactive);
   });
 
   ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {

@@ -34,9 +34,6 @@ const api = {
   windowControls: {
     minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
     close: (): Promise<void> => ipcRenderer.invoke('window:close')
-  },
-  mic: {
-    setInteractive: (interactive: boolean): Promise<void> => ipcRenderer.invoke('mic:set-interactive', interactive)
   }
 };
 

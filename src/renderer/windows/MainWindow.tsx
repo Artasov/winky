@@ -56,85 +56,6 @@ const MainWindow: React.FC = () => {
 
   const actions = useMemo<ActionConfig[]>(() => config?.actions ?? [], [config?.actions]);
 
-  useEffect(() => {
-    const micControls = window.winky?.mic;
-    if (!micControls?.setInteractive) {
-      return;
-    }
-
-    let lastInteractiveState = false;
-    let pointerDown = false;
-
-    const setInteractive = (value: boolean) => {
-      if (lastInteractiveState === value) {
-        return;
-      }
-      lastInteractiveState = value;
-      console.debug('[MainWindow] mic window interactive =>', value);
-      void micControls.setInteractive(value).catch(() => undefined);
-    };
-
-    const resolveInteractiveFromEvent = (event: PointerEvent | null) => {
-      if (!event) {
-        setInteractive(false);
-        return;
-      }
-
-      if (pointerDown) {
-        setInteractive(true);
-        return;
-      }
-
-      const target = event.target as HTMLElement | null;
-      const interactive = Boolean(target?.closest('[data-interactive=\"true\"]'));
-      setInteractive(interactive);
-    };
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as HTMLElement | null;
-      const interactiveTarget = Boolean(target?.closest('[data-interactive="true"]'));
-      pointerDown = interactiveTarget && event.button === 0;
-      if (!pointerDown) {
-        setInteractive(false);
-        return;
-      }
-      resolveInteractiveFromEvent(event);
-    };
-
-    const handlePointerMove = (event: PointerEvent) => {
-      resolveInteractiveFromEvent(event);
-    };
-
-    const handlePointerUp = (event: PointerEvent) => {
-      pointerDown = false;
-      resolveInteractiveFromEvent(event);
-    };
-
-    const handleLeave = () => {
-      pointerDown = false;
-      setInteractive(false);
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
-    window.addEventListener('pointerleave', handleLeave);
-    window.addEventListener('blur', handleLeave);
-
-    setInteractive(false);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
-      window.removeEventListener('pointerleave', handleLeave);
-      window.removeEventListener('blur', handleLeave);
-      void micControls.setInteractive(false).catch(() => undefined);
-    };
-  }, []);
-
   const startVolumeMonitor = (stream: MediaStream) => {
     stopVolumeMonitor();
     try {
@@ -314,29 +235,27 @@ const MainWindow: React.FC = () => {
   const displayedActions = isRecording ? actions : [];
 
   return (
-    <div className="pointer-events-none relative flex h-full w-full items-center justify-center">
-      <div className="pointer-events-auto app-region-no-drag relative flex h-full w-full items-center justify-center">
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          {[3, 2, 1].map((multiplier) => (
-            <div
-              key={multiplier}
-              className="microphone-wave"
-              style={{
-                width: `${70 + multiplier * 26}px`,
-                height: `${70 + multiplier * 26}px`,
-                opacity: isRecording ? Math.max(0, normalizedVolume - (multiplier - 1) * 0.12) : 0,
-                transform: `scale(${isRecording ? 1 + normalizedVolume * 0.35 : 0.8})`
-              }}
-            />
-          ))}
-        </div>
-        <MicrophoneButton
-          isRecording={isRecording}
-          onToggle={handleMicrophoneToggle}
-          disabled={processing}
-          size={isRecording ? 'compact' : 'default'}
-        />
+    <div className="app-region-drag relative flex h-full w-full items-center justify-center">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        {[3, 2, 1].map((multiplier) => (
+          <div
+            key={multiplier}
+            className="microphone-wave"
+            style={{
+              width: `${70 + multiplier * 26}px`,
+              height: `${70 + multiplier * 26}px`,
+              opacity: isRecording ? Math.max(0, normalizedVolume - (multiplier - 1) * 0.12) : 0,
+              transform: `scale(${isRecording ? 1 + normalizedVolume * 0.35 : 0.8})`
+            }}
+          />
+        ))}
       </div>
+      <MicrophoneButton
+        isRecording={isRecording}
+        onToggle={handleMicrophoneToggle}
+        disabled={processing}
+        size={isRecording ? 'compact' : 'default'}
+      />
 
       {displayedActions.length > 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -346,7 +265,7 @@ const MainWindow: React.FC = () => {
             return (
               <div
                 key={action.id}
-                className="pointer-events-auto absolute left-1/2 top-1/2"
+                className="pointer-events-auto absolute left-1/2 top-1/2 app-region-no-drag"
                 style={{
                   transform: `translate(-50%, -50%) rotate(${angle}deg) translate(${radius}px) rotate(-${angle}deg)`
                 }}

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React from 'react';
 import classNames from 'classnames';
 
 interface MicrophoneButtonProps {
@@ -14,100 +14,27 @@ const sizeClasses: Record<NonNullable<MicrophoneButtonProps['size']>, string> = 
 };
 
 const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onToggle, disabled, size = 'default' }) => {
-  const [dragMode, setDragMode] = useState(false);
-  const pointerDownRef = useRef(false);
-  const pointerMovedRef = useRef(false);
-  const pointerIdRef = useRef<number | null>(null);
-  const initialPointRef = useRef({ x: 0, y: 0 });
-
-  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (disabled || event.button !== 0) {
-      return;
-    }
-
-    pointerDownRef.current = true;
-    pointerMovedRef.current = false;
-    pointerIdRef.current = event.pointerId;
-    setDragMode(false);
-    initialPointRef.current = { x: event.clientX, y: event.clientY };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  };
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!pointerDownRef.current) {
-      return;
-    }
-
-    const dxFromStart = event.clientX - initialPointRef.current.x;
-    const dyFromStart = event.clientY - initialPointRef.current.y;
-    if (!pointerMovedRef.current && Math.sqrt(dxFromStart * dxFromStart + dyFromStart * dyFromStart) > 4) {
-      pointerMovedRef.current = true;
-      setDragMode(true);
-      if (pointerIdRef.current !== null) {
-        event.currentTarget.releasePointerCapture?.(pointerIdRef.current);
-        pointerIdRef.current = null;
-      }
-    }
-  };
-
-  const finalizePointer = (shouldToggle: boolean) => {
-    pointerDownRef.current = false;
-    pointerIdRef.current = null;
-
-    if (dragMode) {
-      setDragMode(false);
-    }
-
-    if (shouldToggle && !disabled) {
+  const handleClick = () => {
+    if (!disabled) {
       onToggle();
     }
-  };
-
-  const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!pointerDownRef.current) {
-      return;
-    }
-
-    const shouldToggle = !pointerMovedRef.current;
-    pointerMovedRef.current = false;
-    if (pointerIdRef.current !== null) {
-      event.currentTarget.releasePointerCapture?.(pointerIdRef.current);
-      pointerIdRef.current = null;
-    }
-    finalizePointer(shouldToggle);
-  };
-
-  const handlePointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!pointerDownRef.current) {
-      return;
-    }
-
-    pointerMovedRef.current = false;
-    if (pointerIdRef.current !== null) {
-      event.currentTarget.releasePointerCapture?.(pointerIdRef.current);
-      pointerIdRef.current = null;
-    }
-    finalizePointer(false);
   };
 
   return (
     <button
       type="button"
       disabled={disabled}
-      data-interactive="true"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
+      onClick={handleClick}
       className={classNames(
-        dragMode ? 'app-region-drag' : 'app-region-no-drag',
+        'app-region-no-drag',
         'flex items-center justify-center rounded-full text-3xl shadow-xl transition-transform focus:outline-none focus:ring-2 focus:ring-offset-2',
         sizeClasses[size],
         isRecording
           ? 'bg-rose-600 text-white hover:bg-rose-500 focus:ring-rose-300'
           : 'bg-emerald-600 text-white hover:bg-emerald-500 focus:ring-emerald-300',
-        disabled && 'opacity-60 cursor-not-allowed',
-        isRecording ? 'scale-95' : 'scale-100'
+        disabled && 'opacity-60',
+        isRecording ? 'scale-95' : 'scale-100',
+        disabled ? 'cursor-not-allowed' : 'cursor-pointer'
       )}
     >
       {isRecording ? (

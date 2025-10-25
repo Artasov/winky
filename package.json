@@ -7,7 +7,7 @@
     "prestart": "npm run build:assets",
     "start": "electron .",
     "dev": "cross-env NODE_ENV=development concurrently \"npm:dev:main\" \"npm:dev:renderer\" \"npm:dev:electron\"",
-    "dev:main": "tsup src/main/main.ts src/main/tray.ts src/main/preload.ts --format=cjs --sourcemap --out-dir dist/main --watch --external electron --target=node20",
+    "dev:main": "tsup src/main/main.ts src/main/tray.ts src/main/preload.ts --format=cjs --out-dir dist/main --watch --external electron --target=node20",
     "dev:renderer": "vite --config vite.config.ts",
     "dev:electron": "wait-on http://localhost:5173 file:dist/main/main.js file:dist/main/preload.js && electron .",
     "build": "npm run build:assets && electron-builder --publish=never",

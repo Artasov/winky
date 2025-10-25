@@ -198,7 +198,7 @@ const App: React.FC = () => {
             <div className={classNames('flex-1', { 'flex items-stretch justify-center': !isMainRoute })}>{routes}</div>
           </div>
         )}
-        <Toast toasts={toasts} placement={isMicWindow ? 'center-right' : 'top-right'} className={isMicWindow ? '!w-64 max-w-xs drop-shadow-lg' : undefined} />
+        {!isMicWindow && <Toast toasts={toasts} placement="top-right" />}
       </ConfigContext.Provider>
     </ToastContext.Provider>
   );

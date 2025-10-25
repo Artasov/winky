@@ -27,11 +27,11 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
       onClick={handleClick}
       className={classNames(
         'app-region-no-drag pointer-events-auto relative z-10',
-        'flex items-center justify-center rounded-full text-3xl shadow-xl transition-transform focus:outline-none focus:ring-2 focus:ring-offset-2',
+        'flex items-center justify-center rounded-full text-3xl shadow-xl transition-transform outline-none',
         sizeClasses[size],
         isRecording
-          ? 'bg-rose-600 text-white hover:bg-rose-500 focus:ring-rose-300'
-          : 'bg-emerald-600 text-white hover:bg-emerald-500 focus:ring-emerald-300',
+          ? 'bg-rose-600 text-white hover:bg-rose-500'
+          : 'bg-emerald-600 text-white hover:bg-emerald-500',
         disabled && 'opacity-60',
         isRecording ? 'scale-95' : 'scale-100',
         disabled ? 'cursor-not-allowed' : 'cursor-pointer'

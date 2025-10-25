@@ -238,9 +238,9 @@ const MainWindow: React.FC = () => {
   return (
     <div className="pointer-events-none relative flex h-full w-full flex-col items-center">
       {/* Перетаскиваемая область с визуальными полосками */}
-      <div className="app-region-drag pointer-events-auto flex h-8 w-full items-center justify-center gap-1.5 py-2">
-        <div className="h-1 w-6 rounded-full bg-white/30"></div>
-        <div className="h-1 w-6 rounded-full bg-white/30"></div>
+      <div className="app-region-drag pointer-events-auto flex h-8 w-full flex-col items-center justify-center gap-1 py-2">
+        <div className="h-0.5 w-6 rounded-full bg-white/30"></div>
+        <div className="h-0.5 w-6 rounded-full bg-white/30"></div>
       </div>
       
       {/* Контейнер микрофона */}

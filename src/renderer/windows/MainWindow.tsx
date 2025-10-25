@@ -238,13 +238,38 @@ const MainWindow: React.FC = () => {
   return (
     <div className="pointer-events-none relative flex h-full w-full flex-col items-center">
       {/* Перетаскиваемая область с визуальными полосками */}
-      <div className="app-region-drag pointer-events-auto flex h-8 w-full flex-col items-center justify-center gap-1 py-2">
+      <div 
+        className="app-region-drag pointer-events-auto flex h-8 w-full flex-col items-center justify-center gap-1 py-2"
+        onMouseEnter={() => window.winky?.mic?.setInteractive(true)}
+        onMouseLeave={() => window.winky?.mic?.setInteractive(false)}
+      >
         <div className="h-0.5 w-6 rounded-full bg-white/30"></div>
         <div className="h-0.5 w-6 rounded-full bg-white/30"></div>
       </div>
       
       {/* Контейнер микрофона */}
       <div className="pointer-events-none relative flex flex-1 items-center justify-center">
+        {/* Волны звука вокруг микрофона */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          {[4, 3, 2, 1].map((multiplier) => (
+            <div
+              key={multiplier}
+              className="absolute rounded-full border-[3px]"
+              style={{
+                width: `${60 + multiplier * 20}px`,
+                height: `${60 + multiplier * 20}px`,
+                borderColor: isRecording ? `rgba(239, 68, 68, ${0.7 - multiplier * 0.1})` : 'rgba(16, 185, 129, 0.5)',
+                opacity: isRecording ? Math.max(0, normalizedVolume - (multiplier - 1) * 0.15) : 0,
+                transform: `scale(${isRecording ? 1 + normalizedVolume * 0.4 : 0.8})`,
+                boxShadow: isRecording 
+                  ? `0 0 ${15 + normalizedVolume * 30}px ${5 + normalizedVolume * 15}px rgba(239, 68, 68, ${0.5 + normalizedVolume * 0.3})`
+                  : 'none',
+                transition: 'opacity 0.12s ease, transform 0.12s ease'
+              }}
+            />
+          ))}
+        </div>
+        
         <MicrophoneButton
           isRecording={isRecording}
           onToggle={handleMicrophoneToggle}

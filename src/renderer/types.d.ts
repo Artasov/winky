@@ -36,6 +36,10 @@ declare global {
     close(): Promise<void>;
   }
 
+  interface WinkyMicAPI {
+    setInteractive(interactive: boolean): Promise<void>;
+  }
+
   interface WinkyPreload {
     config: WinkyConfigAPI;
     clipboard: WinkyClipboardAPI;
@@ -43,6 +47,7 @@ declare global {
     actions: WinkyActionsAPI;
     windows: WinkyWindowsAPI;
     windowControls: WinkyWindowControlsAPI;
+    mic: WinkyMicAPI;
   }
 
   interface Window {

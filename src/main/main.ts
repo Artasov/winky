@@ -18,10 +18,17 @@ const rendererPath = path.resolve(__dirname, '../renderer/index.html');
 type WindowMode = 'default' | 'main';
 
 const DEFAULT_BOUNDS = {width: 960, height: 640};
-const MAIN_BOUNDS = {width: 100, height: 130};
+const MAIN_BOUNDS = {width: 180, height: 180};
 
 let currentWindowMode: WindowMode | null = null;
 let micWindow: BrowserWindow | null = null;
+
+const setMicInteractive = (interactive: boolean) => {
+    if (!micWindow || micWindow.isDestroyed()) {
+        return;
+    }
+    micWindow.setIgnoreMouseEvents(!interactive, { forward: true });
+};
 
 const createMainWindow = () => {
     mainWindow = new BrowserWindow({
@@ -93,26 +100,8 @@ const createMicWindow = () => {
     micWindow.setAlwaysOnTop(true, 'screen-saver');
     micWindow.setFocusable(true);
 
-    // Определяем минимальную интерактивную область
-    // Простая форма без сложных округлений
-    if (typeof micWindow.setShape === 'function') {
-        micWindow.setShape([
-            // Полоска для перетаскивания (верх, узкая)
-            {
-                x: 20,
-                y: 0,
-                width: 60,
-                height: 28
-            },
-            // Квадрат для микрофона (центр, увеличенный чтобы не обрезать низ)
-            {
-                x: 5,
-                y: 32,
-                width: 90,
-                height: 95
-            }
-        ]);
-    }
+    // Окно игнорирует клики везде кроме элементов с pointer-events-auto
+    micWindow.setIgnoreMouseEvents(true, { forward: true });
 
     if (isDev) {
         void micWindow.loadURL('http://localhost:5173/?window=mic#/main');
@@ -228,6 +217,10 @@ const registerIpcHandlers = () => {
 
     ipcMain.handle('window:set-mode', (_event, mode: WindowMode) => {
         setWindowMode(mode);
+    });
+
+    ipcMain.handle('mic:set-interactive', (_event, interactive: boolean) => {
+        setMicInteractive(interactive);
     });
 
     ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {

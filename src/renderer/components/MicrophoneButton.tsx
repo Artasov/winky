@@ -20,11 +20,21 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
     }
   };
 
+  const handleMouseEnter = () => {
+    window.winky?.mic?.setInteractive(true);
+  };
+
+  const handleMouseLeave = () => {
+    window.winky?.mic?.setInteractive(false);
+  };
+
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={handleClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       className={classNames(
         'app-region-no-drag pointer-events-auto relative z-10',
         'flex items-center justify-center rounded-full text-3xl shadow-xl transition-transform outline-none',

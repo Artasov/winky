@@ -9,6 +9,8 @@ export class ApiSpeechService implements BaseSpeechService {
 
   private chunks: BlobPart[] = [];
 
+  private stream: MediaStream | null = null;
+
   constructor(accessToken?: string) {
     this.accessToken = accessToken;
   }
@@ -17,12 +19,17 @@ export class ApiSpeechService implements BaseSpeechService {
     this.accessToken = token;
   }
 
-  async startRecording(): Promise<void> {
+  getStream() {
+    return this.stream;
+  }
+
+  async startRecording(): Promise<MediaStream> {
     if (!navigator?.mediaDevices?.getUserMedia) {
       throw new Error('Аудио устройства недоступны.');
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    this.stream = stream;
     this.mediaRecorder = new MediaRecorder(stream);
     this.chunks = [];
 
@@ -31,6 +38,9 @@ export class ApiSpeechService implements BaseSpeechService {
         this.chunks.push(event.data);
       }
     };
+
+    this.mediaRecorder.start();
+    return stream;
   }
 
   async stopRecording(): Promise<Blob> {
@@ -46,6 +56,7 @@ export class ApiSpeechService implements BaseSpeechService {
           const blob = new Blob(this.chunks, { type: recorder.mimeType || 'audio/webm' });
           recorder.stream.getTracks().forEach((track) => track.stop());
           this.mediaRecorder = null;
+          this.stream = null;
           this.chunks = [];
           resolve(blob);
         } catch (error) {

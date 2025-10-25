@@ -32,7 +32,7 @@ const SettingsWindow: React.FC = () => {
 
     setSaving(true);
     try {
-      await window.winky.actions.create({ name, prompt, icon });
+      await window.winky?.actions.create({ name, prompt, icon });
       await refreshConfig();
       showToast('Действие добавлено.', 'success');
       resetForm();

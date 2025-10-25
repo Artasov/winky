@@ -44,7 +44,7 @@ const SetupWindow: React.FC = () => {
       });
       showToast('Настройки сохранены', 'success');
       if (updated.actions.length === 0) {
-        await window.winky.actions.fetch().catch(() => null);
+        await window.winky?.actions.fetch().catch(() => null);
       }
       navigate('/main');
     } catch (error) {
@@ -108,9 +108,6 @@ const SetupWindow: React.FC = () => {
                   onChange={(event) => setGoogleKey(event.target.value)}
                   className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
                 />
-                {requiresOpenAIKey && requiresGoogleKey && (
-                  <span className="text-xs text-slate-400">Можно указать любой доступный ключ.</span>
-                )}
               </label>
             </div>
           )}
@@ -152,13 +149,14 @@ const SetupWindow: React.FC = () => {
                   onChange={(event) => setOpenaiKey(event.target.value)}
                   className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
                 />
-                {requiresOpenAIKey && requiresGoogleKey && (
-                  <span className="text-xs text-slate-400">Можно указать любой доступный ключ.</span>
-                )}
               </label>
             </div>
           )}
         </section>
+
+        {requiresOpenAIKey && requiresGoogleKey && (
+          <p className="-mt-2 text-xs text-slate-400">Можно указать любой доступный ключ (OpenAI или Google).</p>
+        )}
 
         <button
           type="submit"

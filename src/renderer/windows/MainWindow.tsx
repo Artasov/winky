@@ -20,6 +20,11 @@ const MainWindow: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [volume, setVolume] = useState(0);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number>();
 
   useEffect(() => {
     if (!config) {
@@ -51,16 +56,55 @@ const MainWindow: React.FC = () => {
 
   const actions = useMemo<ActionConfig[]>(() => config?.actions ?? [], [config?.actions]);
 
-  const openSettings = () => {
-    void window.winky.windows.openSettings();
+  const startVolumeMonitor = (stream: MediaStream) => {
+    stopVolumeMonitor();
+    try {
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 512;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      const buffer = new Uint8Array(analyser.fftSize);
+
+      const update = () => {
+        analyser.getByteTimeDomainData(buffer);
+        let sumSquares = 0;
+        for (let i = 0; i < buffer.length; i += 1) {
+          const deviation = buffer[i] - 128;
+          sumSquares += deviation * deviation;
+        }
+        const rms = Math.sqrt(sumSquares / buffer.length) / 128;
+        setVolume(Number.isFinite(rms) ? rms : 0);
+        animationFrameRef.current = requestAnimationFrame(update);
+      };
+
+      update();
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+    } catch (error) {
+      console.error('[MainWindow] Не удалось инициализировать визуализацию микрофона', error);
+    }
   };
 
+  const stopVolumeMonitor = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => undefined);
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setVolume(0);
+  };
+
+  useEffect(() => () => {
+    stopVolumeMonitor();
+  }, []);
+
   if (!config) {
-    return (
-      <div className="flex h-full items-center justify-center bg-slate-950 text-slate-200">
-        Конфигурация не загружена.
-      </div>
-    );
+    return null;
   }
 
   const ensureSpeechService = () => {
@@ -87,12 +131,13 @@ const MainWindow: React.FC = () => {
     try {
       const blob = await speechServiceRef.current.stopRecording();
       setIsRecording(false);
+      stopVolumeMonitor();
       return blob;
     } catch (error) {
       console.error(error);
       showToast('Не удалось остановить запись.', 'error');
       setIsRecording(false);
-      setActiveActionId(null);
+      stopVolumeMonitor();
       return null;
     }
   };
@@ -104,7 +149,7 @@ const MainWindow: React.FC = () => {
 
     try {
       const text = await speechServiceRef.current.transcribe(blob);
-      await window.winky.clipboard.writeText(text);
+      await window.winky?.clipboard.writeText(text);
       showToast('Текст скопирован.', 'success');
     } catch (error) {
       console.error(error);
@@ -126,7 +171,7 @@ const MainWindow: React.FC = () => {
       }
 
       const response = await llmServiceRef.current!.process(transcription, action.prompt);
-      await window.winky.clipboard.writeText(response);
+      await window.winky?.clipboard.writeText(response);
       showToast('Ответ скопирован.', 'success');
     } catch (error) {
       console.error(error);
@@ -143,10 +188,12 @@ const MainWindow: React.FC = () => {
 
     if (!isRecording) {
       try {
-        await speechServiceRef.current?.startRecording();
+        const stream = await speechServiceRef.current?.startRecording();
         setIsRecording(true);
         setActiveActionId(null);
-        showToast('Запись началась.', 'info');
+        if (stream) {
+          startVolumeMonitor(stream);
+        }
       } catch (error) {
         console.error(error);
         showToast('Не удалось начать запись. Проверьте доступ к микрофону.', 'error');
@@ -162,8 +209,7 @@ const MainWindow: React.FC = () => {
   };
 
   const handleActionClick = async (action: ActionConfig) => {
-    if (processing) {
-      showToast('Ожидается завершение предыдущего действия.', 'info');
+    if (processing || !isRecording) {
       return;
     }
 
@@ -171,67 +217,65 @@ const MainWindow: React.FC = () => {
       return;
     }
 
-    if (!isRecording) {
-      try {
-        await speechServiceRef.current?.startRecording();
-        setIsRecording(true);
-        setActiveActionId(action.id);
-        showToast('Запись для действия началась. Нажмите кнопку ещё раз, чтобы завершить.', 'info');
-      } catch (error) {
-        console.error(error);
-        showToast('Не удалось начать запись.', 'error');
-      }
-      return;
-    }
-
-    if (activeActionId !== action.id) {
-      showToast('Сначала завершите текущую запись.', 'info');
-      return;
-    }
-
+    setActiveActionId(action.id);
     const blob = await finishRecording();
-    setActiveActionId(null);
     if (blob) {
       await processAction(action, blob);
     }
+    setActiveActionId(null);
   };
 
-  const recordingLabel = activeActionId
-    ? 'Запись действия...'
-    : isRecording
-    ? 'Запись...' 
-    : 'Нажмите, чтобы начать запись';
+  const normalizedVolume = Math.min(volume * 2.5, 1);
+  const displayedActions = isRecording ? actions : [];
 
   return (
-    <div className="relative flex h-full flex-col items-center justify-center gap-8 px-6 py-12">
-      <div className="absolute right-6 top-6">
-        <button
-          type="button"
-          onClick={openSettings}
-          className="rounded-md border border-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white/10"
-        >
-          Настройки
-        </button>
-      </div>
-      <div className="text-center">
-        <h1 className="text-4xl font-semibold text-white">Голосовой ассистент Winky</h1>
-        <p className="mt-2 text-sm text-slate-300">{recordingLabel}</p>
-      </div>
-      <MicrophoneButton
-        isRecording={isRecording && !activeActionId}
-        onToggle={handleMicrophoneToggle}
-        disabled={processing}
-      />
-      {actions.length > 0 && (
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-          {actions.map((action) => (
-            <ActionButton
-              key={action.id}
-              action={action}
-              onClick={handleActionClick}
-              disabled={processing || (isRecording && activeActionId !== null && activeActionId !== action.id)}
+    <div className="relative flex h-full w-full items-center justify-center">
+      <div className="relative flex items-center justify-center">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          {[3, 2, 1].map((multiplier) => (
+            <div
+              key={multiplier}
+              className="microphone-wave"
+              style={{
+                width: `${120 + multiplier * 40}px`,
+                height: `${120 + multiplier * 40}px`,
+                opacity: isRecording ? Math.max(0, normalizedVolume - (multiplier - 1) * 0.15) : 0,
+                transform: `scale(${isRecording ? 1 + normalizedVolume * 0.6 : 0.75})`
+              }}
             />
           ))}
+        </div>
+        <MicrophoneButton
+          isRecording={isRecording}
+          onToggle={handleMicrophoneToggle}
+          disabled={processing}
+          size={isRecording ? 'compact' : 'default'}
+        />
+      </div>
+
+      {displayedActions.length > 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          {displayedActions.map((action, index) => {
+            const angle = (360 / displayedActions.length) * index;
+            const radius = 110;
+            return (
+              <div
+                key={action.id}
+                className="pointer-events-auto absolute left-1/2 top-1/2"
+                style={{
+                  transform: `translate(-50%, -50%) rotate(${angle}deg) translate(${radius}px) rotate(-${angle}deg)`
+                }}
+              >
+                <ActionButton
+                  action={action}
+                  onClick={handleActionClick}
+                  disabled={processing}
+                  isActive={activeActionId === action.id}
+                  variant="floating"
+                />
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

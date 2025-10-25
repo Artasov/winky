@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, clipboard } from 'electron';
+import { app, BrowserWindow, ipcMain, clipboard, Menu } from 'electron';
 import path from 'path';
 import axios from 'axios';
 import { createTray, destroyTray } from './tray';
@@ -28,11 +28,48 @@ let settingsWindow: BrowserWindow | null = null;
 const preloadPath = path.resolve(__dirname, 'preload.js');
 const rendererPath = path.resolve(__dirname, '../renderer/index.html');
 
+type WindowMode = 'default' | 'main';
+
+const DEFAULT_BOUNDS = { width: 960, height: 640 };
+const MAIN_BOUNDS = { width: 280, height: 280 };
+
+let currentWindowMode: WindowMode | null = null;
+let clickThroughEnabled = false;
+
+const applyClickThrough = (enabled: boolean) => {
+  if (!mainWindow) {
+    return;
+  }
+
+  if (clickThroughEnabled === enabled) {
+    return;
+  }
+
+  clickThroughEnabled = enabled;
+  if (enabled) {
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    mainWindow.setFocusable(false);
+  } else {
+    mainWindow.setIgnoreMouseEvents(false);
+    mainWindow.setFocusable(true);
+  }
+};
+
 const createMainWindow = () => {
   mainWindow = new BrowserWindow({
-    width: 1024,
-    height: 768,
+    width: DEFAULT_BOUNDS.width,
+    height: DEFAULT_BOUNDS.height,
+    minWidth: DEFAULT_BOUNDS.width,
+    minHeight: DEFAULT_BOUNDS.height,
+    maxWidth: DEFAULT_BOUNDS.width,
+    maxHeight: DEFAULT_BOUNDS.height,
+    resizable: false,
     title: APP_NAME,
+    frame: false,
+    transparent: true,
+    show: false,
+    titleBarStyle: 'hidden',
+    backgroundColor: '#00000000',
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -42,15 +79,78 @@ const createMainWindow = () => {
     }
   });
 
+  mainWindow.setMenuBarVisibility(false);
+
+  const targetUrl = isDev ? 'http://localhost:5173' : rendererPath;
   if (isDev) {
-    void mainWindow.loadURL('http://localhost:5173');
+    void mainWindow.loadURL(targetUrl);
   } else {
-    void mainWindow.loadFile(rendererPath);
+    void mainWindow.loadFile(targetUrl);
   }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show();
+  });
+};
+
+const applyFixedSize = (window: BrowserWindow, width: number, height: number) => {
+  window.setMinimumSize(width, height);
+  window.setMaximumSize(width, height);
+  window.setSize(width, height, false);
+};
+
+const setWindowMode = (mode: WindowMode) => {
+  if (!mainWindow || currentWindowMode === mode) {
+    return;
+  }
+
+  if (mode === 'main') {
+    applyFixedSize(mainWindow, MAIN_BOUNDS.width, MAIN_BOUNDS.height);
+    mainWindow.setAlwaysOnTop(true, 'floating');
+    mainWindow.setResizable(false);
+    mainWindow.setFullScreenable(false);
+    mainWindow.setMaximizable(false);
+    mainWindow.setMinimizable(true);
+    mainWindow.setBackgroundColor('#00000000');
+    mainWindow.setHasShadow(false);
+    mainWindow.setOpacity(1);
+    applyClickThrough(true);
+  } else {
+    applyFixedSize(mainWindow, DEFAULT_BOUNDS.width, DEFAULT_BOUNDS.height);
+    mainWindow.setAlwaysOnTop(false);
+    mainWindow.setResizable(false);
+    mainWindow.setFullScreenable(false);
+    mainWindow.setMaximizable(false);
+    mainWindow.setMinimizable(true);
+    mainWindow.setBackgroundColor('#111827');
+    mainWindow.setHasShadow(true);
+    mainWindow.setOpacity(1);
+    applyClickThrough(false);
+  }
+
+  currentWindowMode = mode;
+};
+
+const setInteractive = (interactive: boolean) => {
+  if (!mainWindow) {
+    return;
+  }
+
+  if (currentWindowMode !== 'main') {
+    applyClickThrough(false);
+    return;
+  }
+
+  if (interactive) {
+    applyClickThrough(false);
+    mainWindow.focus();
+  } else {
+    applyClickThrough(true);
+  }
 };
 
 const createSettingsWindow = () => {
@@ -65,6 +165,11 @@ const createSettingsWindow = () => {
     title: `${APP_NAME} — Настройки`,
     parent: mainWindow ?? undefined,
     modal: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    titleBarStyle: 'hidden',
+    backgroundColor: '#00000000',
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -74,10 +179,12 @@ const createSettingsWindow = () => {
     }
   });
 
+  settingsWindow.setMenuBarVisibility(false);
+
   if (isDev) {
-    void settingsWindow.loadURL('http://localhost:5173/#/settings');
+    void settingsWindow.loadURL('http://localhost:5173/?window=settings#/settings');
   } else {
-    void settingsWindow.loadFile(rendererPath, { hash: 'settings' });
+    void settingsWindow.loadFile(rendererPath, { hash: 'settings', search: '?window=settings' });
   }
 
   settingsWindow.on('closed', () => {
@@ -105,6 +212,22 @@ const registerIpcHandlers = () => {
   ipcMain.handle('clipboard:write', (_event, text: string) => {
     clipboard.writeText(text ?? '');
     return true;
+  });
+
+  ipcMain.handle('window:minimize', () => {
+    mainWindow?.minimize();
+  });
+
+  ipcMain.handle('window:close', () => {
+    mainWindow?.close();
+  });
+
+  ipcMain.handle('window:set-mode', (_event, mode: WindowMode) => {
+    setWindowMode(mode);
+  });
+
+  ipcMain.handle('window:set-interactive', (_event, interactive: boolean) => {
+    setInteractive(interactive);
   });
 
   ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {
@@ -186,9 +309,12 @@ const createAction = async (action: Omit<ActionConfig, 'id'>): Promise<ActionCon
 
 const handleAppReady = async () => {
   app.setName(APP_NAME);
+  Menu.setApplicationMenu(null);
   createMainWindow();
   createTray(() => createSettingsWindow());
   registerIpcHandlers();
+
+  setWindowMode('default');
 
   if (isDev && mainWindow) {
     mainWindow.webContents.openDevTools({ mode: 'detach' });

@@ -11,3 +11,24 @@ body,
 body {
   @apply bg-slate-950 text-slate-100 font-sans;
 }
+
+body.body-transparent {
+  background: transparent;
+}
+
+.app-region-drag {
+  -webkit-app-region: drag;
+}
+
+.app-region-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.microphone-wave {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  opacity: 0;
+  transition: transform 0.2s ease, opacity 0.25s ease;
+  pointer-events: none;
+}

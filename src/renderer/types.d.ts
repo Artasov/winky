@@ -28,6 +28,13 @@ declare global {
 
   interface WinkyWindowsAPI {
     openSettings(): Promise<void>;
+    setMode(mode: 'default' | 'main'): Promise<void>;
+  }
+
+  interface WinkyWindowControlsAPI {
+    minimize(): Promise<void>;
+    close(): Promise<void>;
+    setInteractive(interactive: boolean): Promise<void>;
   }
 
   interface WinkyPreload {
@@ -36,6 +43,7 @@ declare global {
     auth: WinkyAuthAPI;
     actions: WinkyActionsAPI;
     windows: WinkyWindowsAPI;
+    windowControls: WinkyWindowControlsAPI;
   }
 
   interface Window {

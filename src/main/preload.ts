@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ActionConfig, AppConfig, AuthTokens, AuthResponse } from '@shared/types';
+import type { ActionConfig, AppConfig, AuthTokens } from '@shared/types';
 
 type UpdateConfigPayload = Partial<AppConfig>;
 type LoginResponse = {
@@ -28,7 +28,13 @@ const api = {
     create: (action: Omit<ActionConfig, 'id'>): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:create', action)
   },
   windows: {
-    openSettings: (): Promise<void> => ipcRenderer.invoke('windows:open-settings')
+    openSettings: (): Promise<void> => ipcRenderer.invoke('windows:open-settings'),
+    setMode: (mode: 'default' | 'main'): Promise<void> => ipcRenderer.invoke('window:set-mode', mode)
+  },
+  windowControls: {
+    minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
+    close: (): Promise<void> => ipcRenderer.invoke('window:close'),
+    setInteractive: (interactive: boolean): Promise<void> => ipcRenderer.invoke('window:set-interactive', interactive)
   }
 };
 

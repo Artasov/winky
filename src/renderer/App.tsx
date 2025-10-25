@@ -9,6 +9,9 @@ import AuthWindow from './windows/AuthWindow';
 import SetupWindow from './windows/SetupWindow';
 import MainWindow from './windows/MainWindow';
 import SettingsWindow from './windows/SettingsWindow';
+import TitleBar from './components/TitleBar';
+import classNames from 'classnames';
+import { resetInteractivity } from './utils/windowInteractivity';
 
 const App: React.FC = () => {
   const [config, setConfigState] = useState<AppConfig | null>(null);
@@ -17,8 +20,18 @@ const App: React.FC = () => {
   const [preloadError, setPreloadError] = useState<string | null>(() =>
     typeof window !== 'undefined' && window.winky ? null : 'Preload-скрипт не загружен.'
   );
+  const [windowKind] = useState<'main' | 'settings'>(() => {
+    if (typeof window === 'undefined') {
+      return 'main';
+    }
+    const params = new URLSearchParams(window.location.search);
+    return (params.get('window') as 'settings') ?? 'main';
+  });
   const navigate = useNavigate();
   const location = useLocation();
+  const isMainRoute = location.pathname === '/main';
+  const isSettingsRoute = location.pathname === '/settings';
+  const isAuxWindow = windowKind !== 'main';
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}`;
@@ -62,6 +75,10 @@ const App: React.FC = () => {
 
   const handleNavigation = useCallback(
     (currentConfig: AppConfig, currentPath: string) => {
+      if (isAuxWindow) {
+        return;
+      }
+
       if (currentPath === '/settings') {
         return;
       }
@@ -86,8 +103,53 @@ const App: React.FC = () => {
         navigate('/main');
       }
     },
-    [navigate]
+    [navigate, isAuxWindow]
   );
+
+  useEffect(() => {
+    if (!isAuxWindow && window.winky?.windows?.setMode) {
+      window.winky.windows.setMode(isMainRoute ? 'main' : 'default').catch((error) => {
+        console.error('[App] Не удалось изменить режим окна', error);
+      });
+    }
+
+    if (typeof document !== 'undefined') {
+      if (isMainRoute) {
+        document.body.classList.add('body-transparent');
+      } else {
+        document.body.classList.remove('body-transparent');
+      }
+    }
+  }, [isAuxWindow, isMainRoute]);
+
+  useEffect(() => {
+    if (isAuxWindow || !window.winky?.windowControls?.setInteractive) {
+      return;
+    }
+
+    resetInteractivity();
+
+    if (isMainRoute) {
+      window.winky.windowControls
+        .setInteractive(false)
+        .catch((error) => console.error('[App] Не удалось включить кликабельность по умолчанию', error));
+    } else {
+      window.winky.windowControls
+        .setInteractive(true)
+        .catch((error) => console.error('[App] Не удалось отключить click-through режим', error));
+    }
+  }, [isAuxWindow, isMainRoute]);
+
+  useEffect(() => {
+    if (!isAuxWindow || !window.winky?.windowControls?.setInteractive) {
+      return;
+    }
+
+    resetInteractivity();
+    window.winky.windowControls
+      .setInteractive(true)
+      .catch((error) => console.error('[App] Не удалось активировать режим взаимодействия для дополнительного окна', error));
+  }, [isAuxWindow]);
 
   useEffect(() => {
     const load = async () => {
@@ -142,14 +204,22 @@ const App: React.FC = () => {
   return (
     <ToastContext.Provider value={toastContextValue}>
       <ConfigContext.Provider value={configContextValue}>
-        <div className="flex min-h-full flex-col bg-slate-950 text-slate-100">
-          <Routes>
-            <Route path="/" element={<WelcomeWindow />} />
-            <Route path="/auth" element={<AuthWindow />} />
-            <Route path="/setup" element={<SetupWindow />} />
-            <Route path="/main" element={<MainWindow />} />
-            <Route path="/settings" element={<SettingsWindow />} />
-          </Routes>
+        <div
+          className={classNames('flex min-h-full flex-col', {
+            'bg-slate-950 text-slate-100': !isMainRoute,
+            'bg-transparent text-white': isMainRoute
+          })}
+        >
+          {!isMainRoute && <TitleBar showSettingsButton={!isSettingsRoute} />}
+          <div className={classNames('flex-1', { 'flex items-stretch justify-center': !isMainRoute })}>
+            <Routes>
+              <Route path="/" element={<WelcomeWindow />} />
+              <Route path="/auth" element={<AuthWindow />} />
+              <Route path="/setup" element={<SetupWindow />} />
+              <Route path="/main" element={<MainWindow />} />
+              <Route path="/settings" element={<SettingsWindow />} />
+            </Routes>
+          </div>
         </div>
         <Toast toasts={toasts} onDismiss={dismissToast} />
       </ConfigContext.Provider>

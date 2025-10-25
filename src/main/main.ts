@@ -31,7 +31,7 @@ const rendererPath = path.resolve(__dirname, '../renderer/index.html');
 type WindowMode = 'default' | 'main';
 
 const DEFAULT_BOUNDS = { width: 960, height: 640 };
-const MAIN_BOUNDS = { width: 220, height: 220 };
+const MAIN_BOUNDS = { width: 100, height: 130 };
 
 let currentWindowMode: WindowMode | null = null;
 let micWindow: BrowserWindow | null = null;
@@ -105,6 +105,27 @@ const createMicWindow = () => {
   micWindow.setMenuBarVisibility(false);
   micWindow.setAlwaysOnTop(true, 'screen-saver');
   micWindow.setFocusable(true);
+  
+  // Определяем минимальную интерактивную область
+  // Простая форма без сложных округлений
+  if (typeof micWindow.setShape === 'function') {
+    micWindow.setShape([
+      // Полоска для перетаскивания (верх, узкая)
+      {
+        x: 20,
+        y: 0,
+        width: 60,
+        height: 28
+      },
+      // Квадрат для микрофона (центр, увеличенный чтобы не обрезать низ)
+      {
+        x: 5,
+        y: 32,
+        width: 90,
+        height: 95
+      }
+    ]);
+  }
 
   if (isDev) {
     void micWindow.loadURL('http://localhost:5173/?window=mic#/main');

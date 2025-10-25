@@ -232,56 +232,52 @@ const MainWindow: React.FC = () => {
   };
 
   const normalizedVolume = Math.min(volume * 2.5, 1);
-  const displayedActions = isRecording ? actions : [];
+  // Не показываем действия в компактном окне - они не поместятся
+  const displayedActions: ActionConfig[] = [];
 
   return (
-    <div className="app-region-drag relative flex h-full w-full items-center justify-center">
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        {[3, 2, 1].map((multiplier) => (
-          <div
-            key={multiplier}
-            className="microphone-wave"
-            style={{
-              width: `${70 + multiplier * 26}px`,
-              height: `${70 + multiplier * 26}px`,
-              opacity: isRecording ? Math.max(0, normalizedVolume - (multiplier - 1) * 0.12) : 0,
-              transform: `scale(${isRecording ? 1 + normalizedVolume * 0.35 : 0.8})`
-            }}
-          />
-        ))}
+    <div className="pointer-events-none relative flex h-full w-full flex-col items-center">
+      {/* Перетаскиваемая область с визуальными полосками */}
+      <div className="app-region-drag pointer-events-auto flex h-8 w-full items-center justify-center gap-1.5 py-2">
+        <div className="h-1 w-6 rounded-full bg-white/30"></div>
+        <div className="h-1 w-6 rounded-full bg-white/30"></div>
       </div>
-      <MicrophoneButton
-        isRecording={isRecording}
-        onToggle={handleMicrophoneToggle}
-        disabled={processing}
-        size={isRecording ? 'compact' : 'default'}
-      />
+      
+      {/* Контейнер микрофона */}
+      <div className="pointer-events-none relative flex flex-1 items-center justify-center">
+        <MicrophoneButton
+          isRecording={isRecording}
+          onToggle={handleMicrophoneToggle}
+          disabled={processing}
+          size={isRecording ? 'compact' : 'default'}
+        />
 
-      {displayedActions.length > 0 && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          {displayedActions.map((action, index) => {
-            const angle = (360 / displayedActions.length) * index;
-            const radius = 72;
-            return (
-              <div
-                key={action.id}
-                className="pointer-events-auto absolute left-1/2 top-1/2 app-region-no-drag"
-                style={{
-                  transform: `translate(-50%, -50%) rotate(${angle}deg) translate(${radius}px) rotate(-${angle}deg)`
-                }}
-              >
-                <ActionButton
-                  action={action}
-                  onClick={handleActionClick}
-                  disabled={processing}
-                  isActive={activeActionId === action.id}
-                  variant="floating"
-                />
-              </div>
-            );
-          })}
-        </div>
-      )}
+        {displayedActions.length > 0 && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            {displayedActions.map((action, index) => {
+              const angle = (360 / displayedActions.length) * index;
+              const radius = 38; // Компактный радиус для маленького окна
+              return (
+                <div
+                  key={action.id}
+                  className="pointer-events-auto absolute left-1/2 top-1/2"
+                  style={{
+                    transform: `translate(-50%, -50%) rotate(${angle}deg) translate(${radius}px) rotate(-${angle}deg)`
+                  }}
+                >
+                  <ActionButton
+                    action={action}
+                    onClick={handleActionClick}
+                    disabled={processing}
+                    isActive={activeActionId === action.id}
+                    variant="floating"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

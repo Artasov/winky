@@ -9,8 +9,8 @@ interface MicrophoneButtonProps {
 }
 
 const sizeClasses: Record<NonNullable<MicrophoneButtonProps['size']>, string> = {
-  default: 'h-24 w-24',
-  compact: 'h-16 w-16'
+  default: 'h-20 w-20',
+  compact: 'h-14 w-14'
 };
 
 const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onToggle, disabled, size = 'default' }) => {
@@ -26,7 +26,7 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
       disabled={disabled}
       onClick={handleClick}
       className={classNames(
-        'app-region-no-drag',
+        'app-region-no-drag pointer-events-auto relative z-10',
         'flex items-center justify-center rounded-full text-3xl shadow-xl transition-transform focus:outline-none focus:ring-2 focus:ring-offset-2',
         sizeClasses[size],
         isRecording

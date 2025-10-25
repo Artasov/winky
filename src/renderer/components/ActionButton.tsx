@@ -13,9 +13,9 @@ interface ActionButtonProps {
 const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, isActive, variant = 'default' }) => {
   const baseClasses =
     variant === 'floating'
-      ? 'pointer-events-auto flex h-14 w-14 flex-col items-center justify-center gap-1 rounded-full border border-white/20 bg-white/10 text-[11px] font-semibold uppercase tracking-wide text-white transition hover:bg-white/20'
+      ? 'pointer-events-auto flex h-11 w-11 flex-col items-center justify-center gap-0.5 rounded-full border border-white/20 bg-white/10 text-[9px] font-semibold uppercase tracking-wide text-white transition hover:bg-white/20'
       : 'pointer-events-auto flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white transition hover:bg-white/10';
-  const iconClass = variant === 'floating' ? 'text-lg' : 'text-2xl';
+  const iconClass = variant === 'floating' ? 'text-base' : 'text-2xl';
 
   return (
     <button

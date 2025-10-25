@@ -17,6 +17,15 @@ const rendererPath = path.resolve(__dirname, '../renderer/index.html');
 
 let micWindow: BrowserWindow | null = null;
 
+const broadcastConfigUpdate = async () => {
+    const config = await getConfig();
+    BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) {
+            win.webContents.send('config:updated', config);
+        }
+    });
+};
+
 const setMicInteractive = (interactive: boolean) => {
     if (!micWindow || micWindow.isDestroyed()) {
         return;
@@ -138,15 +147,21 @@ const registerIpcHandlers = () => {
     ipcMain.handle('config:get', async () => getConfig());
 
     ipcMain.handle('config:update', async (_event, partialConfig: Partial<AppConfig>) => {
-        return updateConfig(partialConfig);
+        const updated = await updateConfig(partialConfig);
+        await broadcastConfigUpdate();
+        return updated;
     });
 
     ipcMain.handle('config:setAuth', async (_event, tokens: AuthTokens) => {
-        return setAuthTokens(tokens);
+        const updated = await setAuthTokens(tokens);
+        await broadcastConfigUpdate();
+        return updated;
     });
 
     ipcMain.handle('config:reset', async () => {
-        return resetConfig();
+        const reset = await resetConfig();
+        await broadcastConfigUpdate();
+        return reset;
     });
 
     ipcMain.handle('config:path', async () => getConfigFilePath());
@@ -259,6 +274,7 @@ const fetchActions = async (): Promise<ActionConfig[]> => {
     const actions = data.results || [];
     console.debug('[main] actions:fetch success', {count: actions.length});
     await setActions(actions);
+    await broadcastConfigUpdate();
     return actions;
 };
 
@@ -274,6 +290,7 @@ const createAction = async (action: { name: string; prompt: string; icon: string
     const updated = [...config.actions.filter(({id}) => id !== data.id), data];
     await setActions(updated);
     console.debug('[main] actions:create success', {actionId: data.id});
+    await broadcastConfigUpdate();
     return updated;
 };
 
@@ -289,6 +306,7 @@ const deleteAction = async (actionId: string): Promise<ActionConfig[]> => {
     const updated = config.actions.filter(({id}) => id !== actionId);
     await setActions(updated);
     console.debug('[main] actions:delete success', {actionId});
+    await broadcastConfigUpdate();
     return updated;
 };
 

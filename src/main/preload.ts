@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import type { ActionConfig, ActionIcon, AppConfig, AuthTokens, WinkyProfile } from '@shared/types';
 
 type UpdateConfigPayload = Partial<AppConfig>;
@@ -49,7 +49,16 @@ const api = {
     update: (payload: UpdateConfigPayload): Promise<AppConfig> => ipcRenderer.invoke('config:update', payload),
     setAuth: (tokens: AuthTokens): Promise<AppConfig> => ipcRenderer.invoke('config:setAuth', tokens),
     reset: (): Promise<AppConfig> => ipcRenderer.invoke('config:reset'),
-    path: (): Promise<string> => ipcRenderer.invoke('config:path')
+    path: (): Promise<string> => ipcRenderer.invoke('config:path'),
+    subscribe: (listener: (config: AppConfig) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, updated: AppConfig) => {
+        listener(updated);
+      };
+      ipcRenderer.on('config:updated', handler);
+      return () => {
+        ipcRenderer.removeListener('config:updated', handler);
+      };
+    }
   },
   clipboard: {
     writeText: (text: string): Promise<boolean> => ipcRenderer.invoke('clipboard:write', text)

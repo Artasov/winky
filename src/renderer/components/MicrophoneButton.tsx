@@ -153,7 +153,7 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
             : 'bg-emerald-600 text-white hover:bg-emerald-500',
           disabled && 'opacity-60',
           isRecording ? 'scale-95' : 'scale-100',
-          disabled ? 'cursor-not-allowed' : 'cursor-pointer'
+          disabled && 'cursor-not-allowed'
         )}
       >
         {isRecording ? (

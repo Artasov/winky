@@ -126,6 +126,21 @@ const App: React.FC = () => {
   }, [isMicWindow]);
 
   useEffect(() => {
+    const subscribe = window.winky?.config?.subscribe;
+    if (!subscribe) {
+      return;
+    }
+    const unsubscribe = subscribe((nextConfig) => {
+      setConfigState(nextConfig);
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const load = async () => {
       try {
         await refreshConfig();

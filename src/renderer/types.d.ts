@@ -7,6 +7,7 @@ declare global {
     setAuth(tokens: AuthTokens): Promise<AppConfig>;
     reset(): Promise<AppConfig>;
     path(): Promise<string>;
+    subscribe?(listener: (config: AppConfig) => void): () => void;
   }
 
   interface WinkyClipboardAPI {

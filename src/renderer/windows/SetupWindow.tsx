@@ -1,6 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LLM_MODES, SPEECH_MODES } from '@shared/constants';
+import {
+  LLM_API_MODELS,
+  LLM_LOCAL_MODELS,
+  LLM_MODES,
+  SPEECH_API_MODELS,
+  SPEECH_LOCAL_MODELS,
+  SPEECH_MODES
+} from '@shared/constants';
+import type { LLMModel, SpeechModel } from '@shared/types';
 import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 
@@ -10,13 +18,52 @@ const SetupWindow: React.FC = () => {
   const navigate = useNavigate();
 
   const [speechMode, setSpeechMode] = useState(config?.speech.mode ?? SPEECH_MODES.API);
+  const [speechModel, setSpeechModel] = useState<SpeechModel>(
+    (config?.speech.model as SpeechModel) ??
+      (config?.speech.mode === SPEECH_MODES.LOCAL ? (SPEECH_LOCAL_MODELS[0] as SpeechModel) : (SPEECH_API_MODELS[0] as SpeechModel))
+  );
   const [llmMode, setLlmMode] = useState(config?.llm.mode ?? LLM_MODES.API);
+  const [llmModel, setLlmModel] = useState<LLMModel>(
+    (config?.llm.model as LLMModel) ??
+      (config?.llm.mode === LLM_MODES.LOCAL ? (LLM_LOCAL_MODELS[0] as LLMModel) : (LLM_API_MODELS[0] as LLMModel))
+  );
   const [openaiKey, setOpenaiKey] = useState(config?.apiKeys.openai ?? '');
   const [googleKey, setGoogleKey] = useState(config?.apiKeys.google ?? '');
   const [saving, setSaving] = useState(false);
 
   const requiresOpenAIKey = useMemo(() => llmMode === LLM_MODES.API, [llmMode]);
   const requiresGoogleKey = useMemo(() => speechMode === SPEECH_MODES.API, [speechMode]);
+
+  const speechModelOptions = useMemo<SpeechModel[]>(
+    () => [...(speechMode === SPEECH_MODES.API ? SPEECH_API_MODELS : SPEECH_LOCAL_MODELS)] as SpeechModel[],
+    [speechMode]
+  );
+
+  const llmModelOptions = useMemo<LLMModel[]>(
+    () => [...(llmMode === LLM_MODES.API ? LLM_API_MODELS : LLM_LOCAL_MODELS)] as LLMModel[],
+    [llmMode]
+  );
+
+  useEffect(() => {
+    if (!speechModelOptions.includes(speechModel)) {
+      setSpeechModel(speechModelOptions[0]);
+    }
+  }, [speechModelOptions, speechModel]);
+
+  useEffect(() => {
+    if (!llmModelOptions.includes(llmModel)) {
+      setLlmModel(llmModelOptions[0]);
+    }
+  }, [llmModelOptions, llmModel]);
+
+  const formatLabel = (value: string) =>
+    value
+      .replace(/[:]/g, ' ')
+      .replace(/-/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -38,8 +85,8 @@ const SetupWindow: React.FC = () => {
     try {
       const updated = await updateConfig({
         setupCompleted: true,
-        speech: { mode: speechMode },
-        llm: { mode: llmMode },
+        speech: { mode: speechMode, model: speechModel },
+        llm: { mode: llmMode, model: llmModel },
         apiKeys: { openai: openaiKey, google: googleKey }
       });
       showToast('Настройки сохранены', 'success');
@@ -98,6 +145,22 @@ const SetupWindow: React.FC = () => {
               Работать локально
             </label>
           </div>
+          <div className="mt-4">
+            <label className="flex flex-col gap-2 text-sm text-slate-300">
+              Модель транскрибации
+              <select
+                value={speechModel}
+                onChange={(event) => setSpeechModel(event.target.value as SpeechModel)}
+                className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+              >
+                {speechModelOptions.map((model) => (
+                  <option key={model} value={model}>
+                    {formatLabel(model)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           {requiresGoogleKey && (
             <div className="mt-4">
               <label className="flex flex-col gap-2 text-sm text-slate-300">
@@ -138,6 +201,22 @@ const SetupWindow: React.FC = () => {
                 className="text-emerald-500 focus:ring-emerald-400"
               />
               Работать локально
+            </label>
+          </div>
+          <div className="mt-4">
+            <label className="flex flex-col gap-2 text-sm text-slate-300">
+              Модель LLM
+              <select
+                value={llmModel}
+                onChange={(event) => setLlmModel(event.target.value as LLMModel)}
+                className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+              >
+                {llmModelOptions.map((model) => (
+                  <option key={model} value={model}>
+                    {formatLabel(model)}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
           {requiresOpenAIKey && (

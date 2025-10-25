@@ -1,12 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
+import { LLM_API_MODELS, LLM_LOCAL_MODELS, LLM_MODES, SPEECH_API_MODELS, SPEECH_LOCAL_MODELS, SPEECH_MODES } from '@shared/constants';
+import type { LLMModel, LLMMode, SpeechModel, SpeechMode } from '@shared/types';
 
 const SettingsPage: React.FC = () => {
   const { config, updateConfig } = useConfig();
   const { showToast } = useToast();
   const [openaiKey, setOpenaiKey] = useState('');
   const [googleKey, setGoogleKey] = useState('');
+  const [speechMode, setSpeechMode] = useState<SpeechMode>(SPEECH_MODES.API);
+  const [speechModel, setSpeechModel] = useState<SpeechModel>(SPEECH_API_MODELS[0]);
+  const [llmMode, setLlmMode] = useState<LLMMode>(LLM_MODES.API);
+  const [llmModel, setLlmModel] = useState<LLMModel>(LLM_API_MODELS[0]);
   const [saving, setSaving] = useState(false);
 
   const isAuthorized = Boolean(config?.auth.accessToken);
@@ -15,8 +21,43 @@ const SettingsPage: React.FC = () => {
     if (config) {
       setOpenaiKey(config.apiKeys.openai ?? '');
       setGoogleKey(config.apiKeys.google ?? '');
+      setSpeechMode(config.speech.mode);
+      setSpeechModel(config.speech.model);
+      setLlmMode(config.llm.mode);
+      setLlmModel(config.llm.model);
     }
   }, [config]);
+
+  const speechModelOptions = useMemo<SpeechModel[]>(() => {
+    const base = speechMode === SPEECH_MODES.API ? SPEECH_API_MODELS : SPEECH_LOCAL_MODELS;
+    return [...base] as SpeechModel[];
+  }, [speechMode]);
+
+  const llmModelOptions = useMemo<LLMModel[]>(() => {
+    const base = llmMode === LLM_MODES.API ? LLM_API_MODELS : LLM_LOCAL_MODELS;
+    return [...base] as LLMModel[];
+  }, [llmMode]);
+
+  useEffect(() => {
+    if (!speechModelOptions.includes(speechModel)) {
+      setSpeechModel(speechModelOptions[0] as SpeechModel);
+    }
+  }, [speechModelOptions, speechModel]);
+
+  useEffect(() => {
+    if (!llmModelOptions.includes(llmModel)) {
+      setLlmModel(llmModelOptions[0] as LLMModel);
+    }
+  }, [llmModelOptions, llmModel]);
+
+  const formatLabel = (value: string) =>
+    value
+      .replace(/[:]/g, ' ')
+      .replace(/-/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -26,6 +67,14 @@ const SettingsPage: React.FC = () => {
         apiKeys: {
           openai: openaiKey.trim(),
           google: googleKey.trim()
+        },
+        speech: {
+          mode: speechMode,
+          model: speechModel
+        },
+        llm: {
+          mode: llmMode,
+          model: llmModel
         }
       });
       showToast('Ключи сохранены.', 'success');
@@ -54,35 +103,97 @@ const SettingsPage: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6 rounded-2xl border border-white/10 bg-white/5 p-6">
-        <h2 className="text-lg font-semibold text-white">API ключи</h2>
-        <p className="text-sm text-slate-400">
-          Эти ключи используются для распознавания речи (Google) и работы с LLM (OpenAI). Оставьте поле пустым, если
-          планируете работать в локальном режиме.
-        </p>
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold text-white">Режимы и модели</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-200" htmlFor="speech-mode">Транскрибация</label>
+              <select
+                id="speech-mode"
+                value={speechMode}
+                onChange={(event) => setSpeechMode(event.target.value as SpeechMode)}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/50"
+              >
+                <option value={SPEECH_MODES.API}>API</option>
+                <option value={SPEECH_MODES.LOCAL}>Local</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-200" htmlFor="speech-model">Модель транскрибации</label>
+              <select
+                id="speech-model"
+                value={speechModel}
+                onChange={(event) => setSpeechModel(event.target.value as SpeechModel)}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/50"
+              >
+                {speechModelOptions.map((model) => (
+                  <option key={model} value={model}>
+                    {formatLabel(model)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-200" htmlFor="llm-mode">LLM процессинг</label>
+              <select
+                id="llm-mode"
+                value={llmMode}
+                onChange={(event) => setLlmMode(event.target.value as LLMMode)}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/50"
+              >
+                <option value={LLM_MODES.API}>API</option>
+                <option value={LLM_MODES.LOCAL}>Local</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-200" htmlFor="llm-model">Модель LLM</label>
+              <select
+                id="llm-model"
+                value={llmModel}
+                onChange={(event) => setLlmModel(event.target.value as LLMModel)}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/50"
+              >
+                {llmModelOptions.map((model) => (
+                  <option key={model} value={model}>
+                    {formatLabel(model)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
 
-        <label className="flex flex-col gap-2 text-sm text-slate-200" htmlFor="google-key">
-          Google AI Key
-          <input
-            id="google-key"
-            type="text"
-            value={googleKey}
-            onChange={(event) => setGoogleKey(event.target.value)}
-            className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
-            placeholder="AIza..."
-          />
-        </label>
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold text-white">API ключи</h2>
+          <p className="text-sm text-slate-400">
+            Эти ключи используются для распознавания речи (Google) и работы с LLM (OpenAI). Оставьте поле пустым, если
+            планируете работать в локальном режиме.
+          </p>
 
-        <label className="flex flex-col gap-2 text-sm text-slate-200" htmlFor="openai-key">
-          OpenAI API Key
-          <input
-            id="openai-key"
-            type="text"
-            value={openaiKey}
-            onChange={(event) => setOpenaiKey(event.target.value)}
-            className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
-            placeholder="sk-..."
-          />
-        </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-200" htmlFor="google-key">
+            Google AI Key
+            <input
+              id="google-key"
+              type="text"
+              value={googleKey}
+              onChange={(event) => setGoogleKey(event.target.value)}
+              className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
+              placeholder="AIza..."
+            />
+          </label>
+
+          <label className="flex flex-col gap-2 text-sm text-slate-200" htmlFor="openai-key">
+            OpenAI API Key
+            <input
+              id="openai-key"
+              type="text"
+              value={openaiKey}
+              onChange={(event) => setOpenaiKey(event.target.value)}
+              className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
+              placeholder="sk-..."
+            />
+          </label>
+        </section>
 
         <div className="flex justify-end">
           <button

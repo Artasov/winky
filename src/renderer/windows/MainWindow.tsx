@@ -5,12 +5,10 @@ import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 import MicrophoneButton from '../components/MicrophoneButton';
 import ActionButton from '../components/ActionButton';
-import { ApiSpeechService } from '@main/services/speech/ApiSpeechService';
-import { LocalSpeechService } from '@main/services/speech/LocalSpeechService';
 import type { BaseSpeechService } from '@main/services/speech/BaseSpeechService';
-import { ApiLLMService } from '@main/services/llm/ApiLLMService';
-import { LocalLLMService } from '@main/services/llm/LocalLLMService';
 import type { BaseLLMService } from '@main/services/llm/BaseLLMService';
+import { createSpeechService } from '@main/services/speech/factory';
+import { createLLMService } from '@main/services/llm/factory';
 
 const MainWindow: React.FC = () => {
   const { config } = useConfig();
@@ -33,24 +31,18 @@ const MainWindow: React.FC = () => {
 
     const accessToken = config.auth.accessToken || undefined;
 
-    if (config.speech.mode === SPEECH_MODES.API) {
-      if (speechServiceRef.current instanceof ApiSpeechService) {
-        speechServiceRef.current.updateAccessToken(accessToken);
-      } else {
-        speechServiceRef.current = new ApiSpeechService(accessToken);
-      }
-    } else {
-      speechServiceRef.current = new LocalSpeechService();
+    try {
+      speechServiceRef.current = createSpeechService(config.speech.mode, config.speech.model, accessToken);
+    } catch (error) {
+      console.error('[MainWindow] Не удалось создать сервис распознавания', error);
+      speechServiceRef.current = null;
     }
 
-    if (config.llm.mode === LLM_MODES.API) {
-      if (llmServiceRef.current instanceof ApiLLMService) {
-        llmServiceRef.current.updateAccessToken(accessToken);
-      } else {
-        llmServiceRef.current = new ApiLLMService(accessToken);
-      }
-    } else {
-      llmServiceRef.current = new LocalLLMService();
+    try {
+      llmServiceRef.current = createLLMService(config.llm.mode, config.llm.model, accessToken);
+    } catch (error) {
+      console.error('[MainWindow] Не удалось создать LLM сервис', error);
+      llmServiceRef.current = null;
     }
   }, [config]);
 

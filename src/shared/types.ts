@@ -1,7 +1,9 @@
-import { LLM_MODES, SPEECH_MODES } from './constants';
+import { LLM_API_MODELS, LLM_LOCAL_MODELS, LLM_MODES, SPEECH_API_MODELS, SPEECH_LOCAL_MODELS, SPEECH_MODES } from './constants';
 
 export type SpeechMode = (typeof SPEECH_MODES)[keyof typeof SPEECH_MODES];
 export type LLMMode = (typeof LLM_MODES)[keyof typeof LLM_MODES];
+export type LLMModel = (typeof LLM_API_MODELS)[number] | (typeof LLM_LOCAL_MODELS)[number];
+export type SpeechModel = (typeof SPEECH_API_MODELS)[number] | (typeof SPEECH_LOCAL_MODELS)[number];
 
 export interface AuthTokens {
   accessToken: string;
@@ -31,6 +33,12 @@ export interface ActionConfig {
   icon_details: ActionIcon;
   created_at: string;
   updated_at: string;
+  preferences?: ActionPreferences;
+}
+
+export interface ActionPreferences {
+  copyResult: boolean;
+  showResult: boolean;
 }
 
 export interface WinkyProfile {
@@ -50,9 +58,11 @@ export interface AppConfig {
   setupCompleted: boolean;
   speech: {
     mode: SpeechMode;
+    model: SpeechModel;
   };
   llm: {
     mode: LLMMode;
+    model: LLMModel;
   };
   apiKeys: ApiKeys;
   actions: ActionConfig[];

@@ -1,14 +1,11 @@
-/* eslint-disable no-console */
-import type { BaseSpeechService } from './BaseSpeechService';
+import type { BaseSpeechService } from '../BaseSpeechService';
 
-export class LocalSpeechService implements BaseSpeechService {
-  private mediaRecorder: MediaRecorder | null = null;
+export abstract class RecordingSpeechBaseService implements BaseSpeechService {
+  protected stream: MediaStream | null = null;
+  protected mediaRecorder: MediaRecorder | null = null;
+  protected chunks: BlobPart[] = [];
 
-  private chunks: BlobPart[] = [];
-
-  private stream: MediaStream | null = null;
-
-  getStream() {
+  getStream(): MediaStream | null {
     return this.stream;
   }
 
@@ -61,10 +58,7 @@ export class LocalSpeechService implements BaseSpeechService {
     });
   }
 
-  async transcribe(_blob: Blob): Promise<string> {
-    // TODO: replace with actual offline transcription implementation.
-    return '[Local transcription is not implemented]';
-  }
+  abstract transcribe(blob: Blob): Promise<string>;
 }
 
-export default LocalSpeechService;
+export default RecordingSpeechBaseService;

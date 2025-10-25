@@ -1,0 +1,156 @@
+import type Store from 'electron-store';
+import type { Schema } from 'electron-store';
+import { LLM_MODES, SPEECH_MODES } from '@shared/constants';
+import type { ActionConfig, AppConfig, AuthTokens, LLMMode, SpeechMode } from '@shared/types';
+
+const DEFAULT_CONFIG: AppConfig = {
+  auth: {
+    accessToken: '',
+    refreshToken: ''
+  },
+  setupCompleted: false,
+  speech: {
+    mode: SPEECH_MODES.API
+  },
+  llm: {
+    mode: LLM_MODES.API
+  },
+  apiKeys: {
+    openai: '',
+    google: ''
+  },
+  actions: []
+};
+
+const schema: Schema<AppConfig> = {
+  auth: {
+    type: 'object',
+    properties: {
+      accessToken: { type: 'string' },
+      refreshToken: { type: 'string' }
+    },
+    required: ['accessToken', 'refreshToken']
+  },
+  setupCompleted: { type: 'boolean' },
+  speech: {
+    type: 'object',
+    properties: {
+      mode: { type: 'string', enum: Object.values(SPEECH_MODES) }
+    },
+    required: ['mode']
+  },
+  llm: {
+    type: 'object',
+    properties: {
+      mode: { type: 'string', enum: Object.values(LLM_MODES) }
+    },
+    required: ['mode']
+  },
+  apiKeys: {
+    type: 'object',
+    properties: {
+      openai: { type: 'string' },
+      google: { type: 'string' }
+    },
+    required: ['openai', 'google']
+  },
+  actions: {
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        icon: { type: 'string' },
+        name: { type: 'string' },
+        prompt: { type: 'string' }
+      },
+      required: ['id', 'icon', 'name', 'prompt']
+    }
+  }
+};
+
+type ElectronStoreInstance = Store<AppConfig>;
+type ElectronStoreModule = typeof import('electron-store');
+
+let storePromise: Promise<ElectronStoreInstance> | null = null;
+
+const cloneDefaultConfig = (): AppConfig => JSON.parse(JSON.stringify(DEFAULT_CONFIG)) as AppConfig;
+
+const loadElectronStoreModule = async (): Promise<ElectronStoreModule> => {
+  return eval('import("electron-store")') as Promise<ElectronStoreModule>;
+};
+
+const createStore = async (): Promise<ElectronStoreInstance> => {
+  const { default: StoreConstructor } = await loadElectronStoreModule();
+  return new StoreConstructor<AppConfig>({
+    name: 'config',
+    fileExtension: 'json',
+    defaults: DEFAULT_CONFIG,
+    schema,
+    clearInvalidConfig: false
+  });
+};
+
+const getStore = async (): Promise<ElectronStoreInstance> => {
+  if (!storePromise) {
+    storePromise = createStore();
+  }
+  return storePromise;
+};
+
+export const getConfig = async (): Promise<AppConfig> => {
+  const store = await getStore();
+  return store.store;
+};
+
+export const setConfig = async (config: AppConfig): Promise<AppConfig> => {
+  const store = await getStore();
+  store.store = config;
+  return store.store;
+};
+
+export const updateConfig = async (partialConfig: Partial<AppConfig>): Promise<AppConfig> => {
+  const store = await getStore();
+  store.set(partialConfig as Record<string, unknown>);
+  return store.store;
+};
+
+export const getAuthTokens = async (): Promise<AuthTokens> => {
+  const store = await getStore();
+  return store.get('auth');
+};
+
+export const setAuthTokens = async (auth: AuthTokens): Promise<AppConfig> => {
+  const store = await getStore();
+  store.set('auth', auth);
+  return store.store;
+};
+
+export const setSpeechMode = async (mode: SpeechMode): Promise<AppConfig> => {
+  const store = await getStore();
+  store.set('speech.mode', mode);
+  return store.store;
+};
+
+export const setLLMMode = async (mode: LLMMode): Promise<AppConfig> => {
+  const store = await getStore();
+  store.set('llm.mode', mode);
+  return store.store;
+};
+
+export const setActions = async (actions: ActionConfig[]): Promise<ActionConfig[]> => {
+  const store = await getStore();
+  store.set('actions', actions);
+  return store.get('actions');
+};
+
+export const getConfigFilePath = async (): Promise<string> => {
+  const store = await getStore();
+  return store.path;
+};
+
+export const resetConfig = async (): Promise<AppConfig> => {
+  const store = await getStore();
+  store.store = cloneDefaultConfig();
+  return store.store;
+};

@@ -1,0 +1,26 @@
+appId: com.winky.app
+productName: Winky
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/main/**/*
+  - dist/renderer/**/*
+  - package.json
+asar: true
+win:
+  target:
+    - nsis
+mac:
+  target:
+    - dmg
+linux:
+  target:
+    - AppImage
+    - deb
+extraMetadata:
+  main: dist/main/main.js
+npmRebuild: false
+publish:
+  provider: github
+  releaseType: draft

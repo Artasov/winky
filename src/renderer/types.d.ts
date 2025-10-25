@@ -35,6 +35,9 @@ declare global {
     minimize(): Promise<void>;
     close(): Promise<void>;
     setInteractive(interactive: boolean): Promise<void>;
+    startDrag(point: { x: number; y: number }): Promise<boolean>;
+    updateDrag(point: { x: number; y: number }): void;
+    endDrag(): Promise<void>;
   }
 
   interface WinkyPreload {

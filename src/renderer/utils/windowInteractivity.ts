@@ -55,4 +55,5 @@ export const resetInteractivity = () => {
     state.timer = null;
   }
   state.locks = 0;
+  applyInteractive(false);
 };

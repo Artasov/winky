@@ -229,8 +229,8 @@ const MainWindow: React.FC = () => {
   const displayedActions = isRecording ? actions : [];
 
   return (
-    <div className="relative flex h-full w-full items-center justify-center">
-      <div className="relative flex items-center justify-center">
+    <div className="pointer-events-none relative flex h-full w-full items-center justify-center">
+      <div className="pointer-events-auto relative flex items-center justify-center">
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           {[3, 2, 1].map((multiplier) => (
             <div

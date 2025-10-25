@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import classNames from 'classnames';
 import { acquireInteractivity, releaseInteractivity } from '../utils/windowInteractivity';
 
@@ -15,11 +15,12 @@ const sizeClasses: Record<NonNullable<MicrophoneButtonProps['size']>, string> = 
 };
 
 const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onToggle, disabled, size = 'default' }) => {
-  const [dragMode, setDragMode] = useState(false);
   const pointerDownRef = useRef(false);
   const pointerMovedRef = useRef(false);
   const initialPointRef = useRef({ x: 0, y: 0 });
   const insideRef = useRef(false);
+  const dragStartedRef = useRef(false);
+  const lastPointerScreenRef = useRef({ x: 0, y: 0 });
   useEffect(() => () => {
     releaseInteractivity(0);
   }, []);
@@ -41,10 +42,27 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
       return;
     }
 
+    acquireInteractivity();
     pointerDownRef.current = true;
     pointerMovedRef.current = false;
+    dragStartedRef.current = false;
     initialPointRef.current = { x: event.clientX, y: event.clientY };
-    setDragMode(true);
+    lastPointerScreenRef.current = { x: event.screenX, y: event.screenY };
+    window.winky?.windowControls
+      ?.startDrag({ x: event.screenX, y: event.screenY })
+      .then((started) => {
+        dragStartedRef.current = Boolean(started);
+        if (!started) {
+          releaseInteractivity(150);
+        } else {
+          window.winky?.windowControls?.updateDrag(lastPointerScreenRef.current);
+        }
+      })
+      .catch((error) => {
+        console.error('[MicrophoneButton] Не удалось начать перетаскивание окна', error);
+        dragStartedRef.current = false;
+        releaseInteractivity(150);
+      });
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
@@ -55,21 +73,34 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
 
     const dx = event.clientX - initialPointRef.current.x;
     const dy = event.clientY - initialPointRef.current.y;
-    if (Math.sqrt(dx * dx + dy * dy) > 6) {
+    if (!pointerMovedRef.current && Math.sqrt(dx * dx + dy * dy) > 4) {
       pointerMovedRef.current = true;
+    }
+
+    lastPointerScreenRef.current = { x: event.screenX, y: event.screenY };
+
+    if (dragStartedRef.current) {
+      window.winky?.windowControls?.updateDrag({ x: event.screenX, y: event.screenY });
     }
   };
 
   const finalizePointer = (shouldToggle: boolean) => {
     pointerDownRef.current = false;
-    setDragMode(false);
+
+    if (dragStartedRef.current) {
+      window.winky?.windowControls
+        ?.endDrag()
+        .catch((error) => console.error('[MicrophoneButton] Не удалось завершить перетаскивание окна', error));
+      dragStartedRef.current = false;
+    }
 
     if (shouldToggle && !disabled) {
       onToggle();
     }
 
+    releaseInteractivity(0);
     if (!insideRef.current) {
-      releaseInteractivity();
+      releaseInteractivity(0);
     }
   };
 
@@ -113,7 +144,6 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
         disabled && 'opacity-60 cursor-not-allowed',
         isRecording ? 'scale-95' : 'scale-100'
       )}
-      style={{ WebkitAppRegion: dragMode ? 'drag' : 'no-drag' }}
     >
       {isRecording ? (
         <svg viewBox="0 0 24 24" className="h-10 w-10 fill-current">

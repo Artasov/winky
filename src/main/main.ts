@@ -35,6 +35,11 @@ const MAIN_BOUNDS = { width: 280, height: 280 };
 
 let currentWindowMode: WindowMode | null = null;
 let clickThroughEnabled = false;
+const dragState = {
+  active: false,
+  offsetX: 0,
+  offsetY: 0
+};
 
 const applyClickThrough = (enabled: boolean) => {
   if (!mainWindow) {
@@ -90,6 +95,7 @@ const createMainWindow = () => {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    dragState.active = false;
   });
 
   mainWindow.once('ready-to-show', () => {
@@ -119,6 +125,7 @@ const setWindowMode = (mode: WindowMode) => {
     mainWindow.setHasShadow(false);
     mainWindow.setOpacity(1);
     applyClickThrough(true);
+    dragState.active = false;
   } else {
     applyFixedSize(mainWindow, DEFAULT_BOUNDS.width, DEFAULT_BOUNDS.height);
     mainWindow.setAlwaysOnTop(false);
@@ -130,6 +137,7 @@ const setWindowMode = (mode: WindowMode) => {
     mainWindow.setHasShadow(true);
     mainWindow.setOpacity(1);
     applyClickThrough(false);
+    dragState.active = false;
   }
 
   currentWindowMode = mode;
@@ -151,6 +159,34 @@ const setInteractive = (interactive: boolean) => {
   } else {
     applyClickThrough(true);
   }
+};
+
+const startWindowDrag = (screenX: number, screenY: number) => {
+  if (!mainWindow || currentWindowMode !== 'main') {
+    return false;
+  }
+
+  applyClickThrough(false);
+  const [windowX, windowY] = mainWindow.getPosition();
+  dragState.offsetX = screenX - windowX;
+  dragState.offsetY = screenY - windowY;
+  dragState.active = true;
+  mainWindow.focus();
+  return true;
+};
+
+const updateWindowDrag = (screenX: number, screenY: number) => {
+  if (!mainWindow || !dragState.active || currentWindowMode !== 'main') {
+    return;
+  }
+
+  const targetX = Math.round(screenX - dragState.offsetX);
+  const targetY = Math.round(screenY - dragState.offsetY);
+  mainWindow.setPosition(targetX, targetY, false);
+};
+
+const endWindowDrag = () => {
+  dragState.active = false;
 };
 
 const createSettingsWindow = () => {
@@ -228,6 +264,18 @@ const registerIpcHandlers = () => {
 
   ipcMain.handle('window:set-interactive', (_event, interactive: boolean) => {
     setInteractive(interactive);
+  });
+
+  ipcMain.handle('window:start-drag', (_event, { x, y }: { x: number; y: number }) => {
+    return startWindowDrag(x, y);
+  });
+
+  ipcMain.on('window:update-drag', (_event, { x, y }: { x: number; y: number }) => {
+    updateWindowDrag(x, y);
+  });
+
+  ipcMain.handle('window:end-drag', () => {
+    endWindowDrag();
   });
 
   ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {

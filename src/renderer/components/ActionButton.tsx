@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import classNames from 'classnames';
 import type { ActionConfig } from '@shared/types';
 import { acquireInteractivity, releaseInteractivity } from '../utils/windowInteractivity';
@@ -17,6 +17,10 @@ const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, 
       ? 'flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-full border border-white/20 bg-white/10 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white/20'
       : 'flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white transition hover:bg-white/10';
   const iconClass = variant === 'floating' ? 'text-xl' : 'text-2xl';
+
+  useEffect(() => () => {
+    releaseInteractivity(0);
+  }, []);
 
   return (
     <button

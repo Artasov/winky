@@ -55,6 +55,13 @@ const MainWindow: React.FC = () => {
   }, [config]);
 
   const actions = useMemo<ActionConfig[]>(() => config?.actions ?? [], [config?.actions]);
+  const displayedActions = useMemo<ActionConfig[]>(() => {
+    if (!isRecording || actions.length === 0) {
+      return [];
+    }
+    const MAX_FLOATING_ACTIONS = 6;
+    return actions.slice(0, MAX_FLOATING_ACTIONS);
+  }, [actions, isRecording]);
 
   const startVolumeMonitor = (stream: MediaStream) => {
     stopVolumeMonitor();
@@ -232,9 +239,6 @@ const MainWindow: React.FC = () => {
   };
 
   const normalizedVolume = Math.min(volume * 2.5, 1);
-  // Не показываем действия в компактном окне - они не поместятся
-  const displayedActions: ActionConfig[] = [];
-
   return (
     <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-visible">
       {/* Волны звука вокруг микрофона */}
@@ -267,15 +271,17 @@ const MainWindow: React.FC = () => {
 
       {displayedActions.length > 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="pointer-events-none absolute h-20 w-20 rounded-full bg-rose-500/25 blur-lg" />
           {displayedActions.map((action, index) => {
-            const angle = (360 / displayedActions.length) * index;
-            const radius = 38;
+            const angleStep = 360 / displayedActions.length;
+            const angle = 90 - angleStep * index;
+            const radius = 46;
             return (
               <div
                 key={action.id}
-                className="pointer-events-auto absolute left-1/2 top-1/2"
+                className="pointer-events-auto absolute left-1/2 top-1/2 transition-transform duration-200"
                 style={{
-                  transform: `translate(-50%, -50%) rotate(${angle}deg) translate(${radius}px) rotate(-${angle}deg)`
+                  transform: `translate(-50%, -50%) rotate(${angle}deg) translate(${radius}px) rotate(${-angle}deg)`
                 }}
               >
                 <ActionButton

@@ -13,10 +13,10 @@ interface ActionButtonProps {
 const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, isActive, variant = 'default' }) => {
   const baseClasses =
     variant === 'floating'
-      ? 'pointer-events-auto flex h-11 w-11 flex-col items-center justify-center gap-0.5 rounded-full border border-white/20 bg-white/10 text-[9px] font-semibold uppercase tracking-wide text-white transition hover:bg-white/20'
+      ? 'pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-slate-900/90 text-white/80 transition hover:border-white/40 hover:text-white hover:bg-slate-900'
       : 'pointer-events-auto flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white transition hover:bg-white/10';
-  const iconClass = variant === 'floating' ? 'text-base' : 'text-2xl';
-  const iconSize = variant === 'floating' ? 16 : 32;
+  const iconClass = variant === 'floating' ? 'text-sm' : 'text-2xl';
+  const iconSize = variant === 'floating' ? 14 : 32;
 
   return (
     <button
@@ -40,9 +40,10 @@ const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, 
           width={iconSize}
           height={iconSize}
           aria-hidden="true"
+          className={variant === 'floating' ? 'h-4 w-4 filter brightness-0 invert' : undefined}
         />
       ) : (
-        <span className={iconClass} aria-hidden="true">⭐</span>
+        <span className={classNames(iconClass, variant === 'floating' ? 'text-white' : undefined)} aria-hidden="true">⭐</span>
       )}
       {variant === 'floating' ? (
         <span className="sr-only">{action.name}</span>

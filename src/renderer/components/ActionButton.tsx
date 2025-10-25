@@ -16,6 +16,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, 
       ? 'pointer-events-auto flex h-11 w-11 flex-col items-center justify-center gap-0.5 rounded-full border border-white/20 bg-white/10 text-[9px] font-semibold uppercase tracking-wide text-white transition hover:bg-white/20'
       : 'pointer-events-auto flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white transition hover:bg-white/10';
   const iconClass = variant === 'floating' ? 'text-base' : 'text-2xl';
+  const iconSize = variant === 'floating' ? 16 : 32;
 
   return (
     <button
@@ -32,9 +33,17 @@ const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, 
       )}
       title={action.name}
     >
-      <span className={iconClass} aria-hidden="true">
-        {action.icon || '⭐'}
-      </span>
+      {action.icon_details?.svg ? (
+        <img 
+          src={action.icon_details.svg}
+          alt=""
+          width={iconSize}
+          height={iconSize}
+          aria-hidden="true"
+        />
+      ) : (
+        <span className={iconClass} aria-hidden="true">⭐</span>
+      )}
       {variant === 'floating' ? (
         <span className="sr-only">{action.name}</span>
       ) : (

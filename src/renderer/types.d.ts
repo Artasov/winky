@@ -1,4 +1,4 @@
-import type { ActionConfig, AppConfig, AuthTokens } from '@shared/types';
+import type { ActionConfig, ActionIcon, AppConfig, AuthTokens, WinkyProfile } from '@shared/types';
 
 declare global {
   interface WinkyConfigAPI {
@@ -23,7 +23,16 @@ declare global {
 
   interface WinkyActionsAPI {
     fetch(): Promise<ActionConfig[]>;
-    create(action: Omit<ActionConfig, 'id'>): Promise<ActionConfig[]>;
+    create(action: { name: string; prompt: string; icon: string }): Promise<ActionConfig[]>;
+    delete(actionId: string): Promise<ActionConfig[]>;
+  }
+
+  interface WinkyIconsAPI {
+    fetch(): Promise<ActionIcon[]>;
+  }
+
+  interface WinkyProfileAPI {
+    fetch(): Promise<WinkyProfile>;
   }
 
   interface WinkyWindowsAPI {
@@ -46,6 +55,8 @@ declare global {
     clipboard: WinkyClipboardAPI;
     auth: WinkyAuthAPI;
     actions: WinkyActionsAPI;
+    icons: WinkyIconsAPI;
+    profile: WinkyProfileAPI;
     windows: WinkyWindowsAPI;
     windowControls: WinkyWindowControlsAPI;
     mic: WinkyMicAPI;

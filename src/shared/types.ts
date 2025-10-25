@@ -14,11 +14,30 @@ export interface AuthResponse {
   user?: Record<string, unknown>;
 }
 
+export interface ActionIcon {
+  id: string;
+  name: string;
+  svg: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ActionConfig {
   id: string;
-  icon: string;
+  profile: string;
   name: string;
   prompt: string;
+  icon: string;
+  icon_details: ActionIcon;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WinkyProfile {
+  id: string;
+  user: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ApiKeys {

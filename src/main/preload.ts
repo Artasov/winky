@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ActionConfig, AppConfig, AuthTokens } from '@shared/types';
+import type { ActionConfig, ActionIcon, AppConfig, AuthTokens, WinkyProfile } from '@shared/types';
 
 type UpdateConfigPayload = Partial<AppConfig>;
 type LoginResponse = {
@@ -7,6 +7,41 @@ type LoginResponse = {
   user?: Record<string, unknown>;
   config: AppConfig;
 };
+
+// Слушаем логи API из main process и выводим в консоль браузера
+ipcRenderer.on('api-log', (_event, { type, data }) => {
+  switch (type) {
+    case 'api-request':
+      console.log(`%cAPI → %c[${data.method}] %c${data.url}`, 
+        'color: #10b981; font-weight: bold',
+        'color: #3b82f6; font-weight: bold',
+        'color: #8b5cf6'
+      );
+      if (data.data) {
+        console.log('  📤 Request data:', data.data);
+      }
+      break;
+    case 'api-response':
+      console.log(`%cAPI ← %c[${data.method}] %c${data.url} %c[${data.status}]`, 
+        'color: #10b981; font-weight: bold',
+        'color: #3b82f6; font-weight: bold',
+        'color: #8b5cf6',
+        'color: #22c55e; font-weight: bold'
+      );
+      console.log('  📥 Response data:', data.data);
+      break;
+    case 'api-error':
+    case 'api-response-error':
+      console.error(`%cAPI ← %c[${data.method}] %c${data.url} %c[${data.status}]`, 
+        'color: #ef4444; font-weight: bold',
+        'color: #3b82f6; font-weight: bold',
+        'color: #8b5cf6',
+        'color: #ef4444; font-weight: bold'
+      );
+      console.error('  ❌ Error:', data.error);
+      break;
+  }
+});
 
 const api = {
   config: {
@@ -25,7 +60,14 @@ const api = {
   },
   actions: {
     fetch: (): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:fetch'),
-    create: (action: Omit<ActionConfig, 'id'>): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:create', action)
+    create: (action: { name: string; prompt: string; icon: string }): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:create', action),
+    delete: (actionId: string): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:delete', actionId)
+  },
+  icons: {
+    fetch: (): Promise<ActionIcon[]> => ipcRenderer.invoke('icons:fetch')
+  },
+  profile: {
+    fetch: (): Promise<WinkyProfile> => ipcRenderer.invoke('profile:fetch')
   },
   windows: {
     openSettings: (): Promise<void> => ipcRenderer.invoke('windows:open-settings'),

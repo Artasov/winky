@@ -3,8 +3,8 @@ import path from 'path';
 import axios from 'axios';
 import {createTray, destroyTray} from './tray';
 import {getConfig, getConfigFilePath, resetConfig, setActions, setAuthTokens, updateConfig} from './config';
-import {ACTIONS_CREATE_ENDPOINT, ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME} from '@shared/constants';
-import type {ActionConfig, AppConfig, AuthResponse, AuthTokens} from '@shared/types';
+import {ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME, ICONS_ENDPOINT, PROFILE_ENDPOINT} from '@shared/constants';
+import type {ActionConfig, ActionIcon, AppConfig, AuthResponse, AuthTokens, WinkyProfile} from '@shared/types';
 import {createApiClient} from '@shared/api';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -251,7 +251,10 @@ const registerIpcHandlers = () => {
     });
 
     ipcMain.handle('actions:fetch', async () => fetchActions());
-    ipcMain.handle('actions:create', async (_event, action: Omit<ActionConfig, 'id'>) => createAction(action));
+    ipcMain.handle('actions:create', async (_event, action: { name: string; prompt: string; icon: string }) => createAction(action));
+    ipcMain.handle('actions:delete', async (_event, actionId: string) => deleteAction(actionId));
+    ipcMain.handle('icons:fetch', async () => fetchIcons());
+    ipcMain.handle('profile:fetch', async () => fetchProfile());
 };
 
 const login = async ({email, password}: { email: string; password: string }) => {
@@ -294,6 +297,22 @@ const login = async ({email, password}: { email: string; password: string }) => 
     return {tokens, user: data.user, config};
 };
 
+interface PaginatedResponse<T> {
+    count: number;
+    next: string | null;
+    previous: string | null;
+    results: T[];
+}
+
+const sendLogToRenderer = (type: string, data: any) => {
+    const allWindows = BrowserWindow.getAllWindows();
+    allWindows.forEach(win => {
+        if (!win.isDestroyed()) {
+            win.webContents.send('api-log', { type, data });
+        }
+    });
+};
+
 const fetchActions = async (): Promise<ActionConfig[]> => {
     console.debug('[main] actions:fetch invoked');
     const config = await getConfig();
@@ -302,26 +321,71 @@ const fetchActions = async (): Promise<ActionConfig[]> => {
         return config.actions;
     }
 
-    const client = createApiClient(config.auth.accessToken);
-    const {data} = await client.get<ActionConfig[]>(ACTIONS_ENDPOINT);
-    console.debug('[main] actions:fetch success', {count: data.length});
-    await setActions(data);
-    return data;
+    const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
+    const {data} = await client.get<PaginatedResponse<ActionConfig>>('/winky/actions/');
+    const actions = data.results || [];
+    console.debug('[main] actions:fetch success', {count: actions.length});
+    await setActions(actions);
+    return actions;
 };
 
-const createAction = async (action: Omit<ActionConfig, 'id'>): Promise<ActionConfig[]> => {
+const createAction = async (action: { name: string; prompt: string; icon: string }): Promise<ActionConfig[]> => {
     console.debug('[main] actions:create invoked', {name: action.name});
     const config = await getConfig();
     if (!config.auth.accessToken) {
         throw new Error('Необходимо авторизоваться.');
     }
 
-    const client = createApiClient(config.auth.accessToken);
-    const {data} = await client.post<ActionConfig>(ACTIONS_CREATE_ENDPOINT, action);
+    const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
+    const {data} = await client.post<ActionConfig>('/winky/actions/', action);
     const updated = [...config.actions.filter(({id}) => id !== data.id), data];
     await setActions(updated);
     console.debug('[main] actions:create success', {actionId: data.id});
     return updated;
+};
+
+const deleteAction = async (actionId: string): Promise<ActionConfig[]> => {
+    console.debug('[main] actions:delete invoked', {actionId});
+    const config = await getConfig();
+    if (!config.auth.accessToken) {
+        throw new Error('Необходимо авторизоваться.');
+    }
+
+    const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
+    await client.delete(`/winky/actions/${actionId}/`);
+    const updated = config.actions.filter(({id}) => id !== actionId);
+    await setActions(updated);
+    console.debug('[main] actions:delete success', {actionId});
+    return updated;
+};
+
+const fetchIcons = async (): Promise<ActionIcon[]> => {
+    console.debug('[main] icons:fetch invoked');
+    const config = await getConfig();
+    if (!config.auth.accessToken) {
+        console.error('[main] icons:fetch - нет токена авторизации');
+        throw new Error('Необходимо авторизоваться.');
+    }
+
+    const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
+    console.debug('[main] icons:fetch - запрос к /winky/icons/');
+    const {data} = await client.get<PaginatedResponse<ActionIcon>>('/winky/icons/');
+    const icons = data.results || [];
+    console.debug('[main] icons:fetch success', {count: icons.length, icons});
+    return icons;
+};
+
+const fetchProfile = async (): Promise<WinkyProfile> => {
+    console.debug('[main] profile:fetch invoked');
+    const config = await getConfig();
+    if (!config.auth.accessToken) {
+        throw new Error('Необходимо авторизоваться.');
+    }
+
+    const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
+    const {data} = await client.get<WinkyProfile>('/winky/profile/');
+    console.debug('[main] profile:fetch success', {profileId: data.id});
+    return data;
 };
 
 const handleAppReady = async () => {

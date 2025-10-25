@@ -1,10 +1,12 @@
 import React from 'react';
 
 interface TitleBarProps {
-  showSettingsButton?: boolean;
+  title?: string;
+  showWinkyButton?: boolean;
+  onWinkyClick?: () => void;
 }
 
-const TitleBar: React.FC<TitleBarProps> = ({ showSettingsButton = true }) => {
+const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = false, onWinkyClick }) => {
   const handleMinimize = () => {
     window.winky?.windowControls.minimize().catch((error) => {
       console.error('[TitleBar] Не удалось свернуть окно', error);
@@ -17,23 +19,17 @@ const TitleBar: React.FC<TitleBarProps> = ({ showSettingsButton = true }) => {
     });
   };
 
-  const handleOpenSettings = () => {
-    window.winky?.windows.openSettings().catch((error) => {
-      console.error('[TitleBar] Не удалось открыть настройки', error);
-    });
-  };
-
   return (
-    <div className="app-region-drag flex h-11 items-center justify-between border-b border-white/10 bg-slate-900/80 px-4 text-xs uppercase tracking-[0.25em] text-slate-400">
-      <div className="pointer-events-none select-none font-semibold text-slate-200">Winky</div>
+    <div className="app-region-drag flex w-full h-11 items-center justify-between border-b border-white/10 bg-slate-900 px-4 text-xs uppercase tracking-[0.25em] text-slate-400 shrink-0">
+      <div className="pointer-events-none select-none font-semibold text-slate-200">{title}</div>
       <div className="app-region-no-drag flex items-center gap-3">
-        {showSettingsButton && (
+        {showWinkyButton && onWinkyClick && (
           <button
             type="button"
-            onClick={handleOpenSettings}
+            onClick={onWinkyClick}
             className="flex h-7 items-center justify-center rounded-md px-2 text-[10px] font-semibold tracking-[0.2em] text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
-            Настройки
+            Winky
           </button>
         )}
         <button

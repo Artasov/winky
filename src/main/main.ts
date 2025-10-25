@@ -15,12 +15,6 @@ let settingsWindow: BrowserWindow | null = null;
 const preloadPath = path.resolve(__dirname, 'preload.js');
 const rendererPath = path.resolve(__dirname, '../renderer/index.html');
 
-type WindowMode = 'default' | 'main';
-
-const DEFAULT_BOUNDS = {width: 960, height: 640};
-const MAIN_BOUNDS = {width: 160, height: 160};
-
-let currentWindowMode: WindowMode | null = null;
 let micWindow: BrowserWindow | null = null;
 
 const setMicInteractive = (interactive: boolean) => {
@@ -46,19 +40,16 @@ const moveMicWindow = (x: number, y: number) => {
 
 const createMainWindow = () => {
     mainWindow = new BrowserWindow({
-        width: DEFAULT_BOUNDS.width,
-        height: DEFAULT_BOUNDS.height,
-        minWidth: DEFAULT_BOUNDS.width,
-        minHeight: DEFAULT_BOUNDS.height,
-        maxWidth: DEFAULT_BOUNDS.width,
-        maxHeight: DEFAULT_BOUNDS.height,
-        resizable: false,
+        width: 960,
+        height: 640,
+        minWidth: 960,
+        minHeight: 640,
         title: APP_NAME,
         frame: false,
-        transparent: true,
         show: false,
         titleBarStyle: 'hidden',
-        backgroundColor: '#00000000',
+        transparent: false,
+        backgroundColor: '#020617',
         webPreferences: {
             preload: preloadPath,
             contextIsolation: true,
@@ -81,9 +72,7 @@ const createMainWindow = () => {
         mainWindow = null;
     });
 
-    mainWindow.once('ready-to-show', () => {
-        mainWindow?.show();
-    });
+    // Главное окно не показываем автоматически, только по требованию (клик на трей и т.д.)
 };
 
 const createMicWindow = () => {
@@ -92,12 +81,12 @@ const createMicWindow = () => {
     }
 
     micWindow = new BrowserWindow({
-        width: MAIN_BOUNDS.width,
-        height: MAIN_BOUNDS.height,
+        width: 160,
+        height: 160,
         resizable: false,
         frame: false,
         transparent: true,
-        show: false,
+        show: true,
         skipTaskbar: true,
         alwaysOnTop: true,
         backgroundColor: '#00000000',
@@ -124,10 +113,8 @@ const createMicWindow = () => {
     }
 
     micWindow.once('ready-to-show', () => {
-        if (currentWindowMode === 'main') {
-            micWindow?.show();
-            micWindow?.focus();
-        }
+        micWindow?.show();
+        micWindow?.focus();
     });
 
     micWindow.on('closed', () => {
@@ -137,66 +124,14 @@ const createMicWindow = () => {
     return micWindow;
 };
 
-const setWindowMode = (mode: WindowMode) => {
-    if (!mainWindow || currentWindowMode === mode) {
-        return;
-    }
-
-    if (mode === 'main') {
-        const mic = createMicWindow();
-        mainWindow.hide();
-        if (mic) {
-            mic.show();
-            mic.focus();
-        }
-    } else {
-        if (micWindow) {
-            micWindow.hide();
-        }
+// Показываем главное окно (для трея и т.д.)
+const showMainWindow = () => {
+    if (mainWindow) {
         mainWindow.show();
         mainWindow.focus();
-    }
-
-    currentWindowMode = mode;
-};
-
-const createSettingsWindow = () => {
-    if (settingsWindow) {
-        settingsWindow.focus();
-        return;
-    }
-
-    settingsWindow = new BrowserWindow({
-        width: 720,
-        height: 640,
-        title: `${APP_NAME} — Настройки`,
-        parent: mainWindow ?? undefined,
-        modal: false,
-        frame: false,
-        transparent: true,
-        resizable: false,
-        titleBarStyle: 'hidden',
-        backgroundColor: '#00000000',
-        webPreferences: {
-            preload: preloadPath,
-            contextIsolation: true,
-            nodeIntegration: false,
-            devTools: isDev,
-            sandbox: false
-        }
-    });
-
-    settingsWindow.setMenuBarVisibility(false);
-
-    if (isDev) {
-        void settingsWindow.loadURL('http://localhost:5173/?window=settings#/settings');
     } else {
-        void settingsWindow.loadFile(rendererPath, {hash: 'settings', search: '?window=settings'});
+        createMainWindow();
     }
-
-    settingsWindow.on('closed', () => {
-        settingsWindow = null;
-    });
 };
 
 const registerIpcHandlers = () => {
@@ -229,9 +164,7 @@ const registerIpcHandlers = () => {
         mainWindow?.close();
     });
 
-    ipcMain.handle('window:set-mode', (_event, mode: WindowMode) => {
-        setWindowMode(mode);
-    });
+    // Удалён обработчик window:set-mode, так как режимы окна больше не используются
 
     ipcMain.handle('mic:move-window', (_event, x: number, y: number) => {
         moveMicWindow(x, y);
@@ -247,7 +180,7 @@ const registerIpcHandlers = () => {
     });
 
     ipcMain.handle('windows:open-settings', () => {
-        createSettingsWindow();
+        showMainWindow();
     });
 
     ipcMain.handle('actions:fetch', async () => fetchActions());
@@ -391,14 +324,24 @@ const fetchProfile = async (): Promise<WinkyProfile> => {
 const handleAppReady = async () => {
     app.setName(APP_NAME);
     Menu.setApplicationMenu(null);
+    
+    // Создаём главное окно
     createMainWindow();
-    createTray(() => createSettingsWindow());
+    
+    // Создаём mic окно сразу
+    createMicWindow();
+    
+    // Создаём трей
+    createTray(showMainWindow);
+    
     registerIpcHandlers();
-
-    setWindowMode('default');
 
     if (isDev && mainWindow) {
         mainWindow.webContents.openDevTools({mode: 'detach'});
+    }
+    
+    if (isDev && micWindow) {
+        micWindow.webContents.openDevTools({mode: 'detach'});
     }
 
     try {

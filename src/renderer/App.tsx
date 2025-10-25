@@ -8,8 +8,12 @@ import WelcomeWindow from './windows/WelcomeWindow';
 import AuthWindow from './windows/AuthWindow';
 import SetupWindow from './windows/SetupWindow';
 import MainWindow from './windows/MainWindow';
-import SettingsWindow from './windows/SettingsWindow';
+import MePage from './windows/MePage';
+import ActionsPage from './windows/ActionsPage';
+import SettingsPage from './windows/SettingsPage';
+import InfoPage from './windows/InfoPage';
 import TitleBar from './components/TitleBar';
+import Sidebar from './components/Sidebar';
 import classNames from 'classnames';
 
 const App: React.FC = () => {
@@ -32,8 +36,6 @@ const App: React.FC = () => {
   }, []);
   const navigate = useNavigate();
   const location = useLocation();
-  const isMainRoute = location.pathname === '/main';
-  const isSettingsRoute = location.pathname === '/settings';
   const isAuxWindow = windowKind !== 'main';
   const isMicWindow = windowKind === 'mic';
 
@@ -75,52 +77,53 @@ const App: React.FC = () => {
 
   const handleNavigation = useCallback(
     (currentConfig: AppConfig, currentPath: string) => {
-      if (isAuxWindow) {
+      // Mic окно не управляет навигацией
+      if (isMicWindow) {
         return;
       }
 
-      if (currentPath === '/settings') {
-        return;
-      }
+      // Разрешённые маршруты
+      const authRoutes = ['/', '/auth'];
+      const setupRoutes = ['/setup'];
+      const appRoutes = ['/me', '/actions', '/settings', '/info'];
 
+      // Если пользователь не авторизован
       if (!currentConfig.auth.accessToken) {
-        if (currentPath === '/' || currentPath === '/auth') {
+        if (authRoutes.includes(currentPath)) {
           return;
         }
         navigate('/');
         return;
       }
 
+      // Если настройка не завершена
       if (!currentConfig.setupCompleted) {
-        if (currentPath === '/setup') {
+        if (setupRoutes.includes(currentPath)) {
           return;
         }
         navigate('/setup');
         return;
       }
 
-      if (currentPath !== '/main') {
-        navigate('/main');
+      // Пользователь авторизован и настройка завершена
+      if (appRoutes.includes(currentPath)) {
+        return;
       }
+
+      // По умолчанию переходим на /actions
+      navigate('/actions');
     },
-    [navigate, isAuxWindow]
+    [navigate, isMicWindow]
   );
 
   useEffect(() => {
-    if (!isAuxWindow && window.winky?.windows?.setMode) {
-      window.winky.windows.setMode(isMainRoute ? 'main' : 'default').catch((error) => {
-        console.error('[App] Не удалось изменить режим окна', error);
-      });
+    // Mic окно всегда прозрачное
+    if (isMicWindow && typeof document !== 'undefined') {
+      document.body.classList.add('body-transparent');
+    } else if (typeof document !== 'undefined') {
+      document.body.classList.remove('body-transparent');
     }
-
-    if (typeof document !== 'undefined') {
-      if (isMainRoute) {
-        document.body.classList.add('body-transparent');
-      } else {
-        document.body.classList.remove('body-transparent');
-      }
-    }
-  }, [isAuxWindow, isMainRoute]);
+  }, [isMicWindow]);
 
   useEffect(() => {
     const load = async () => {
@@ -158,7 +161,10 @@ const App: React.FC = () => {
       <Route path="/auth" element={<AuthWindow />} />
       <Route path="/setup" element={<SetupWindow />} />
       <Route path="/main" element={<MainWindow />} />
-      <Route path="/settings" element={<SettingsWindow />} />
+      <Route path="/me" element={<MePage />} />
+      <Route path="/actions" element={<ActionsPage />} />
+      <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/info" element={<InfoPage />} />
     </Routes>
   );
 
@@ -182,20 +188,33 @@ const App: React.FC = () => {
     );
   }
 
+  // Определяем, нужен ли Sidebar для текущего маршрута
+  const needsSidebar = config?.auth.accessToken && config?.setupCompleted && 
+                       ['/me', '/actions', '/settings', '/info'].includes(location.pathname);
+
   return (
     <ToastContext.Provider value={toastContextValue}>
       <ConfigContext.Provider value={configContextValue}>
         {isMicWindow ? (
+          // Окно с плавающим микрофоном
           <div className="flex h-full w-full items-center justify-center bg-transparent text-white">{routes}</div>
+        ) : needsSidebar ? (
+          // Главное окно с Sidebar для разделов приложения
+          <div className="fr h-full overflow-hidden bg-slate-950 text-slate-100">
+            <Sidebar />
+            <div className="fc flex-1 overflow-hidden">
+              <TitleBar />
+              <div className="flex-1 overflow-auto">{routes}</div>
+            </div>
+          </div>
         ) : (
-          <div
-            className={classNames('flex min-h-full flex-col', {
-              'bg-slate-950 text-slate-100': !isMainRoute,
-              'bg-transparent text-white': isMainRoute
-            })}
-          >
-            {!isMainRoute && <TitleBar showSettingsButton={!isSettingsRoute} />}
-            <div className={classNames('flex-1', { 'flex items-stretch justify-center': !isMainRoute })}>{routes}</div>
+          // Окна без Sidebar (welcome, auth, setup)
+          <div className="fc h-full bg-slate-950 text-slate-100">
+            <TitleBar 
+              showWinkyButton={true}
+              onWinkyClick={() => navigate('/actions')}
+            />
+            <div className="flex-1">{routes}</div>
           </div>
         )}
         {!isMicWindow && <Toast toasts={toasts} placement="top-right" />}

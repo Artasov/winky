@@ -121,19 +121,16 @@ const SettingsWindow: React.FC = () => {
 
   if (!isAuthorized) {
     return (
-      <div className="flex h-full items-center justify-center bg-slate-950 text-slate-300">
-        Авторизуйтесь, чтобы управлять действиями.
+      <div className="fcc h-full p-8">
+        <div className="text-4xl mb-4 opacity-50">⚙️</div>
+        <p className="text-slate-400">Авторизуйтесь для доступа к настройкам</p>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col gap-6 bg-slate-950 px-6 py-8 text-white">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold">Настройки</h1>
-          <p className="text-sm text-slate-300">Управляйте списком действий, доступных в главном окне.</p>
-        </div>
+    <div className="fc h-full p-8 gap-6 overflow-hidden">
+      <div className="frbe">
         <button
           type="button"
           onClick={() => setIsFormOpen((prev) => !prev)}

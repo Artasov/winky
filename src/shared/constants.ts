@@ -1,5 +1,5 @@
 export const APP_NAME = 'Winky';
-export const API_BASE_URL = 'http://localhost:8000/api/v1';
+export const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 export const API_BASE_URL_IPV4 = 'http://127.0.0.1:8000/api/v1';
 export const API_BASE_URL_IPV6 = 'http://[::1]:8000/api/v1';
 export const API_BASE_URL_FALLBACKS = [API_BASE_URL, API_BASE_URL_IPV4, API_BASE_URL_IPV6];

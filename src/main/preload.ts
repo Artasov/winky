@@ -33,11 +33,10 @@ const api = {
   },
   windowControls: {
     minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
-    close: (): Promise<void> => ipcRenderer.invoke('window:close'),
-    setInteractive: (interactive: boolean): Promise<void> => ipcRenderer.invoke('window:set-interactive', interactive),
-    startDrag: (point: { x: number; y: number }): Promise<boolean> => ipcRenderer.invoke('window:start-drag', point),
-    updateDrag: (point: { x: number; y: number }): void => ipcRenderer.send('window:update-drag', point),
-    endDrag: (): Promise<void> => ipcRenderer.invoke('window:end-drag')
+    close: (): Promise<void> => ipcRenderer.invoke('window:close')
+  },
+  mic: {
+    setInteractive: (interactive: boolean): Promise<void> => ipcRenderer.invoke('mic:set-interactive', interactive)
   }
 };
 

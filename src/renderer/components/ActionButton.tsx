@@ -1,7 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import classNames from 'classnames';
 import type { ActionConfig } from '@shared/types';
-import { acquireInteractivity, releaseInteractivity } from '../utils/windowInteractivity';
 
 interface ActionButtonProps {
   action: ActionConfig;
@@ -14,21 +13,16 @@ interface ActionButtonProps {
 const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, isActive, variant = 'default' }) => {
   const baseClasses =
     variant === 'floating'
-      ? 'flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-full border border-white/20 bg-white/10 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white/20'
-      : 'flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white transition hover:bg-white/10';
-  const iconClass = variant === 'floating' ? 'text-xl' : 'text-2xl';
-
-  useEffect(() => () => {
-    releaseInteractivity(0);
-  }, []);
+      ? 'pointer-events-auto flex h-14 w-14 flex-col items-center justify-center gap-1 rounded-full border border-white/20 bg-white/10 text-[11px] font-semibold uppercase tracking-wide text-white transition hover:bg-white/20'
+      : 'pointer-events-auto flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white transition hover:bg-white/10';
+  const iconClass = variant === 'floating' ? 'text-lg' : 'text-2xl';
 
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={() => onClick(action)}
-      onPointerEnter={() => acquireInteractivity()}
-      onPointerLeave={() => releaseInteractivity(150)}
+      data-interactive="true"
       className={classNames(
         'app-region-no-drag',
         baseClasses,

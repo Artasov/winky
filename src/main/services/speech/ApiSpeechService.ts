@@ -49,7 +49,7 @@ export class ApiSpeechService implements BaseSpeechService {
     }
 
     return new Promise<Blob>((resolve, reject) => {
-      const recorder = this.mediaRecorder;
+      const recorder = this.mediaRecorder!;
 
       recorder.onstop = () => {
         try {

@@ -9,9 +9,12 @@ export interface ToastMessage {
   message: string;
 }
 
+type ToastPlacement = 'top-right' | 'bottom-right' | 'center-right';
+
 interface ToastProps {
   toasts: ToastMessage[];
-  onDismiss: (id: string) => void;
+  placement?: ToastPlacement;
+  className?: string;
 }
 
 const variantStyles: Record<ToastType, string> = {
@@ -20,13 +23,25 @@ const variantStyles: Record<ToastType, string> = {
   info: 'bg-slate-700/90 border-slate-500'
 };
 
-const Toast: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
+const placementClass: Record<ToastPlacement, string> = {
+  'top-right': 'right-6 top-6',
+  'bottom-right': 'right-6 bottom-6',
+  'center-right': 'right-6 top-1/2 -translate-y-1/2'
+};
+
+const Toast: React.FC<ToastProps> = ({ toasts, placement = 'top-right', className }) => {
   if (toasts.length === 0) {
     return null;
   }
 
   return (
-    <div className="fixed right-6 top-6 z-50 flex w-80 flex-col gap-2">
+    <div
+      className={classNames(
+        'pointer-events-none fixed z-50 flex w-80 flex-col gap-2 transition-all duration-150',
+        placementClass[placement],
+        className
+      )}
+    >
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -36,14 +51,6 @@ const Toast: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
           )}
         >
           <div className="flex-1 text-sm font-medium leading-5">{toast.message}</div>
-          <button
-            type="button"
-            className="ml-auto text-lg leading-none text-white/80 transition hover:text-white"
-            onClick={() => onDismiss(toast.id)}
-            aria-label="Закрыть уведомление"
-          >
-            ×
-          </button>
         </div>
       ))}
     </div>

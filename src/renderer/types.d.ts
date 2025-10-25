@@ -34,10 +34,10 @@ declare global {
   interface WinkyWindowControlsAPI {
     minimize(): Promise<void>;
     close(): Promise<void>;
+  }
+
+  interface WinkyMicAPI {
     setInteractive(interactive: boolean): Promise<void>;
-    startDrag(point: { x: number; y: number }): Promise<boolean>;
-    updateDrag(point: { x: number; y: number }): void;
-    endDrag(): Promise<void>;
   }
 
   interface WinkyPreload {
@@ -47,6 +47,7 @@ declare global {
     actions: WinkyActionsAPI;
     windows: WinkyWindowsAPI;
     windowControls: WinkyWindowControlsAPI;
+    mic: WinkyMicAPI;
   }
 
   interface Window {

@@ -1,4 +1,3 @@
-import type Store from 'electron-store';
 import type { Schema } from 'electron-store';
 import { LLM_MODES, SPEECH_MODES } from '@shared/constants';
 import type { ActionConfig, AppConfig, AuthTokens, LLMMode, SpeechMode } from '@shared/types';
@@ -69,7 +68,15 @@ const schema: Schema<AppConfig> = {
   }
 };
 
-type ElectronStoreInstance = Store<AppConfig>;
+interface ElectronStoreInstance {
+  store: AppConfig;
+  set(key: string, value: unknown): void;
+  set(object: Partial<AppConfig>): void;
+  get<Key extends keyof AppConfig>(key: Key): AppConfig[Key];
+  get<T = unknown>(key: string): T;
+  path: string;
+}
+
 type ElectronStoreModule = typeof import('electron-store');
 
 let storePromise: Promise<ElectronStoreInstance> | null = null;
@@ -82,13 +89,14 @@ const loadElectronStoreModule = async (): Promise<ElectronStoreModule> => {
 
 const createStore = async (): Promise<ElectronStoreInstance> => {
   const { default: StoreConstructor } = await loadElectronStoreModule();
-  return new StoreConstructor<AppConfig>({
+  const instance = new StoreConstructor<AppConfig>({
     name: 'config',
     fileExtension: 'json',
     defaults: DEFAULT_CONFIG,
     schema,
     clearInvalidConfig: false
   });
+  return instance as unknown as ElectronStoreInstance;
 };
 
 const getStore = async (): Promise<ElectronStoreInstance> => {

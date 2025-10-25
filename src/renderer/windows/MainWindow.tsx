@@ -56,6 +56,85 @@ const MainWindow: React.FC = () => {
 
   const actions = useMemo<ActionConfig[]>(() => config?.actions ?? [], [config?.actions]);
 
+  useEffect(() => {
+    const micControls = window.winky?.mic;
+    if (!micControls?.setInteractive) {
+      return;
+    }
+
+    let lastInteractiveState = false;
+    let pointerDown = false;
+
+    const setInteractive = (value: boolean) => {
+      if (lastInteractiveState === value) {
+        return;
+      }
+      lastInteractiveState = value;
+      console.debug('[MainWindow] mic window interactive =>', value);
+      void micControls.setInteractive(value).catch(() => undefined);
+    };
+
+    const resolveInteractiveFromEvent = (event: PointerEvent | null) => {
+      if (!event) {
+        setInteractive(false);
+        return;
+      }
+
+      if (pointerDown) {
+        setInteractive(true);
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const interactive = Boolean(target?.closest('[data-interactive=\"true\"]'));
+      setInteractive(interactive);
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      const interactiveTarget = Boolean(target?.closest('[data-interactive="true"]'));
+      pointerDown = interactiveTarget && event.button === 0;
+      if (!pointerDown) {
+        setInteractive(false);
+        return;
+      }
+      resolveInteractiveFromEvent(event);
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      resolveInteractiveFromEvent(event);
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      pointerDown = false;
+      resolveInteractiveFromEvent(event);
+    };
+
+    const handleLeave = () => {
+      pointerDown = false;
+      setInteractive(false);
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+    window.addEventListener('pointerleave', handleLeave);
+    window.addEventListener('blur', handleLeave);
+
+    setInteractive(false);
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+      window.removeEventListener('pointerleave', handleLeave);
+      window.removeEventListener('blur', handleLeave);
+      void micControls.setInteractive(false).catch(() => undefined);
+    };
+  }, []);
+
   const startVolumeMonitor = (stream: MediaStream) => {
     stopVolumeMonitor();
     try {
@@ -130,6 +209,7 @@ const MainWindow: React.FC = () => {
 
     try {
       const blob = await speechServiceRef.current.stopRecording();
+      console.debug('[MainWindow] recording stopped', { blobSize: blob.size });
       setIsRecording(false);
       stopVolumeMonitor();
       return blob;
@@ -149,6 +229,7 @@ const MainWindow: React.FC = () => {
 
     try {
       const text = await speechServiceRef.current.transcribe(blob);
+      console.debug('[MainWindow] transcription completed', { characters: text.length });
       await window.winky?.clipboard.writeText(text);
       showToast('Текст скопирован.', 'success');
     } catch (error) {
@@ -171,6 +252,7 @@ const MainWindow: React.FC = () => {
       }
 
       const response = await llmServiceRef.current!.process(transcription, action.prompt);
+      console.debug('[MainWindow] action processed', { actionId: action.id, responseLength: response.length });
       await window.winky?.clipboard.writeText(response);
       showToast('Ответ скопирован.', 'success');
     } catch (error) {
@@ -182,6 +264,7 @@ const MainWindow: React.FC = () => {
   };
 
   const handleMicrophoneToggle = async () => {
+    console.debug('[MainWindow] microphone toggle requested', { isRecording, processing });
     if (!ensureSpeechService()) {
       return;
     }
@@ -189,6 +272,7 @@ const MainWindow: React.FC = () => {
     if (!isRecording) {
       try {
         const stream = await speechServiceRef.current?.startRecording();
+        console.debug('[MainWindow] recording started', { hasStream: Boolean(stream) });
         setIsRecording(true);
         setActiveActionId(null);
         if (stream) {
@@ -209,6 +293,7 @@ const MainWindow: React.FC = () => {
   };
 
   const handleActionClick = async (action: ActionConfig) => {
+    console.debug('[MainWindow] action requested', { actionId: action.id, isRecording, processing });
     if (processing || !isRecording) {
       return;
     }
@@ -230,17 +315,17 @@ const MainWindow: React.FC = () => {
 
   return (
     <div className="pointer-events-none relative flex h-full w-full items-center justify-center">
-      <div className="pointer-events-auto relative flex items-center justify-center">
+      <div className="pointer-events-auto app-region-no-drag relative flex h-full w-full items-center justify-center">
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           {[3, 2, 1].map((multiplier) => (
             <div
               key={multiplier}
               className="microphone-wave"
               style={{
-                width: `${120 + multiplier * 40}px`,
-                height: `${120 + multiplier * 40}px`,
-                opacity: isRecording ? Math.max(0, normalizedVolume - (multiplier - 1) * 0.15) : 0,
-                transform: `scale(${isRecording ? 1 + normalizedVolume * 0.6 : 0.75})`
+                width: `${70 + multiplier * 26}px`,
+                height: `${70 + multiplier * 26}px`,
+                opacity: isRecording ? Math.max(0, normalizedVolume - (multiplier - 1) * 0.12) : 0,
+                transform: `scale(${isRecording ? 1 + normalizedVolume * 0.35 : 0.8})`
               }}
             />
           ))}
@@ -257,7 +342,7 @@ const MainWindow: React.FC = () => {
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           {displayedActions.map((action, index) => {
             const angle = (360 / displayedActions.length) * index;
-            const radius = 110;
+            const radius = 72;
             return (
               <div
                 key={action.id}

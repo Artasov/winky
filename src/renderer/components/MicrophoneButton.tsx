@@ -1,6 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import classNames from 'classnames';
-import { acquireInteractivity, releaseInteractivity } from '../utils/windowInteractivity';
 
 interface MicrophoneButtonProps {
   isRecording: boolean;
@@ -15,54 +14,22 @@ const sizeClasses: Record<NonNullable<MicrophoneButtonProps['size']>, string> = 
 };
 
 const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onToggle, disabled, size = 'default' }) => {
+  const [dragMode, setDragMode] = useState(false);
   const pointerDownRef = useRef(false);
   const pointerMovedRef = useRef(false);
+  const pointerIdRef = useRef<number | null>(null);
   const initialPointRef = useRef({ x: 0, y: 0 });
-  const insideRef = useRef(false);
-  const dragStartedRef = useRef(false);
-  const lastPointerScreenRef = useRef({ x: 0, y: 0 });
-  useEffect(() => () => {
-    releaseInteractivity(0);
-  }, []);
-
-  const handlePointerEnter = () => {
-    insideRef.current = true;
-    acquireInteractivity();
-  };
-
-  const handlePointerLeave = () => {
-    insideRef.current = false;
-    if (!pointerDownRef.current) {
-      releaseInteractivity();
-    }
-  };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (disabled) {
+    if (disabled || event.button !== 0) {
       return;
     }
 
-    acquireInteractivity();
     pointerDownRef.current = true;
     pointerMovedRef.current = false;
-    dragStartedRef.current = false;
+    pointerIdRef.current = event.pointerId;
+    setDragMode(false);
     initialPointRef.current = { x: event.clientX, y: event.clientY };
-    lastPointerScreenRef.current = { x: event.screenX, y: event.screenY };
-    window.winky?.windowControls
-      ?.startDrag({ x: event.screenX, y: event.screenY })
-      .then((started) => {
-        dragStartedRef.current = Boolean(started);
-        if (!started) {
-          releaseInteractivity(150);
-        } else {
-          window.winky?.windowControls?.updateDrag(lastPointerScreenRef.current);
-        }
-      })
-      .catch((error) => {
-        console.error('[MicrophoneButton] Не удалось начать перетаскивание окна', error);
-        dragStartedRef.current = false;
-        releaseInteractivity(150);
-      });
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
@@ -71,36 +38,28 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
       return;
     }
 
-    const dx = event.clientX - initialPointRef.current.x;
-    const dy = event.clientY - initialPointRef.current.y;
-    if (!pointerMovedRef.current && Math.sqrt(dx * dx + dy * dy) > 4) {
+    const dxFromStart = event.clientX - initialPointRef.current.x;
+    const dyFromStart = event.clientY - initialPointRef.current.y;
+    if (!pointerMovedRef.current && Math.sqrt(dxFromStart * dxFromStart + dyFromStart * dyFromStart) > 4) {
       pointerMovedRef.current = true;
-    }
-
-    lastPointerScreenRef.current = { x: event.screenX, y: event.screenY };
-
-    if (dragStartedRef.current) {
-      window.winky?.windowControls?.updateDrag({ x: event.screenX, y: event.screenY });
+      setDragMode(true);
+      if (pointerIdRef.current !== null) {
+        event.currentTarget.releasePointerCapture?.(pointerIdRef.current);
+        pointerIdRef.current = null;
+      }
     }
   };
 
   const finalizePointer = (shouldToggle: boolean) => {
     pointerDownRef.current = false;
+    pointerIdRef.current = null;
 
-    if (dragStartedRef.current) {
-      window.winky?.windowControls
-        ?.endDrag()
-        .catch((error) => console.error('[MicrophoneButton] Не удалось завершить перетаскивание окна', error));
-      dragStartedRef.current = false;
+    if (dragMode) {
+      setDragMode(false);
     }
 
     if (shouldToggle && !disabled) {
       onToggle();
-    }
-
-    releaseInteractivity(0);
-    if (!insideRef.current) {
-      releaseInteractivity(0);
     }
   };
 
@@ -109,9 +68,12 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
       return;
     }
 
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
     const shouldToggle = !pointerMovedRef.current;
     pointerMovedRef.current = false;
+    if (pointerIdRef.current !== null) {
+      event.currentTarget.releasePointerCapture?.(pointerIdRef.current);
+      pointerIdRef.current = null;
+    }
     finalizePointer(shouldToggle);
   };
 
@@ -120,8 +82,11 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
       return;
     }
 
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
     pointerMovedRef.current = false;
+    if (pointerIdRef.current !== null) {
+      event.currentTarget.releasePointerCapture?.(pointerIdRef.current);
+      pointerIdRef.current = null;
+    }
     finalizePointer(false);
   };
 
@@ -129,13 +94,13 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
     <button
       type="button"
       disabled={disabled}
-      onPointerEnter={handlePointerEnter}
-      onPointerLeave={handlePointerLeave}
+      data-interactive="true"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
       className={classNames(
+        dragMode ? 'app-region-drag' : 'app-region-no-drag',
         'flex items-center justify-center rounded-full text-3xl shadow-xl transition-transform focus:outline-none focus:ring-2 focus:ring-offset-2',
         sizeClasses[size],
         isRecording

@@ -31,32 +31,27 @@ const rendererPath = path.resolve(__dirname, '../renderer/index.html');
 type WindowMode = 'default' | 'main';
 
 const DEFAULT_BOUNDS = { width: 960, height: 640 };
-const MAIN_BOUNDS = { width: 280, height: 280 };
+const MAIN_BOUNDS = { width: 220, height: 220 };
 
 let currentWindowMode: WindowMode | null = null;
-let clickThroughEnabled = false;
-const dragState = {
-  active: false,
-  offsetX: 0,
-  offsetY: 0
-};
+let micWindow: BrowserWindow | null = null;
+let micWindowInteractive = false;
+const MIC_SHAPE_SIZE = 200;
 
-const applyClickThrough = (enabled: boolean) => {
-  if (!mainWindow) {
+const setMicInteractive = (interactive: boolean) => {
+  if (!micWindow) {
     return;
   }
 
-  if (clickThroughEnabled === enabled) {
+  if (micWindowInteractive === interactive) {
     return;
   }
 
-  clickThroughEnabled = enabled;
-  if (enabled) {
-    mainWindow.setIgnoreMouseEvents(true, { forward: true });
-    mainWindow.setFocusable(false);
-  } else {
-    mainWindow.setIgnoreMouseEvents(false);
-    mainWindow.setFocusable(true);
+  micWindowInteractive = interactive;
+  console.log('[main] mic window interactive =>', interactive);
+  micWindow.setIgnoreMouseEvents(!interactive, { forward: true });
+  if (interactive) {
+    micWindow.focus();
   }
 };
 
@@ -95,12 +90,73 @@ const createMainWindow = () => {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
-    dragState.active = false;
   });
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
   });
+};
+
+const createMicWindow = () => {
+  if (micWindow) {
+    return micWindow;
+  }
+
+  micWindow = new BrowserWindow({
+    width: MAIN_BOUNDS.width,
+    height: MAIN_BOUNDS.height,
+    resizable: false,
+    frame: false,
+    transparent: true,
+    show: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      devTools: isDev,
+      sandbox: false
+    }
+  });
+
+  micWindow.setMenuBarVisibility(false);
+  micWindow.setAlwaysOnTop(true, 'screen-saver');
+  micWindow.setFocusable(true);
+  setMicInteractive(false);
+
+  const offset = Math.max(0, Math.round((MAIN_BOUNDS.width - MIC_SHAPE_SIZE) / 2));
+  if (typeof micWindow.setShape === 'function') {
+    micWindow.setShape([
+      {
+        x: offset,
+        y: offset,
+        width: MIC_SHAPE_SIZE,
+        height: MIC_SHAPE_SIZE
+      }
+    ]);
+  }
+
+  if (isDev) {
+    void micWindow.loadURL('http://localhost:5173/?window=mic#/main');
+  } else {
+    void micWindow.loadFile(rendererPath, { hash: 'main', query: { window: 'mic' } });
+  }
+
+  micWindow.once('ready-to-show', () => {
+    if (currentWindowMode === 'main') {
+      micWindow?.show();
+      micWindow?.focus();
+    }
+  });
+
+  micWindow.on('closed', () => {
+    micWindow = null;
+    micWindowInteractive = false;
+  });
+
+  return micWindow;
 };
 
 const applyFixedSize = (window: BrowserWindow, width: number, height: number) => {
@@ -115,78 +171,23 @@ const setWindowMode = (mode: WindowMode) => {
   }
 
   if (mode === 'main') {
-    applyFixedSize(mainWindow, MAIN_BOUNDS.width, MAIN_BOUNDS.height);
-    mainWindow.setAlwaysOnTop(true, 'floating');
-    mainWindow.setResizable(false);
-    mainWindow.setFullScreenable(false);
-    mainWindow.setMaximizable(false);
-    mainWindow.setMinimizable(true);
-    mainWindow.setBackgroundColor('#00000000');
-    mainWindow.setHasShadow(false);
-    mainWindow.setOpacity(1);
-    applyClickThrough(true);
-    dragState.active = false;
+    const mic = createMicWindow();
+    mainWindow.hide();
+    if (mic) {
+      setMicInteractive(false);
+      mic.show();
+      mic.focus();
+    }
   } else {
-    applyFixedSize(mainWindow, DEFAULT_BOUNDS.width, DEFAULT_BOUNDS.height);
-    mainWindow.setAlwaysOnTop(false);
-    mainWindow.setResizable(false);
-    mainWindow.setFullScreenable(false);
-    mainWindow.setMaximizable(false);
-    mainWindow.setMinimizable(true);
-    mainWindow.setBackgroundColor('#111827');
-    mainWindow.setHasShadow(true);
-    mainWindow.setOpacity(1);
-    applyClickThrough(false);
-    dragState.active = false;
+    if (micWindow) {
+      setMicInteractive(false);
+      micWindow.hide();
+    }
+    mainWindow.show();
+    mainWindow.focus();
   }
 
   currentWindowMode = mode;
-};
-
-const setInteractive = (interactive: boolean) => {
-  if (!mainWindow) {
-    return;
-  }
-
-  if (currentWindowMode !== 'main') {
-    applyClickThrough(false);
-    return;
-  }
-
-  if (interactive) {
-    applyClickThrough(false);
-    mainWindow.focus();
-  } else {
-    applyClickThrough(true);
-  }
-};
-
-const startWindowDrag = (screenX: number, screenY: number) => {
-  if (!mainWindow || currentWindowMode !== 'main') {
-    return false;
-  }
-
-  applyClickThrough(false);
-  const [windowX, windowY] = mainWindow.getPosition();
-  dragState.offsetX = screenX - windowX;
-  dragState.offsetY = screenY - windowY;
-  dragState.active = true;
-  mainWindow.focus();
-  return true;
-};
-
-const updateWindowDrag = (screenX: number, screenY: number) => {
-  if (!mainWindow || !dragState.active || currentWindowMode !== 'main') {
-    return;
-  }
-
-  const targetX = Math.round(screenX - dragState.offsetX);
-  const targetY = Math.round(screenY - dragState.offsetY);
-  mainWindow.setPosition(targetX, targetY, false);
-};
-
-const endWindowDrag = () => {
-  dragState.active = false;
 };
 
 const createSettingsWindow = () => {
@@ -262,20 +263,8 @@ const registerIpcHandlers = () => {
     setWindowMode(mode);
   });
 
-  ipcMain.handle('window:set-interactive', (_event, interactive: boolean) => {
-    setInteractive(interactive);
-  });
-
-  ipcMain.handle('window:start-drag', (_event, { x, y }: { x: number; y: number }) => {
-    return startWindowDrag(x, y);
-  });
-
-  ipcMain.on('window:update-drag', (_event, { x, y }: { x: number; y: number }) => {
-    updateWindowDrag(x, y);
-  });
-
-  ipcMain.handle('window:end-drag', () => {
-    endWindowDrag();
+  ipcMain.handle('mic:set-interactive', (_event, interactive: boolean) => {
+    setMicInteractive(interactive);
   });
 
   ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {
@@ -292,13 +281,14 @@ const registerIpcHandlers = () => {
 };
 
 const login = async ({ email, password }: { email: string; password: string }) => {
-  console.log('[auth:login] sending POST', AUTH_ENDPOINT, { email });
+  console.log('[auth:login] starting login attempts', { email, endpoints: API_BASE_URL_FALLBACKS.length });
   let data: AuthResponse | undefined;
   let lastError: unknown = null;
 
   for (const baseUrl of API_BASE_URL_FALLBACKS) {
     const endpoint = `${baseUrl.replace(/\/$/, '')}/auth/login/`;
     try {
+      console.log('[auth:login] attempt', endpoint);
       ({ data } = await axios.post<AuthResponse>(endpoint, {
         email,
         password
@@ -331,18 +321,22 @@ const login = async ({ email, password }: { email: string; password: string }) =
 };
 
 const fetchActions = async (): Promise<ActionConfig[]> => {
+  console.debug('[main] actions:fetch invoked');
   const config = await getConfig();
   if (!config.auth.accessToken) {
+    console.debug('[main] actions:fetch skipped (no access token)');
     return config.actions;
   }
 
   const client = createApiClient(config.auth.accessToken);
   const { data } = await client.get<ActionConfig[]>(ACTIONS_ENDPOINT);
+  console.debug('[main] actions:fetch success', { count: data.length });
   await setActions(data);
   return data;
 };
 
 const createAction = async (action: Omit<ActionConfig, 'id'>): Promise<ActionConfig[]> => {
+  console.debug('[main] actions:create invoked', { name: action.name });
   const config = await getConfig();
   if (!config.auth.accessToken) {
     throw new Error('Необходимо авторизоваться.');
@@ -352,6 +346,7 @@ const createAction = async (action: Omit<ActionConfig, 'id'>): Promise<ActionCon
   const { data } = await client.post<ActionConfig>(ACTIONS_CREATE_ENDPOINT, action);
   const updated = [...config.actions.filter(({ id }) => id !== data.id), data];
   await setActions(updated);
+  console.debug('[main] actions:create success', { actionId: data.id });
   return updated;
 };
 

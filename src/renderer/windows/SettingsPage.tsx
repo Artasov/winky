@@ -1,290 +1,99 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
-import type { ActionIcon } from '@shared/types';
 
 const SettingsPage: React.FC = () => {
-  const { config, refreshConfig } = useConfig();
+  const { config, updateConfig } = useConfig();
   const { showToast } = useToast();
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [prompt, setPrompt] = useState('');
-  const [iconId, setIconId] = useState('');
+  const [openaiKey, setOpenaiKey] = useState('');
+  const [googleKey, setGoogleKey] = useState('');
   const [saving, setSaving] = useState(false);
-  const [icons, setIcons] = useState<ActionIcon[]>([]);
-  const [loadingIcons, setLoadingIcons] = useState(false);
-  const [iconsLoaded, setIconsLoaded] = useState(false);
-  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
-  const actions = useMemo(() => config?.actions ?? [], [config?.actions]);
   const isAuthorized = Boolean(config?.auth.accessToken);
 
-  const loadIcons = useCallback(async () => {
-    if (loadingIcons || iconsLoaded) {
-      console.log('%c[SettingsWindow] %c⏭ Пропуск загрузки иконок (уже загружены или загружаются)', 'color: #3b82f6; font-weight: bold', 'color: #f59e0b');
-      return;
-    }
-
-    console.log('%c[SettingsWindow] %cЗагрузка иконок...', 'color: #3b82f6; font-weight: bold', 'color: inherit');
-    setLoadingIcons(true);
-    try {
-      const loadedIcons = await window.winky?.icons.fetch();
-      console.log('%c[SettingsWindow] %cИконки загружены:', 'color: #3b82f6; font-weight: bold', 'color: inherit', loadedIcons);
-      console.log(`%c[SettingsWindow] %cКоличество: ${loadedIcons?.length || 0}`, 'color: #3b82f6; font-weight: bold', 'color: #10b981');
-      
-      if (loadedIcons && loadedIcons.length > 0) {
-        setIcons(loadedIcons);
-        setIconId(loadedIcons[0].id);
-        setIconsLoaded(true);
-        console.log('%c[SettingsWindow] %c✓ Иконки успешно установлены', 'color: #3b82f6; font-weight: bold', 'color: #10b981; font-weight: bold');
-      } else {
-        console.warn('%c[SettingsWindow] %c⚠ Получен пустой список иконок', 'color: #3b82f6; font-weight: bold', 'color: #f59e0b; font-weight: bold');
-        showToast('Список иконок пуст. Добавьте иконки на бекенде.', 'info');
-      }
-    } catch (error) {
-      console.error('%c[SettingsWindow] %c✗ Ошибка загрузки иконок:', 'color: #3b82f6; font-weight: bold', 'color: #ef4444; font-weight: bold', error);
-      showToast('Не удалось загрузить иконки.', 'error');
-    } finally {
-      setLoadingIcons(false);
-    }
-  }, [loadingIcons, iconsLoaded, showToast]);
-
   useEffect(() => {
-    if (isAuthorized && !iconsLoaded && !loadingIcons) {
-      loadIcons();
+    if (config) {
+      setOpenaiKey(config.apiKeys.openai ?? '');
+      setGoogleKey(config.apiKeys.google ?? '');
     }
-  }, [isAuthorized, iconsLoaded, loadingIcons, loadIcons]);
+  }, [config]);
 
-  const resetForm = () => {
-    setName('');
-    setPrompt('');
-    if (icons.length > 0) {
-      setIconId(icons[0].id);
-    }
-  };
-
-  const handleCreateAction = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-
-    if (!name.trim() || !prompt.trim()) {
-      showToast('Заполните название и промпт действия.', 'error');
-      return;
-    }
-
-    if (!iconId) {
-      showToast('Выберите иконку.', 'error');
-      return;
-    }
-
     setSaving(true);
-    console.log('%c[SettingsWindow] %cСоздание действия...', 'color: #3b82f6; font-weight: bold', 'color: inherit', { name: name.trim(), prompt: prompt.trim(), icon: iconId });
     try {
-      await window.winky?.actions.create({ name: name.trim(), prompt: prompt.trim(), icon: iconId });
-      await refreshConfig();
-      console.log('%c[SettingsWindow] %c✓ Действие создано', 'color: #3b82f6; font-weight: bold', 'color: #10b981; font-weight: bold');
-      showToast('Действие добавлено.', 'success');
-      resetForm();
-      setIsFormOpen(false);
-    } catch (error: any) {
-      console.error('%c[SettingsWindow] %c✗ Ошибка создания действия:', 'color: #3b82f6; font-weight: bold', 'color: #ef4444; font-weight: bold', error);
-      const message = error?.response?.data?.detail || error?.message || 'Не удалось создать действие.';
-      showToast(message, 'error');
+      await updateConfig({
+        apiKeys: {
+          openai: openaiKey.trim(),
+          google: googleKey.trim()
+        }
+      });
+      showToast('Ключи сохранены.', 'success');
+    } catch (error) {
+      console.error('[SettingsPage] Не удалось сохранить ключи', error);
+      showToast('Не удалось сохранить ключи API.', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteAction = async (actionId: string, actionName: string) => {
-    if (!confirm(`Удалить действие "${actionName}"?`)) {
-      return;
-    }
-
-    setDeletingIds((prev) => new Set(prev).add(actionId));
-    console.log('%c[SettingsWindow] %cУдаление действия...', 'color: #3b82f6; font-weight: bold', 'color: inherit', { actionId, actionName });
-    try {
-      await window.winky?.actions.delete(actionId);
-      await refreshConfig();
-      console.log('%c[SettingsWindow] %c✓ Действие удалено', 'color: #3b82f6; font-weight: bold', 'color: #10b981; font-weight: bold');
-      showToast('Действие удалено.', 'success');
-    } catch (error: any) {
-      console.error('%c[SettingsWindow] %c✗ Ошибка удаления действия:', 'color: #3b82f6; font-weight: bold', 'color: #ef4444; font-weight: bold', error);
-      const message = error?.response?.data?.detail || error?.message || 'Не удалось удалить действие.';
-      showToast(message, 'error');
-    } finally {
-      setDeletingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(actionId);
-        return next;
-      });
-    }
-  };
-
   if (!isAuthorized) {
     return (
-      <div className="fcc h-full p-8">
-        <div className="text-4xl mb-4 opacity-50">⚙️</div>
-        <p className="text-slate-400">Авторизуйтесь для доступа к настройкам</p>
+      <div className="mx-auto flex h-full w-full max-w-md flex-col items-center justify-center gap-4 px-8 py-12 text-center">
+        <div className="text-4xl opacity-60">🔐</div>
+        <p className="text-sm text-slate-300">Авторизуйтесь, чтобы изменить настройки.</p>
       </div>
     );
   }
 
   return (
-    <div className="fc h-full p-8 gap-6 overflow-hidden">
-      <div className="frbe">
-        <button
-          type="button"
-          onClick={() => setIsFormOpen((prev) => !prev)}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
-        >
-          {isFormOpen ? 'Отменить' : 'Добавить действие'}
-        </button>
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-8 py-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-semibold text-white">Настройки</h1>
+        <p className="text-sm text-slate-400">Управляйте подключением к внешним сервисам.</p>
       </div>
 
-      {isFormOpen && (
-        <form onSubmit={handleCreateAction} className="rounded-lg border border-white/10 bg-white/5 p-6">
-          <div className="fc gap-6">
-            {/* Название */}
-            <div className="fc gap-2">
-              <label className="text-sm font-medium text-slate-200">Название действия</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/50 transition"
-                placeholder="Например: Написать email"
-              />
-            </div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6 rounded-2xl border border-white/10 bg-white/5 p-6">
+        <h2 className="text-lg font-semibold text-white">API ключи</h2>
+        <p className="text-sm text-slate-400">
+          Эти ключи используются для распознавания речи (Google) и работы с LLM (OpenAI). Оставьте поле пустым, если
+          планируете работать в локальном режиме.
+        </p>
 
-            {/* Выбор иконки */}
-            <div className="fc gap-3">
-              <label className="text-sm font-medium text-slate-200">
-                Выберите иконку {iconId && <span className="text-slate-400 font-normal">• {icons.find(i => i.id === iconId)?.name}</span>}
-              </label>
-              {loadingIcons ? (
-                <div className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-8 text-center text-slate-400">
-                  Загрузка иконок...
-                </div>
-              ) : icons.length === 0 ? (
-                <div className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-8 text-center text-slate-400">
-                  Нет доступных иконок. Добавьте их на бекенде.
-                </div>
-              ) : (
-                <div className="grid grid-cols-6 gap-2">
-                  {icons.map((iconOption) => (
-                    <button
-                      key={iconOption.id}
-                      type="button"
-                      onClick={() => setIconId(iconOption.id)}
-                      className={`frc rounded-lg border-2 p-3 transition-all hover:scale-105 ${
-                        iconId === iconOption.id
-                          ? 'border-emerald-400 bg-emerald-500/20 shadow-lg shadow-emerald-500/20'
-                          : 'border-slate-700 bg-slate-900 hover:border-slate-500 hover:bg-slate-800'
-                      }`}
-                      title={iconOption.name}
-                    >
-                      <img 
-                        src={iconOption.svg}
-                        alt={iconOption.name}
-                        className="w-8 h-8"
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+        <label className="flex flex-col gap-2 text-sm text-slate-200" htmlFor="google-key">
+          Google AI Key
+          <input
+            id="google-key"
+            type="text"
+            value={googleKey}
+            onChange={(event) => setGoogleKey(event.target.value)}
+            className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
+            placeholder="AIza..."
+          />
+        </label>
 
-            {/* Промпт */}
-            <div className="fc gap-2">
-              <label className="text-sm font-medium text-slate-200">Промпт</label>
-              <textarea
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                rows={5}
-                className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/50 transition resize-none"
-                placeholder="Опишите, что должно делать это действие..."
-              />
-            </div>
-          </div>
+        <label className="flex flex-col gap-2 text-sm text-slate-200" htmlFor="openai-key">
+          OpenAI API Key
+          <input
+            id="openai-key"
+            type="text"
+            value={openaiKey}
+            onChange={(event) => setOpenaiKey(event.target.value)}
+            className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
+            placeholder="sk-..."
+          />
+        </label>
 
-          {/* Кнопки */}
-          <div className="mt-6 fre gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                resetForm();
-                setIsFormOpen(false);
-              }}
-              className="rounded-lg border border-slate-600 bg-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 hover:border-slate-500"
-            >
-              Отмена
-            </button>
-            <button
-              type="submit"
-              disabled={saving || loadingIcons || icons.length === 0 || !iconId}
-              className="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/30 transition hover:bg-emerald-500 hover:shadow-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
-            >
-              {saving ? 'Сохранение...' : 'Создать действие'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      <section className="flex-1 overflow-auto rounded-lg border border-white/10 bg-white/5 p-6">
-        <h2 className="mb-5 text-xl font-semibold text-slate-100">Текущие действия</h2>
-        {actions.length === 0 ? (
-          <div className="fcc rounded-lg border border-dashed border-slate-700 bg-slate-900/50 py-12 text-center">
-            <div className="text-4xl mb-3 opacity-50">📝</div>
-            <p className="text-sm text-slate-400">Пока нет действий</p>
-            <p className="text-xs text-slate-500 mt-1">Добавьте новое, чтобы начать</p>
-          </div>
-        ) : (
-          <ul className="fc gap-3">
-            {actions.map((action) => {
-              const isDeleting = deletingIds.has(action.id);
-              return (
-                <li
-                  key={action.id}
-                  className={`frbc rounded-lg border bg-slate-900/70 px-5 py-4 gap-4 transition ${
-                    isDeleting 
-                      ? 'opacity-50 border-slate-800' 
-                      : 'border-white/10 hover:border-white/20 hover:bg-slate-900'
-                  }`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="frc gap-3 mb-2">
-                      {action.icon_details?.svg ? (
-                        <div className="fcc rounded-lg bg-slate-800 p-2 shrink-0">
-                          <img 
-                            src={action.icon_details.svg}
-                            alt=""
-                            className="w-6 h-6"
-                            aria-hidden="true"
-                          />
-                        </div>
-                      ) : (
-                        <div className="fcc rounded-lg bg-slate-800 p-2 text-xl shrink-0">❓</div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-base font-semibold text-slate-100 truncate">{action.name}</h3>
-                        <p className="text-xs text-slate-500">{action.icon_details?.name || 'Без иконки'}</p>
-                      </div>
-                    </div>
-                    <p className="text-sm text-slate-300 leading-relaxed line-clamp-2">{action.prompt}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteAction(action.id, action.name)}
-                    disabled={isDeleting}
-                    className="rounded-lg border-2 border-red-500/50 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-400 transition hover:border-red-500 hover:bg-red-500/20 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 shrink-0"
-                  >
-                    {isDeleting ? 'Удаление...' : 'Удалить'}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/30 transition hover:bg-emerald-500 hover:shadow-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+          >
+            {saving ? 'Сохранение...' : 'Сохранить'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };

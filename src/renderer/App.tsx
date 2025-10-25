@@ -198,23 +198,18 @@ const App: React.FC = () => {
         {isMicWindow ? (
           // Окно с плавающим микрофоном
           <div className="flex h-full w-full items-center justify-center bg-transparent text-white">{routes}</div>
-        ) : needsSidebar ? (
-          // Главное окно с Sidebar для разделов приложения
-          <div className="fr h-full overflow-hidden bg-slate-950 text-slate-100">
-            <Sidebar />
-            <div className="fc flex-1 overflow-hidden">
-              <TitleBar />
-              <div className="flex-1 overflow-auto">{routes}</div>
-            </div>
-          </div>
         ) : (
-          // Окна без Sidebar (welcome, auth, setup)
-          <div className="fc h-full bg-slate-950 text-slate-100">
-            <TitleBar 
-              showWinkyButton={true}
-              onWinkyClick={() => navigate('/actions')}
+          <div className="flex h-full flex-col bg-slate-950 text-slate-100">
+            <TitleBar
+              showWinkyButton={!needsSidebar}
+              onWinkyClick={!needsSidebar ? () => navigate('/actions') : undefined}
             />
-            <div className="flex-1">{routes}</div>
+            <div className="flex flex-1 overflow-hidden">
+              {needsSidebar && <Sidebar />}
+              <main className="flex-1 overflow-hidden bg-slate-950/60">
+                <div className="h-full overflow-auto">{routes}</div>
+              </main>
+            </div>
           </div>
         )}
         {!isMicWindow && <Toast toasts={toasts} placement="top-right" />}

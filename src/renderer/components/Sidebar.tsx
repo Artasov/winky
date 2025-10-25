@@ -25,8 +25,12 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <div className="fc h-full w-24 bg-slate-900 border-r border-white/10 shrink-0">
-      <div className="fc gap-3 p-4">
+    <aside className="flex h-full w-64 flex-col border-r border-slate-800/60 bg-slate-950/80 backdrop-blur">
+      <div className="px-6 pb-4 pt-6">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500">Навигация</p>
+      </div>
+
+      <nav className="flex flex-1 flex-col gap-1 px-3 pb-6">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
@@ -35,24 +39,27 @@ const Sidebar: React.FC = () => {
               type="button"
               onClick={() => handleNavigation(item.path)}
               className={classNames(
-                'fcc rounded-xl p-4 transition-all',
+                'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60',
                 isActive
-                  ? 'bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/20 scale-105'
-                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200 hover:scale-105'
+                  ? 'bg-emerald-500/15 text-emerald-300 shadow shadow-emerald-500/20 ring-1 ring-emerald-400/40'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'
               )}
-              title={item.label}
+              aria-current={isActive ? 'page' : undefined}
             >
-              <span className="text-3xl mb-2">{item.icon}</span>
-              <span className="text-[9px] font-bold uppercase tracking-widest">
-                {item.label}
-              </span>
+              <span className="text-xl">{item.icon}</span>
+              <span className="truncate">{item.label}</span>
             </button>
           );
         })}
+      </nav>
+
+      <div className="px-6 pb-6 text-xs text-slate-500">
+        <p className="leading-relaxed">
+          Быстрый доступ к профилю, действиям и настройкам Winky в одном окне.
+        </p>
       </div>
-    </div>
+    </aside>
   );
 };
 
 export default Sidebar;
-

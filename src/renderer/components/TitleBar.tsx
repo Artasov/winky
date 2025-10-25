@@ -20,14 +20,14 @@ const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = 
   };
 
   return (
-    <div className="app-region-drag flex w-full h-11 items-center justify-between border-b border-white/10 bg-slate-900 px-4 text-xs uppercase tracking-[0.25em] text-slate-400 shrink-0">
+    <div className="app-region-drag flex h-12 w-full items-center justify-between border-b border-slate-800/60 bg-slate-950/80 px-4 text-xs uppercase tracking-[0.3em] text-slate-400 backdrop-blur">
       <div className="pointer-events-none select-none font-semibold text-slate-200">{title}</div>
-      <div className="app-region-no-drag flex items-center gap-3">
+      <div className="app-region-no-drag flex items-center gap-2 text-slate-300">
         {showWinkyButton && onWinkyClick && (
           <button
             type="button"
             onClick={onWinkyClick}
-            className="flex h-7 items-center justify-center rounded-md px-2 text-[10px] font-semibold tracking-[0.2em] text-slate-300 transition hover:bg-white/10 hover:text-white"
+            className="flex h-8 items-center justify-center rounded-lg px-3 text-[10px] font-semibold tracking-[0.2em] text-emerald-200 transition hover:bg-emerald-500/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
           >
             Winky
           </button>
@@ -35,7 +35,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = 
         <button
           type="button"
           onClick={handleMinimize}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-slate-300 transition hover:bg-white/10 hover:text-white"
+          className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60"
           aria-label="Свернуть"
         >
           <svg viewBox="0 0 12 2" className="h-2 w-3 fill-current">
@@ -45,7 +45,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = 
         <button
           type="button"
           onClick={handleClose}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-slate-300 transition hover:bg-rose-500/80 hover:text-white"
+          className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-rose-500/80 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
           aria-label="Закрыть"
         >
           <svg viewBox="0 0 12 12" className="h-3 w-3 fill-current">

@@ -6,26 +6,26 @@ const MePage: React.FC = () => {
   const isAuthorized = Boolean(config?.auth.accessToken);
 
   return (
-    <div className="fc h-full p-8 gap-6">
-      <div>
-        <h1 className="text-3xl font-semibold mb-2">Мой профиль</h1>
-        <p className="text-sm text-slate-400">Информация о вашем аккаунте</p>
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-8 py-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-semibold text-white">Мой профиль</h1>
+        <p className="text-sm text-slate-400">Информация о текущем подключённом аккаунте.</p>
       </div>
 
       {!isAuthorized ? (
-        <div className="fcc flex-1 rounded-lg border border-dashed border-slate-700 bg-slate-900/50 py-16">
-          <div className="text-4xl mb-4 opacity-50">👤</div>
-          <p className="text-slate-400">Авторизуйтесь для просмотра профиля</p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-slate-800 bg-slate-900/60 px-6 py-16 text-center">
+          <div className="text-4xl opacity-60">👤</div>
+          <p className="text-sm text-slate-300">Авторизуйтесь, чтобы увидеть данные профиля.</p>
         </div>
       ) : (
-        <div className="fc gap-4">
-          <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-            <h2 className="text-lg font-semibold mb-4">Статус авторизации</h2>
-            <div className="frc gap-2 text-sm">
-              <span className="frc w-3 h-3 rounded-full bg-emerald-500"></span>
-              <span className="text-slate-300">Авторизован</span>
+        <div className="grid gap-4 md:grid-cols-2">
+          <section className="rounded-2xl border border-white/5 bg-white/5 p-6">
+            <h2 className="mb-4 text-lg font-semibold text-white">Статус авторизации</h2>
+            <div className="flex items-center gap-3 text-sm text-slate-300">
+              <span className="inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-emerald-500" aria-hidden="true" />
+              <span>Авторизован</span>
             </div>
-          </div>
+          </section>
         </div>
       )}
     </div>

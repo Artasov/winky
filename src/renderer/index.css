@@ -33,3 +33,33 @@ body.body-transparent {
   transition: transform 0.2s ease, opacity 0.25s ease;
   pointer-events: none;
 }
+
+@keyframes modal-fade-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes modal-fade-scale-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.animate-modal-in {
+  animation: modal-fade-scale-in 0.18s ease-out forwards;
+}
+
+.animate-modal-out {
+  animation: modal-fade-scale-out 0.18s ease-in forwards;
+}

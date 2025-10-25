@@ -18,7 +18,7 @@ const rendererPath = path.resolve(__dirname, '../renderer/index.html');
 type WindowMode = 'default' | 'main';
 
 const DEFAULT_BOUNDS = {width: 960, height: 640};
-const MAIN_BOUNDS = {width: 180, height: 180};
+const MAIN_BOUNDS = {width: 160, height: 160};
 
 let currentWindowMode: WindowMode | null = null;
 let micWindow: BrowserWindow | null = null;
@@ -27,7 +27,21 @@ const setMicInteractive = (interactive: boolean) => {
     if (!micWindow || micWindow.isDestroyed()) {
         return;
     }
-    micWindow.setIgnoreMouseEvents(!interactive, { forward: true });
+    if (interactive) {
+        // Окно полностью интерактивно
+        micWindow.setIgnoreMouseEvents(false);
+    } else {
+        // Клики проходят сквозь с forward:true
+        micWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
+};
+
+const moveMicWindow = (x: number, y: number) => {
+    if (!micWindow || micWindow.isDestroyed()) {
+        return;
+    }
+    // animate=false для мгновенного перемещения без анимации
+    micWindow.setPosition(Math.round(x), Math.round(y), false);
 };
 
 const createMainWindow = () => {
@@ -100,7 +114,7 @@ const createMicWindow = () => {
     micWindow.setAlwaysOnTop(true, 'screen-saver');
     micWindow.setFocusable(true);
 
-    // Окно игнорирует клики везде кроме элементов с pointer-events-auto
+    // Окно игнорирует клики, но forward:true позволяет элементам с pointer-events-auto получать события
     micWindow.setIgnoreMouseEvents(true, { forward: true });
 
     if (isDev) {
@@ -217,6 +231,10 @@ const registerIpcHandlers = () => {
 
     ipcMain.handle('window:set-mode', (_event, mode: WindowMode) => {
         setWindowMode(mode);
+    });
+
+    ipcMain.handle('mic:move-window', (_event, x: number, y: number) => {
+        moveMicWindow(x, y);
     });
 
     ipcMain.handle('mic:set-interactive', (_event, interactive: boolean) => {

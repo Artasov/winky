@@ -236,73 +236,60 @@ const MainWindow: React.FC = () => {
   const displayedActions: ActionConfig[] = [];
 
   return (
-    <div className="pointer-events-none relative flex h-full w-full flex-col items-center">
-      {/* Перетаскиваемая область с визуальными полосками */}
-      <div 
-        className="app-region-drag pointer-events-auto flex h-8 w-full flex-col items-center justify-center gap-1 py-2"
-        onMouseEnter={() => window.winky?.mic?.setInteractive(true)}
-        onMouseLeave={() => window.winky?.mic?.setInteractive(false)}
-      >
-        <div className="h-0.5 w-6 rounded-full bg-white/30"></div>
-        <div className="h-0.5 w-6 rounded-full bg-white/30"></div>
+    <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-visible">
+      {/* Волны звука вокруг микрофона */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-visible">
+        {[4, 3, 2, 1].map((multiplier) => (
+          <div
+            key={multiplier}
+            className="absolute rounded-full border-[3px]"
+            style={{
+              width: `${60 + multiplier * 20}px`,
+              height: `${60 + multiplier * 20}px`,
+              borderColor: isRecording ? `rgba(239, 68, 68, ${0.7 - multiplier * 0.1})` : 'rgba(16, 185, 129, 0.5)',
+              opacity: isRecording ? Math.max(0, normalizedVolume - (multiplier - 1) * 0.15) : 0,
+              transform: `scale(${isRecording ? 1 + normalizedVolume * 0.4 : 0.8})`,
+              boxShadow: isRecording 
+                ? `0 0 ${15 + normalizedVolume * 30}px ${5 + normalizedVolume * 15}px rgba(239, 68, 68, ${0.5 + normalizedVolume * 0.3})`
+                : 'none',
+              transition: 'opacity 0.12s ease, transform 0.12s ease'
+            }}
+          />
+        ))}
       </div>
       
-      {/* Контейнер микрофона */}
-      <div className="pointer-events-none relative flex flex-1 items-center justify-center">
-        {/* Волны звука вокруг микрофона */}
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          {[4, 3, 2, 1].map((multiplier) => (
-            <div
-              key={multiplier}
-              className="absolute rounded-full border-[3px]"
-              style={{
-                width: `${60 + multiplier * 20}px`,
-                height: `${60 + multiplier * 20}px`,
-                borderColor: isRecording ? `rgba(239, 68, 68, ${0.7 - multiplier * 0.1})` : 'rgba(16, 185, 129, 0.5)',
-                opacity: isRecording ? Math.max(0, normalizedVolume - (multiplier - 1) * 0.15) : 0,
-                transform: `scale(${isRecording ? 1 + normalizedVolume * 0.4 : 0.8})`,
-                boxShadow: isRecording 
-                  ? `0 0 ${15 + normalizedVolume * 30}px ${5 + normalizedVolume * 15}px rgba(239, 68, 68, ${0.5 + normalizedVolume * 0.3})`
-                  : 'none',
-                transition: 'opacity 0.12s ease, transform 0.12s ease'
-              }}
-            />
-          ))}
-        </div>
-        
-        <MicrophoneButton
-          isRecording={isRecording}
-          onToggle={handleMicrophoneToggle}
-          disabled={processing}
-          size={isRecording ? 'compact' : 'default'}
-        />
+      <MicrophoneButton
+        isRecording={isRecording}
+        onToggle={handleMicrophoneToggle}
+        disabled={processing}
+        size={isRecording ? 'compact' : 'default'}
+      />
 
-        {displayedActions.length > 0 && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            {displayedActions.map((action, index) => {
-              const angle = (360 / displayedActions.length) * index;
-              const radius = 38; // Компактный радиус для маленького окна
-              return (
-                <div
-                  key={action.id}
-                  className="pointer-events-auto absolute left-1/2 top-1/2"
-                  style={{
-                    transform: `translate(-50%, -50%) rotate(${angle}deg) translate(${radius}px) rotate(-${angle}deg)`
-                  }}
-                >
-                  <ActionButton
-                    action={action}
-                    onClick={handleActionClick}
-                    disabled={processing}
-                    isActive={activeActionId === action.id}
-                    variant="floating"
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {displayedActions.length > 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          {displayedActions.map((action, index) => {
+            const angle = (360 / displayedActions.length) * index;
+            const radius = 38;
+            return (
+              <div
+                key={action.id}
+                className="pointer-events-auto absolute left-1/2 top-1/2"
+                style={{
+                  transform: `translate(-50%, -50%) rotate(${angle}deg) translate(${radius}px) rotate(-${angle}deg)`
+                }}
+              >
+                <ActionButton
+                  action={action}
+                  onClick={handleActionClick}
+                  disabled={processing}
+                  isActive={activeActionId === action.id}
+                  variant="floating"
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

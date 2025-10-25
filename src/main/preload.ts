@@ -36,6 +36,7 @@ const api = {
     close: (): Promise<void> => ipcRenderer.invoke('window:close')
   },
   mic: {
+    moveWindow: (x: number, y: number): Promise<void> => ipcRenderer.invoke('mic:move-window', x, y),
     setInteractive: (interactive: boolean): Promise<void> => ipcRenderer.invoke('mic:set-interactive', interactive)
   }
 };

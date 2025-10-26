@@ -182,11 +182,17 @@ const createMicWindow = () => {
 
 // Показываем главное окно (для трея и т.д.)
 const showMainWindow = () => {
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show();
         mainWindow.focus();
     } else {
         createMainWindow();
+        if (mainWindow) {
+            mainWindow.once('ready-to-show', () => {
+                mainWindow?.show();
+                mainWindow?.focus();
+            });
+        }
     }
 };
 
@@ -247,6 +253,7 @@ const registerIpcHandlers = () => {
 
     ipcMain.handle('actions:fetch', async () => fetchActions());
     ipcMain.handle('actions:create', async (_event, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => createAction(action));
+    ipcMain.handle('actions:update', async (_event, actionId: string, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => updateAction(actionId, action));
     ipcMain.handle('actions:delete', async (_event, actionId: string) => deleteAction(actionId));
     ipcMain.handle('icons:fetch', async () => fetchIcons());
     ipcMain.handle('profile:fetch', async () => fetchProfile());
@@ -370,6 +377,22 @@ const createAction = async (action: { name: string; prompt: string; icon: string
     const updated = [...config.actions.filter(({id}) => id !== data.id), data];
     await setActions(updated);
     console.debug('[main] actions:create success', {actionId: data.id});
+    await broadcastConfigUpdate();
+    return updated;
+};
+
+const updateAction = async (actionId: string, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => {
+    console.debug('[main] actions:update invoked', {actionId, name: action.name});
+    const config = await getConfig();
+    if (!config.auth.accessToken) {
+        throw new Error('Необходимо авторизоваться.');
+    }
+
+    const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
+    const {data} = await client.patch<ActionConfig>(`/winky/actions/${actionId}/`, action);
+    const updated = config.actions.map((a) => (a.id === actionId ? data : a));
+    await setActions(updated);
+    console.debug('[main] actions:update success', {actionId});
     await broadcastConfigUpdate();
     return updated;
 };

@@ -143,8 +143,8 @@ const ActionsPage: React.FC = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!name.trim() || !prompt.trim()) {
-      showToast('Заполните название и промпт действия.', 'error');
+    if (!name.trim()) {
+      showToast('Заполните название действия.', 'error');
       return;
     }
     if (!iconId) {
@@ -153,41 +153,28 @@ const ActionsPage: React.FC = () => {
     }
 
     setSaving(true);
-    const originalAction = editingActionId ? actions.find((action) => action.id === editingActionId) : null;
 
     try {
-      if (editingActionId && originalAction) {
-        await window.winky?.actions.delete(editingActionId);
-      }
-
-      await window.winky?.actions.create({
+      const actionData = {
         name: name.trim(),
         prompt: prompt.trim(),
         icon: iconId,
         show_results: showResults,
         sound_on_complete: soundOnComplete,
         auto_copy_result: autoCopyResult
-      });
+      };
+
+      if (editingActionId) {
+        await window.winky?.actions.update(editingActionId, actionData);
+      } else {
+        await window.winky?.actions.create(actionData);
+      }
+      
       await refreshConfig();
       showToast(editingActionId ? 'Действие обновлено.' : 'Действие добавлено.', 'success');
       beginModalClose();
     } catch (error: any) {
       console.error('[ActionsPage] Ошибка сохранения действия', error);
-      if (editingActionId && originalAction) {
-        try {
-          await window.winky?.actions.create({
-            name: originalAction.name,
-            prompt: originalAction.prompt,
-            icon: originalAction.icon_details?.id ?? originalAction.icon,
-            show_results: originalAction.show_results ?? false,
-            sound_on_complete: originalAction.sound_on_complete ?? false,
-            auto_copy_result: originalAction.auto_copy_result ?? false
-          });
-          await refreshConfig();
-        } catch (restoreError) {
-          console.error('[ActionsPage] Не удалось восстановить исходное действие после ошибки', restoreError);
-        }
-      }
       const message = error?.response?.data?.detail || error?.message || 'Не удалось сохранить действие.';
       showToast(message, 'error');
     } finally {

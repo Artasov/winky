@@ -24,7 +24,8 @@ declare global {
 
   interface WinkyActionsAPI {
     fetch(): Promise<ActionConfig[]>;
-    create(action: { name: string; prompt: string; icon: string }): Promise<ActionConfig[]>;
+    create(action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]>;
+    update(actionId: string, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]>;
     delete(actionId: string): Promise<ActionConfig[]>;
   }
 

@@ -26,15 +26,15 @@ const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = 
 
   return (
     <div className="app-region-drag flex h-16 w-full items-center justify-between border-b border-primary-200/60 bg-white/95 px-4 text-xs uppercase tracking-[0.3em] text-text-tertiary backdrop-blur shadow-sm">
-      <div className="pointer-events-none select-none flex items-center">
-        <img src="/brand/winky-pink-signature.png" alt="Winky" className="h-16" />
+      <div className="app-region-drag pointer-events-none select-none flex items-center">
+        <img src="/brand/winky-pink-signature.png" alt="Winky" className="h-10 pointer-events-none pt-1" draggable="false" />
       </div>
       <div className="app-region-no-drag flex items-center gap-2 text-text-secondary">
         {showWinkyButton && onWinkyClick && (
           <button
             type="button"
             onClick={onWinkyClick}
-            className="button-animated flex h-8 items-center justify-center rounded-lg px-3 text-[10px] font-semibold tracking-[0.2em] text-primary transition-all duration-base hover:bg-primary-100 hover:text-primary-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+            className="flex h-8 items-center justify-center rounded-lg px-3 text-[10px] font-semibold tracking-[0.2em] text-primary transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
           >
             Winky
           </button>
@@ -42,7 +42,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = 
         <button
           type="button"
           onClick={handleMinimize}
-          className="button-animated flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-base hover:bg-bg-tertiary hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+          className="flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-bg-tertiary hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
           aria-label="Свернуть"
         >
           <svg viewBox="0 0 12 2" className="h-2 w-3 fill-current">
@@ -52,7 +52,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = 
         <button
           type="button"
           onClick={handleClose}
-          className="button-animated flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+          className="flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
           aria-label="Закрыть"
         >
           <svg viewBox="0 0 12 12" className="h-3 w-3 fill-current">

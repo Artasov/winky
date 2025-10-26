@@ -94,14 +94,11 @@ const createMainWindow = () => {
         void mainWindow.loadFile(targetUrl);
     }
 
-    mainWindow.once('ready-to-show', () => {
-        mainWindow?.show();
-        mainWindow?.focus();
-    });
-
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
+    
+    // НЕ показываем окно автоматически - оно покажется либо из handleAppReady, либо из трея
 };
 
 const createResultWindow = () => {
@@ -570,13 +567,16 @@ const handleAppReady = async () => {
     app.setName(APP_NAME);
     Menu.setApplicationMenu(null);
     
-    // Создаём главное окно
+    // Создаём главное окно (но не показываем его пока)
     createMainWindow();
     
-    // Проверяем авторизацию и создаём mic окно если пользователь залогинен И прошёл первичную настройку
+    // Проверяем авторизацию и первичную настройку
+    let shouldShowMainWindow = true;
     try {
         const config = await getConfig();
         if (config.auth.accessToken && config.setupCompleted) {
+            // Пользователь авторизован и setup пройден - показываем только микрофон
+            shouldShowMainWindow = false;
             createMicWindow();
             if (isDev && micWindow) {
                 micWindow.webContents.openDevTools({mode: 'detach'});
@@ -586,12 +586,20 @@ const handleAppReady = async () => {
         console.warn('Не удалось проверить авторизацию при запуске', error);
     }
     
+    // Показываем главное окно только если пользователь не авторизован или setup не пройден
+    if (shouldShowMainWindow && mainWindow) {
+        mainWindow.once('ready-to-show', () => {
+            mainWindow?.show();
+            mainWindow?.focus();
+        });
+    }
+    
     // Создаём трей
     createTray(showMainWindow);
     
     registerIpcHandlers();
 
-    if (isDev && mainWindow) {
+    if (isDev && mainWindow && shouldShowMainWindow) {
         mainWindow.webContents.openDevTools({mode: 'detach'});
     }
 

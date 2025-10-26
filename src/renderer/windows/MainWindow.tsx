@@ -150,30 +150,6 @@ const MainWindow: React.FC = () => {
     }
   };
 
-  const transcribeToClipboard = async (blob: Blob) => {
-    try {
-      const arrayBuffer = await blob.arrayBuffer();
-      const text = await window.winky?.speech.transcribe(arrayBuffer, {
-        mode: config.speech.mode,
-        model: config.speech.model,
-        openaiKey: config.apiKeys.openai,
-        googleKey: config.apiKeys.google
-      });
-      
-      if (!text) {
-        showToast('Не удалось распознать речь.', 'error');
-        return;
-      }
-      
-      console.debug('[MainWindow] transcription completed', { characters: text.length });
-      await window.winky?.clipboard.writeText(text);
-      showToast('Текст скопирован.', 'success');
-    } catch (error: any) {
-      console.error(error);
-      showToast(error?.message || 'Не удалось распознать речь.', 'error');
-    }
-  };
-
   const processAction = async (action: ActionConfig, blob: Blob) => {
     try {
       // Преобразуем Blob в ArrayBuffer для передачи через IPC
@@ -283,11 +259,9 @@ const MainWindow: React.FC = () => {
       return;
     }
 
-    const blob = await finishRecording();
+    // Просто останавливаем запись без транскрипции (отмена)
+    await finishRecording();
     setActiveActionId(null);
-    if (blob) {
-      await transcribeToClipboard(blob);
-    }
   };
 
   const handleActionClick = async (action: ActionConfig) => {

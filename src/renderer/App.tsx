@@ -130,7 +130,7 @@ const App: React.FC = () => {
   useEffect(() => {
     // Result окно без sidebar и titlebar
     if (isResultWindow && typeof document !== 'undefined') {
-      document.body.style.background = '#0f172a';
+      document.body.style.background = '#ffffff';
     }
   }, [isResultWindow]);
 
@@ -195,18 +195,18 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center bg-slate-950 text-slate-200">
-        Загрузка...
+      <div className="flex h-full items-center justify-center bg-bg-base text-text-primary">
+        <div className="animate-pulse-soft text-primary">Загрузка...</div>
       </div>
     );
   }
 
   if (preloadError || !window.winky) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 bg-slate-950 px-6 text-center text-slate-200">
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-bg-base px-6 text-center text-text-primary">
         <h1 className="text-2xl font-semibold">Не удалось инициализировать приложение</h1>
-        <p className="max-w-md text-sm text-slate-400">{preloadError ?? 'Веб-приложение не получило доступ к preload-скрипту.'}</p>
-        <p className="text-xs text-slate-500">
+        <p className="max-w-md text-sm text-text-secondary">{preloadError ?? 'Веб-приложение не получило доступ к preload-скрипту.'}</p>
+        <p className="text-xs text-text-tertiary">
           Перезапустите приложение. Если проблема повторяется, проверьте сборку `dist/main/preload.js`.
         </p>
       </div>
@@ -225,16 +225,16 @@ const App: React.FC = () => {
           <div className="flex h-full w-full items-center justify-center bg-transparent text-white">{routes}</div>
         ) : isResultWindow ? (
           // Окно результатов - с TitleBar но без sidebar
-          <div className="flex h-full w-full flex-col bg-slate-950 text-white">{routes}</div>
+          <div className="flex h-full w-full flex-col bg-bg-base text-text-primary">{routes}</div>
         ) : (
-          <div className="flex h-full flex-col bg-slate-950 text-slate-100">
+          <div className="flex h-full flex-col bg-bg-base text-text-primary">
             <TitleBar
               showWinkyButton={!needsSidebar}
               onWinkyClick={!needsSidebar ? () => navigate('/actions') : undefined}
             />
             <div className="flex flex-1 overflow-hidden">
               {needsSidebar && <Sidebar />}
-              <main className="flex-1 overflow-hidden bg-slate-950/60">
+              <main className="flex-1 overflow-hidden bg-bg-secondary/50">
                 <div className="h-full overflow-auto">{routes}</div>
               </main>
             </div>

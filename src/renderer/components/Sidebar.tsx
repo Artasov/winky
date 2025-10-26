@@ -1,65 +1,80 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import {useLocation, useNavigate} from 'react-router-dom';
 import classNames from 'classnames';
 
 interface NavItem {
-  id: string;
-  label: string;
-  icon: string;
-  path: string;
+    id: string;
+    label: string;
+    icon: string;
+    path: string;
 }
 
 const navItems: NavItem[] = [
-  { id: 'me', label: 'Me', icon: '👤', path: '/me' },
-  { id: 'actions', label: 'Actions', icon: '⚡', path: '/actions' },
-  { id: 'settings', label: 'Settings', icon: '⚙️', path: '/settings' },
-  { id: 'info', label: 'Info', icon: 'ℹ️', path: '/info' }
+    {id: 'me', label: 'Me', icon: '👤', path: '/me'},
+    {id: 'actions', label: 'Actions', icon: '⚡', path: '/actions'},
+    {id: 'settings', label: 'Settings', icon: '⚙️', path: '/settings'},
+    {id: 'info', label: 'Info', icon: 'ℹ️', path: '/info'}
 ];
 
 const Sidebar: React.FC = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+    const navigate = useNavigate();
+    const location = useLocation();
 
-  const handleNavigation = (path: string) => {
-    navigate(path);
-  };
+    const handleNavigation = (path: string) => {
+        navigate(path);
+    };
 
-  return (
-    <aside className="flex h-full w-64 flex-col border-r border-slate-800/60 bg-slate-950/80 backdrop-blur">
-      <div className="px-6 pb-4 pt-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500">Навигация</p>
-      </div>
+    return (
+        <aside className="flex h-full w-64 flex-col border-r border-primary-200/60 bg-white/95 backdrop-blur shadow-sm">
+            <div className="px-6 pb-4 pt-6">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-text-tertiary">Навигация</p>
+            </div>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3 pb-6">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleNavigation(item.path)}
-              className={classNames(
-                'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60',
-                isActive
-                  ? 'bg-emerald-500/15 text-emerald-300 shadow shadow-emerald-500/20 ring-1 ring-emerald-400/40'
-                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'
-              )}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <span className="text-xl">{item.icon}</span>
-              <span className="truncate">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="px-6 pb-6 text-xs text-slate-500">
-        <p className="leading-relaxed">
-          Быстрый доступ к профилю, действиям и настройкам Winky в одном окне.
-        </p>
-      </div>
-    </aside>
-  );
+            <nav className="flex flex-1 flex-col gap-1 px-3 pb-6">
+                {navItems.map((item) => {
+                    const isActive = location.pathname === item.path;
+                    return (
+                        <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => handleNavigation(item.path)}
+                            className={classNames(
+                                'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium duration-base outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
+                                'transition-[background-color,border-color,box-shadow]',
+                                isActive
+                                    ? 'active bg-primary-50 text-primary shadow-primary-sm ring-1 ring-primary-200'
+                                    : 'text-text-secondary hover:bg-bg-tertiary'
+                            )}
+                            aria-current={isActive ? 'page' : undefined}
+                        >
+                            <span className="text-xl">{item.icon}</span>
+                            <span className="truncate">{item.label}</span>
+                        </button>
+                    );
+                })}
+            </nav>
+            <div className={'p-4 overflow-hidden'}>
+                <video 
+                    autoPlay 
+                    loop 
+                    muted 
+                    src="/brand/avatar.mp4"
+                    className="w-full h-auto"
+                    style={{
+                        imageRendering: '-webkit-optimize-contrast',
+                        filter: 'blur(0.3px) contrast(1.05)',
+                        WebkitFontSmoothing: 'antialiased',
+                        MozOsxFontSmoothing: 'grayscale',
+                        transform: 'translateY(30px) scale(1.4)',
+                        objectPosition: 'top',
+                        backfaceVisibility: 'hidden',
+                        perspective: 1000,
+                        willChange: 'transform'
+                    }}
+                ></video>
+            </div>
+        </aside>
+    );
 };
 
 export default Sidebar;

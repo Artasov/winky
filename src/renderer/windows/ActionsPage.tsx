@@ -186,14 +186,14 @@ const ActionsPage: React.FC = () => {
     <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-8 px-8 py-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-semibold text-white">Действия</h1>
-          <p className="text-sm text-slate-400">Управляйте быстрыми сценариями для голосового ассистента.</p>
+          <h1 className="text-3xl font-semibold text-text-primary">Действия</h1>
+          <p className="text-sm text-text-secondary">Управляйте быстрыми сценариями для голосового ассистента.</p>
         </div>
         {isAuthorized && (
           <button
             type="button"
             onClick={openCreateModal}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-400/40 bg-emerald-500/20 text-emerald-200 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-500/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary-200 bg-primary-50 text-primary shadow-primary-sm transition-[background-color,border-color,color] duration-base hover:border-primary hover:bg-primary-100 hover:text-primary-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
             aria-label="Добавить действие"
           >
             <svg viewBox="0 0 20 20" className="h-5 w-5 fill-current" aria-hidden="true">
@@ -204,15 +204,15 @@ const ActionsPage: React.FC = () => {
       </div>
 
       {!isAuthorized ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-800 bg-slate-900/60 px-6 py-16 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-primary-200 bg-bg-secondary px-6 py-16 text-center">
           <div className="text-4xl opacity-60">⚡</div>
-          <p className="text-sm text-slate-300">Авторизуйтесь, чтобы управлять действиями.</p>
+          <p className="text-sm text-text-secondary">Авторизуйтесь, чтобы управлять действиями.</p>
         </div>
       ) : actions.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-800 bg-slate-900/60 px-6 py-16 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-primary-200 bg-bg-secondary px-6 py-16 text-center">
           <div className="text-4xl opacity-60">⚡</div>
-          <p className="text-sm text-slate-300">Нет действий</p>
-          <p className="text-xs text-slate-500">Нажмите на «плюс», чтобы создать первое действие.</p>
+          <p className="text-sm text-text-secondary">Нет действий</p>
+          <p className="text-xs text-text-tertiary">Нажмите на «плюс», чтобы создать первое действие.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -221,29 +221,39 @@ const ActionsPage: React.FC = () => {
             return (
               <div
                 key={action.id}
-                className="group relative flex flex-col gap-3 rounded-2xl border border-white/5 bg-white/5 p-6 transition hover:border-white/10 hover:bg-white/10"
+                className="card-animated group relative flex flex-col gap-3 rounded-2xl border border-primary-200 bg-white p-6 shadow-primary-sm transition-all duration-base hover:border-primary hover:shadow-primary-md"
               >
                 <div className="absolute right-3 top-3 hidden gap-2 group-hover:flex">
                   <button
                     type="button"
                     onClick={() => openEditModal(action)}
-                    className="pointer-events-auto rounded-md border border-white/30 bg-slate-900/60 px-2 py-1 text-xs font-semibold text-slate-100 transition hover:border-white/60 hover:bg-slate-900"
+                    className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-md border border-primary-200 bg-white text-text-primary transition-[background-color,border-color] duration-base hover:border-primary hover:bg-primary-50"
+                    aria-label="Изменить действие"
                   >
-                    Изменить
+                    <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                    </svg>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDelete(action.id, action.name)}
                     disabled={isDeleting}
-                    className="pointer-events-auto rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-semibold text-red-300 transition hover:border-red-400 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-md border border-primary bg-primary-50 text-primary transition-[background-color,border-color] duration-base hover:border-primary-dark hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    aria-label="Удалить действие"
                   >
-                    {isDeleting ? '...' : 'Удалить'}
+                    {isDeleting ? (
+                      <span className="text-xs">...</span>
+                    ) : (
+                      <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    )}
                   </button>
                 </div>
 
                 <div className="flex items-center gap-3">
                   {action.icon_details?.svg ? (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900/60">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-bg-secondary">
                       <img
                         src={action.icon_details.svg}
                         alt={action.icon_details.name || ''}
@@ -251,14 +261,14 @@ const ActionsPage: React.FC = () => {
                       />
                     </div>
                   ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900/60 text-2xl">⚡</div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-bg-secondary text-2xl">⚡</div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-base font-semibold text-white">{action.name}</h3>
-                    <p className="text-xs text-slate-500">{action.icon_details?.name || 'Без иконки'}</p>
+                    <h3 className="truncate text-base font-semibold text-text-primary">{action.name}</h3>
+                    <p className="text-xs text-text-tertiary">{action.icon_details?.name || 'Без иконки'}</p>
                   </div>
                 </div>
-                <p className="text-sm leading-relaxed text-slate-300 line-clamp-3">{action.prompt}</p>
+                <p className="text-sm leading-relaxed text-text-secondary line-clamp-3">{action.prompt}</p>
               </div>
             );
           })}
@@ -266,25 +276,25 @@ const ActionsPage: React.FC = () => {
       )}
 
       {isModalVisible && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 px-6 py-10">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm px-6 py-10">
           <div
-            className={`w-full max-w-xl max-h-[90vh] origin-center rounded-2xl border border-white/10 bg-slate-950/90 shadow-2xl backdrop-blur flex flex-col ${
+            className={`w-full max-w-xl max-h-[90vh] origin-center rounded-2xl border border-primary-200 bg-white shadow-primary-xl flex flex-col ${
               isModalClosing ? 'animate-modal-out' : 'animate-modal-in'
             }`}
           >
             <div className="flex-shrink-0 p-6 pb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold text-white">
+                <h2 className="text-xl font-semibold text-text-primary">
                   {editingActionId ? 'Изменить действие' : 'Новое действие'}
                 </h2>
-                <p className="text-sm text-slate-400">
+                <p className="text-sm text-text-secondary">
                   Укажите название, промпт и иконку для действия.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={beginModalClose}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 text-slate-300 transition hover:border-white/40 hover:text-white flex-shrink-0"
+                className="button-animated flex h-8 w-8 items-center justify-center rounded-lg border border-primary-200 text-text-secondary transition-all duration-base hover:border-primary hover:text-primary flex-shrink-0"
                 aria-label="Закрыть форму"
               >
                 <svg viewBox="0 0 12 12" className="h-3 w-3 fill-current">
@@ -295,72 +305,72 @@ const ActionsPage: React.FC = () => {
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-6 overflow-y-auto px-6 pb-6">
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-slate-200" htmlFor="action-name">Название</label>
+                <label className="text-sm font-medium text-text-primary" htmlFor="action-name">Название</label>
                 <input
                   id="action-name"
                   type="text"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
+                  className="input-animated rounded-lg border border-primary-200 bg-white px-4 py-3 text-text-primary placeholder:text-text-tertiary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
                   placeholder="Например: Написать email"
                 />
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-slate-200" htmlFor="action-prompt">Промпт</label>
+                <label className="text-sm font-medium text-text-primary" htmlFor="action-prompt">Промпт</label>
                 <textarea
                   id="action-prompt"
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
                   rows={4}
-                  className="resize-none rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
+                  className="input-animated resize-none rounded-lg border border-primary-200 bg-white px-4 py-3 text-text-primary placeholder:text-text-tertiary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
                   placeholder="Опишите, что должно делать действие (оставьте пустым, если нужна только транскрипция)"
                 />
               </div>
 
               <div className="flex flex-col gap-3">
-                <label className="text-sm font-medium text-slate-200">Настройки</label>
+                <label className="text-sm font-medium text-text-primary">Настройки</label>
                 <div className="flex flex-col gap-2">
                   <label className="frcs gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={showResults}
                       onChange={(e) => setShowResults(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-600 focus:ring-2 focus:ring-emerald-300/40 focus:ring-offset-0"
+                      className="checkbox-animated h-4 w-4 rounded border-primary-200 bg-white text-primary focus:ring-2 focus:ring-primary-light/30 focus:ring-offset-0"
                     />
-                    <span className="text-sm text-slate-300">Показывать окно результатов</span>
+                    <span className="text-sm text-text-primary">Показывать окно результатов</span>
                   </label>
                   <label className="frcs gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={soundOnComplete}
                       onChange={(e) => setSoundOnComplete(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-600 focus:ring-2 focus:ring-emerald-300/40 focus:ring-offset-0"
+                      className="checkbox-animated h-4 w-4 rounded border-primary-200 bg-white text-primary focus:ring-2 focus:ring-primary-light/30 focus:ring-offset-0"
                     />
-                    <span className="text-sm text-slate-300">Проигрывать звук по завершению</span>
+                    <span className="text-sm text-text-primary">Проигрывать звук по завершению</span>
                   </label>
                   <label className="frcs gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={autoCopyResult}
                       onChange={(e) => setAutoCopyResult(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-600 focus:ring-2 focus:ring-emerald-300/40 focus:ring-offset-0"
+                      className="checkbox-animated h-4 w-4 rounded border-primary-200 bg-white text-primary focus:ring-2 focus:ring-primary-light/30 focus:ring-offset-0"
                     />
-                    <span className="text-sm text-slate-300">Автоматически копировать результат</span>
+                    <span className="text-sm text-text-primary">Автоматически копировать результат</span>
                   </label>
                 </div>
               </div>
 
               <div className="flex flex-col gap-3">
-                <label className="text-sm font-medium text-slate-200">
-                  Иконка {iconId && <span className="font-normal text-slate-400">• {icons.find((iconOption) => iconOption.id === iconId)?.name}</span>}
+                <label className="text-sm font-medium text-text-primary">
+                  Иконка {iconId && <span className="font-normal text-text-tertiary">• {icons.find((iconOption) => iconOption.id === iconId)?.name}</span>}
                 </label>
                 {iconsLoading ? (
-                  <div className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-6 text-center text-slate-400">
-                    Загрузка иконок...
+                  <div className="rounded-lg border border-primary-200 bg-bg-secondary px-4 py-6 text-center text-text-secondary">
+                    <div className="animate-pulse-soft">Загрузка иконок...</div>
                   </div>
                 ) : icons.length === 0 ? (
-                  <div className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-6 text-center text-slate-400">
+                  <div className="rounded-lg border border-primary-200 bg-bg-secondary px-4 py-6 text-center text-text-secondary">
                     Нет доступных иконок.
                   </div>
                 ) : (
@@ -370,12 +380,12 @@ const ActionsPage: React.FC = () => {
                         key={iconOption.id}
                         type="button"
                         onClick={() => setIconId(iconOption.id)}
-                        className={`flex items-center justify-center rounded-lg border-2 p-3 transition-all hover:scale-105 ${
+                        className={`button-animated flex items-center justify-center rounded-lg border-2 p-3 transition-all duration-base hover:scale-105 ${
                           iconId === iconOption.id
-                            ? 'border-emerald-400 bg-emerald-500/20 shadow-lg shadow-emerald-500/20'
-                            : 'border-slate-700 bg-slate-900 hover:border-slate-500 hover:bg-slate-800'
+                            ? 'border-primary bg-primary-50 shadow-primary-md'
+                            : 'border-primary-200 bg-white hover:border-primary hover:bg-primary-50'
                         }`}
-                        aria-pressed={iconId === iconOption.id ? 'true' : 'false'}
+                        aria-pressed={iconId === iconOption.id}
                         title={iconOption.name}
                       >
                         <img src={iconOption.svg} alt={iconOption.name} className="h-8 w-8" />
@@ -389,14 +399,14 @@ const ActionsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={beginModalClose}
-                  className="rounded-lg border border-slate-600 bg-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 hover:border-slate-500"
+                  className="button-secondary rounded-lg border border-primary-200 bg-white px-5 py-2.5 text-sm font-semibold text-text-primary transition-all duration-base hover:bg-primary-50 hover:border-primary"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
                   disabled={saving || iconsLoading || icons.length === 0 || !iconId}
-                  className="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/30 transition hover:bg-emerald-500 hover:shadow-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                  className="button-primary rounded-lg px-6 py-2.5 text-sm font-semibold shadow-primary-md disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
                 >
                   {saving ? 'Сохранение...' : editingActionId ? 'Сохранить изменения' : 'Создать действие'}
                 </button>

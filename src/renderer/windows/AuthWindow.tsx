@@ -42,30 +42,30 @@ const AuthWindow: React.FC = () => {
 
   return (
     <div className="mx-auto flex h-full w-full max-w-md flex-col justify-center px-6 py-10">
-      <h2 className="mb-6 text-3xl font-semibold text-white">Вход в аккаунт</h2>
+      <h2 className="mb-6 text-3xl font-semibold text-text-primary">Вход в аккаунт</h2>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-2 text-sm text-slate-300">
+        <label className="flex flex-col gap-2 text-sm text-text-primary">
           Email
           <input
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            className="input-animated rounded-md border border-primary-200 bg-white px-3 py-2 text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
           />
         </label>
-        <label className="flex flex-col gap-2 text-sm text-slate-300">
+        <label className="flex flex-col gap-2 text-sm text-text-primary">
           Пароль
           <input
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            className="input-animated rounded-md border border-primary-200 bg-white px-3 py-2 text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
           />
         </label>
         <button
           type="submit"
           disabled={loading}
-          className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-base font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="button-primary mt-4 rounded-lg px-4 py-2 text-base font-semibold shadow-primary-md disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? 'Входим...' : 'Войти'}
         </button>

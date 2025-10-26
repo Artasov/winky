@@ -53,18 +53,18 @@ const ResultWindowPage: React.FC = () => {
   };
 
   return (
-    <div className='h-screen w-full bg-slate-950 fc overflow-hidden'>
+    <div className='h-screen w-full bg-bg-base fc overflow-hidden'>
       <div className='flex-shrink-0'>
         <TitleBar onClose={handleClose} />
       </div>
       
       <div className='fc flex-1 overflow-hidden'>
         <div className='flex-shrink-0 frbe gap-3 px-6 pt-6 pb-4'>
-          <h2 className='text-xl font-semibold text-white'>Результаты</h2>
+          <h2 className='text-xl font-semibold text-text-primary'>Результаты</h2>
           <button
             type='button'
             onClick={handleClose}
-            className='flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 text-slate-300 transition hover:border-white/40 hover:text-white'
+            className='button-animated flex h-8 w-8 items-center justify-center rounded-lg border border-primary-200 text-text-secondary transition-all duration-base hover:border-primary hover:text-primary'
             aria-label='Закрыть'
           >
             <svg viewBox='0 0 12 12' className='h-3 w-3 fill-current'>
@@ -77,11 +77,11 @@ const ResultWindowPage: React.FC = () => {
         {/* Transcription */}
         <div className='fc gap-2'>
           <div className='frbe'>
-            <label className='text-sm font-medium text-slate-300'>Распознанная речь</label>
+            <label className='text-sm font-medium text-text-primary'>Распознанная речь</label>
             <button
               type='button'
               onClick={handleCopyTranscription}
-              className='frcs gap-1.5 rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10'
+              className='button-secondary frcs gap-1.5 rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-xs font-medium text-text-primary transition-all duration-base hover:border-primary hover:bg-primary-50'
             >
               {copiedTranscription ? (
                 <>
@@ -101,8 +101,8 @@ const ResultWindowPage: React.FC = () => {
               )}
             </button>
           </div>
-          <div className='rounded-lg border border-slate-700 bg-slate-900/60 p-4 text-sm leading-relaxed text-slate-200 min-h-24'>
-            {transcription || 'Распознавание...'}
+          <div className='rounded-lg border border-primary-200 bg-white shadow-primary-sm p-4 text-sm leading-relaxed text-text-primary min-h-24'>
+            {transcription || <span className='text-text-tertiary animate-pulse-soft'>Распознавание...</span>}
           </div>
         </div>
 
@@ -110,14 +110,14 @@ const ResultWindowPage: React.FC = () => {
         {llmResponse && (
           <div className='fc gap-2'>
             <div className='frbe'>
-              <label className='text-sm font-medium text-slate-300'>
-                Ответ {isStreaming && <span className='text-xs text-slate-500'>(идет генерация...)</span>}
+              <label className='text-sm font-medium text-text-primary'>
+                Ответ {isStreaming && <span className='text-xs text-text-tertiary'>(идет генерация...)</span>}
               </label>
               <button
                 type='button'
                 onClick={handleCopyResponse}
                 disabled={isStreaming}
-                className='frcs gap-1.5 rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50'
+                className='button-secondary frcs gap-1.5 rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-xs font-medium text-text-primary transition-all duration-base hover:border-primary hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50'
               >
                 {copiedResponse ? (
                   <>
@@ -137,9 +137,9 @@ const ResultWindowPage: React.FC = () => {
                 )}
               </button>
             </div>
-            <div className='rounded-lg border border-slate-700 bg-slate-900/60 p-4 text-sm leading-relaxed text-slate-200 whitespace-pre-wrap min-h-48'>
+            <div className='rounded-lg border border-primary-200 bg-white shadow-primary-sm p-4 text-sm leading-relaxed text-text-primary whitespace-pre-wrap min-h-48'>
               {llmResponse}
-              {isStreaming && <span className='inline-block w-2 h-4 ml-1 bg-emerald-500 animate-pulse' />}
+              {isStreaming && <span className='inline-block w-2 h-4 ml-1 bg-primary animate-pulse' />}
             </div>
           </div>
         )}

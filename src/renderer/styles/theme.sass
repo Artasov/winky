@@ -1,0 +1,233 @@
+// Основные цвета темы - легко настраиваемые переменные
+:root
+  // Основные цвета
+  --color-primary: #e11d48
+  --color-primary-light: #fb7185
+  --color-primary-dark: #be123c
+  --color-primary-hover: #f43f5e
+  
+  // Фоновые цвета
+  --color-bg-base: #ffffff
+  --color-bg-secondary: #fef2f2
+  --color-bg-tertiary: #fee2e2
+  --color-bg-elevated: #fafafa
+  
+  // Текстовые цвета
+  --color-text-primary: #1e293b
+  --color-text-secondary: #64748b
+  --color-text-tertiary: #94a3b8
+  --color-text-inverse: #ffffff
+  
+  // Границы
+  --color-border-light: #fecdd3
+  --color-border-base: #fda4af
+  --color-border-strong: #fb7185
+  
+  // Тени
+  --shadow-sm: 0 1px 2px 0 rgba(225, 29, 72, 0.05)
+  --shadow-base: 0 4px 6px -1px rgba(225, 29, 72, 0.1), 0 2px 4px -1px rgba(225, 29, 72, 0.06)
+  --shadow-md: 0 10px 15px -3px rgba(225, 29, 72, 0.1), 0 4px 6px -2px rgba(225, 29, 72, 0.05)
+  --shadow-lg: 0 20px 25px -5px rgba(225, 29, 72, 0.1), 0 10px 10px -5px rgba(225, 29, 72, 0.04)
+  --shadow-xl: 0 25px 50px -12px rgba(225, 29, 72, 0.25)
+  
+  // Радиусы
+  --radius-sm: 0.5rem
+  --radius-md: 0.75rem
+  --radius-lg: 1rem
+  --radius-xl: 1.5rem
+  
+  // Длительности анимаций
+  --duration-fast: 150ms
+  --duration-base: 250ms
+  --duration-slow: 350ms
+  
+  // Функции плавности
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1)
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55)
+  --ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1)
+
+// Плавные анимации для интерактивных элементов
+@mixin smooth-transition($properties...)
+  transition-property: #{$properties}
+  transition-duration: var(--duration-base)
+  transition-timing-function: var(--ease-smooth)
+
+@mixin hover-lift
+  @include smooth-transition(transform, box-shadow, background-color, border-color)
+  &:hover:not(:disabled)
+    transform: translateY(-2px)
+
+@mixin focus-ring
+  &:focus-visible
+    outline: none
+    ring: 2px solid var(--color-primary-light)
+    ring-offset: 2px
+
+// Анимации для инпутов
+.input-animated
+  @include smooth-transition(border-color, box-shadow, background-color)
+  
+  &:hover:not(:disabled):not(:focus)
+    border-color: var(--color-border-strong)
+    background-color: var(--color-bg-secondary)
+  
+  &:focus
+    border-color: var(--color-primary)
+    box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1)
+    background-color: var(--color-bg-base)
+    outline: none
+
+// Анимации для кнопок
+.button-animated
+  @include smooth-transition(background-color, border-color, color, transform, box-shadow)
+  
+  &:hover:not(:disabled)
+    transform: translateY(-1px)
+  
+  &:active:not(:disabled)
+    transform: translateY(0)
+  
+  &:disabled
+    opacity: 0.5
+    cursor: not-allowed
+
+.button-primary
+  @extend .button-animated
+  background-color: var(--color-primary)
+  color: var(--color-text-inverse)
+  
+  &:hover:not(:disabled)
+    background-color: var(--color-primary-hover)
+    box-shadow: var(--shadow-md)
+  
+  &:active:not(:disabled)
+    background-color: var(--color-primary-dark)
+
+.button-secondary
+  @extend .button-animated
+  background-color: var(--color-bg-secondary)
+  color: var(--color-text-primary)
+  border: 1px solid var(--color-border-base)
+  
+  &:hover:not(:disabled)
+    background-color: var(--color-bg-tertiary)
+    border-color: var(--color-border-strong)
+
+// Анимации для карточек
+.card-animated
+  @include smooth-transition(transform, box-shadow, border-color, background-color)
+  
+  &:hover
+    transform: translateY(-4px)
+    box-shadow: var(--shadow-lg)
+    border-color: var(--color-border-strong)
+
+// Пульсирующая анимация для активных элементов
+@keyframes pulse-soft
+  0%, 100%
+    opacity: 1
+  50%
+    opacity: 0.8
+
+.animate-pulse-soft
+  animation: pulse-soft 2s var(--ease-smooth) infinite
+
+// Анимация появления
+@keyframes fade-in-up
+  from
+    opacity: 0
+    transform: translateY(10px)
+  to
+    opacity: 1
+    transform: translateY(0)
+
+.animate-fade-in-up
+  animation: fade-in-up var(--duration-base) var(--ease-smooth)
+
+// Анимация для модальных окон
+@keyframes modal-scale-in
+  from
+    opacity: 0
+    transform: scale(0.95)
+  to
+    opacity: 1
+    transform: scale(1)
+
+@keyframes modal-scale-out
+  from
+    opacity: 1
+    transform: scale(1)
+  to
+    opacity: 0
+    transform: scale(0.95)
+
+.modal-enter
+  animation: modal-scale-in var(--duration-base) var(--ease-smooth)
+
+.modal-exit
+  animation: modal-scale-out var(--duration-base) var(--ease-smooth)
+
+// Анимация для чекбоксов
+.checkbox-animated
+  @include smooth-transition(background-color, border-color, transform)
+  
+  &:hover:not(:disabled)
+    border-color: var(--color-primary)
+    transform: scale(1.05)
+  
+  &:checked
+    background-color: var(--color-primary)
+    border-color: var(--color-primary)
+
+// Анимация для селектов
+.select-animated
+  @include smooth-transition(border-color, box-shadow, background-color)
+  
+  &:hover:not(:disabled)
+    border-color: var(--color-border-strong)
+    background-color: var(--color-bg-secondary)
+  
+  &:focus
+    border-color: var(--color-primary)
+    box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1)
+    outline: none
+
+// Анимация для навигационных элементов
+.nav-item-animated
+  @include smooth-transition(background-color, color, transform, border-color)
+  
+  &:hover:not(.active)
+    background-color: var(--color-bg-tertiary)
+    transform: translateX(4px)
+  
+  &.active
+    background-color: rgba(225, 29, 72, 0.1)
+    color: var(--color-primary)
+    border-left: 3px solid var(--color-primary)
+
+// Скелетон-загрузка
+@keyframes skeleton-pulse
+  0%, 100%
+    opacity: 1
+  50%
+    opacity: 0.5
+
+.skeleton
+  background: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-tertiary) 50%, var(--color-bg-secondary) 75%)
+  background-size: 200% 100%
+  animation: skeleton-pulse 1.5s ease-in-out infinite
+
+// Утилиты для текста
+.text-gradient
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%)
+  -webkit-background-clip: text
+  -webkit-text-fill-color: transparent
+  background-clip: text
+
+// Стеклянный эффект
+.glass-effect
+  background: rgba(255, 255, 255, 0.7)
+  -webkit-backdrop-filter: blur(10px)
+  backdrop-filter: blur(10px)
+  border: 1px solid rgba(225, 29, 72, 0.1)
+

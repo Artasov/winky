@@ -1,3 +1,5 @@
+@import './styles/theme.sass';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,7 +12,7 @@ body,
 
 body {
   margin: 0;
-  @apply bg-slate-950 text-slate-100 font-sans;
+  @apply bg-bg-base text-text-primary font-sans;
 }
 
 body.body-transparent {
@@ -28,7 +30,7 @@ body.body-transparent {
 .microphone-wave {
   position: absolute;
   border-radius: 9999px;
-  border: 1px solid rgba(16, 185, 129, 0.35);
+  border: 1px solid rgba(225, 29, 72, 0.35);
   opacity: 0;
   transition: transform 0.2s ease, opacity 0.25s ease;
   pointer-events: none;
@@ -57,9 +59,9 @@ body.body-transparent {
 }
 
 .animate-modal-in {
-  animation: modal-fade-scale-in 0.18s ease-out forwards;
+  animation: modal-fade-scale-in 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .animate-modal-out {
-  animation: modal-fade-scale-out 0.18s ease-in forwards;
+  animation: modal-fade-scale-out 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }

@@ -104,8 +104,8 @@ const SetupWindow: React.FC = () => {
 
   if (!config) {
     return (
-      <div className="flex h-full items-center justify-center bg-slate-950 text-slate-200">
-        Конфигурация не загружена.
+      <div className="flex h-full items-center justify-center bg-bg-base text-text-primary">
+        <div className="animate-pulse-soft">Конфигурация не загружена.</div>
       </div>
     );
   }
@@ -113,45 +113,45 @@ const SetupWindow: React.FC = () => {
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-6 px-6 py-10">
       <div>
-        <h2 className="text-3xl font-semibold text-white">Первичная настройка</h2>
-        <p className="mt-2 text-sm text-slate-300">
+        <h2 className="text-3xl font-semibold text-text-primary">Первичная настройка</h2>
+        <p className="mt-2 text-sm text-text-secondary">
           Выберите режимы работы сервисов распознавания речи и LLM, укажите ключи API при необходимости.
         </p>
       </div>
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <section className="rounded-lg border border-white/10 bg-white/5 p-4">
-          <h3 className="mb-3 text-lg font-semibold text-white">Распознавание речи</h3>
+        <section className="rounded-lg border border-primary-200 bg-white shadow-primary-sm p-4">
+          <h3 className="mb-3 text-lg font-semibold text-text-primary">Распознавание речи</h3>
           <div className="flex flex-col gap-3">
-            <label className="flex items-center gap-3 text-sm text-slate-200">
+            <label className="flex items-center gap-3 text-sm text-text-primary cursor-pointer">
               <input
                 type="radio"
                 name="speechMode"
                 value={SPEECH_MODES.API}
                 checked={speechMode === SPEECH_MODES.API}
                 onChange={() => setSpeechMode(SPEECH_MODES.API)}
-                className="text-emerald-500 focus:ring-emerald-400"
+                className="text-primary focus:ring-primary-light"
               />
               Использовать API сервер
             </label>
-            <label className="flex items-center gap-3 text-sm text-slate-200">
+            <label className="flex items-center gap-3 text-sm text-text-primary cursor-pointer">
               <input
                 type="radio"
                 name="speechMode"
                 value={SPEECH_MODES.LOCAL}
                 checked={speechMode === SPEECH_MODES.LOCAL}
                 onChange={() => setSpeechMode(SPEECH_MODES.LOCAL)}
-                className="text-emerald-500 focus:ring-emerald-400"
+                className="text-primary focus:ring-primary-light"
               />
               Работать локально
             </label>
           </div>
           <div className="mt-4">
-            <label className="flex flex-col gap-2 text-sm text-slate-300">
+            <label className="flex flex-col gap-2 text-sm text-text-primary">
               Модель транскрибации
               <select
                 value={speechModel}
                 onChange={(event) => setSpeechModel(event.target.value as SpeechModel)}
-                className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                className="select-animated rounded-md border border-primary-200 bg-white px-3 py-2 text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
               >
                 {speechModelOptions.map((model) => (
                   <option key={model} value={model}>
@@ -163,53 +163,53 @@ const SetupWindow: React.FC = () => {
           </div>
           {requiresGoogleKey && (
             <div className="mt-4">
-              <label className="flex flex-col gap-2 text-sm text-slate-300">
+              <label className="flex flex-col gap-2 text-sm text-text-primary">
                 Google API Key
                 <input
                   type="text"
                   value={googleKey}
                   onChange={(event) => setGoogleKey(event.target.value)}
-                  className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  className="input-animated rounded-md border border-primary-200 bg-white px-3 py-2 text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
                 />
-                <span className="text-xs text-slate-400">Можно оставить пустым, если используете локальный режим LLM или вводите ключ OpenAI.</span>
+                <span className="text-xs text-text-tertiary">Можно оставить пустым, если используете локальный режим LLM или вводите ключ OpenAI.</span>
               </label>
             </div>
           )}
         </section>
 
-        <section className="rounded-lg border border-white/10 bg-white/5 p-4">
-          <h3 className="mb-3 text-lg font-semibold text-white">LLM сервис</h3>
+        <section className="rounded-lg border border-primary-200 bg-white shadow-primary-sm p-4">
+          <h3 className="mb-3 text-lg font-semibold text-text-primary">LLM сервис</h3>
           <div className="flex flex-col gap-3">
-            <label className="flex items-center gap-3 text-sm text-slate-200">
+            <label className="flex items-center gap-3 text-sm text-text-primary cursor-pointer">
               <input
                 type="radio"
                 name="llmMode"
                 value={LLM_MODES.API}
                 checked={llmMode === LLM_MODES.API}
                 onChange={() => setLlmMode(LLM_MODES.API)}
-                className="text-emerald-500 focus:ring-emerald-400"
+                className="text-primary focus:ring-primary-light"
               />
               Использовать API сервер
             </label>
-            <label className="flex items-center gap-3 text-sm text-slate-200">
+            <label className="flex items-center gap-3 text-sm text-text-primary cursor-pointer">
               <input
                 type="radio"
                 name="llmMode"
                 value={LLM_MODES.LOCAL}
                 checked={llmMode === LLM_MODES.LOCAL}
                 onChange={() => setLlmMode(LLM_MODES.LOCAL)}
-                className="text-emerald-500 focus:ring-emerald-400"
+                className="text-primary focus:ring-primary-light"
               />
               Работать локально
             </label>
           </div>
           <div className="mt-4">
-            <label className="flex flex-col gap-2 text-sm text-slate-300">
+            <label className="flex flex-col gap-2 text-sm text-text-primary">
               Модель LLM
               <select
                 value={llmModel}
                 onChange={(event) => setLlmModel(event.target.value as LLMModel)}
-                className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                className="select-animated rounded-md border border-primary-200 bg-white px-3 py-2 text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
               >
                 {llmModelOptions.map((model) => (
                   <option key={model} value={model}>
@@ -221,28 +221,28 @@ const SetupWindow: React.FC = () => {
           </div>
           {requiresOpenAIKey && (
             <div className="mt-4">
-              <label className="flex flex-col gap-2 text-sm text-slate-300">
+              <label className="flex flex-col gap-2 text-sm text-text-primary">
                 OpenAI API Key
                 <input
                   type="text"
                   value={openaiKey}
                   onChange={(event) => setOpenaiKey(event.target.value)}
-                  className="rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-white focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  className="input-animated rounded-md border border-primary-200 bg-white px-3 py-2 text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
                 />
-                <span className="text-xs text-slate-400">Поле необязательно, если используете только локальные режимы или Google API.</span>
+                <span className="text-xs text-text-tertiary">Поле необязательно, если используете только локальные режимы или Google API.</span>
               </label>
             </div>
           )}
         </section>
 
         {requiresOpenAIKey && requiresGoogleKey && (
-          <p className="-mt-2 text-xs text-slate-400">Можно указать любой доступный ключ (OpenAI или Google).</p>
+          <p className="-mt-2 text-xs text-text-tertiary">Можно указать любой доступный ключ (OpenAI или Google).</p>
         )}
 
         <button
           type="submit"
           disabled={saving}
-          className="self-end rounded-lg bg-emerald-600 px-6 py-2 text-base font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="button-primary self-end rounded-lg px-6 py-2 text-base font-semibold shadow-primary-md disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? 'Сохраняем...' : 'Готово'}
         </button>

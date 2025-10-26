@@ -18,9 +18,9 @@ interface ToastProps {
 }
 
 const variantStyles: Record<ToastType, string> = {
-  success: 'bg-emerald-500/90 border-emerald-400',
-  error: 'bg-rose-500/90 border-rose-400',
-  info: 'bg-slate-700/90 border-slate-500'
+  success: 'bg-primary/90 border-primary text-white',
+  error: 'bg-primary-dark/90 border-primary-dark text-white',
+  info: 'bg-white border-primary-200 text-text-primary shadow-primary-md'
 };
 
 const placementClass: Record<ToastPlacement, string> = {
@@ -37,7 +37,7 @@ const Toast: React.FC<ToastProps> = ({ toasts, placement = 'top-right', classNam
   return (
     <div
       className={classNames(
-        'pointer-events-none fixed z-50 flex w-80 flex-col gap-2 transition-all duration-150',
+        'pointer-events-none fixed z-50 flex w-80 flex-col gap-2 transition-all duration-base',
         placementClass[placement],
         className
       )}
@@ -46,7 +46,7 @@ const Toast: React.FC<ToastProps> = ({ toasts, placement = 'top-right', classNam
         <div
           key={toast.id}
           className={classNames(
-            'flex items-start gap-3 rounded-lg border px-4 py-3 shadow-lg backdrop-blur',
+            'animate-fade-in-up flex items-start gap-3 rounded-lg border px-4 py-3 shadow-primary-lg backdrop-blur transition-all duration-base',
             variantStyles[toast.type]
           )}
         >

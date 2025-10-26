@@ -34,6 +34,7 @@ nsis:
   displayLanguageSelector: false
   license: LICENSE
   artifactName: '${productName}-Setup-${version}-${arch}.${ext}'
+  include: build/installer.nsh
 
 mac:
   target:

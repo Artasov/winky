@@ -52,3 +52,17 @@ npm run build:all     # Все платформы
 ```
 
 Результат в папке `release/`
+
+## Релизы
+
+Для создания нового релиза:
+
+```bash
+npm version patch     # 1.0.0 → 1.0.1
+npm version minor     # 1.0.0 → 1.1.0
+npm version major     # 1.0.0 → 2.0.0
+
+git push origin main --tags
+```
+
+GitHub Actions автоматически соберёт установщики для всех платформ и создаст релиз.

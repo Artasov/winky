@@ -94,6 +94,15 @@ const ActionsPage: React.FC = () => {
         setIsModalVisible(true);
     };
 
+    const handleOverlayMouseDown = useCallback(
+        (event: React.MouseEvent<HTMLDivElement>) => {
+            if (event.target === event.currentTarget) {
+                beginModalClose();
+            }
+        },
+        [beginModalClose]
+    );
+
     const openEditModal = (action: ActionConfig) => {
         setEditingActionId(action.id);
         setName(action.name);
@@ -218,25 +227,23 @@ const ActionsPage: React.FC = () => {
                         return (
                             <div
                                 key={action.id}
-                                className="card-animated group relative flex flex-col gap-3 rounded-2xl border border-primary-200 bg-white p-3 shadow-primary-sm transition-all duration-base hover:border-primary hover:shadow-primary-md"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openEditModal(action)}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                        event.preventDefault();
+                                        openEditModal(action);
+                                    }
+                                }}
+                                className="card-animated group relative flex flex-col gap-3 rounded-2xl border border-primary-200 bg-white p-3 shadow-primary-sm transition-all duration-base hover:border-primary hover:shadow-primary-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
                             >
-                                <div className="absolute right-3 top-3 hidden gap-2 group-hover:flex">
-                                    <button
-                                        type="button"
-                                        onClick={() => openEditModal(action)}
-                                        className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-md border border-primary-200 bg-white text-text-primary transition-[background-color,border-color] duration-base hover:border-primary hover:bg-primary-50"
-                                        aria-label="Edit action"
-                                    >
-                                        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
-                                            <path
-                                                d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
-                                        </svg>
-                                    </button>
+                                <div className="absolute right-3 top-3 flex gap-2 opacity-0 transition-opacity duration-base group-hover:opacity-100">
                                     <button
                                         type="button"
                                         onClick={() => handleDelete(action.id, action.name)}
                                         disabled={isDeleting}
-                                        className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-md border border-primary bg-primary-50 text-primary transition-[background-color,border-color] duration-base hover:border-primary-dark hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                        className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-md border border-primary bg-primary-50 text-primary transition-[background-color,border-color] duration-base hover:border-primary-dark hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
                                         aria-label="Delete action"
                                     >
                                         {isDeleting ? (
@@ -279,7 +286,10 @@ const ActionsPage: React.FC = () => {
 
             {isModalVisible && (
                 <div
-                    className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm px-6 py-10">
+                    className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm px-6 py-10"
+                    onMouseDown={handleOverlayMouseDown}
+                    role="presentation"
+                >
                     <div
                         className={`w-full max-w-xl max-h-[90vh] origin-center rounded-2xl border border-primary-200 bg-white shadow-primary-xl flex flex-col ${
                             isModalClosing ? 'animate-modal-out' : 'animate-modal-in'

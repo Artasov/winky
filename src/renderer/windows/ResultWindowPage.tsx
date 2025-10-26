@@ -59,11 +59,11 @@ const ResultWindowPage: React.FC = () => {
             </div>
 
             <div className='fc flex-1 overflow-hidden'>
-                <div className='fc gap-4 overflow-y-auto flex-1 px-6 pt-4 pb-6'>
+                <div className='fc gap-2 overflow-y-auto flex-1 px-6 pt-4 pb-6'>
                     {/* Transcription */}
                     <div className='fc gap-2'>
                         <div className='frsc gap-2'>
-                            <label className='text-sm font-medium text-text-primary'>Recognized Speech</label>
+                            <label className='text-sm font-medium text-text-primary pl-1'>Recognized Speech</label>
                             <button
                                 type='button'
                                 onClick={handleCopyTranscription}
@@ -98,7 +98,7 @@ const ResultWindowPage: React.FC = () => {
                     {llmResponse && (
                         <div className='fc gap-2'>
                             <div className='frsc gap-2'>
-                                <label className='text-sm font-medium text-text-primary'>
+                                <label className='text-sm font-medium text-text-primary pl-1'>
                                     Response {isStreaming &&
                                     <span className='text-xs text-text-tertiary'>(generating...)</span>}
                                 </label>

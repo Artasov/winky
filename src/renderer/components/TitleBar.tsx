@@ -42,6 +42,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = 
         <button
           type="button"
           onClick={handleMinimize}
+          tabIndex={-1}
           className="flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-bg-tertiary hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
           aria-label="Minimize"
         >
@@ -52,6 +53,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = 
         <button
           type="button"
           onClick={handleClose}
+          tabIndex={-1}
           className="flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
           aria-label="Close"
         >

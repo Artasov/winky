@@ -97,12 +97,14 @@ const createResultWindow = () => {
     resultWindow = new BrowserWindow({
         width: 700,
         height: 600,
+        minWidth: 500,
+        minHeight: 400,
         resizable: true,
         frame: false,
         show: false,
         skipTaskbar: false,
         alwaysOnTop: true,
-        backgroundColor: '#0f172a',
+        backgroundColor: '#ffffff',
         webPreferences: {
             preload: preloadPath,
             contextIsolation: true,
@@ -126,6 +128,9 @@ const createResultWindow = () => {
 
     resultWindow.once('ready-to-show', () => {
         resultWindow?.show();
+        if (isDev && resultWindow) {
+            resultWindow.webContents.openDevTools({ mode: 'detach' });
+        }
     });
 
     return resultWindow;
@@ -156,7 +161,9 @@ const createMicWindow = () => {
     });
 
     micWindow.setMenuBarVisibility(false);
+    // screen-saver - максимальный уровень, окно всегда поверх всех окон, даже полноэкранных
     micWindow.setAlwaysOnTop(true, 'screen-saver');
+    micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     micWindow.setFocusable(true);
 
     // Окно игнорирует клики, но forward:true позволяет элементам с pointer-events-auto получать события
@@ -175,6 +182,13 @@ const createMicWindow = () => {
 
     micWindow.on('closed', () => {
         micWindow = null;
+    });
+
+    // Дополнительная защита: если окно теряет статус alwaysOnTop, восстанавливаем его
+    micWindow.on('blur', () => {
+        if (micWindow && !micWindow.isDestroyed()) {
+            micWindow.setAlwaysOnTop(true, 'screen-saver');
+        }
     });
 
     return micWindow;

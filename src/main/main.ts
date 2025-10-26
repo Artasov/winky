@@ -2,7 +2,7 @@ import {app, BrowserWindow, clipboard, ipcMain, Menu} from 'electron';
 import path from 'path';
 import axios from 'axios';
 import {createTray, destroyTray} from './tray';
-import {getConfig, getConfigFilePath, resetConfig, setActions, setAuthTokens, updateConfig} from './config';
+import {getConfig, getConfigFilePath, getStore, resetConfig, setActions, setAuthTokens, updateConfig} from './config';
 import {ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME, ICONS_ENDPOINT, PROFILE_ENDPOINT} from '@shared/constants';
 import type {ActionConfig, ActionIcon, AppConfig, AuthResponse, AuthTokens, WinkyProfile} from '@shared/types';
 import {createApiClient} from '@shared/api';
@@ -151,14 +151,19 @@ const createResultWindow = () => {
     return resultWindow;
 };
 
-const createMicWindow = () => {
+const createMicWindow = async () => {
     if (micWindow) {
         return micWindow;
     }
 
+    const config = await getStore();
+    const savedPosition = config.get('micWindowPosition');
+
     micWindow = new BrowserWindow({
         width: 160,
         height: 160,
+        x: savedPosition?.x,
+        y: savedPosition?.y,
         resizable: false,
         frame: false,
         transparent: true,
@@ -205,6 +210,15 @@ const createMicWindow = () => {
         micWindow = null;
     });
 
+    // Сохраняем позицию окна при перемещении
+    micWindow.on('move', async () => {
+        if (micWindow && !micWindow.isDestroyed()) {
+            const [x, y] = micWindow.getPosition();
+            const config = await getStore();
+            config.set('micWindowPosition', { x, y });
+        }
+    });
+
     // Дополнительная защита: если окно теряет статус alwaysOnTop, восстанавливаем его
     micWindow.on('blur', () => {
         if (micWindow && !micWindow.isDestroyed()) {
@@ -240,10 +254,11 @@ const registerIpcHandlers = () => {
         
         // Создаём mic окно если setupCompleted был установлен в true
         if (updated.setupCompleted && updated.auth.accessToken && (!micWindow || micWindow.isDestroyed())) {
-            createMicWindow();
-            if (isDev && micWindow) {
-                micWindow.webContents.openDevTools({mode: 'detach'});
-            }
+            void createMicWindow().then(() => {
+                if (isDev && micWindow) {
+                    micWindow.webContents.openDevTools({mode: 'detach'});
+                }
+            });
         }
         
         return updated;
@@ -383,10 +398,11 @@ const login = async ({email, password}: { email: string; password: string }) => 
     
     // Создаём mic окно только если уже пройдена первичная настройка
     if (config.setupCompleted && (!micWindow || micWindow.isDestroyed())) {
-        createMicWindow();
-        if (isDev && micWindow) {
-            micWindow.webContents.openDevTools({mode: 'detach'});
-        }
+        void createMicWindow().then(() => {
+            if (isDev && micWindow) {
+                micWindow.webContents.openDevTools({mode: 'detach'});
+            }
+        });
     }
     
     return {tokens, user: data.user, config};
@@ -577,10 +593,11 @@ const handleAppReady = async () => {
         if (config.auth.accessToken && config.setupCompleted) {
             // Пользователь авторизован и setup пройден - показываем только микрофон
             shouldShowMainWindow = false;
-            createMicWindow();
-            if (isDev && micWindow) {
-                micWindow.webContents.openDevTools({mode: 'detach'});
-            }
+            void createMicWindow().then(() => {
+                if (isDev && micWindow) {
+                    micWindow.webContents.openDevTools({mode: 'detach'});
+                }
+            });
         }
     } catch (error) {
         console.warn('Не удалось проверить авторизацию при запуске', error);

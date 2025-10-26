@@ -69,6 +69,10 @@ export interface AppConfig {
   };
   apiKeys: ApiKeys;
   actions: ActionConfig[];
+  micWindowPosition?: {
+    x: number;
+    y: number;
+  };
 }
 
 export interface LLMProcessResponse {

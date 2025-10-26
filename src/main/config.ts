@@ -20,7 +20,8 @@ const DEFAULT_CONFIG: AppConfig = {
     openai: '',
     google: ''
   },
-  actions: []
+  actions: [],
+  micWindowPosition: undefined
 };
 
 const schema: Schema<AppConfig> = {
@@ -69,6 +70,13 @@ const schema: Schema<AppConfig> = {
       },
       required: ['id', 'icon', 'name', 'prompt']
     }
+  },
+  micWindowPosition: {
+    type: 'object',
+    properties: {
+      x: { type: 'number' },
+      y: { type: 'number' }
+    }
   }
 };
 
@@ -112,7 +120,7 @@ const createStore = async (): Promise<ElectronStoreInstance> => {
   return instance as unknown as ElectronStoreInstance;
 };
 
-const getStore = async (): Promise<ElectronStoreInstance> => {
+export const getStore = async (): Promise<ElectronStoreInstance> => {
   if (!storePromise) {
     storePromise = createStore();
   }

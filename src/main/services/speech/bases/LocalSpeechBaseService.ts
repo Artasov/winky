@@ -8,7 +8,7 @@ export abstract class LocalSpeechBaseService extends RecordingSpeechBaseService 
   protected constructor(model: string) {
     super();
     this.model = model;
-    this.client = axios.create({ baseURL: 'http://localhost:8000', timeout: 120_000 });
+    this.client = axios.create({ baseURL: 'https://xldev.ru', timeout: 120_000 });
   }
 
   protected buildEndpoint(): string {

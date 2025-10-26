@@ -47,14 +47,14 @@ mac:
   target:
     - target: dmg
       arch:
-        - x64
-        - arm64
+        - universal
   category: public.app-category.productivity
   icon: public/resources/logo-1024-1024.png
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  universalApp: true
   artifactName: '${productName}-${version}-${arch}.${ext}'
 
 dmg:

@@ -88,7 +88,7 @@ let storePromise: Promise<ElectronStoreInstance> | null = null;
 const cloneDefaultConfig = (): AppConfig => JSON.parse(JSON.stringify(DEFAULT_CONFIG)) as AppConfig;
 
 const loadElectronStoreModule = async (): Promise<ElectronStoreModule> => {
-  return eval('import("electron-store")') as Promise<ElectronStoreModule>;
+  return new Function('return import("electron-store")')() as Promise<ElectronStoreModule>;
 };
 
 const createStore = async (): Promise<ElectronStoreInstance> => {

@@ -1,0 +1,47 @@
+// Кастомные стили для чекбоксов
+.winky-checkbox
+  appearance: none
+  width: 1rem
+  height: 1rem
+  border: 2px solid #fda4af
+  border-radius: 0.25rem
+  background-color: white
+  cursor: pointer
+  position: relative
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1)
+  flex-shrink: 0
+  
+  &:hover:not(:checked):not(:disabled)
+    border-color: #fb7185
+    background-color: #fff1f2
+  
+  &:checked
+    background-color: #e11d48
+    border-color: #e11d48
+    
+    &::after
+      content: ''
+      position: absolute
+      left: 50%
+      top: 50%
+      transform: translate(-50%, -50%)
+      width: 0.4rem
+      height: 0.7rem
+      border: solid white
+      border-width: 0 2px 2px 0
+      transform: translate(-50%, -60%) rotate(45deg)
+    
+    // Убираем затемнение при наведении на checked чекбокс
+    &:hover
+      background-color: #e11d48
+      border-color: #e11d48
+  
+  &:focus
+    outline: none
+    // Убираем ring который обрезается
+    box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1)
+  
+  &:disabled
+    opacity: 0.5
+    cursor: not-allowed
+

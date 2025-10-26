@@ -1,6 +1,7 @@
 @import './tailwind.css';
 @import './styles/theme.sass';
 @import './styles/wide-classes.css';
+@import './styles/checkbox.sass';
 
 @theme {
   --color-primary: #e11d48;

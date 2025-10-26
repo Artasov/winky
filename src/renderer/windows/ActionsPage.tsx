@@ -290,7 +290,7 @@ const ActionsPage: React.FC = () => {
                             isModalClosing ? 'animate-modal-out' : 'animate-modal-in'
                         }`}
                     >
-                        <div className="flex-shrink-0 p-6 pb-4 flex items-start justify-between gap-3">
+                        <div className="frb flex-shrink-0 p-6 pb-4 gap-3">
                             <div>
                                 <h2 className="text-xl font-semibold text-text-primary">
                                     {editingActionId ? 'Edit Action' : 'New Action'}
@@ -302,7 +302,7 @@ const ActionsPage: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={beginModalClose}
-                                className="button-animated flex h-8 w-8 items-center justify-center rounded-lg border border-primary-200 text-text-secondary transition-all duration-base hover:border-primary hover:text-primary flex-shrink-0"
+                                className="frcc button-animated h-8 w-8 rounded-lg border border-primary-200 text-text-secondary transition-all duration-base hover:border-primary hover:text-primary flex-shrink-0"
                                 aria-label="Close form"
                             >
                                 <svg viewBox="0 0 12 12" className="h-3 w-3 fill-current">
@@ -312,7 +312,7 @@ const ActionsPage: React.FC = () => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="flex flex-col gap-6 overflow-y-auto px-6 pb-6">
+                        <form onSubmit={handleSubmit} className="fc gap-3 overflow-y-auto px-6 pb-6">
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-text-primary"
                                        htmlFor="action-name">Name</label>
@@ -347,7 +347,7 @@ const ActionsPage: React.FC = () => {
                                             type="checkbox"
                                             checked={showResults}
                                             onChange={(e) => setShowResults(e.target.checked)}
-                                            className="checkbox-animated h-4 w-4 rounded border-primary-200 bg-white text-primary focus:ring-2 focus:ring-primary-light/30 focus:ring-offset-0"
+                                            className="winky-checkbox"
                                         />
                                         <span className="text-sm text-text-primary">Show results window</span>
                                     </label>
@@ -356,7 +356,7 @@ const ActionsPage: React.FC = () => {
                                             type="checkbox"
                                             checked={soundOnComplete}
                                             onChange={(e) => setSoundOnComplete(e.target.checked)}
-                                            className="checkbox-animated h-4 w-4 rounded border-primary-200 bg-white text-primary focus:ring-2 focus:ring-primary-light/30 focus:ring-offset-0"
+                                            className="winky-checkbox"
                                         />
                                         <span className="text-sm text-text-primary">Play sound on completion</span>
                                     </label>
@@ -365,7 +365,7 @@ const ActionsPage: React.FC = () => {
                                             type="checkbox"
                                             checked={autoCopyResult}
                                             onChange={(e) => setAutoCopyResult(e.target.checked)}
-                                            className="checkbox-animated h-4 w-4 rounded border-primary-200 bg-white text-primary focus:ring-2 focus:ring-primary-light/30 focus:ring-offset-0"
+                                            className="winky-checkbox"
                                         />
                                         <span className="text-sm text-text-primary">Automatically copy result</span>
                                     </label>
@@ -388,21 +388,21 @@ const ActionsPage: React.FC = () => {
                                         No icons available.
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
                                         {icons.map((iconOption) => (
                                             <button
                                                 key={iconOption.id}
                                                 type="button"
                                                 onClick={() => setIconId(iconOption.id)}
-                                                className={`button-animated flex items-center justify-center rounded-lg border-2 p-3 transition-all duration-base hover:scale-105 ${
+                                                className={`flex items-center justify-center rounded-lg border-2 p-2 transition-all duration-base ${
                                                     iconId === iconOption.id
-                                                        ? 'border-primary bg-primary-50 shadow-primary-md'
+                                                        ? 'border-primary bg-primary-50 shadow-primary-sm'
                                                         : 'border-primary-200 bg-white hover:border-primary hover:bg-primary-50'
                                                 }`}
                                                 aria-pressed={iconId === iconOption.id}
                                                 title={iconOption.name}
                                             >
-                                                <img src={iconOption.svg} alt={iconOption.name} className="h-8 w-8"/>
+                                                <img src={iconOption.svg} alt={iconOption.name} className="h-7 w-7"/>
                                             </button>
                                         ))}
                                     </div>

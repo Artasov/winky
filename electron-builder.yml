@@ -7,7 +7,14 @@ files:
   - dist/main/**/*
   - dist/renderer/**/*
   - package.json
+
 asar: true
+
+extraResources:
+  - from: public/brand/logo-rounded.png
+    to: brand/logo-rounded.png
+  - from: public/brand/logo-rounded.ico
+    to: brand/logo-rounded.ico
 
 win:
   target:

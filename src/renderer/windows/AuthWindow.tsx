@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
+import TitleBar from '../components/TitleBar';
 
 const AuthWindow: React.FC = () => {
   const { refreshConfig } = useConfig();
@@ -41,7 +42,9 @@ const AuthWindow: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-md flex-col justify-center px-6 py-10">
+    <div className="flex h-full flex-col">
+      <TitleBar />
+      <div className="mx-auto flex flex-1 w-full max-w-md flex-col justify-center px-6 py-10">
       <h2 className="mb-6 text-3xl font-semibold text-text-primary">Sign In</h2>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-2 text-sm text-text-primary">
@@ -70,6 +73,7 @@ const AuthWindow: React.FC = () => {
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
       </form>
+      </div>
     </div>
   );
 };

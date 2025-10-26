@@ -54,7 +54,7 @@ const Sidebar: React.FC = () => {
                     autoPlay
                     loop
                     muted
-                    src="/brand/avatar.mp4"
+                    src="./brand/avatar.mp4"
                     className="w-full h-auto"
                     style={{
                         imageRendering: '-webkit-optimize-contrast',

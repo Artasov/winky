@@ -24,8 +24,10 @@ const getIconPath = (): string => {
   if (isDev) {
     return path.resolve(__dirname, '../../public/brand/logo-rounded.png');
   }
-  // В production иконка находится в dist/renderer (упакована в asar)
-  return path.resolve(__dirname, '../renderer/brand/logo-rounded.png');
+  // В production иконка из extraResources
+  const iconPath = path.join(process.resourcesPath, 'brand', 'logo-rounded.png');
+  console.log('[getIconPath] production icon path:', iconPath);
+  return iconPath;
 };
 
 let micWindow: BrowserWindow | null = null;
@@ -78,7 +80,8 @@ const createMainWindow = () => {
             contextIsolation: true,
             nodeIntegration: false,
             devTools: isDev,
-            sandbox: false
+            sandbox: false,
+            webSecurity: false // Разрешаем загрузку локальных ресурсов из asar
         }
     });
 
@@ -91,11 +94,14 @@ const createMainWindow = () => {
         void mainWindow.loadFile(targetUrl);
     }
 
+    mainWindow.once('ready-to-show', () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+    });
+
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
-
-    // Главное окно не показываем автоматически, только по требованию (клик на трей и т.д.)
 };
 
 const createResultWindow = () => {
@@ -121,17 +127,18 @@ const createResultWindow = () => {
             contextIsolation: true,
             nodeIntegration: false,
             devTools: isDev,
-            sandbox: false
+            sandbox: false,
+            webSecurity: false // Разрешаем загрузку локальных ресурсов из asar
         }
     });
 
     resultWindow.setMenuBarVisibility(false);
 
-    const resultUrl = isDev
-        ? 'http://localhost:5173/?window=result#/result'
-        : `file://${rendererPath}?window=result#result`;
-
-    resultWindow.loadURL(resultUrl);
+    if (isDev) {
+        void resultWindow.loadURL('http://localhost:5173/?window=result#/result');
+    } else {
+        void resultWindow.loadFile(rendererPath, {hash: '/result', query: {window: 'result'}});
+    }
 
     resultWindow.on('closed', () => {
         resultWindow = null;
@@ -158,7 +165,7 @@ const createMicWindow = () => {
         resizable: false,
         frame: false,
         transparent: true,
-        show: true,
+        show: false,
         skipTaskbar: true,
         alwaysOnTop: true,
         backgroundColor: '#00000000',
@@ -167,11 +174,13 @@ const createMicWindow = () => {
             contextIsolation: true,
             nodeIntegration: false,
             devTools: isDev,
-            sandbox: false
+            sandbox: false,
+            webSecurity: false // Разрешаем загрузку локальных ресурсов из asar
         }
     });
 
     micWindow.setMenuBarVisibility(false);
+    micWindow.setSkipTaskbar(true); // Явно устанавливаем, чтобы окно не появлялось в панели задач
     // screen-saver - максимальный уровень, окно всегда поверх всех окон, даже полноэкранных
     micWindow.setAlwaysOnTop(true, 'screen-saver');
     micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -239,6 +248,13 @@ const registerIpcHandlers = () => {
     ipcMain.handle('config:reset', async () => {
         const reset = await resetConfig();
         await broadcastConfigUpdate();
+        
+        // Закрываем mic окно при выходе из аккаунта
+        if (micWindow && !micWindow.isDestroyed()) {
+            micWindow.close();
+            micWindow = null;
+        }
+        
         return reset;
     });
 
@@ -354,6 +370,15 @@ const login = async ({email, password}: { email: string; password: string }) => 
     };
     const config = await setAuthTokens(tokens);
     console.log('[auth:login] tokens stored, returning to renderer');
+    
+    // Создаём mic окно после успешной авторизации
+    if (!micWindow || micWindow.isDestroyed()) {
+        createMicWindow();
+        if (isDev && micWindow) {
+            micWindow.webContents.openDevTools({mode: 'detach'});
+        }
+    }
+    
     return {tokens, user: data.user, config};
 };
 
@@ -535,8 +560,18 @@ const handleAppReady = async () => {
     // Создаём главное окно
     createMainWindow();
     
-    // Создаём mic окно сразу
-    createMicWindow();
+    // Проверяем авторизацию и создаём mic окно если пользователь уже залогинен
+    try {
+        const config = await getConfig();
+        if (config.auth.accessToken) {
+            createMicWindow();
+            if (isDev && micWindow) {
+                micWindow.webContents.openDevTools({mode: 'detach'});
+            }
+        }
+    } catch (error) {
+        console.warn('Не удалось проверить авторизацию при запуске', error);
+    }
     
     // Создаём трей
     createTray(showMainWindow);
@@ -545,10 +580,6 @@ const handleAppReady = async () => {
 
     if (isDev && mainWindow) {
         mainWindow.webContents.openDevTools({mode: 'detach'});
-    }
-    
-    if (isDev && micWindow) {
-        micWindow.webContents.openDevTools({mode: 'detach'});
     }
 
     try {

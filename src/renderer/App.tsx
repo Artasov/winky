@@ -217,6 +217,9 @@ const App: React.FC = () => {
   const needsSidebar = config?.auth.accessToken && config?.setupCompleted && 
                        ['/me', '/actions', '/settings', '/info'].includes(location.pathname);
 
+  // Эти страницы имеют встроенный TitleBar
+  const hasBuiltInTitleBar = ['/', '/auth', '/setup'].includes(location.pathname);
+
   return (
     <ToastContext.Provider value={toastContextValue}>
       <ConfigContext.Provider value={configContextValue}>
@@ -226,6 +229,9 @@ const App: React.FC = () => {
         ) : isResultWindow ? (
           // Окно результатов - с TitleBar но без sidebar
           <div className="flex h-full w-full flex-col bg-bg-base text-text-primary">{routes}</div>
+        ) : hasBuiltInTitleBar ? (
+          // Окна Welcome, Auth, Setup уже имеют встроенный TitleBar
+          <div className="flex h-full flex-col bg-bg-base text-text-primary">{routes}</div>
         ) : (
           <div className="flex h-full flex-col bg-bg-base text-text-primary">
             <TitleBar

@@ -11,6 +11,7 @@ import {
 import type { LLMModel, SpeechModel } from '@shared/types';
 import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
+import TitleBar from '../components/TitleBar';
 
 const SetupWindow: React.FC = () => {
   const { config, updateConfig } = useConfig();
@@ -104,14 +105,19 @@ const SetupWindow: React.FC = () => {
 
   if (!config) {
     return (
-      <div className="flex h-full items-center justify-center bg-bg-base text-text-primary">
-        <div className="animate-pulse-soft">Конфигурация не загружена.</div>
+      <div className="flex h-full flex-col">
+        <TitleBar />
+        <div className="flex flex-1 items-center justify-center bg-bg-base text-text-primary">
+          <div className="animate-pulse-soft">Конфигурация не загружена.</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-6 px-6 py-10">
+    <div className="flex h-full flex-col">
+      <TitleBar />
+      <div className="mx-auto flex flex-1 w-full max-w-2xl flex-col gap-6 px-6 py-10">
       <div>
         <h2 className="text-3xl font-semibold text-text-primary">Первичная настройка</h2>
         <p className="mt-2 text-sm text-text-secondary">
@@ -247,6 +253,7 @@ const SetupWindow: React.FC = () => {
           {saving ? 'Сохраняем...' : 'Готово'}
         </button>
       </form>
+      </div>
     </div>
   );
 };

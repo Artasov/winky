@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-import type { ActionConfig, ActionIcon, AppConfig, AuthTokens, WinkyProfile } from '@shared/types';
+import type { ActionConfig, ActionIcon, AppConfig, AuthTokens, User, WinkyProfile } from '@shared/types';
 
 type UpdateConfigPayload = Partial<AppConfig>;
 type LoginResponse = {
@@ -65,7 +65,8 @@ const api = {
   },
   auth: {
     login: (email: string, password: string): Promise<LoginResponse> =>
-      ipcRenderer.invoke('auth:login', { email, password })
+      ipcRenderer.invoke('auth:login', { email, password }),
+    logout: (): Promise<boolean> => ipcRenderer.invoke('auth:logout')
   },
   actions: {
     fetch: (): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:fetch'),
@@ -78,6 +79,10 @@ const api = {
   },
   profile: {
     fetch: (): Promise<WinkyProfile> => ipcRenderer.invoke('profile:fetch')
+  },
+  user: {
+    fetch: (): Promise<User | null> => ipcRenderer.invoke('user:fetch'),
+    getCached: (): Promise<User | null> => ipcRenderer.invoke('user:get-cached')
   },
   speech: {
     transcribe: (audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string }): Promise<string> => 
@@ -115,9 +120,27 @@ const api = {
   mic: {
     moveWindow: (x: number, y: number): Promise<void> => ipcRenderer.invoke('mic:move-window', x, y),
     setInteractive: (interactive: boolean): Promise<void> => ipcRenderer.invoke('mic:set-interactive', interactive)
+  },
+  on: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.on(channel, (_event, ...args) => callback(...args));
+  },
+  removeListener: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.removeListener(channel, callback);
   }
 };
 
 contextBridge.exposeInMainWorld('winky', api);
+contextBridge.exposeInMainWorld('electron', {
+  on: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.on(channel, (_event, ...args) => callback(...args));
+  },
+  removeListener: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.removeListener(channel, callback);
+  },
+  windowControls: {
+    minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
+    close: (): Promise<void> => ipcRenderer.invoke('window:close')
+  }
+});
 
 export type WinkyPreload = typeof api;

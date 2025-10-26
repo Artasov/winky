@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../context/ConfigContext';
+import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import TitleBar from '../components/TitleBar';
 
 const AuthWindow: React.FC = () => {
   const { refreshConfig } = useConfig();
+  const { fetchUser } = useUser();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -26,12 +28,20 @@ const AuthWindow: React.FC = () => {
       }
       console.log('[AuthWindow] login submit', { email });
       const { config: updated } = await window.winky.auth.login(email, password);
+      
+      // Обновляем конфиг и загружаем пользователя
       await refreshConfig();
+      const user = await fetchUser();
+      
+      if (!user) {
+        throw new Error('Failed to fetch user after login');
+      }
+      
       showToast('Авторизация успешна', 'success');
       if (!updated.setupCompleted) {
         navigate('/setup');
       } else {
-        navigate('/main');
+        navigate('/actions');
       }
     } catch (error) {
       console.error('[AuthWindow] login failed', error);

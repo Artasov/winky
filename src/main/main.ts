@@ -3,8 +3,8 @@ import path from 'path';
 import axios from 'axios';
 import {createTray, destroyTray} from './tray';
 import {getConfig, getConfigFilePath, getStore, resetConfig, setActions, setAuthTokens, updateConfig} from './config';
-import {ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME, ICONS_ENDPOINT, PROFILE_ENDPOINT} from '@shared/constants';
-import type {ActionConfig, ActionIcon, AppConfig, AuthResponse, AuthTokens, WinkyProfile} from '@shared/types';
+import {ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME, ICONS_ENDPOINT, ME_ENDPOINT, PROFILE_ENDPOINT} from '@shared/constants';
+import type {ActionConfig, ActionIcon, AppConfig, AuthResponse, AuthTokens, User, WinkyProfile} from '@shared/types';
 import {createApiClient} from '@shared/api';
 import {createSpeechService} from './services/speech/factory';
 import {createLLMService} from './services/llm/factory';
@@ -15,6 +15,10 @@ const isDev = process.env.NODE_ENV === 'development';
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let resultWindow: BrowserWindow | null = null;
+let errorWindow: BrowserWindow | null = null;
+
+// Кеш текущего пользователя
+let currentUser: User | null = null;
 
 const preloadPath = path.resolve(__dirname, 'preload.js');
 const rendererPath = path.resolve(__dirname, '../renderer/index.html');
@@ -25,9 +29,7 @@ const getIconPath = (): string => {
     return path.resolve(__dirname, '../../public/resources/logo-rounded.png');
   }
   // В production иконка из extraResources
-  const iconPath = path.join(process.resourcesPath, 'resources', 'logo-rounded.png');
-  console.log('[getIconPath] production icon path:', iconPath);
-  return iconPath;
+  return path.join(process.resourcesPath, 'resources', 'logo-rounded.png');
 };
 
 let micWindow: BrowserWindow | null = null;
@@ -229,6 +231,69 @@ const createMicWindow = async () => {
     return micWindow;
 };
 
+// Создание или обновление окна ошибок
+const createOrShowErrorWindow = (errorData: {
+    title: string;
+    message: string;
+    details?: string;
+}) => {
+    const fullErrorData = {
+        ...errorData,
+        timestamp: new Date().toISOString()
+    };
+
+    // Если окно уже существует, обновляем его данные и показываем
+    if (errorWindow && !errorWindow.isDestroyed()) {
+        errorWindow.webContents.send('error:show', fullErrorData);
+        if (!errorWindow.isVisible()) {
+            errorWindow.show();
+        }
+        errorWindow.focus();
+        return errorWindow;
+    }
+
+    // Создаем новое окно ошибки
+    errorWindow = new BrowserWindow({
+        width: 600,
+        height: 500,
+        resizable: true,
+        frame: true,
+        show: false,
+        icon: getIconPath(),
+        webPreferences: {
+            preload: preloadPath,
+            contextIsolation: true,
+            nodeIntegration: false,
+            devTools: isDev,
+            sandbox: false,
+            webSecurity: false
+        }
+    });
+
+    errorWindow.setMenuBarVisibility(false);
+
+    if (isDev) {
+        void errorWindow.loadURL('http://localhost:5173/?window=error#/error');
+    } else {
+        void errorWindow.loadFile(rendererPath, { hash: '/error', query: { window: 'error' } });
+    }
+
+    errorWindow.once('ready-to-show', () => {
+        if (errorWindow && !errorWindow.isDestroyed()) {
+            // Отправляем данные ошибки после готовности окна
+            errorWindow.webContents.send('error:show', fullErrorData);
+            errorWindow.show();
+            errorWindow.focus();
+        }
+    });
+
+    errorWindow.on('closed', () => {
+        errorWindow = null;
+    });
+
+    return errorWindow;
+};
+
 // Показываем главное окно (для трея и т.д.)
 const showMainWindow = () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -309,20 +374,138 @@ const registerIpcHandlers = () => {
     });
 
     ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {
-        console.log('[auth:login] IPC received', {email: credentials.email});
-        return login(credentials);
+        try {
+            return await login(credentials);
+        } catch (error: any) {
+            createOrShowErrorWindow({
+                title: 'Authorization Error',
+                message: error?.response?.data?.detail || error?.message || 'Failed to log in. Please check your credentials and try again.',
+                details: JSON.stringify(error?.response?.data || error, null, 2)
+            });
+            throw error;
+        }
+    });
+
+    ipcMain.handle('auth:logout', async () => {
+        try {
+            // Очищаем токены
+            await setAuthTokens({ accessToken: '', refreshToken: '' });
+            // Очищаем кеш пользователя
+            currentUser = null;
+            // Закрываем окно микрофона
+            if (micWindow && !micWindow.isDestroyed()) {
+                micWindow.close();
+                micWindow = null;
+            }
+            await broadcastConfigUpdate();
+            return true;
+        } catch (error: any) {
+            throw error;
+        }
     });
 
     ipcMain.handle('windows:open-settings', () => {
         showMainWindow();
     });
 
-    ipcMain.handle('actions:fetch', async () => fetchActions());
-    ipcMain.handle('actions:create', async (_event, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => createAction(action));
-    ipcMain.handle('actions:update', async (_event, actionId: string, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => updateAction(actionId, action));
-    ipcMain.handle('actions:delete', async (_event, actionId: string) => deleteAction(actionId));
-    ipcMain.handle('icons:fetch', async () => fetchIcons());
-    ipcMain.handle('profile:fetch', async () => fetchProfile());
+    ipcMain.handle('actions:fetch', async () => {
+        try {
+            return await fetchActions();
+        } catch (error: any) {
+            createOrShowErrorWindow({
+                title: 'Failed to Load Actions',
+                message: error?.response?.data?.detail || error?.message || 'Could not load actions. Please check your connection and try again.',
+                details: JSON.stringify(error?.response?.data || error, null, 2)
+            });
+            throw error;
+        }
+    });
+    ipcMain.handle('actions:create', async (_event, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => {
+        try {
+            return await createAction(action);
+        } catch (error: any) {
+            createOrShowErrorWindow({
+                title: 'Failed to Create Action',
+                message: error?.response?.data?.detail || error?.message || 'Could not create action. Please try again.',
+                details: JSON.stringify(error?.response?.data || error, null, 2)
+            });
+            throw error;
+        }
+    });
+    ipcMain.handle('actions:update', async (_event, actionId: string, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => {
+        try {
+            return await updateAction(actionId, action);
+        } catch (error: any) {
+            createOrShowErrorWindow({
+                title: 'Failed to Update Action',
+                message: error?.response?.data?.detail || error?.message || 'Could not update action. Please try again.',
+                details: JSON.stringify(error?.response?.data || error, null, 2)
+            });
+            throw error;
+        }
+    });
+    ipcMain.handle('actions:delete', async (_event, actionId: string) => {
+        try {
+            return await deleteAction(actionId);
+        } catch (error: any) {
+            createOrShowErrorWindow({
+                title: 'Failed to Delete Action',
+                message: error?.response?.data?.detail || error?.message || 'Could not delete action. Please try again.',
+                details: JSON.stringify(error?.response?.data || error, null, 2)
+            });
+            throw error;
+        }
+    });
+    ipcMain.handle('icons:fetch', async () => {
+        try {
+            return await fetchIcons();
+        } catch (error: any) {
+            createOrShowErrorWindow({
+                title: 'Failed to Load Icons',
+                message: error?.response?.data?.detail || error?.message || 'Could not load icons. Please check your connection and try again.',
+                details: JSON.stringify(error?.response?.data || error, null, 2)
+            });
+            throw error;
+        }
+    });
+    ipcMain.handle('profile:fetch', async () => {
+        try {
+            return await fetchProfile();
+        } catch (error: any) {
+            createOrShowErrorWindow({
+                title: 'Failed to Load Profile',
+                message: error?.response?.data?.detail || error?.message || 'Could not load profile. Please check your connection and try again.',
+                details: JSON.stringify(error?.response?.data || error, null, 2)
+            });
+            throw error;
+        }
+    });
+    
+    ipcMain.handle('user:fetch', async () => {
+        try {
+            return await fetchCurrentUser();
+        } catch (error: any) {
+            // Не показываем окно ошибки для 401/403, это означает что нужна авторизация
+            if (error?.response?.status === 401 || error?.response?.status === 403) {
+                // Очищаем токен если получили 401/403
+                await setAuthTokens({ accessToken: '', refreshToken: '' });
+                currentUser = null;
+                await broadcastConfigUpdate();
+                return null;
+            }
+            createOrShowErrorWindow({
+                title: 'Failed to Load User',
+                message: error?.response?.data?.detail || error?.message || 'Could not load user data. Please check your connection and try again.',
+                details: JSON.stringify(error?.response?.data || error, null, 2)
+            });
+            throw error;
+        }
+    });
+    
+    ipcMain.handle('user:get-cached', async () => {
+        return currentUser;
+    });
+    
     ipcMain.handle('speech:transcribe', async (_event, audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string }) => transcribeAudio(audioData, config));
     ipcMain.handle('llm:process', async (_event, text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }) => processLLM(text, prompt, config));
     ipcMain.handle('llm:process-stream', async (_event, text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }) => processLLMStream(text, prompt, config));
@@ -343,12 +526,8 @@ const registerIpcHandlers = () => {
         }
     });
     ipcMain.handle('result:close', () => {
-        console.log('[main] result:close invoked');
         if (resultWindow && !resultWindow.isDestroyed()) {
-            console.log('[main] Closing result window');
             resultWindow.close();
-        } else {
-            console.log('[main] Result window already closed or not exists');
         }
     });
     ipcMain.handle('result:update', (_event, data: { transcription?: string; llmResponse?: string; isStreaming?: boolean }) => {
@@ -359,34 +538,23 @@ const registerIpcHandlers = () => {
 };
 
 const login = async ({email, password}: { email: string; password: string }) => {
-    console.log('[auth:login] starting login attempts', {email, endpoints: API_BASE_URL_FALLBACKS.length});
     let data: AuthResponse | undefined;
     let lastError: unknown = null;
 
     for (const baseUrl of API_BASE_URL_FALLBACKS) {
         const endpoint = `${baseUrl.replace(/\/$/, '')}/auth/login/`;
         try {
-            console.log('[auth:login] attempt', endpoint);
             ({data} = await axios.post<AuthResponse>(endpoint, {
                 email,
                 password
             }));
-            console.log('[auth:login] POST success', endpoint);
             break;
         } catch (error: any) {
             lastError = error;
-            console.error('[auth:login] POST failed', {
-                endpoint,
-                message: error?.message,
-                code: error?.code,
-                status: error?.response?.status,
-                data: error?.response?.data
-            });
         }
     }
 
     if (!data) {
-        console.error('[auth:login] all endpoints failed');
         throw lastError ?? new Error('Не удалось выполнить запрос авторизации');
     }
     const tokens: AuthTokens = {
@@ -394,7 +562,6 @@ const login = async ({email, password}: { email: string; password: string }) => 
         refreshToken: data.refresh
     };
     const config = await setAuthTokens(tokens);
-    console.log('[auth:login] tokens stored, returning to renderer');
     
     // Создаём mic окно только если уже пройдена первичная настройка
     if (config.setupCompleted && (!micWindow || micWindow.isDestroyed())) {
@@ -405,7 +572,34 @@ const login = async ({email, password}: { email: string; password: string }) => 
         });
     }
     
+    // Загружаем текущего пользователя после успешной авторизации
+    try {
+        currentUser = await fetchCurrentUser();
+    } catch (error) {
+        // Игнорируем ошибку, пользователь будет загружен при следующем запросе
+    }
+    
     return {tokens, user: data.user, config};
+};
+
+const fetchCurrentUser = async (): Promise<User | null> => {
+    const config = await getConfig();
+    
+    if (!config.auth.accessToken) {
+        currentUser = null;
+        return null;
+    }
+
+    const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
+    
+    try {
+        const { data } = await client.get<User>(ME_ENDPOINT);
+        currentUser = data;
+        return data;
+    } catch (error: any) {
+        currentUser = null;
+        throw error;
+    }
 };
 
 interface PaginatedResponse<T> {
@@ -425,24 +619,20 @@ const sendLogToRenderer = (type: string, data: any) => {
 };
 
 const fetchActions = async (): Promise<ActionConfig[]> => {
-    console.debug('[main] actions:fetch invoked');
     const config = await getConfig();
     if (!config.auth.accessToken) {
-        console.debug('[main] actions:fetch skipped (no access token)');
         return config.actions;
     }
 
     const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
     const {data} = await client.get<PaginatedResponse<ActionConfig>>('/winky/actions/');
     const actions = data.results || [];
-    console.debug('[main] actions:fetch success', {count: actions.length});
     await setActions(actions);
     await broadcastConfigUpdate();
     return actions;
 };
 
 const createAction = async (action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => {
-    console.debug('[main] actions:create invoked', {name: action.name});
     const config = await getConfig();
     if (!config.auth.accessToken) {
         throw new Error('Необходимо авторизоваться.');
@@ -452,13 +642,11 @@ const createAction = async (action: { name: string; prompt: string; icon: string
     const {data} = await client.post<ActionConfig>('/winky/actions/', action);
     const updated = [...config.actions.filter(({id}) => id !== data.id), data];
     await setActions(updated);
-    console.debug('[main] actions:create success', {actionId: data.id});
     await broadcastConfigUpdate();
     return updated;
 };
 
 const updateAction = async (actionId: string, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => {
-    console.debug('[main] actions:update invoked', {actionId, name: action.name});
     const config = await getConfig();
     if (!config.auth.accessToken) {
         throw new Error('Необходимо авторизоваться.');
@@ -468,13 +656,11 @@ const updateAction = async (actionId: string, action: { name: string; prompt: st
     const {data} = await client.patch<ActionConfig>(`/winky/actions/${actionId}/`, action);
     const updated = config.actions.map((a) => (a.id === actionId ? data : a));
     await setActions(updated);
-    console.debug('[main] actions:update success', {actionId});
     await broadcastConfigUpdate();
     return updated;
 };
 
 const deleteAction = async (actionId: string): Promise<ActionConfig[]> => {
-    console.debug('[main] actions:delete invoked', {actionId});
     const config = await getConfig();
     if (!config.auth.accessToken) {
         throw new Error('Необходимо авторизоваться.');
@@ -484,29 +670,23 @@ const deleteAction = async (actionId: string): Promise<ActionConfig[]> => {
     await client.delete(`/winky/actions/${actionId}/`);
     const updated = config.actions.filter(({id}) => id !== actionId);
     await setActions(updated);
-    console.debug('[main] actions:delete success', {actionId});
     await broadcastConfigUpdate();
     return updated;
 };
 
 const fetchIcons = async (): Promise<ActionIcon[]> => {
-    console.debug('[main] icons:fetch invoked');
     const config = await getConfig();
     if (!config.auth.accessToken) {
-        console.error('[main] icons:fetch - нет токена авторизации');
         throw new Error('Необходимо авторизоваться.');
     }
 
     const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
-    console.debug('[main] icons:fetch - запрос к /winky/icons/');
     const {data} = await client.get<PaginatedResponse<ActionIcon>>('/winky/icons/');
     const icons = data.results || [];
-    console.debug('[main] icons:fetch success', {count: icons.length, icons});
     return icons;
 };
 
 const fetchProfile = async (): Promise<WinkyProfile> => {
-    console.debug('[main] profile:fetch invoked');
     const config = await getConfig();
     if (!config.auth.accessToken) {
         throw new Error('Необходимо авторизоваться.');
@@ -514,13 +694,10 @@ const fetchProfile = async (): Promise<WinkyProfile> => {
 
     const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
     const {data} = await client.get<WinkyProfile>('/winky/profile/');
-    console.debug('[main] profile:fetch success', {profileId: data.id});
     return data;
 };
 
 const transcribeAudio = async (audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string }): Promise<string> => {
-    console.debug('[main] speech:transcribe invoked', { mode: config.mode, model: config.model, size: audioData.byteLength });
-    
     // Для API-based сервисов делаем запрос напрямую из main process
     if (config.mode === 'api') {
         const buffer = Buffer.from(audioData);
@@ -538,10 +715,8 @@ const transcribeAudio = async (audioData: ArrayBuffer, config: { mode: string; m
         
         try {
             const { data } = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, { headers });
-            console.debug('[main] speech:transcribe success', { textLength: data.text?.length });
             return data.text || '';
         } catch (error: any) {
-            console.error('[main] speech:transcribe error', error.response?.data || error.message);
             throw new Error('Не удалось распознать речь: ' + (error.response?.data?.error?.message || error.message));
         }
     }
@@ -551,22 +726,16 @@ const transcribeAudio = async (audioData: ArrayBuffer, config: { mode: string; m
 };
 
 const processLLM = async (text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string> => {
-    console.debug('[main] llm:process invoked', { mode: config.mode, model: config.model, textLength: text.length });
-    
     const service = createLLMService(config.mode as any, config.model as any, {
         openaiKey: config.openaiKey,
         googleKey: config.googleKey,
         accessToken: config.accessToken
     });
     
-    const result = await service.process(text, prompt);
-    console.debug('[main] llm:process success', { resultLength: result.length });
-    return result;
+    return await service.process(text, prompt);
 };
 
 const processLLMStream = async (text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string> => {
-    console.debug('[main] llm:process-stream invoked', { mode: config.mode, model: config.model, textLength: text.length });
-    
     const service = createLLMService(config.mode as any, config.model as any, {
         openaiKey: config.openaiKey,
         googleKey: config.googleKey,
@@ -574,9 +743,7 @@ const processLLMStream = async (text: string, prompt: string, config: { mode: st
     });
     
     // Для стриминга нужно вернуть через другой механизм, пока используем обычный process
-    const result = await service.process(text, prompt);
-    console.debug('[main] llm:process-stream success', { resultLength: result.length });
-    return result;
+    return await service.process(text, prompt);
 };
 
 const handleAppReady = async () => {
@@ -590,17 +757,29 @@ const handleAppReady = async () => {
     let shouldShowMainWindow = true;
     try {
         const config = await getConfig();
-        if (config.auth.accessToken && config.setupCompleted) {
-            // Пользователь авторизован и setup пройден - показываем только микрофон
-            shouldShowMainWindow = false;
-            void createMicWindow().then(() => {
-                if (isDev && micWindow) {
-                    micWindow.webContents.openDevTools({mode: 'detach'});
+        if (config.auth.accessToken && config.auth.accessToken.trim() !== '') {
+            // Есть токен, проверяем его валидность через запрос текущего пользователя
+            try {
+                const user = await fetchCurrentUser();
+                
+                if (user && config.setupCompleted) {
+                    // Пользователь успешно загружен и setup пройден - показываем только микрофон
+                    shouldShowMainWindow = false;
+                    void createMicWindow().then(() => {
+                        if (isDev && micWindow) {
+                            micWindow.webContents.openDevTools({mode: 'detach'});
+                        }
+                    });
+                } else if (!user) {
+                    // Не удалось загрузить пользователя, токен невалиден
+                    shouldShowMainWindow = true;
                 }
-            });
+            } catch (error) {
+                shouldShowMainWindow = true;
+            }
         }
     } catch (error) {
-        console.warn('Не удалось проверить авторизацию при запуске', error);
+        // Ошибка при проверке авторизации, показываем главное окно
     }
     
     // Показываем главное окно только если пользователь не авторизован или setup не пройден
@@ -620,10 +799,13 @@ const handleAppReady = async () => {
         mainWindow.webContents.openDevTools({mode: 'detach'});
     }
 
-    try {
-        await fetchActions();
-    } catch (error) {
-        console.warn('Не удалось загрузить действия при запуске', error);
+    // Загружаем actions только если пользователь авторизован
+    if (currentUser) {
+        try {
+            await fetchActions();
+        } catch (error) {
+            // Игнорируем ошибку, actions будут загружены позже
+        }
     }
 };
 

@@ -53,10 +53,8 @@ const SetupWindow: React.FC = () => {
         apiKeys: { openai: formData.openaiKey.trim(), google: formData.googleKey.trim() }
       });
       showToast('Settings saved successfully', 'success');
-      if (updated.actions.length === 0) {
-        await window.winky?.actions.fetch().catch(() => null);
-      }
-      navigate('/main');
+      // Actions будут загружены автоматически при навигации на /main, если пользователь авторизован
+      navigate('/actions');
     } catch (error) {
       console.error(error);
       showToast('Failed to save settings.', 'error');

@@ -9,6 +9,7 @@ export const LLM_PROCESS_ENDPOINT = `${API_BASE_URL}/llm/process`;
 export const ACTIONS_ENDPOINT = `${API_BASE_URL}/winky/actions`;
 export const ICONS_ENDPOINT = `${API_BASE_URL}/winky/icons`;
 export const PROFILE_ENDPOINT = `${API_BASE_URL}/winky/profile`;
+export const ME_ENDPOINT = `${API_BASE_URL}/me/`;
 
 export const CONFIG_FILE_NAME = 'config.json';
 

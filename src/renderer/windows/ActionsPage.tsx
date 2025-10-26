@@ -1,13 +1,15 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {ActionConfig, ActionIcon} from '@shared/types';
 import {useConfig} from '../context/ConfigContext';
+import {useUser} from '../context/UserContext';
 import {useToast} from '../context/ToastContext';
 
 const ActionsPage: React.FC = () => {
     const {config, refreshConfig} = useConfig();
+    const {user} = useUser();
     const {showToast} = useToast();
     const actions = useMemo(() => config?.actions ?? [], [config?.actions]);
-    const isAuthorized = Boolean(config?.auth.accessToken);
+    const isAuthorized = user !== null;
 
     const MODAL_ANIMATION_MS = 180;
     const [isModalVisible, setIsModalVisible] = useState(false);
@@ -37,7 +39,7 @@ const ActionsPage: React.FC = () => {
     }, []);
 
     const loadIcons = useCallback(async () => {
-        if (iconsLoading || iconsLoaded) {
+        if (iconsLoading || iconsLoaded || !user) {
             return;
         }
         setIconsLoading(true);
@@ -58,7 +60,7 @@ const ActionsPage: React.FC = () => {
         } finally {
             setIconsLoading(false);
         }
-    }, [iconId, iconsLoaded, iconsLoading, showToast]);
+    }, [iconId, iconsLoaded, iconsLoading, showToast, user]);
 
     useEffect(() => {
         if (isModalVisible) {

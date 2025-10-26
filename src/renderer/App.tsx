@@ -3,6 +3,7 @@ import {Route, Routes, useLocation, useNavigate} from 'react-router-dom';
 import type {AppConfig} from '@shared/types';
 import {ConfigContext} from './context/ConfigContext';
 import {ToastContext} from './context/ToastContext';
+import {UserProvider, useUser} from './context/UserContext';
 import Toast, {ToastMessage, ToastType} from './components/Toast';
 import WelcomeWindow from './windows/WelcomeWindow';
 import AuthWindow from './windows/AuthWindow';
@@ -13,24 +14,26 @@ import ActionsPage from './windows/ActionsPage';
 import SettingsPage from './windows/SettingsPage';
 import InfoPage from './windows/InfoPage';
 import ResultWindowPage from './windows/ResultWindowPage';
+import ErrorWindow from './windows/ErrorWindow';
 import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
     const [config, setConfigState] = useState<AppConfig | null>(null);
     const [loading, setLoading] = useState(true);
     const [toasts, setToasts] = useState<ToastMessage[]>([]);
+    const { user, fetchUser, loading: userLoading } = useUser();
     const [preloadError, setPreloadError] = useState<string | null>(() =>
         typeof window !== 'undefined' && window.winky ? null : 'Preload-скрипт не загружен.'
     );
-    const windowKind = useMemo<'main' | 'settings' | 'mic' | 'result'>(() => {
+    const windowKind = useMemo<'main' | 'settings' | 'mic' | 'result' | 'error'>(() => {
         if (typeof window === 'undefined') {
             return 'main';
         }
         const params = new URLSearchParams(window.location.search);
         const value = params.get('window');
-        if (value === 'settings' || value === 'mic' || value === 'result') {
-            return value as 'settings' | 'mic' | 'result';
+        if (value === 'settings' || value === 'mic' || value === 'result' || value === 'error') {
+            return value as 'settings' | 'mic' | 'result' | 'error';
         }
         return 'main';
     }, []);
@@ -39,6 +42,7 @@ const App: React.FC = () => {
     const isAuxWindow = windowKind !== 'main';
     const isMicWindow = windowKind === 'mic';
     const isResultWindow = windowKind === 'result';
+    const isErrorWindow = windowKind === 'error';
 
     const showToast = useCallback((message: string, type: ToastType = 'info') => {
         const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}`;
@@ -78,8 +82,8 @@ const App: React.FC = () => {
 
     const handleNavigation = useCallback(
         (currentConfig: AppConfig, currentPath: string) => {
-            // Mic и Result окна не управляют навигацией
-            if (isMicWindow || isResultWindow) {
+            // Mic, Result и Error окна не управляют навигацией
+            if (isMicWindow || isResultWindow || isErrorWindow) {
                 return;
             }
 
@@ -114,7 +118,7 @@ const App: React.FC = () => {
             // По умолчанию переходим на /actions
             navigate('/actions');
         },
-        [navigate, isMicWindow, isResultWindow]
+        [navigate, isMicWindow, isResultWindow, isErrorWindow]
     );
 
     useEffect(() => {
@@ -151,16 +155,30 @@ const App: React.FC = () => {
     useEffect(() => {
         const load = async () => {
             try {
-                await refreshConfig();
+                // Сначала загружаем конфиг
+                const loadedConfig = await refreshConfig();
+                
+                // Если есть токен, пытаемся загрузить пользователя
+                if (loadedConfig.auth.accessToken && loadedConfig.auth.accessToken.trim() !== '') {
+                    console.log('[App] Token found, fetching user...');
+                    const userData = await fetchUser();
+                    
+                    // Если не удалось загрузить пользователя (401/403), токен невалиден
+                    if (!userData) {
+                        console.warn('[App] Failed to fetch user, token might be invalid');
+                    }
+                } else {
+                    console.log('[App] No token found, skipping user fetch');
+                }
             } catch (error) {
-                console.error('[App] Не удалось загрузить конфигурацию', error);
+                console.error('[App] Не удалось загрузить конфигурацию или пользователя', error);
             } finally {
                 setLoading(false);
             }
         };
 
         void load();
-    }, [refreshConfig]);
+    }, [refreshConfig, fetchUser]);
 
     useEffect(() => {
         if (config && !loading) {
@@ -189,6 +207,7 @@ const App: React.FC = () => {
             <Route path="/settings" element={<SettingsPage/>}/>
             <Route path="/info" element={<InfoPage/>}/>
             <Route path="/result" element={<ResultWindowPage/>}/>
+            <Route path="/error" element={<ErrorWindow/>}/>
         </Routes>
     );
 
@@ -214,7 +233,12 @@ const App: React.FC = () => {
     }
 
     // Определяем, нужен ли Sidebar для текущего маршрута
-    const needsSidebar = config?.auth.accessToken && config?.setupCompleted &&
+    // Не показываем sidebar, если еще загружается, если нет пользователя, или если не завершен setup
+    const needsSidebar = !loading && 
+        !userLoading &&
+        user !== null &&
+        config?.auth.accessToken && 
+        config?.setupCompleted &&
         ['/me', '/actions', '/settings', '/info'].includes(location.pathname);
 
     // Эти страницы имеют встроенный TitleBar
@@ -229,15 +253,15 @@ const App: React.FC = () => {
                 ) : isResultWindow ? (
                     // Окно результатов - с TitleBar но без sidebar
                     <div className="fc disable-tap-select h-full w-full bg-bg-base text-text-primary">{routes}</div>
+                ) : isErrorWindow ? (
+                    // Окно ошибки - полноэкранное без sidebar
+                    <div className="fc disable-tap-select h-full w-full bg-bg-base text-text-primary">{routes}</div>
                 ) : hasBuiltInTitleBar ? (
                     // Окна Welcome, Auth, Setup уже имеют встроенный TitleBar
                     <div className="fc disable-tap-select h-full bg-bg-base text-text-primary">{routes}</div>
                 ) : (
                     <div className="fc disable-tap-select h-full bg-bg-base text-text-primary">
-                        <TitleBar
-                            showWinkyButton={!needsSidebar}
-                            onWinkyClick={!needsSidebar ? () => navigate('/actions') : undefined}
-                        />
+                        <TitleBar />
                         <div className="fr flex-1 overflow-hidden">
                             {needsSidebar && <Sidebar/>}
                             <main className="flex-1 overflow-hidden bg-bg-secondary/50">
@@ -246,9 +270,17 @@ const App: React.FC = () => {
                         </div>
                     </div>
                 )}
-                {!isMicWindow && !isResultWindow && <Toast toasts={toasts} placement="top-right"/>}
+                {!isMicWindow && !isResultWindow && !isErrorWindow && <Toast toasts={toasts} placement="top-right"/>}
             </ConfigContext.Provider>
         </ToastContext.Provider>
+    );
+};
+
+const App: React.FC = () => {
+    return (
+        <UserProvider>
+            <AppContent />
+        </UserProvider>
     );
 };
 

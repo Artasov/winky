@@ -2,12 +2,10 @@ import React from 'react';
 
 interface TitleBarProps {
   title?: string;
-  showWinkyButton?: boolean;
-  onWinkyClick?: () => void;
   onClose?: () => void;
 }
 
-const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = false, onWinkyClick, onClose }) => {
+const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', onClose }) => {
   const handleMinimize = () => {
     window.winky?.windowControls.minimize().catch((error) => {
       console.error('[TitleBar] Failed to minimize window', error);
@@ -30,15 +28,6 @@ const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = 
         <img src="./resources/winky-pink-signature.png" alt="Winky" className="h-10 pointer-events-none pt-1" draggable="false" />
       </div>
       <div className="app-region-no-drag flex items-center gap-2 text-text-secondary">
-        {showWinkyButton && onWinkyClick && (
-          <button
-            type="button"
-            onClick={onWinkyClick}
-            className="flex h-8 items-center justify-center rounded-lg px-3 text-[10px] font-semibold tracking-[0.2em] text-primary transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
-          >
-            Winky
-          </button>
-        )}
         <button
           type="button"
           onClick={handleMinimize}

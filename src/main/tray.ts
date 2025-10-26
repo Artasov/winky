@@ -13,7 +13,6 @@ export const createTray = (onOpenSettings: () => void, onQuit?: () => void): Tra
     ? path.resolve(__dirname, '../../public/resources/logo-rounded.png')
     : path.join(process.resourcesPath, 'resources', 'logo-rounded.png');
   
-  console.log('[createTray] icon path:', iconPath);
   const icon = nativeImage.createFromPath(iconPath);
     tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
 

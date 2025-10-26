@@ -4,9 +4,10 @@ interface TitleBarProps {
   title?: string;
   showWinkyButton?: boolean;
   onWinkyClick?: () => void;
+  onClose?: () => void;
 }
 
-const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = false, onWinkyClick }) => {
+const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = false, onWinkyClick, onClose }) => {
   const handleMinimize = () => {
     window.winky?.windowControls.minimize().catch((error) => {
       console.error('[TitleBar] Не удалось свернуть окно', error);
@@ -14,9 +15,13 @@ const TitleBar: React.FC<TitleBarProps> = ({ title = 'Winky', showWinkyButton = 
   };
 
   const handleClose = () => {
-    window.winky?.windowControls.close().catch((error) => {
-      console.error('[TitleBar] Не удалось закрыть окно', error);
-    });
+    if (onClose) {
+      onClose();
+    } else {
+      window.winky?.windowControls.close().catch((error) => {
+        console.error('[TitleBar] Не удалось закрыть окно', error);
+      });
+    }
   };
 
   return (

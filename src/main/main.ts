@@ -270,8 +270,12 @@ const registerIpcHandlers = () => {
         }
     });
     ipcMain.handle('result:close', () => {
+        console.log('[main] result:close invoked');
         if (resultWindow && !resultWindow.isDestroyed()) {
+            console.log('[main] Closing result window');
             resultWindow.close();
+        } else {
+            console.log('[main] Result window already closed or not exists');
         }
     });
     ipcMain.handle('result:update', (_event, data: { transcription?: string; llmResponse?: string; isStreaming?: boolean }) => {

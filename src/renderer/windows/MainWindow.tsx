@@ -213,7 +213,10 @@ const MainWindow: React.FC = () => {
         }
         
         if (action.sound_on_complete && completionSoundRef.current) {
-          completionSoundRef.current.play().catch(() => {});
+          console.log('[MainWindow] Playing completion sound');
+          completionSoundRef.current.play().catch((error) => {
+            console.error('[MainWindow] Error playing sound:', error);
+          });
         }
         
         return;
@@ -246,7 +249,10 @@ const MainWindow: React.FC = () => {
       }
 
       if (action.sound_on_complete && completionSoundRef.current) {
-        completionSoundRef.current.play().catch(() => {});
+        console.log('[MainWindow] Playing completion sound (after LLM)');
+        completionSoundRef.current.play().catch((error) => {
+          console.error('[MainWindow] Error playing sound:', error);
+        });
       }
 
     } catch (error: any) {
@@ -314,7 +320,7 @@ const MainWindow: React.FC = () => {
   const normalizedVolume = Math.min(volume * 2.5, 1);
   return (
     <>
-      <audio ref={completionSoundRef} src='/sounds/completion.mp3' preload='auto' />
+      <audio ref={completionSoundRef} src='/sounds/completion.wav' preload='auto' />
 
       <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-visible">
       {/* Волны звука вокруг микрофона */}

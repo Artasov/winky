@@ -43,15 +43,23 @@ const ResultWindowPage: React.FC = () => {
   };
 
   const handleClose = async () => {
-    await window.winky?.result.close();
+    console.log('[ResultWindowPage] Close button clicked');
+    try {
+      await window.winky?.result.close();
+      console.log('[ResultWindowPage] Close request sent');
+    } catch (error) {
+      console.error('[ResultWindowPage] Error closing window:', error);
+    }
   };
 
   return (
-    <div className='h-screen w-full bg-slate-950 fc'>
-      <TitleBar />
+    <div className='h-screen w-full bg-slate-950 fc overflow-hidden'>
+      <div className='flex-shrink-0'>
+        <TitleBar onClose={handleClose} />
+      </div>
       
-      <div className='fc flex-1 p-6 gap-4 overflow-hidden'>
-        <div className='frbe gap-3'>
+      <div className='fc flex-1 overflow-hidden'>
+        <div className='flex-shrink-0 frbe gap-3 px-6 pt-6 pb-4'>
           <h2 className='text-xl font-semibold text-white'>Результаты</h2>
           <button
             type='button'
@@ -65,7 +73,7 @@ const ResultWindowPage: React.FC = () => {
           </button>
         </div>
 
-        <div className='fc gap-4 overflow-auto flex-1'>
+        <div className='fc gap-4 overflow-y-auto flex-1 px-6 pb-6'>
         {/* Transcription */}
         <div className='fc gap-2'>
           <div className='frbe'>

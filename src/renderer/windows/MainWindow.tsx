@@ -129,7 +129,7 @@ const MainWindow: React.FC = () => {
     return true;
   };
 
-  const finishRecording = async (): Promise<Blob | null> => {
+  const finishRecording = async (resetUI: boolean = true): Promise<Blob | null> => {
     if (!speechServiceRef.current) {
       return null;
     }
@@ -142,8 +142,10 @@ const MainWindow: React.FC = () => {
       showToast('Не удалось остановить запись.', 'error');
       return null;
     } finally {
-      setIsRecording(false);
-      stopVolumeMonitor();
+      if (resetUI) {
+        setIsRecording(false);
+        stopVolumeMonitor();
+      }
     }
   };
 
@@ -168,7 +170,6 @@ const MainWindow: React.FC = () => {
       return;
     }
 
-    setProcessing(true);
     try {
       const transcription = await speechServiceRef.current?.transcribe(blob);
       if (!transcription) {
@@ -183,8 +184,6 @@ const MainWindow: React.FC = () => {
     } catch (error) {
       console.error(error);
       showToast('Ошибка при обработке действия.', 'error');
-    } finally {
-      setProcessing(false);
     }
   };
 
@@ -228,12 +227,20 @@ const MainWindow: React.FC = () => {
     }
 
     setActiveActionId(action.id);
-    const blob = await finishRecording();
-    setIsRecording(false);
+    setProcessing(true);
+    
+    // Останавливаем запись, но не меняем UI (isRecording остается true)
+    const blob = await finishRecording(false);
+    
     if (blob) {
       await processAction(action, blob);
     }
+    
+    // Только сейчас возвращаем изначальный вид
+    setIsRecording(false);
+    stopVolumeMonitor();
     setActiveActionId(null);
+    setProcessing(false);
   };
 
   const normalizedVolume = Math.min(volume * 2.5, 1);
@@ -292,8 +299,9 @@ const MainWindow: React.FC = () => {
                 <ActionButton
                   action={action}
                   onClick={handleActionClick}
-                  disabled={processing}
+                  disabled={processing && activeActionId !== action.id}
                   isActive={activeActionId === action.id}
+                  isLoading={processing && activeActionId === action.id}
                   variant="floating"
                 />
               </div>

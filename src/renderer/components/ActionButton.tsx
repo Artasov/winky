@@ -8,10 +8,11 @@ interface ActionButtonProps {
   onClick: (action: ActionConfig) => void;
   disabled?: boolean;
   isActive?: boolean;
+  isLoading?: boolean;
   variant?: 'default' | 'floating';
 }
 
-const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, isActive, variant = 'default' }) => {
+const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, isActive, isLoading, variant = 'default' }) => {
   const baseClasses =
     variant === 'floating'
       ? 'pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-slate-950/90 text-white/80 transition hover:border-white/50 hover:text-white hover:bg-slate-900'
@@ -22,7 +23,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, 
   return (
     <button
       type="button"
-      disabled={disabled}
+      disabled={disabled || isLoading}
       onClick={() => onClick(action)}
       onMouseEnter={() => interactiveEnter()}
       onMouseLeave={() => interactiveLeave()}
@@ -38,17 +39,44 @@ const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, 
       )}
       title={action.name}
     >
-      {action.icon_details?.svg ? (
-        <img 
-          src={action.icon_details.svg}
-          alt=""
-          width={iconSize}
-          height={iconSize}
-          aria-hidden="true"
-          className={variant === 'floating' ? 'h-3 w-3 filter brightness-0 invert' : undefined}
-        />
+      {isLoading ? (
+        <svg 
+          className={classNames(
+            'animate-spin',
+            variant === 'floating' ? 'h-3 w-3' : 'h-6 w-6'
+          )}
+          viewBox="0 0 24 24"
+        >
+          <circle 
+            className="opacity-25" 
+            cx="12" 
+            cy="12" 
+            r="10" 
+            stroke="currentColor" 
+            strokeWidth="4"
+            fill="none"
+          />
+          <path 
+            className="opacity-75" 
+            fill="currentColor" 
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          />
+        </svg>
       ) : (
-        <span className={classNames(iconClass, variant === 'floating' ? 'text-white' : undefined)} aria-hidden="true">⭐</span>
+        <>
+          {action.icon_details?.svg ? (
+            <img 
+              src={action.icon_details.svg}
+              alt=""
+              width={iconSize}
+              height={iconSize}
+              aria-hidden="true"
+              className={variant === 'floating' ? 'h-3 w-3 filter brightness-0 invert' : undefined}
+            />
+          ) : (
+            <span className={classNames(iconClass, variant === 'floating' ? 'text-white' : undefined)} aria-hidden="true">⭐</span>
+          )}
+        </>
       )}
       {variant === 'floating' ? (
         <span className="sr-only">{action.name}</span>

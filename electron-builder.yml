@@ -8,19 +8,71 @@ files:
   - dist/renderer/**/*
   - package.json
 asar: true
+
 win:
   target:
-    - nsis
+    - target: nsis
+      arch:
+        - x64
+        - ia32
+  icon: public/brand/logo-rounded.png
+  artifactName: '${productName}-Setup-${version}-${arch}.${ext}'
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 'Winky'
+  installerIcon: public/brand/logo-rounded.ico
+  uninstallerIcon: public/brand/logo-rounded.ico
+  deleteAppDataOnUninstall: false
+  menuCategory: true
+  runAfterFinish: true
+  perMachine: false
+  displayLanguageSelector: false
+  license: LICENSE
+  artifactName: '${productName}-Setup-${version}-${arch}.${ext}'
+
 mac:
   target:
-    - dmg
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  category: public.app-category.productivity
+  icon: public/brand/logo-rounded.png
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  artifactName: '${productName}-${version}-${arch}.${ext}'
+
+dmg:
+  title: '${productName} ${version}'
+  icon: public/brand/logo-rounded.png
+  artifactName: '${productName}-${version}-${arch}.${ext}'
+
 linux:
   target:
-    - AppImage
-    - deb
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  category: Utility
+  icon: public/brand/logo-rounded.png
+  synopsis: 'Cross-platform voice assistant'
+  description: 'Winky - cross-platform voice assistant with LLM support'
+  artifactName: '${productName}-${version}-${arch}.${ext}'
+
 extraMetadata:
   main: dist/main/main.js
+
 npmRebuild: false
+
 publish:
   provider: github
   releaseType: draft

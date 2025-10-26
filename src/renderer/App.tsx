@@ -1,9 +1,10 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Route, Routes, useLocation, useNavigate} from 'react-router-dom';
 import type {AppConfig} from '@shared/types';
 import {ConfigContext} from './context/ConfigContext';
 import {ToastContext} from './context/ToastContext';
 import {UserProvider, useUser} from './context/UserContext';
+import {IconsProvider} from './context/IconsContext';
 import Toast, {ToastMessage, ToastType} from './components/Toast';
 import WelcomeWindow from './windows/WelcomeWindow';
 import AuthWindow from './windows/AuthWindow';
@@ -26,6 +27,7 @@ const AppContent: React.FC = () => {
     const [preloadError, setPreloadError] = useState<string | null>(() =>
         typeof window !== 'undefined' && window.winky ? null : 'Preload-скрипт не загружен.'
     );
+    const userFetchAttempted = useRef(false);
     const windowKind = useMemo<'main' | 'settings' | 'mic' | 'result' | 'error'>(() => {
         if (typeof window === 'undefined') {
             return 'main';
@@ -152,33 +154,62 @@ const AppContent: React.FC = () => {
         };
     }, []);
 
+    // Загружаем конфиг при монтировании
     useEffect(() => {
         const load = async () => {
             try {
-                // Сначала загружаем конфиг
-                const loadedConfig = await refreshConfig();
-                
-                // Если есть токен, пытаемся загрузить пользователя
-                if (loadedConfig.auth.accessToken && loadedConfig.auth.accessToken.trim() !== '') {
-                    console.log('[App] Token found, fetching user...');
-                    const userData = await fetchUser();
-                    
-                    // Если не удалось загрузить пользователя (401/403), токен невалиден
-                    if (!userData) {
-                        console.warn('[App] Failed to fetch user, token might be invalid');
-                    }
-                } else {
-                    console.log('[App] No token found, skipping user fetch');
-                }
+                await refreshConfig();
             } catch (error) {
-                console.error('[App] Не удалось загрузить конфигурацию или пользователя', error);
+                console.error('[App] Failed to load config', error);
             } finally {
                 setLoading(false);
             }
         };
-
         void load();
-    }, [refreshConfig, fetchUser]);
+    }, [refreshConfig]);
+
+    // Загружаем пользователя только если его нет в кеше и есть токен
+    useEffect(() => {
+        // Ждем пока UserContext загрузит кешированного пользователя
+        if (userLoading) {
+            return;
+        }
+
+        // Уже пытались загрузить пользователя - не делаем повторно
+        if (userFetchAttempted.current) {
+            return;
+        }
+
+        const loadUser = async () => {
+            if (!config?.auth.accessToken || config.auth.accessToken.trim() === '') {
+                console.log('[App] No token found, skipping user fetch');
+                userFetchAttempted.current = true;
+                return;
+            }
+
+            // Если пользователь уже загружен из кеша - не делаем повторный запрос
+            if (user) {
+                console.log('[App] User already loaded from cache:', user.email);
+                userFetchAttempted.current = true;
+                return;
+            }
+
+            // Пользователя нет в кеше, загружаем с сервера
+            console.log('[App] Token found but no cached user, fetching from server...');
+            userFetchAttempted.current = true;
+            try {
+                const userData = await fetchUser();
+                
+                if (!userData) {
+                    console.warn('[App] Failed to fetch user, token might be invalid');
+                }
+            } catch (error) {
+                console.error('[App] Failed to fetch user', error);
+            }
+        };
+
+        void loadUser();
+    }, [config?.auth.accessToken, user, userLoading, fetchUser]);
 
     useEffect(() => {
         if (config && !loading) {
@@ -300,7 +331,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
     return (
         <UserProvider>
-            <AppContent />
+            <IconsProvider>
+                <AppContent />
+            </IconsProvider>
         </UserProvider>
     );
 };

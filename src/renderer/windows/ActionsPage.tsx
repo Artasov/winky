@@ -2,11 +2,13 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {ActionConfig, ActionIcon} from '@shared/types';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
+import {useIcons} from '../context/IconsContext';
 import {useToast} from '../context/ToastContext';
 
 const ActionsPage: React.FC = () => {
     const {config, refreshConfig} = useConfig();
     const {user} = useUser();
+    const {icons, loading: iconsLoading, fetchIcons} = useIcons();
     const {showToast} = useToast();
     const actions = useMemo(() => config?.actions ?? [], [config?.actions]);
     const isAuthorized = Boolean(config?.auth.accessToken);
@@ -21,9 +23,6 @@ const ActionsPage: React.FC = () => {
     const [showResults, setShowResults] = useState(false);
     const [soundOnComplete, setSoundOnComplete] = useState(false);
     const [autoCopyResult, setAutoCopyResult] = useState(false);
-    const [icons, setIcons] = useState<ActionIcon[]>([]);
-    const [iconsLoading, setIconsLoading] = useState(false);
-    const [iconsLoaded, setIconsLoaded] = useState(false);
     const [saving, setSaving] = useState(false);
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
     const closeTimeoutRef = useRef<number | null>(null);
@@ -38,35 +37,27 @@ const ActionsPage: React.FC = () => {
         setEditingActionId(null);
     }, []);
 
-    const loadIcons = useCallback(async () => {
-        if (iconsLoading || iconsLoaded || !user) {
+    // Загружаем иконки при открытии модалки
+    useEffect(() => {
+        if (isModalVisible && !user) {
+            showToast('Please sign in to manage actions.', 'error');
             return;
         }
-        setIconsLoading(true);
-        try {
-            const loaded = await window.winky?.icons.fetch();
-            if (loaded && loaded.length > 0) {
-                setIcons(loaded);
-                setIconsLoaded(true);
-                if (!iconId) {
-                    setIconId(loaded[0].id);
-                }
-            } else {
-                showToast('Нет доступных иконок. Добавьте их на бекенде.', 'info');
-            }
-        } catch (error) {
-            console.error('[ActionsPage] Не удалось загрузить иконки', error);
-            showToast('Не удалось загрузить иконки.', 'error');
-        } finally {
-            setIconsLoading(false);
-        }
-    }, [iconId, iconsLoaded, iconsLoading, showToast, user]);
 
-    useEffect(() => {
-        if (isModalVisible) {
-            void loadIcons();
+        if (isModalVisible && icons.length === 0 && !iconsLoading) {
+            console.log('[ActionsPage] Fetching icons for modal...');
+            void fetchIcons().then((loadedIcons) => {
+                if (loadedIcons.length > 0 && !iconId) {
+                    setIconId(loadedIcons[0].id);
+                } else if (loadedIcons.length === 0) {
+                    showToast('No icons available. Please add them on the backend.', 'info');
+                }
+            });
+        } else if (isModalVisible && icons.length > 0 && !iconId) {
+            // Иконки уже загружены, просто устанавливаем первую
+            setIconId(icons[0].id);
         }
-    }, [isModalVisible, loadIcons]);
+    }, [isModalVisible, icons, iconsLoading, iconId, fetchIcons, user, showToast]);
 
     useEffect(() => () => {
         if (closeTimeoutRef.current) {
@@ -391,22 +382,24 @@ const ActionsPage: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-                                        {icons.map((iconOption) => (
-                                            <button
-                                                key={iconOption.id}
-                                                type="button"
-                                                onClick={() => setIconId(iconOption.id)}
-                                                className={`flex items-center justify-center rounded-lg border-2 p-2 transition-all duration-base ${
-                                                    iconId === iconOption.id
-                                                        ? 'border-primary bg-primary-50 shadow-primary-sm'
-                                                        : 'border-primary-200 bg-white hover:border-primary hover:bg-primary-50'
-                                                }`}
-                                                aria-pressed={String(iconId === iconOption.id)}
-                                                title={iconOption.name}
-                                            >
-                                                <img src={iconOption.svg} alt={iconOption.name} className="h-7 w-7"/>
-                                            </button>
-                                        ))}
+                                        {icons.map((iconOption) => {
+                                            const isSelected = iconId === iconOption.id;
+                                            return (
+                                                <button
+                                                    key={iconOption.id}
+                                                    type="button"
+                                                    onClick={() => setIconId(iconOption.id)}
+                                                    className={`flex items-center justify-center rounded-lg border-2 p-2 transition-all duration-base ${
+                                                        isSelected
+                                                            ? 'border-primary bg-primary-50 shadow-primary-sm'
+                                                            : 'border-primary-200 bg-white hover:border-primary hover:bg-primary-50'
+                                                    }`}
+                                                    title={iconOption.name}
+                                                >
+                                                    <img src={iconOption.svg} alt={iconOption.name} className="h-7 w-7"/>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>

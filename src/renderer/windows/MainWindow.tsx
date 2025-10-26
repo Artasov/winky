@@ -5,6 +5,7 @@ import { useConfig } from '../context/ConfigContext';
 import { useToast } from '../context/ToastContext';
 import MicrophoneButton from '../components/MicrophoneButton';
 import ActionButton from '../components/ActionButton';
+import LoadingSpinner from '../components/LoadingSpinner';
 import type { BaseSpeechService } from '@main/services/speech/BaseSpeechService';
 import type { BaseLLMService } from '@main/services/llm/BaseLLMService';
 import { createSpeechService } from '@main/services/speech/factory';
@@ -24,7 +25,7 @@ const MainWindow: React.FC = () => {
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!config) {
@@ -112,7 +113,14 @@ const MainWindow: React.FC = () => {
   }, []);
 
   if (!config) {
-    return null;
+    return (
+      <div className="pointer-events-none relative flex h-full w-full items-center justify-center">
+        <div className="pointer-events-auto flex flex-col items-center gap-4 rounded-2xl bg-white/95 backdrop-blur-sm px-8 py-6 shadow-lg">
+          <LoadingSpinner size="medium" />
+          <p className="text-sm font-medium text-text-secondary animate-pulse">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   const ensureSpeechService = () => {

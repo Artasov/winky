@@ -47,18 +47,18 @@ mac:
   target:
     - target: dmg
       arch:
-        - universal
+        - x64
+        - arm64
   category: public.app-category.productivity
   icon: public/resources/logo-1024-1024.png
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  universalApp: true
   artifactName: '${productName}-${version}-${arch}.${ext}'
 
 dmg:
-  title: '${productName} ${version}'
+  title: '${productName} ${version} ${arch}'
   icon: public/resources/logo-1024-1024.png
   artifactName: '${productName}-${version}-${arch}.${ext}'
 
@@ -74,7 +74,7 @@ linux:
   icon: public/resources/logo-1024-1024.png
   synopsis: 'Cross-platform voice assistant'
   description: 'Winky - cross-platform voice assistant with LLM support'
-  maintainer: 'Winky Team ivanhvalevskey@gmail.com'
+  maintainer: 'Winky Team <ivanhvalevskey@gmail.com>'
   artifactName: '${productName}-${version}-${arch}.${ext}'
 
 extraMetadata:

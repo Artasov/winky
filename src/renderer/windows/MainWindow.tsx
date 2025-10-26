@@ -232,7 +232,7 @@ const MainWindow: React.FC = () => {
 
   const normalizedVolume = Math.min(volume * 2.5, 1);
   return (
-    <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-visible">
+    <div className="relative flex h-full w-full items-center justify-center overflow-visible">
       {/* Волны звука вокруг микрофона */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-visible">
         {[4, 3, 2, 1].map((multiplier) => (
@@ -254,15 +254,17 @@ const MainWindow: React.FC = () => {
         ))}
       </div>
       
-      <MicrophoneButton
-        isRecording={isRecording}
-        onToggle={handleMicrophoneToggle}
-        disabled={processing}
-        size={isRecording ? 'compact' : 'default'}
-      />
+      <div className="pointer-events-auto">
+        <MicrophoneButton
+          isRecording={isRecording}
+          onToggle={handleMicrophoneToggle}
+          disabled={processing}
+          size={isRecording ? 'compact' : 'default'}
+        />
+      </div>
 
       {displayedActions.length > 0 && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center">
           <div className="pointer-events-none absolute rounded-full bg-rose-500/20 blur-md" style={{ width: '64px', height: '64px' }} />
           {displayedActions.map((action, index) => {
             const total = displayedActions.length;

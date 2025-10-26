@@ -23,6 +23,8 @@ const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, 
       type="button"
       disabled={disabled}
       onClick={() => onClick(action)}
+      onMouseEnter={() => window.winky?.mic?.setInteractive(true)}
+      onMouseLeave={() => window.winky?.mic?.setInteractive(false)}
       data-interactive="true"
       className={classNames(
         'app-region-no-drag',

@@ -51,6 +51,22 @@ declare global {
     setInteractive(interactive: boolean): Promise<void>;
   }
 
+  interface WinkySpeechAPI {
+    transcribe(audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string }): Promise<string>;
+  }
+
+  interface WinkyLLMAPI {
+    process(text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string>;
+    processStream(text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string>;
+  }
+
+  interface WinkyResultAPI {
+    open(): Promise<void>;
+    close(): Promise<void>;
+    update(data: { transcription?: string; llmResponse?: string; isStreaming?: boolean }): Promise<void>;
+    onData(callback: (data: { transcription?: string; llmResponse?: string; isStreaming?: boolean }) => void): () => void;
+  }
+
   interface WinkyPreload {
     config: WinkyConfigAPI;
     clipboard: WinkyClipboardAPI;
@@ -58,6 +74,9 @@ declare global {
     actions: WinkyActionsAPI;
     icons: WinkyIconsAPI;
     profile: WinkyProfileAPI;
+    speech: WinkySpeechAPI;
+    llm: WinkyLLMAPI;
+    result: WinkyResultAPI;
     windows: WinkyWindowsAPI;
     windowControls: WinkyWindowControlsAPI;
     mic: WinkyMicAPI;

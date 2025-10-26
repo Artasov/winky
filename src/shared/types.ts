@@ -33,12 +33,15 @@ export interface ActionConfig {
   icon_details: ActionIcon;
   created_at: string;
   updated_at: string;
-  preferences?: ActionPreferences;
+  show_results?: boolean;
+  sound_on_complete?: boolean;
+  auto_copy_result?: boolean;
 }
 
 export interface ActionPreferences {
-  copyResult: boolean;
-  showResult: boolean;
+  show_results: boolean;
+  sound_on_complete: boolean;
+  auto_copy_result: boolean;
 }
 
 export interface WinkyProfile {

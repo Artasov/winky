@@ -16,6 +16,9 @@ const ActionsPage: React.FC = () => {
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');
   const [iconId, setIconId] = useState('');
+  const [showResults, setShowResults] = useState(false);
+  const [soundOnComplete, setSoundOnComplete] = useState(false);
+  const [autoCopyResult, setAutoCopyResult] = useState(false);
   const [icons, setIcons] = useState<ActionIcon[]>([]);
   const [iconsLoading, setIconsLoading] = useState(false);
   const [iconsLoaded, setIconsLoaded] = useState(false);
@@ -27,6 +30,9 @@ const ActionsPage: React.FC = () => {
     setName('');
     setPrompt('');
     setIconId('');
+    setShowResults(false);
+    setSoundOnComplete(false);
+    setAutoCopyResult(false);
     setEditingActionId(null);
   }, []);
 
@@ -98,6 +104,9 @@ const ActionsPage: React.FC = () => {
     setName(action.name);
     setPrompt(action.prompt);
     setIconId(action.icon_details?.id ?? action.icon);
+    setShowResults(action.show_results ?? false);
+    setSoundOnComplete(action.sound_on_complete ?? false);
+    setAutoCopyResult(action.auto_copy_result ?? false);
     if (closeTimeoutRef.current) {
       window.clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
@@ -154,7 +163,10 @@ const ActionsPage: React.FC = () => {
       await window.winky?.actions.create({
         name: name.trim(),
         prompt: prompt.trim(),
-        icon: iconId
+        icon: iconId,
+        show_results: showResults,
+        sound_on_complete: soundOnComplete,
+        auto_copy_result: autoCopyResult
       });
       await refreshConfig();
       showToast(editingActionId ? 'Действие обновлено.' : 'Действие добавлено.', 'success');
@@ -166,7 +178,10 @@ const ActionsPage: React.FC = () => {
           await window.winky?.actions.create({
             name: originalAction.name,
             prompt: originalAction.prompt,
-            icon: originalAction.icon_details?.id ?? originalAction.icon
+            icon: originalAction.icon_details?.id ?? originalAction.icon,
+            show_results: originalAction.show_results ?? false,
+            sound_on_complete: originalAction.sound_on_complete ?? false,
+            auto_copy_result: originalAction.auto_copy_result ?? false
           });
           await refreshConfig();
         } catch (restoreError) {
@@ -266,11 +281,11 @@ const ActionsPage: React.FC = () => {
       {isModalVisible && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 px-6 py-10">
           <div
-            className={`w-full max-w-xl origin-center rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl backdrop-blur ${
+            className={`w-full max-w-xl max-h-[90vh] origin-center rounded-2xl border border-white/10 bg-slate-950/90 shadow-2xl backdrop-blur flex flex-col ${
               isModalClosing ? 'animate-modal-out' : 'animate-modal-in'
             }`}
           >
-            <div className="mb-5 flex items-start justify-between gap-3">
+            <div className="flex-shrink-0 p-6 pb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-white">
                   {editingActionId ? 'Изменить действие' : 'Новое действие'}
@@ -282,7 +297,7 @@ const ActionsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={beginModalClose}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 text-slate-300 transition hover:border-white/40 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 text-slate-300 transition hover:border-white/40 hover:text-white flex-shrink-0"
                 aria-label="Закрыть форму"
               >
                 <svg viewBox="0 0 12 12" className="h-3 w-3 fill-current">
@@ -291,7 +306,7 @@ const ActionsPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-6 overflow-y-auto px-6 pb-6">
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium text-slate-200" htmlFor="action-name">Название</label>
                 <input
@@ -310,10 +325,43 @@ const ActionsPage: React.FC = () => {
                   id="action-prompt"
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
-                  rows={5}
+                  rows={4}
                   className="resize-none rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
-                  placeholder="Опишите, что должно делать действие"
+                  placeholder="Опишите, что должно делать действие (оставьте пустым, если нужна только транскрипция)"
                 />
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <label className="text-sm font-medium text-slate-200">Настройки</label>
+                <div className="flex flex-col gap-2">
+                  <label className="frcs gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showResults}
+                      onChange={(e) => setShowResults(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-600 focus:ring-2 focus:ring-emerald-300/40 focus:ring-offset-0"
+                    />
+                    <span className="text-sm text-slate-300">Показывать окно результатов</span>
+                  </label>
+                  <label className="frcs gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={soundOnComplete}
+                      onChange={(e) => setSoundOnComplete(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-600 focus:ring-2 focus:ring-emerald-300/40 focus:ring-offset-0"
+                    />
+                    <span className="text-sm text-slate-300">Проигрывать звук по завершению</span>
+                  </label>
+                  <label className="frcs gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={autoCopyResult}
+                      onChange={(e) => setAutoCopyResult(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-600 focus:ring-2 focus:ring-emerald-300/40 focus:ring-offset-0"
+                    />
+                    <span className="text-sm text-slate-300">Автоматически копировать результат</span>
+                  </label>
+                </div>
               </div>
 
               <div className="flex flex-col gap-3">
@@ -340,7 +388,7 @@ const ActionsPage: React.FC = () => {
                             ? 'border-emerald-400 bg-emerald-500/20 shadow-lg shadow-emerald-500/20'
                             : 'border-slate-700 bg-slate-900 hover:border-slate-500 hover:bg-slate-800'
                         }`}
-                        aria-pressed={iconId === iconOption.id}
+                        aria-pressed={iconId === iconOption.id ? 'true' : 'false'}
                         title={iconOption.name}
                       >
                         <img src={iconOption.svg} alt={iconOption.name} className="h-8 w-8" />

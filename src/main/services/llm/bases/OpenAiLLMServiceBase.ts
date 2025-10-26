@@ -3,6 +3,7 @@ import ApiLLMBaseService from './ApiLLMBaseService';
 export abstract class OpenAiLLMServiceBase extends ApiLLMBaseService {
   protected constructor(model: string, accessToken?: string) {
     super(model, accessToken);
+    this.supportsStreaming = true;
   }
 
   protected buildUrl(): string {

@@ -69,7 +69,7 @@ const api = {
   },
   actions: {
     fetch: (): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:fetch'),
-    create: (action: { name: string; prompt: string; icon: string }): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:create', action),
+    create: (action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:create', action),
     delete: (actionId: string): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:delete', actionId)
   },
   icons: {
@@ -77,6 +77,31 @@ const api = {
   },
   profile: {
     fetch: (): Promise<WinkyProfile> => ipcRenderer.invoke('profile:fetch')
+  },
+  speech: {
+    transcribe: (audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string }): Promise<string> => 
+      ipcRenderer.invoke('speech:transcribe', audioData, config)
+  },
+  llm: {
+    process: (text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string> =>
+      ipcRenderer.invoke('llm:process', text, prompt, config),
+    processStream: (text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string> =>
+      ipcRenderer.invoke('llm:process-stream', text, prompt, config)
+  },
+  result: {
+    open: (): Promise<void> => ipcRenderer.invoke('result:open'),
+    close: (): Promise<void> => ipcRenderer.invoke('result:close'),
+    update: (data: { transcription?: string; llmResponse?: string; isStreaming?: boolean }): Promise<void> => 
+      ipcRenderer.invoke('result:update', data),
+    onData: (callback: (data: { transcription?: string; llmResponse?: string; isStreaming?: boolean }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: any) => {
+        callback(data);
+      };
+      ipcRenderer.on('result:data', handler);
+      return () => {
+        ipcRenderer.removeListener('result:data', handler);
+      };
+    }
   },
   windows: {
     openSettings: (): Promise<void> => ipcRenderer.invoke('windows:open-settings'),

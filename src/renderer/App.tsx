@@ -12,6 +12,7 @@ import MePage from './windows/MePage';
 import ActionsPage from './windows/ActionsPage';
 import SettingsPage from './windows/SettingsPage';
 import InfoPage from './windows/InfoPage';
+import ResultWindowPage from './windows/ResultWindowPage';
 import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';
 import classNames from 'classnames';
@@ -23,14 +24,14 @@ const App: React.FC = () => {
   const [preloadError, setPreloadError] = useState<string | null>(() =>
     typeof window !== 'undefined' && window.winky ? null : 'Preload-скрипт не загружен.'
   );
-  const windowKind = useMemo<'main' | 'settings' | 'mic'>(() => {
+  const windowKind = useMemo<'main' | 'settings' | 'mic' | 'result'>(() => {
     if (typeof window === 'undefined') {
       return 'main';
     }
     const params = new URLSearchParams(window.location.search);
     const value = params.get('window');
-    if (value === 'settings' || value === 'mic') {
-      return value;
+    if (value === 'settings' || value === 'mic' || value === 'result') {
+      return value as 'settings' | 'mic' | 'result';
     }
     return 'main';
   }, []);
@@ -38,6 +39,7 @@ const App: React.FC = () => {
   const location = useLocation();
   const isAuxWindow = windowKind !== 'main';
   const isMicWindow = windowKind === 'mic';
+  const isResultWindow = windowKind === 'result';
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}`;
@@ -77,8 +79,8 @@ const App: React.FC = () => {
 
   const handleNavigation = useCallback(
     (currentConfig: AppConfig, currentPath: string) => {
-      // Mic окно не управляет навигацией
-      if (isMicWindow) {
+      // Mic и Result окна не управляют навигацией
+      if (isMicWindow || isResultWindow) {
         return;
       }
 
@@ -113,7 +115,7 @@ const App: React.FC = () => {
       // По умолчанию переходим на /actions
       navigate('/actions');
     },
-    [navigate, isMicWindow]
+    [navigate, isMicWindow, isResultWindow]
   );
 
   useEffect(() => {
@@ -124,6 +126,13 @@ const App: React.FC = () => {
       document.body.classList.remove('body-transparent');
     }
   }, [isMicWindow]);
+
+  useEffect(() => {
+    // Result окно без sidebar и titlebar
+    if (isResultWindow && typeof document !== 'undefined') {
+      document.body.style.background = '#0f172a';
+    }
+  }, [isResultWindow]);
 
   useEffect(() => {
     const subscribe = window.winky?.config?.subscribe;
@@ -180,6 +189,7 @@ const App: React.FC = () => {
       <Route path="/actions" element={<ActionsPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/info" element={<InfoPage />} />
+      <Route path="/result" element={<ResultWindowPage />} />
     </Routes>
   );
 
@@ -213,6 +223,9 @@ const App: React.FC = () => {
         {isMicWindow ? (
           // Окно с плавающим микрофоном
           <div className="flex h-full w-full items-center justify-center bg-transparent text-white">{routes}</div>
+        ) : isResultWindow ? (
+          // Окно результатов - с TitleBar но без sidebar
+          <div className="flex h-full w-full flex-col bg-slate-950 text-white">{routes}</div>
         ) : (
           <div className="flex h-full flex-col bg-slate-950 text-slate-100">
             <TitleBar
@@ -227,7 +240,7 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
-        {!isMicWindow && <Toast toasts={toasts} placement="top-right" />}
+        {!isMicWindow && !isResultWindow && <Toast toasts={toasts} placement="top-right" />}
       </ConfigContext.Provider>
     </ToastContext.Provider>
   );

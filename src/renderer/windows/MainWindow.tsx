@@ -19,6 +19,7 @@ const MainWindow: React.FC = () => {
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [volume, setVolume] = useState(0);
+  const completionSoundRef = useRef<HTMLAudioElement | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -150,40 +151,107 @@ const MainWindow: React.FC = () => {
   };
 
   const transcribeToClipboard = async (blob: Blob) => {
-    if (!speechServiceRef.current) {
-      return;
-    }
-
     try {
-      const text = await speechServiceRef.current.transcribe(blob);
+      const arrayBuffer = await blob.arrayBuffer();
+      const text = await window.winky?.speech.transcribe(arrayBuffer, {
+        mode: config.speech.mode,
+        model: config.speech.model,
+        openaiKey: config.apiKeys.openai,
+        googleKey: config.apiKeys.google
+      });
+      
+      if (!text) {
+        showToast('Не удалось распознать речь.', 'error');
+        return;
+      }
+      
       console.debug('[MainWindow] transcription completed', { characters: text.length });
       await window.winky?.clipboard.writeText(text);
       showToast('Текст скопирован.', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      showToast('Не удалось распознать речь.', 'error');
+      showToast(error?.message || 'Не удалось распознать речь.', 'error');
     }
   };
 
   const processAction = async (action: ActionConfig, blob: Blob) => {
-    if (!ensureLLMService()) {
-      return;
-    }
-
     try {
-      const transcription = await speechServiceRef.current?.transcribe(blob);
+      // Преобразуем Blob в ArrayBuffer для передачи через IPC
+      const arrayBuffer = await blob.arrayBuffer();
+      
+      // Вызываем транскрипцию через IPC (в main process)
+      const transcription = await window.winky?.speech.transcribe(arrayBuffer, {
+        mode: config.speech.mode,
+        model: config.speech.model,
+        openaiKey: config.apiKeys.openai,
+        googleKey: config.apiKeys.google
+      });
+
       if (!transcription) {
         showToast('Не удалось распознать речь для действия.', 'error');
         return;
       }
 
-      const response = await llmServiceRef.current!.process(transcription, action.prompt);
+      // Если show_results включен, открываем окно результатов сразу после транскрипции
+      if (action.show_results) {
+        await window.winky?.result.open();
+        // Небольшая задержка чтобы окно успело загрузиться
+        await new Promise(resolve => setTimeout(resolve, 200));
+        console.log('[MainWindow] Sending transcription to result window:', transcription);
+        await window.winky?.result.update({ transcription, llmResponse: '', isStreaming: false });
+      }
+
+      // Если prompt пустой, результат = транскрипция
+      if (!action.prompt || action.prompt.trim() === '') {
+        if (action.auto_copy_result) {
+          await window.winky?.clipboard.writeText(transcription);
+          showToast('Результат скопирован.', 'success');
+        }
+        
+        if (action.show_results) {
+          await window.winky?.result.update({ llmResponse: transcription, isStreaming: false });
+        }
+        
+        if (action.sound_on_complete && completionSoundRef.current) {
+          completionSoundRef.current.play().catch(() => {});
+        }
+        
+        return;
+      }
+
+      // Обрабатываем через LLM (в main process)
+      const llmConfig = {
+        mode: config.llm.mode,
+        model: config.llm.model,
+        openaiKey: config.apiKeys.openai,
+        googleKey: config.apiKeys.google,
+        accessToken: config.auth.accessToken
+      };
+
+      let response = '';
+      
+      // TODO: Реализовать стриминг через IPC events
+      // Пока используем обычный process
+      response = await window.winky?.llm.process(transcription, action.prompt, llmConfig) || '';
+      
+      if (action.show_results) {
+        await window.winky?.result.update({ llmResponse: response, isStreaming: false });
+      }
+
       console.debug('[MainWindow] action processed', { actionId: action.id, responseLength: response.length });
-      await window.winky?.clipboard.writeText(response);
-      showToast('Ответ скопирован.', 'success');
-    } catch (error) {
+
+      if (action.auto_copy_result) {
+        await window.winky?.clipboard.writeText(response);
+        showToast('Ответ скопирован.', 'success');
+      }
+
+      if (action.sound_on_complete && completionSoundRef.current) {
+        completionSoundRef.current.play().catch(() => {});
+      }
+
+    } catch (error: any) {
       console.error(error);
-      showToast('Ошибка при обработке действия.', 'error');
+      showToast(error?.message || 'Ошибка при обработке действия.', 'error');
     }
   };
 
@@ -245,7 +313,10 @@ const MainWindow: React.FC = () => {
 
   const normalizedVolume = Math.min(volume * 2.5, 1);
   return (
-    <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-visible">
+    <>
+      <audio ref={completionSoundRef} src='/sounds/completion.mp3' preload='auto' />
+
+      <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-visible">
       {/* Волны звука вокруг микрофона */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-visible">
         {[4, 3, 2, 1].map((multiplier) => (
@@ -309,7 +380,8 @@ const MainWindow: React.FC = () => {
           })}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

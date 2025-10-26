@@ -6,11 +6,15 @@ import {getConfig, getConfigFilePath, resetConfig, setActions, setAuthTokens, up
 import {ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME, ICONS_ENDPOINT, PROFILE_ENDPOINT} from '@shared/constants';
 import type {ActionConfig, ActionIcon, AppConfig, AuthResponse, AuthTokens, WinkyProfile} from '@shared/types';
 import {createApiClient} from '@shared/api';
+import {createSpeechService} from './services/speech/factory';
+import {createLLMService} from './services/llm/factory';
+import FormData from 'form-data';
 
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
+let resultWindow: BrowserWindow | null = null;
 
 const preloadPath = path.resolve(__dirname, 'preload.js');
 const rendererPath = path.resolve(__dirname, '../renderer/index.html');
@@ -82,6 +86,49 @@ const createMainWindow = () => {
     });
 
     // Главное окно не показываем автоматически, только по требованию (клик на трей и т.д.)
+};
+
+const createResultWindow = () => {
+    if (resultWindow && !resultWindow.isDestroyed()) {
+        resultWindow.focus();
+        return resultWindow;
+    }
+
+    resultWindow = new BrowserWindow({
+        width: 700,
+        height: 600,
+        resizable: true,
+        frame: false,
+        show: false,
+        skipTaskbar: false,
+        alwaysOnTop: true,
+        backgroundColor: '#0f172a',
+        webPreferences: {
+            preload: preloadPath,
+            contextIsolation: true,
+            nodeIntegration: false,
+            devTools: isDev,
+            sandbox: false
+        }
+    });
+
+    resultWindow.setMenuBarVisibility(false);
+
+    const resultUrl = isDev
+        ? 'http://localhost:5173/?window=result#/result'
+        : `file://${rendererPath}?window=result#result`;
+
+    resultWindow.loadURL(resultUrl);
+
+    resultWindow.on('closed', () => {
+        resultWindow = null;
+    });
+
+    resultWindow.once('ready-to-show', () => {
+        resultWindow?.show();
+    });
+
+    return resultWindow;
 };
 
 const createMicWindow = () => {
@@ -199,10 +246,39 @@ const registerIpcHandlers = () => {
     });
 
     ipcMain.handle('actions:fetch', async () => fetchActions());
-    ipcMain.handle('actions:create', async (_event, action: { name: string; prompt: string; icon: string }) => createAction(action));
+    ipcMain.handle('actions:create', async (_event, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => createAction(action));
     ipcMain.handle('actions:delete', async (_event, actionId: string) => deleteAction(actionId));
     ipcMain.handle('icons:fetch', async () => fetchIcons());
     ipcMain.handle('profile:fetch', async () => fetchProfile());
+    ipcMain.handle('speech:transcribe', async (_event, audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string }) => transcribeAudio(audioData, config));
+    ipcMain.handle('llm:process', async (_event, text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }) => processLLM(text, prompt, config));
+    ipcMain.handle('llm:process-stream', async (_event, text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }) => processLLMStream(text, prompt, config));
+    
+    ipcMain.handle('result:open', async () => {
+        const win = createResultWindow();
+        // Ждем пока окно полностью загрузится
+        if (win && !win.webContents.isLoading()) {
+            return;
+        }
+        if (win) {
+            await new Promise<void>((resolve) => {
+                win.webContents.once('did-finish-load', () => {
+                    // Даем еще немного времени на инициализацию React
+                    setTimeout(() => resolve(), 100);
+                });
+            });
+        }
+    });
+    ipcMain.handle('result:close', () => {
+        if (resultWindow && !resultWindow.isDestroyed()) {
+            resultWindow.close();
+        }
+    });
+    ipcMain.handle('result:update', (_event, data: { transcription?: string; llmResponse?: string; isStreaming?: boolean }) => {
+        if (resultWindow && !resultWindow.isDestroyed()) {
+            resultWindow.webContents.send('result:data', data);
+        }
+    });
 };
 
 const login = async ({email, password}: { email: string; password: string }) => {
@@ -278,7 +354,7 @@ const fetchActions = async (): Promise<ActionConfig[]> => {
     return actions;
 };
 
-const createAction = async (action: { name: string; prompt: string; icon: string }): Promise<ActionConfig[]> => {
+const createAction = async (action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => {
     console.debug('[main] actions:create invoked', {name: action.name});
     const config = await getConfig();
     if (!config.auth.accessToken) {
@@ -337,6 +413,67 @@ const fetchProfile = async (): Promise<WinkyProfile> => {
     const {data} = await client.get<WinkyProfile>('/winky/profile/');
     console.debug('[main] profile:fetch success', {profileId: data.id});
     return data;
+};
+
+const transcribeAudio = async (audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string }): Promise<string> => {
+    console.debug('[main] speech:transcribe invoked', { mode: config.mode, model: config.model, size: audioData.byteLength });
+    
+    // Для API-based сервисов делаем запрос напрямую из main process
+    if (config.mode === 'api') {
+        const buffer = Buffer.from(audioData);
+        const formData = new FormData();
+        formData.append('file', buffer, {
+            filename: 'audio.webm',
+            contentType: 'audio/webm'
+        });
+        formData.append('model', config.model);
+        
+        const headers = {
+            ...formData.getHeaders(),
+            'Authorization': `Bearer ${config.openaiKey}`
+        };
+        
+        try {
+            const { data } = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, { headers });
+            console.debug('[main] speech:transcribe success', { textLength: data.text?.length });
+            return data.text || '';
+        } catch (error: any) {
+            console.error('[main] speech:transcribe error', error.response?.data || error.message);
+            throw new Error('Не удалось распознать речь: ' + (error.response?.data?.error?.message || error.message));
+        }
+    }
+    
+    // Для локальных моделей - пока не реализовано
+    throw new Error('Local speech recognition not implemented yet');
+};
+
+const processLLM = async (text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string> => {
+    console.debug('[main] llm:process invoked', { mode: config.mode, model: config.model, textLength: text.length });
+    
+    const service = createLLMService(config.mode as any, config.model as any, {
+        openaiKey: config.openaiKey,
+        googleKey: config.googleKey,
+        accessToken: config.accessToken
+    });
+    
+    const result = await service.process(text, prompt);
+    console.debug('[main] llm:process success', { resultLength: result.length });
+    return result;
+};
+
+const processLLMStream = async (text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string> => {
+    console.debug('[main] llm:process-stream invoked', { mode: config.mode, model: config.model, textLength: text.length });
+    
+    const service = createLLMService(config.mode as any, config.model as any, {
+        openaiKey: config.openaiKey,
+        googleKey: config.googleKey,
+        accessToken: config.accessToken
+    });
+    
+    // Для стриминга нужно вернуть через другой механизм, пока используем обычный process
+    const result = await service.process(text, prompt);
+    console.debug('[main] llm:process-stream success', { resultLength: result.length });
+    return result;
 };
 
 const handleAppReady = async () => {

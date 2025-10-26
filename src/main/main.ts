@@ -651,6 +651,13 @@ const login = async ({email, password}: { email: string; password: string }) => 
         // Не блокируем создание микрофона если не удалось загрузить пользователя
         // currentUser останется null, но это не критично
     }
+
+    try {
+        const actions = await fetchActions();
+        sendLogToRenderer('LOGIN', `🗂️ Actions synced (${actions.length})`);
+    } catch (error) {
+        sendLogToRenderer('LOGIN', `⚠️ Failed to sync actions after login: ${error}`);
+    }
     
     sendLogToRenderer('LOGIN', `🔍 Check: setupCompleted=${config.setupCompleted}, micWindow exists=${!!micWindow && !micWindow.isDestroyed()}`);
     

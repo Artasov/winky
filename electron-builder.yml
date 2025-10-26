@@ -67,7 +67,7 @@ linux:
       arch:
         - x64
   category: Utility
-  icon: public/resources/logo-1024-1024.png
+  icon: public/resources/icons/app.svg
   synopsis: 'Cross-platform voice assistant'
   description: 'Winky - cross-platform voice assistant with LLM support'
   maintainer: 'Winky Team <ivanhvalevskey@gmail.com>'

@@ -10,6 +10,12 @@ const MePage: React.FC = () => {
     const isAuthorized = Boolean(config?.auth.accessToken);
 
     const handleLogout = async () => {
+        if (!window.winky?.auth?.logout) {
+            console.error('[MePage] Logout API is unavailable');
+            showToast('Logout is not available in this environment.', 'error');
+            return;
+        }
+
         try {
             await window.winky.auth.logout();
             clearUser();
@@ -113,4 +119,3 @@ const MePage: React.FC = () => {
 };
 
 export default MePage;
-

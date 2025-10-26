@@ -44,8 +44,17 @@ export const IconsProvider: React.FC<IconsProviderProps> = ({ children }) => {
     setLoading(true);
     setError(null);
 
+    const api = window.winky?.icons?.fetch;
+    if (!api) {
+      const message = 'Icons API unavailable.';
+      console.error('[IconsContext] Preload icons API is missing');
+      setError(message);
+      setLoading(false);
+      return [];
+    }
+
     try {
-      const fetchedIcons = await window.winky.icons.fetch();
+      const fetchedIcons = await api();
       setIcons(fetchedIcons);
       console.log('[IconsContext] Icons fetched:', fetchedIcons.length);
       return fetchedIcons;

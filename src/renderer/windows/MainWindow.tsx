@@ -9,6 +9,7 @@ import type { BaseSpeechService } from '@main/services/speech/BaseSpeechService'
 import type { BaseLLMService } from '@main/services/llm/BaseLLMService';
 import { createSpeechService } from '@main/services/speech/factory';
 import { createLLMService } from '@main/services/llm/factory';
+import { resetInteractive } from '../utils/interactive';
 
 const MainWindow: React.FC = () => {
   const { config } = useConfig();
@@ -262,6 +263,9 @@ const MainWindow: React.FC = () => {
     // Просто останавливаем запись без транскрипции (отмена)
     await finishRecording();
     setActiveActionId(null);
+    
+    // Сбрасываем интерактивность окна
+    resetInteractive();
   };
 
   const handleActionClick = async (action: ActionConfig) => {
@@ -289,6 +293,9 @@ const MainWindow: React.FC = () => {
     stopVolumeMonitor();
     setActiveActionId(null);
     setProcessing(false);
+    
+    // Сбрасываем интерактивность окна, чтобы клики проходили сквозь прозрачные области
+    resetInteractive();
   };
 
   const normalizedVolume = Math.min(volume * 2.5, 1);

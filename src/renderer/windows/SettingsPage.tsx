@@ -19,10 +19,10 @@ const SettingsPage: React.FC = () => {
     llmModel: LLM_API_MODELS[0]
   });
   
-    const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-    useEffect(() => {
-        if (config) {
+  useEffect(() => {
+    if (config) {
       setFormData({
         openaiKey: config.apiKeys.openai ?? '',
         googleKey: config.apiKeys.google ?? '',
@@ -31,37 +31,37 @@ const SettingsPage: React.FC = () => {
         llmMode: config.llm.mode,
         llmModel: config.llm.model
       });
-        }
-    }, [config]);
+    }
+  }, [config]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-        setSaving(true);
-        try {
-            await updateConfig({
-                apiKeys: {
+    setSaving(true);
+    try {
+      await updateConfig({
+        apiKeys: {
           openai: formData.openaiKey.trim(),
           google: formData.googleKey.trim()
-                },
-                speech: {
+        },
+        speech: {
           mode: formData.speechMode,
           model: formData.speechModel
-                },
-                llm: {
+        },
+        llm: {
           mode: formData.llmMode,
           model: formData.llmModel
-                }
-            });
+        }
+      });
       showToast('Settings saved successfully.', 'success');
-        } catch (error) {
+    } catch (error) {
       console.error('[SettingsPage] Failed to save settings', error);
       showToast('Failed to save API keys.', 'error');
-        } finally {
-            setSaving(false);
-        }
-    };
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  const isAuthorized = user !== null;
+  const isAuthorized = Boolean(config?.auth.accessToken);
 
     if (!isAuthorized) {
         return (

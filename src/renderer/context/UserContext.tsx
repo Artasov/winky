@@ -25,12 +25,13 @@ interface UserProviderProps {
 
 export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // Изначально false
   const [error, setError] = useState<string | null>(null);
 
   const fetchUser = useCallback(async (): Promise<User | null> => {
     if (!window.winky) {
       setError('Preload script not available');
+      setLoading(false);
       return null;
     }
 
@@ -40,10 +41,12 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     try {
       const userData = await window.winky.user.fetch();
       setUser(userData);
+      setError(null);
       return userData;
     } catch (err: any) {
       console.error('[UserContext] Failed to fetch user:', err);
-      setError(err?.message || 'Failed to fetch user');
+      const errorMessage = err?.message || 'Failed to fetch user';
+      setError(errorMessage);
       setUser(null);
       return null;
     } finally {
@@ -54,9 +57,10 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const clearUser = useCallback(() => {
     setUser(null);
     setError(null);
+    setLoading(false);
   }, []);
 
-  // Загружаем кешированного пользователя при монтировании
+  // При монтировании загружаем кешированного пользователя (если есть в main process)
   useEffect(() => {
     const loadCachedUser = async () => {
       if (!window.winky) {
@@ -67,6 +71,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         const cachedUser = await window.winky.user.getCached();
         if (cachedUser) {
           setUser(cachedUser);
+          console.log('[UserContext] Loaded cached user:', cachedUser.email);
         }
       } catch (err) {
         console.error('[UserContext] Failed to load cached user:', err);

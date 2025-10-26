@@ -29,12 +29,15 @@ const AuthWindow: React.FC = () => {
       console.log('[AuthWindow] login submit', { email });
       const { config: updated } = await window.winky.auth.login(email, password);
       
-      // Обновляем конфиг и загружаем пользователя
+      // Обновляем конфиг
       await refreshConfig();
-      const user = await fetchUser();
       
-      if (!user) {
-        throw new Error('Failed to fetch user after login');
+      // Пытаемся загрузить пользователя, но не блокируем если не удалось
+      try {
+        await fetchUser();
+      } catch (userError) {
+        console.warn('[AuthWindow] Failed to fetch user, but continuing:', userError);
+        // Не блокируем авторизацию если не удалось загрузить пользователя
       }
       
       showToast('Авторизация успешна', 'success');

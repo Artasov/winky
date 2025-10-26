@@ -550,20 +550,34 @@ const registerIpcHandlers = () => {
         try {
             return await fetchCurrentUser();
         } catch (error: any) {
+            const status = error?.response?.status;
+            
             // Не показываем окно ошибки для 401/403, это означает что нужна авторизация
-            if (error?.response?.status === 401 || error?.response?.status === 403) {
-                // Очищаем токен если получили 401/403
+            if (status === 401 || status === 403) {
+                sendLogToRenderer('USER', '🔒 Auth required (401/403), clearing tokens');
                 await setAuthTokens({ accessToken: '', refreshToken: '' });
                 currentUser = null;
                 await broadcastConfigUpdate();
                 return null;
             }
+            
+            // Для 500 ошибок - просто логируем, не показываем popup
+            if (status >= 500) {
+                sendLogToRenderer('USER', `⚠️ Server error (${status}), user data not available`);
+                currentUser = null;
+                return null;
+            }
+            
+            // Для других ошибок показываем окно ошибки
+            sendLogToRenderer('USER', `❌ User fetch failed with status ${status || 'unknown'}`);
             createOrShowErrorWindow({
                 title: 'Failed to Load User',
                 message: error?.response?.data?.detail || error?.message || 'Could not load user data. Please check your connection and try again.',
                 details: JSON.stringify(error?.response?.data || error, null, 2)
             });
-            throw error;
+            
+            currentUser = null;
+            return null;
         }
     });
     
@@ -633,14 +647,16 @@ const login = async ({email, password}: { email: string; password: string }) => 
         currentUser = await fetchCurrentUser();
         sendLogToRenderer('LOGIN', `✅ User fetched successfully: ${currentUser?.email || 'null'}`);
     } catch (error) {
-        sendLogToRenderer('LOGIN', `❌ Failed to fetch user: ${error}`);
-        // Игнорируем ошибку, пользователь будет загружен при следующем запросе
+        sendLogToRenderer('LOGIN', `⚠️ Failed to fetch user (will retry later): ${error}`);
+        // Не блокируем создание микрофона если не удалось загрузить пользователя
+        // currentUser останется null, но это не критично
     }
     
-    sendLogToRenderer('LOGIN', `🔍 Check: setupCompleted=${config.setupCompleted}, currentUser=${!!currentUser}, micWindow exists=${!!micWindow && !micWindow.isDestroyed()}`);
+    sendLogToRenderer('LOGIN', `🔍 Check: setupCompleted=${config.setupCompleted}, micWindow exists=${!!micWindow && !micWindow.isDestroyed()}`);
     
-    // Создаём mic окно только если уже пройдена первичная настройка
-    if (config.setupCompleted && currentUser && (!micWindow || micWindow.isDestroyed())) {
+    // Создаём mic окно если уже пройдена первичная настройка
+    // Не требуем наличие currentUser - он может быть загружен позже
+    if (config.setupCompleted && (!micWindow || micWindow.isDestroyed())) {
         sendLogToRenderer('LOGIN', '🎤 Creating mic window after login...');
         void createMicWindow().then(() => {
             if (isDev && micWindow) {
@@ -653,7 +669,7 @@ const login = async ({email, password}: { email: string; password: string }) => 
             }
         });
     } else {
-        sendLogToRenderer('LOGIN', '⏭️ Skipping mic window creation - conditions not met');
+        sendLogToRenderer('LOGIN', `⏭️ Skipping mic window creation - setupCompleted=${config.setupCompleted}`);
     }
     
     return {tokens, user: data.user, config};
@@ -835,28 +851,30 @@ const handleAppReady = async () => {
     try {
         const config = await getConfig();
         if (config.auth.accessToken && config.auth.accessToken.trim() !== '') {
-            // Есть токен, проверяем его валидность через запрос текущего пользователя
+            // Есть токен, пытаемся загрузить пользователя
             try {
                 const user = await fetchCurrentUser();
-                
-                if (user && config.setupCompleted) {
-                    // Пользователь успешно загружен и setup пройден - показываем только микрофон
-                    shouldShowMainWindow = false;
-                    void createMicWindow().then(() => {
-                        if (isDev && micWindow) {
-                            micWindow.webContents.openDevTools({mode: 'detach'});
-                        }
-                    });
-                } else if (!user) {
-                    // Не удалось загрузить пользователя, токен невалиден
-                    shouldShowMainWindow = true;
+                if (user) {
+                    sendLogToRenderer('APP_READY', `✅ User loaded: ${user.email}`);
                 }
             } catch (error) {
-                shouldShowMainWindow = true;
+                sendLogToRenderer('APP_READY', `⚠️ Failed to load user on startup: ${error}`);
+                // Не блокируем создание микрофона если не удалось загрузить пользователя
+            }
+            
+            // Если setup завершен, показываем только микрофон (независимо от загрузки пользователя)
+            if (config.setupCompleted) {
+                shouldShowMainWindow = false;
+                void createMicWindow().then(() => {
+                    if (isDev && micWindow) {
+                        micWindow.webContents.openDevTools({mode: 'detach'});
+                    }
+                });
             }
         }
     } catch (error) {
         // Ошибка при проверке авторизации, показываем главное окно
+        sendLogToRenderer('APP_READY', `❌ Error checking auth: ${error}`);
     }
     
     // Показываем главное окно только если пользователь не авторизован или setup не пройден

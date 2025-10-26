@@ -256,10 +256,8 @@ const AppContent: React.FC = () => {
     }
 
     // Определяем, нужен ли Sidebar для текущего маршрута
-    // Не показываем sidebar, если еще загружается, если нет пользователя, или если не завершен setup
+    // Показываем sidebar если есть токен и setup завершен (не требуем загрузку пользователя)
     const needsSidebar = !loading && 
-        !userLoading &&
-        user !== null &&
         config?.auth.accessToken && 
         config?.setupCompleted &&
         ['/me', '/actions', '/settings', '/info'].includes(location.pathname);

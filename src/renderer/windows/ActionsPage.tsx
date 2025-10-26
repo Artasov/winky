@@ -9,7 +9,7 @@ const ActionsPage: React.FC = () => {
     const {user} = useUser();
     const {showToast} = useToast();
     const actions = useMemo(() => config?.actions ?? [], [config?.actions]);
-    const isAuthorized = user !== null;
+    const isAuthorized = Boolean(config?.auth.accessToken);
 
     const MODAL_ANIMATION_MS = 180;
     const [isModalVisible, setIsModalVisible] = useState(false);
@@ -401,7 +401,7 @@ const ActionsPage: React.FC = () => {
                                                         ? 'border-primary bg-primary-50 shadow-primary-sm'
                                                         : 'border-primary-200 bg-white hover:border-primary hover:bg-primary-50'
                                                 }`}
-                                                aria-pressed={iconId === iconOption.id}
+                                                aria-pressed={String(iconId === iconOption.id)}
                                                 title={iconOption.name}
                                             >
                                                 <img src={iconOption.svg} alt={iconOption.name} className="h-7 w-7"/>

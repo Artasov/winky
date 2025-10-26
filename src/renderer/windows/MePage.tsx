@@ -1,11 +1,13 @@
 import React from 'react';
 import {useUser} from '../context/UserContext';
+import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
 
 const MePage: React.FC = () => {
     const {user, loading, clearUser} = useUser();
+    const {config} = useConfig();
     const {showToast} = useToast();
-    const isAuthorized = user !== null;
+    const isAuthorized = Boolean(config?.auth.accessToken);
 
     const handleLogout = async () => {
         try {

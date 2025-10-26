@@ -26,11 +26,7 @@ const Sidebar: React.FC = () => {
 
     return (
         <aside className="flex h-full w-64 flex-col border-r border-primary-200/60 bg-white/95 backdrop-blur shadow-sm">
-            <div className="px-6 pb-4 pt-6">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-text-tertiary">Навигация</p>
-            </div>
-
-            <nav className="flex flex-1 flex-col gap-1 px-3 pb-6">
+            <nav className="flex flex-1 flex-col gap-1 px-3 pb-6 mt-4">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path;
                     return (
@@ -54,10 +50,10 @@ const Sidebar: React.FC = () => {
                 })}
             </nav>
             <div className={'p-4 overflow-hidden'}>
-                <video 
-                    autoPlay 
-                    loop 
-                    muted 
+                <video
+                    autoPlay
+                    loop
+                    muted
                     src="/brand/avatar.mp4"
                     className="w-full h-auto"
                     style={{

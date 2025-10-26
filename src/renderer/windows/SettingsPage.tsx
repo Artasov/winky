@@ -90,7 +90,7 @@ const SettingsPage: React.FC = () => {
     return (
       <div className="mx-auto flex h-full w-full max-w-md flex-col items-center justify-center gap-4 px-8 py-12 text-center">
         <div className="text-4xl opacity-60">🔐</div>
-        <p className="text-sm text-text-secondary">Авторизуйтесь, чтобы изменить настройки.</p>
+        <p className="text-sm text-text-secondary">Please sign in to change settings.</p>
       </div>
     );
   }
@@ -98,16 +98,16 @@ const SettingsPage: React.FC = () => {
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-8 py-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-semibold text-text-primary">Настройки</h1>
-        <p className="text-sm text-text-secondary">Управляйте подключением к внешним сервисам.</p>
+        <h1 className="text-3xl font-semibold text-text-primary">Settings</h1>
+        <p className="text-sm text-text-secondary">Manage connections to external services.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6 rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6">
         <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold text-text-primary">Режимы и модели</h2>
+          <h2 className="text-lg font-semibold text-text-primary">Modes and Models</h2>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-text-primary" htmlFor="speech-mode">Транскрибация</label>
+              <label className="text-sm font-medium text-text-primary" htmlFor="speech-mode">Speech Recognition</label>
               <select
                 id="speech-mode"
                 value={speechMode}
@@ -119,7 +119,7 @@ const SettingsPage: React.FC = () => {
               </select>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-text-primary" htmlFor="speech-model">Модель транскрибации</label>
+              <label className="text-sm font-medium text-text-primary" htmlFor="speech-model">Speech Model</label>
               <select
                 id="speech-model"
                 value={speechModel}
@@ -134,7 +134,7 @@ const SettingsPage: React.FC = () => {
               </select>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-text-primary" htmlFor="llm-mode">LLM процессинг</label>
+              <label className="text-sm font-medium text-text-primary" htmlFor="llm-mode">LLM Processing</label>
               <select
                 id="llm-mode"
                 value={llmMode}
@@ -146,7 +146,7 @@ const SettingsPage: React.FC = () => {
               </select>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-text-primary" htmlFor="llm-model">Модель LLM</label>
+              <label className="text-sm font-medium text-text-primary" htmlFor="llm-model">LLM Model</label>
               <select
                 id="llm-model"
                 value={llmModel}
@@ -164,10 +164,10 @@ const SettingsPage: React.FC = () => {
         </section>
 
         <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold text-text-primary">API ключи</h2>
+          <h2 className="text-lg font-semibold text-text-primary">API Keys</h2>
           <p className="text-sm text-text-secondary">
-            Эти ключи используются для распознавания речи (Google) и работы с LLM (OpenAI). Оставьте поле пустым, если
-            планируете работать в локальном режиме.
+            These keys are used for speech recognition (Google) and LLM processing (OpenAI). Leave the field empty if
+            you plan to work in local mode.
           </p>
 
           <label className="flex flex-col gap-2 text-sm text-text-primary" htmlFor="google-key">
@@ -201,7 +201,7 @@ const SettingsPage: React.FC = () => {
             disabled={saving}
             className="button-primary rounded-lg px-6 py-2.5 text-sm font-semibold shadow-primary-md disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
           >
-            {saving ? 'Сохранение...' : 'Сохранить'}
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </form>

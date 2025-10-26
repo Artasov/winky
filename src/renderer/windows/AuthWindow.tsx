@@ -42,7 +42,7 @@ const AuthWindow: React.FC = () => {
 
   return (
     <div className="mx-auto flex h-full w-full max-w-md flex-col justify-center px-6 py-10">
-      <h2 className="mb-6 text-3xl font-semibold text-text-primary">Вход в аккаунт</h2>
+      <h2 className="mb-6 text-3xl font-semibold text-text-primary">Sign In</h2>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-2 text-sm text-text-primary">
           Email
@@ -54,7 +54,7 @@ const AuthWindow: React.FC = () => {
           />
         </label>
         <label className="flex flex-col gap-2 text-sm text-text-primary">
-          Пароль
+          Password
           <input
             type="password"
             value={password}
@@ -67,7 +67,7 @@ const AuthWindow: React.FC = () => {
           disabled={loading}
           className="button-primary mt-4 rounded-lg px-4 py-2 text-base font-semibold shadow-primary-md disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? 'Входим...' : 'Войти'}
+          {loading ? 'Signing in...' : 'Sign In'}
         </button>
       </form>
     </div>

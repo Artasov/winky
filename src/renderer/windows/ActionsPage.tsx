@@ -183,18 +183,18 @@ const ActionsPage: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-8 px-8 py-6">
+    <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-4 px-8 py-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-semibold text-text-primary">Действия</h1>
-          <p className="text-sm text-text-secondary">Управляйте быстрыми сценариями для голосового ассистента.</p>
+          <h1 className="text-3xl font-semibold text-text-primary">Actions</h1>
+          <p className="text-sm text-text-secondary">Manage quick scenarios for your voice assistant.</p>
         </div>
         {isAuthorized && (
           <button
             type="button"
             onClick={openCreateModal}
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary-200 bg-primary-50 text-primary shadow-primary-sm transition-[background-color,border-color,color] duration-base hover:border-primary hover:bg-primary-100 hover:text-primary-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
-            aria-label="Добавить действие"
+            aria-label="Add action"
           >
             <svg viewBox="0 0 20 20" className="h-5 w-5 fill-current" aria-hidden="true">
               <path d="M9 3a1 1 0 1 1 2 0v6h6a1 1 0 0 1 0 2h-6v6a1 1 0 1 1-2 0v-6H3a1 1 0 1 1 0-2h6V3z" />
@@ -206,13 +206,13 @@ const ActionsPage: React.FC = () => {
       {!isAuthorized ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-primary-200 bg-bg-secondary px-6 py-16 text-center">
           <div className="text-4xl opacity-60">⚡</div>
-          <p className="text-sm text-text-secondary">Авторизуйтесь, чтобы управлять действиями.</p>
+          <p className="text-sm text-text-secondary">Please sign in to manage actions.</p>
         </div>
       ) : actions.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-primary-200 bg-bg-secondary px-6 py-16 text-center">
           <div className="text-4xl opacity-60">⚡</div>
-          <p className="text-sm text-text-secondary">Нет действий</p>
-          <p className="text-xs text-text-tertiary">Нажмите на «плюс», чтобы создать первое действие.</p>
+          <p className="text-sm text-text-secondary">No actions</p>
+          <p className="text-xs text-text-tertiary">Click the "plus" button to create your first action.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -228,7 +228,7 @@ const ActionsPage: React.FC = () => {
                     type="button"
                     onClick={() => openEditModal(action)}
                     className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-md border border-primary-200 bg-white text-text-primary transition-[background-color,border-color] duration-base hover:border-primary hover:bg-primary-50"
-                    aria-label="Изменить действие"
+                    aria-label="Edit action"
                   >
                     <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
                       <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -239,7 +239,7 @@ const ActionsPage: React.FC = () => {
                     onClick={() => handleDelete(action.id, action.name)}
                     disabled={isDeleting}
                     className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-md border border-primary bg-primary-50 text-primary transition-[background-color,border-color] duration-base hover:border-primary-dark hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    aria-label="Удалить действие"
+                    aria-label="Delete action"
                   >
                     {isDeleting ? (
                       <span className="text-xs">...</span>
@@ -265,7 +265,7 @@ const ActionsPage: React.FC = () => {
                   )}
                   <div className="min-w-0 flex-1">
                     <h3 className="truncate text-base font-semibold text-text-primary">{action.name}</h3>
-                    <p className="text-xs text-text-tertiary">{action.icon_details?.name || 'Без иконки'}</p>
+                    <p className="text-xs text-text-tertiary">{action.icon_details?.name || 'No icon'}</p>
                   </div>
                 </div>
                 <p className="text-sm leading-relaxed text-text-secondary line-clamp-3">{action.prompt}</p>
@@ -285,17 +285,17 @@ const ActionsPage: React.FC = () => {
             <div className="flex-shrink-0 p-6 pb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-text-primary">
-                  {editingActionId ? 'Изменить действие' : 'Новое действие'}
+                  {editingActionId ? 'Edit Action' : 'New Action'}
                 </h2>
                 <p className="text-sm text-text-secondary">
-                  Укажите название, промпт и иконку для действия.
+                  Specify the name, prompt, and icon for the action.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={beginModalClose}
                 className="button-animated flex h-8 w-8 items-center justify-center rounded-lg border border-primary-200 text-text-secondary transition-all duration-base hover:border-primary hover:text-primary flex-shrink-0"
-                aria-label="Закрыть форму"
+                aria-label="Close form"
               >
                 <svg viewBox="0 0 12 12" className="h-3 w-3 fill-current">
                   <path d="M1.28 0 0 1.28 4.72 6 0 10.72 1.28 12 6 7.28 10.72 12 12 10.72 7.28 6 12 1.28 10.72 0 6 4.72Z" />
@@ -305,31 +305,31 @@ const ActionsPage: React.FC = () => {
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-6 overflow-y-auto px-6 pb-6">
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-text-primary" htmlFor="action-name">Название</label>
+                <label className="text-sm font-medium text-text-primary" htmlFor="action-name">Name</label>
                 <input
                   id="action-name"
                   type="text"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   className="input-animated rounded-lg border border-primary-200 bg-white px-4 py-3 text-text-primary placeholder:text-text-tertiary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
-                  placeholder="Например: Написать email"
+                  placeholder="For example: Write email"
                 />
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-text-primary" htmlFor="action-prompt">Промпт</label>
+                <label className="text-sm font-medium text-text-primary" htmlFor="action-prompt">Prompt</label>
                 <textarea
                   id="action-prompt"
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
                   rows={4}
                   className="input-animated resize-none rounded-lg border border-primary-200 bg-white px-4 py-3 text-text-primary placeholder:text-text-tertiary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
-                  placeholder="Опишите, что должно делать действие (оставьте пустым, если нужна только транскрипция)"
+                  placeholder="Describe what the action should do (leave empty if you only need transcription)"
                 />
               </div>
 
               <div className="flex flex-col gap-3">
-                <label className="text-sm font-medium text-text-primary">Настройки</label>
+                <label className="text-sm font-medium text-text-primary">Settings</label>
                 <div className="flex flex-col gap-2">
                   <label className="frcs gap-3 cursor-pointer">
                     <input
@@ -338,7 +338,7 @@ const ActionsPage: React.FC = () => {
                       onChange={(e) => setShowResults(e.target.checked)}
                       className="checkbox-animated h-4 w-4 rounded border-primary-200 bg-white text-primary focus:ring-2 focus:ring-primary-light/30 focus:ring-offset-0"
                     />
-                    <span className="text-sm text-text-primary">Показывать окно результатов</span>
+                    <span className="text-sm text-text-primary">Show results window</span>
                   </label>
                   <label className="frcs gap-3 cursor-pointer">
                     <input
@@ -347,7 +347,7 @@ const ActionsPage: React.FC = () => {
                       onChange={(e) => setSoundOnComplete(e.target.checked)}
                       className="checkbox-animated h-4 w-4 rounded border-primary-200 bg-white text-primary focus:ring-2 focus:ring-primary-light/30 focus:ring-offset-0"
                     />
-                    <span className="text-sm text-text-primary">Проигрывать звук по завершению</span>
+                    <span className="text-sm text-text-primary">Play sound on completion</span>
                   </label>
                   <label className="frcs gap-3 cursor-pointer">
                     <input
@@ -356,22 +356,22 @@ const ActionsPage: React.FC = () => {
                       onChange={(e) => setAutoCopyResult(e.target.checked)}
                       className="checkbox-animated h-4 w-4 rounded border-primary-200 bg-white text-primary focus:ring-2 focus:ring-primary-light/30 focus:ring-offset-0"
                     />
-                    <span className="text-sm text-text-primary">Автоматически копировать результат</span>
+                    <span className="text-sm text-text-primary">Automatically copy result</span>
                   </label>
                 </div>
               </div>
 
               <div className="flex flex-col gap-3">
                 <label className="text-sm font-medium text-text-primary">
-                  Иконка {iconId && <span className="font-normal text-text-tertiary">• {icons.find((iconOption) => iconOption.id === iconId)?.name}</span>}
+                  Icon {iconId && <span className="font-normal text-text-tertiary">• {icons.find((iconOption) => iconOption.id === iconId)?.name}</span>}
                 </label>
                 {iconsLoading ? (
                   <div className="rounded-lg border border-primary-200 bg-bg-secondary px-4 py-6 text-center text-text-secondary">
-                    <div className="animate-pulse-soft">Загрузка иконок...</div>
+                    <div className="animate-pulse-soft">Loading icons...</div>
                   </div>
                 ) : icons.length === 0 ? (
                   <div className="rounded-lg border border-primary-200 bg-bg-secondary px-4 py-6 text-center text-text-secondary">
-                    Нет доступных иконок.
+                    No icons available.
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
@@ -401,14 +401,14 @@ const ActionsPage: React.FC = () => {
                   onClick={beginModalClose}
                   className="button-secondary rounded-lg border border-primary-200 bg-white px-5 py-2.5 text-sm font-semibold text-text-primary transition-all duration-base hover:bg-primary-50 hover:border-primary"
                 >
-                  Отмена
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving || iconsLoading || icons.length === 0 || !iconId}
                   className="button-primary rounded-lg px-6 py-2.5 text-sm font-semibold shadow-primary-md disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
                 >
-                  {saving ? 'Сохранение...' : editingActionId ? 'Сохранить изменения' : 'Создать действие'}
+                  {saving ? 'Saving...' : editingActionId ? 'Save Changes' : 'Create Action'}
                 </button>
               </div>
             </form>

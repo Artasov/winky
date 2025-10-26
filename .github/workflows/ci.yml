@@ -89,7 +89,6 @@ jobs:
           name: winky-windows
           path: |
             release/*.exe
-            release/*.blockmap
             release/latest*.yml
           if-no-files-found: warn
 
@@ -100,7 +99,6 @@ jobs:
           name: winky-macos
           path: |
             release/*.dmg
-            release/*.blockmap
             release/latest-mac.yml
           if-no-files-found: warn
 
@@ -110,7 +108,6 @@ jobs:
         with:
           name: winky-linux
           path: |
-            release/*.AppImage
             release/*.deb
             release/latest-linux.yml
           if-no-files-found: warn
@@ -127,18 +124,46 @@ jobs:
         with:
           path: dist
 
+      - name: Generate release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          cat <<'EOF' > release-body.md
+## Installation Guide
+
+### Windows
+1. Download `Winky-Setup-__VERSION__-x64.exe` from the assets list below.
+2. Run the installer and follow the prompts.
+3. Launch Winky from the Start Menu after installation.
+
+### macOS
+1. Download the DMG that matches your Mac (`Winky-__VERSION__-x64.dmg` for Intel, `Winky-__VERSION__-arm64.dmg` for Apple Silicon).
+2. Open the DMG and drag `Winky.app` into `Applications`.
+3. On first launch macOS may warn about an unidentified developer – right-click the app, choose **Open**, then confirm.
+
+### Linux (Debian/Ubuntu)
+1. Download `Winky-__VERSION__-amd64.deb`.
+2. Install with `sudo apt install ./Winky-__VERSION__-amd64.deb`.
+3. Start Winky from your application menu.
+
+---
+## Changes
+EOF
+
+          gh api repos/${{ github.repository }}/releases/generate-notes -F tag_name="$VERSION" -F target_commitish="${{ github.sha }}" --jq '.body' >> release-body.md
+          sed -i "s/__VERSION__/${VERSION}/g" release-body.md
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/**/*.AppImage
             dist/**/*.deb
             dist/**/*.dmg
             dist/**/*.exe
-            dist/**/*.blockmap
             dist/**/*.yml
+          body_path: release-body.md
           draft: false
           prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -103,12 +103,10 @@ const createStore = async (): Promise<ElectronStoreInstance> => {
   const { default: StoreConstructor } = await loadElectronStoreModule();
   const { app } = await import('electron');
   
-  // Сохраняем конфиг в папке установки приложения, а не в roaming
-  const appPath = app.getAppPath();
-  const configPath = appPath.includes('app.asar') 
-    ? app.getPath('exe').replace(/[^\\\/]+$/, '') // Папка с .exe если упакованно
-    : appPath; // Папка проекта в dev режиме
-  
+  // Production builds: appPath points to app.asar.
+  // Use Electron's userData directory so the config is writable on every OS.
+  const configPath = app.getPath('userData');
+
   const instance = new StoreConstructor<AppConfig>({
     name: 'config',
     fileExtension: 'json',

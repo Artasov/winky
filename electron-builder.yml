@@ -21,7 +21,6 @@ win:
     - target: nsis
       arch:
         - x64
-        - ia32
   icon: public/resources/logo-rounded.ico
   artifactName: '${productName}-Setup-${version}-${arch}.${ext}'
 
@@ -64,9 +63,6 @@ dmg:
 
 linux:
   target:
-    - target: AppImage
-      arch:
-        - x64
     - target: deb
       arch:
         - x64

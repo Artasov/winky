@@ -1,13 +1,11 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {ActionConfig, ActionIcon} from '@shared/types';
 import {useConfig} from '../context/ConfigContext';
-import {useUser} from '../context/UserContext';
 import {useIcons} from '../context/IconsContext';
 import {useToast} from '../context/ToastContext';
 
 const ActionsPage: React.FC = () => {
     const {config, refreshConfig} = useConfig();
-    const {user} = useUser();
     const {icons, loading: iconsLoading, fetchIcons} = useIcons();
     const {showToast} = useToast();
     const actions = useMemo(() => config?.actions ?? [], [config?.actions]);
@@ -39,12 +37,16 @@ const ActionsPage: React.FC = () => {
 
     // Загружаем иконки при открытии модалки
     useEffect(() => {
-        if (isModalVisible && !user) {
+        if (!isModalVisible) {
+            return;
+        }
+
+        if (!isAuthorized) {
             showToast('Please sign in to manage actions.', 'error');
             return;
         }
 
-        if (isModalVisible && icons.length === 0 && !iconsLoading) {
+        if (icons.length === 0 && !iconsLoading) {
             console.log('[ActionsPage] Fetching icons for modal...');
             void fetchIcons().then((loadedIcons) => {
                 if (loadedIcons.length > 0 && !iconId) {
@@ -53,11 +55,11 @@ const ActionsPage: React.FC = () => {
                     showToast('No icons available. Please add them on the backend.', 'info');
                 }
             });
-        } else if (isModalVisible && icons.length > 0 && !iconId) {
+        } else if (icons.length > 0 && !iconId) {
             // Иконки уже загружены, просто устанавливаем первую
             setIconId(icons[0].id);
         }
-    }, [isModalVisible, icons, iconsLoading, iconId, fetchIcons, user, showToast]);
+    }, [isModalVisible, icons, iconsLoading, iconId, fetchIcons, isAuthorized, showToast]);
 
     useEffect(() => () => {
         if (closeTimeoutRef.current) {
@@ -429,4 +431,3 @@ const ActionsPage: React.FC = () => {
 };
 
 export default ActionsPage;
-

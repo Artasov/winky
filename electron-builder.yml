@@ -15,7 +15,7 @@ win:
       arch:
         - x64
         - ia32
-  icon: public/brand/logo-rounded.png
+  icon: public/brand/logo-rounded.ico
   artifactName: '${productName}-Setup-${version}-${arch}.${ext}'
 
 nsis:
@@ -43,7 +43,7 @@ mac:
         - x64
         - arm64
   category: public.app-category.productivity
-  icon: public/brand/logo-rounded.png
+  icon: public/brand/logo-1024-1024.png
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
@@ -52,7 +52,7 @@ mac:
 
 dmg:
   title: '${productName} ${version}'
-  icon: public/brand/logo-rounded.png
+  icon: public/brand/logo-1024-1024.png
   artifactName: '${productName}-${version}-${arch}.${ext}'
 
 linux:
@@ -64,7 +64,7 @@ linux:
       arch:
         - x64
   category: Utility
-  icon: public/brand/logo-rounded.png
+  icon: public/brand/logo-1024-1024.png
   synopsis: 'Cross-platform voice assistant'
   description: 'Winky - cross-platform voice assistant with LLM support'
   artifactName: '${productName}-${version}-${arch}.${ext}'

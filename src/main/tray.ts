@@ -8,7 +8,11 @@ export const createTray = (onOpenSettings: () => void, onQuit?: () => void): Tra
     return tray;
   }
 
-  const iconPath = path.resolve(__dirname, '../../build/icon.png');
+  const isDev = process.env.NODE_ENV === 'development';
+  const iconPath = isDev
+    ? path.resolve(__dirname, '../../public/brand/logo-rounded.png')
+    : path.resolve(__dirname, '../renderer/brand/logo-rounded.png');
+  
   const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
 

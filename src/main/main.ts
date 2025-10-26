@@ -19,6 +19,15 @@ let resultWindow: BrowserWindow | null = null;
 const preloadPath = path.resolve(__dirname, 'preload.js');
 const rendererPath = path.resolve(__dirname, '../renderer/index.html');
 
+// Путь к иконке приложения
+const getIconPath = (): string => {
+  if (isDev) {
+    return path.resolve(__dirname, '../../public/brand/logo-rounded.png');
+  }
+  // В production иконка находится в dist/renderer (упакована в asar)
+  return path.resolve(__dirname, '../renderer/brand/logo-rounded.png');
+};
+
 let micWindow: BrowserWindow | null = null;
 
 const broadcastConfigUpdate = async () => {
@@ -58,6 +67,7 @@ const createMainWindow = () => {
         minWidth: 960,
         minHeight: 640,
         title: APP_NAME,
+        icon: getIconPath(),
         frame: false,
         show: false,
         titleBarStyle: 'hidden',
@@ -100,6 +110,7 @@ const createResultWindow = () => {
         minWidth: 500,
         minHeight: 400,
         resizable: true,
+        icon: getIconPath(),
         frame: false,
         show: false,
         skipTaskbar: false,

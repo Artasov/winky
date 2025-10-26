@@ -117,7 +117,8 @@ const SetupWindow: React.FC = () => {
   return (
     <div className="flex h-full flex-col">
       <TitleBar />
-      <div className="mx-auto flex flex-1 w-full max-w-2xl flex-col gap-6 px-6 py-10">
+      <div className="flex-1 overflow-auto">
+        <div className="mx-auto w-full max-w-2xl flex flex-col gap-6 px-6 py-10">
       <div>
         <h2 className="text-3xl font-semibold text-text-primary">Первичная настройка</h2>
         <p className="mt-2 text-sm text-text-secondary">
@@ -253,6 +254,7 @@ const SetupWindow: React.FC = () => {
           {saving ? 'Сохраняем...' : 'Готово'}
         </button>
       </form>
+        </div>
       </div>
     </div>
   );

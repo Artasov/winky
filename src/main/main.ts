@@ -22,10 +22,10 @@ const rendererPath = path.resolve(__dirname, '../renderer/index.html');
 // Путь к иконке приложения
 const getIconPath = (): string => {
   if (isDev) {
-    return path.resolve(__dirname, '../../public/brand/logo-rounded.png');
+    return path.resolve(__dirname, '../../public/resources/logo-rounded.png');
   }
   // В production иконка из extraResources
-  const iconPath = path.join(process.resourcesPath, 'brand', 'logo-rounded.png');
+  const iconPath = path.join(process.resourcesPath, 'resources', 'logo-rounded.png');
   console.log('[getIconPath] production icon path:', iconPath);
   return iconPath;
 };
@@ -168,6 +168,7 @@ const createMicWindow = () => {
         show: false,
         skipTaskbar: true,
         alwaysOnTop: true,
+        type: 'toolbar', // Окно-инструмент без вкладки на панели задач
         backgroundColor: '#00000000',
         webPreferences: {
             preload: preloadPath,
@@ -196,8 +197,11 @@ const createMicWindow = () => {
     }
 
     micWindow.once('ready-to-show', () => {
-        micWindow?.show();
-        micWindow?.focus();
+        if (micWindow && !micWindow.isDestroyed()) {
+            micWindow.show();
+            // НЕ вызываем focus() чтобы окно не появлялось на панели задач
+            micWindow.setSkipTaskbar(true); // Еще раз явно после show()
+        }
     });
 
     micWindow.on('closed', () => {
@@ -236,6 +240,15 @@ const registerIpcHandlers = () => {
     ipcMain.handle('config:update', async (_event, partialConfig: Partial<AppConfig>) => {
         const updated = await updateConfig(partialConfig);
         await broadcastConfigUpdate();
+        
+        // Создаём mic окно если setupCompleted был установлен в true
+        if (updated.setupCompleted && updated.auth.accessToken && (!micWindow || micWindow.isDestroyed())) {
+            createMicWindow();
+            if (isDev && micWindow) {
+                micWindow.webContents.openDevTools({mode: 'detach'});
+            }
+        }
+        
         return updated;
     });
 
@@ -371,8 +384,8 @@ const login = async ({email, password}: { email: string; password: string }) => 
     const config = await setAuthTokens(tokens);
     console.log('[auth:login] tokens stored, returning to renderer');
     
-    // Создаём mic окно после успешной авторизации
-    if (!micWindow || micWindow.isDestroyed()) {
+    // Создаём mic окно только если уже пройдена первичная настройка
+    if (config.setupCompleted && (!micWindow || micWindow.isDestroyed())) {
         createMicWindow();
         if (isDev && micWindow) {
             micWindow.webContents.openDevTools({mode: 'detach'});
@@ -560,10 +573,10 @@ const handleAppReady = async () => {
     // Создаём главное окно
     createMainWindow();
     
-    // Проверяем авторизацию и создаём mic окно если пользователь уже залогинен
+    // Проверяем авторизацию и создаём mic окно если пользователь залогинен И прошёл первичную настройку
     try {
         const config = await getConfig();
-        if (config.auth.accessToken) {
+        if (config.auth.accessToken && config.setupCompleted) {
             createMicWindow();
             if (isDev && micWindow) {
                 micWindow.webContents.openDevTools({mode: 'detach'});

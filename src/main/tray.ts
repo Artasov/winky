@@ -10,8 +10,8 @@ export const createTray = (onOpenSettings: () => void, onQuit?: () => void): Tra
 
   const isDev = process.env.NODE_ENV === 'development';
   const iconPath = isDev
-    ? path.resolve(__dirname, '../../public/brand/logo-rounded.png')
-    : path.join(process.resourcesPath, 'brand', 'logo-rounded.png');
+    ? path.resolve(__dirname, '../../public/resources/logo-rounded.png')
+    : path.join(process.resourcesPath, 'resources', 'logo-rounded.png');
   
   console.log('[createTray] icon path:', iconPath);
   const icon = nativeImage.createFromPath(iconPath);

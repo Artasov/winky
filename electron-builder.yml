@@ -11,10 +11,10 @@ files:
 asar: true
 
 extraResources:
-  - from: public/brand/logo-rounded.png
-    to: brand/logo-rounded.png
-  - from: public/brand/logo-rounded.ico
-    to: brand/logo-rounded.ico
+  - from: public/resources/logo-rounded.png
+    to: resources/logo-rounded.png
+  - from: public/resources/logo-rounded.ico
+    to: resources/logo-rounded.ico
 
 win:
   target:
@@ -22,7 +22,7 @@ win:
       arch:
         - x64
         - ia32
-  icon: public/brand/logo-rounded.ico
+  icon: public/resources/logo-rounded.ico
   artifactName: '${productName}-Setup-${version}-${arch}.${ext}'
 
 nsis:
@@ -32,8 +32,8 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: 'Winky'
-  installerIcon: public/brand/logo-rounded.ico
-  uninstallerIcon: public/brand/logo-rounded.ico
+  installerIcon: public/resources/logo-rounded.ico
+  uninstallerIcon: public/resources/logo-rounded.ico
   deleteAppDataOnUninstall: false
   menuCategory: true
   runAfterFinish: true
@@ -50,7 +50,7 @@ mac:
         - x64
         - arm64
   category: public.app-category.productivity
-  icon: public/brand/logo-1024-1024.png
+  icon: public/resources/logo-1024-1024.png
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
@@ -59,7 +59,7 @@ mac:
 
 dmg:
   title: '${productName} ${version}'
-  icon: public/brand/logo-1024-1024.png
+  icon: public/resources/logo-1024-1024.png
   artifactName: '${productName}-${version}-${arch}.${ext}'
 
 linux:
@@ -71,7 +71,7 @@ linux:
       arch:
         - x64
   category: Utility
-  icon: public/brand/logo-1024-1024.png
+  icon: public/resources/logo-1024-1024.png
   synopsis: 'Cross-platform voice assistant'
   description: 'Winky - cross-platform voice assistant with LLM support'
   artifactName: '${productName}-${version}-${arch}.${ext}'

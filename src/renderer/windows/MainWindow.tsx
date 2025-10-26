@@ -32,14 +32,21 @@ const MainWindow: React.FC = () => {
     const accessToken = config.auth.accessToken || undefined;
 
     try {
-      speechServiceRef.current = createSpeechService(config.speech.mode, config.speech.model, accessToken);
+      speechServiceRef.current = createSpeechService(config.speech.mode, config.speech.model, {
+        openaiKey: config.apiKeys.openai,
+        googleKey: config.apiKeys.google
+      });
     } catch (error) {
       console.error('[MainWindow] Не удалось создать сервис распознавания', error);
       speechServiceRef.current = null;
     }
 
     try {
-      llmServiceRef.current = createLLMService(config.llm.mode, config.llm.model, accessToken);
+      llmServiceRef.current = createLLMService(config.llm.mode, config.llm.model, {
+        openaiKey: config.apiKeys.openai,
+        googleKey: config.apiKeys.google,
+        accessToken
+      });
     } catch (error) {
       console.error('[MainWindow] Не удалось создать LLM сервис', error);
       llmServiceRef.current = null;
@@ -129,16 +136,14 @@ const MainWindow: React.FC = () => {
 
     try {
       const blob = await speechServiceRef.current.stopRecording();
-      console.debug('[MainWindow] recording stopped', { blobSize: blob.size });
-      setIsRecording(false);
-      stopVolumeMonitor();
       return blob;
     } catch (error) {
       console.error(error);
       showToast('Не удалось остановить запись.', 'error');
+      return null;
+    } finally {
       setIsRecording(false);
       stopVolumeMonitor();
-      return null;
     }
   };
 
@@ -224,6 +229,7 @@ const MainWindow: React.FC = () => {
 
     setActiveActionId(action.id);
     const blob = await finishRecording();
+    setIsRecording(false);
     if (blob) {
       await processAction(action, blob);
     }
@@ -232,7 +238,7 @@ const MainWindow: React.FC = () => {
 
   const normalizedVolume = Math.min(volume * 2.5, 1);
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-visible">
+    <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-visible">
       {/* Волны звука вокруг микрофона */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-visible">
         {[4, 3, 2, 1].map((multiplier) => (
@@ -264,7 +270,7 @@ const MainWindow: React.FC = () => {
       </div>
 
       {displayedActions.length > 0 && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="pointer-events-none absolute rounded-full bg-rose-500/20 blur-md" style={{ width: '64px', height: '64px' }} />
           {displayedActions.map((action, index) => {
             const total = displayedActions.length;

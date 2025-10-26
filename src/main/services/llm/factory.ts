@@ -29,33 +29,46 @@ import Qwen330bLLMService from './models/local/Qwen330bLLMService';
 import Qwen38bLLMService from './models/local/Qwen38bLLMService';
 import Qwen34bLLMService from './models/local/Qwen34bLLMService';
 
-export const createLLMService = (mode: LLMMode, model: LLMModel, accessToken?: string): BaseLLMService => {
+interface LLMServiceOptions {
+  openaiKey?: string;
+  googleKey?: string;
+  accessToken?: string;
+}
+
+export const createLLMService = (
+  mode: LLMMode,
+  model: LLMModel,
+  options: LLMServiceOptions = {}
+): BaseLLMService => {
   if (mode === LLM_MODES.API) {
+    if (!options.openaiKey) {
+      throw new Error('Требуется OpenAI API Key для использования LLM в режиме API.');
+    }
     switch (model) {
       case 'o4-mini':
-        return new O4MiniLLMService(accessToken);
+        return new O4MiniLLMService(options.openaiKey);
       case 'gpt-4.1-mini':
-        return new Gpt41MiniLLMService(accessToken);
+        return new Gpt41MiniLLMService(options.openaiKey);
       case 'gpt-4.1-nano':
-        return new Gpt41NanoLLMService(accessToken);
+        return new Gpt41NanoLLMService(options.openaiKey);
       case 'o3-mini':
-        return new O3MiniLLMService(accessToken);
+        return new O3MiniLLMService(options.openaiKey);
       case 'o1-mini':
-        return new O1MiniLLMService(accessToken);
+        return new O1MiniLLMService(options.openaiKey);
       case 'gpt-4o-mini':
-        return new Gpt4oMiniLLMService(accessToken);
+        return new Gpt4oMiniLLMService(options.openaiKey);
       case 'gpt-4-turbo':
-        return new Gpt4TurboLLMService(accessToken);
+        return new Gpt4TurboLLMService(options.openaiKey);
       case 'chatgpt-4o-latest':
-        return new ChatGpt4oLatestLLMService(accessToken);
+        return new ChatGpt4oLatestLLMService(options.openaiKey);
       case 'gpt-3.5-turbo':
-        return new Gpt35TurboLLMService(accessToken);
+        return new Gpt35TurboLLMService(options.openaiKey);
       case 'gpt-5':
-        return new Gpt5LLMService(accessToken);
+        return new Gpt5LLMService(options.openaiKey);
       case 'gpt-5-nano':
-        return new Gpt5NanoLLMService(accessToken);
+        return new Gpt5NanoLLMService(options.openaiKey);
       case 'gpt-5-mini':
-        return new Gpt5MiniLLMService(accessToken);
+        return new Gpt5MiniLLMService(options.openaiKey);
       default:
         throw new Error(`Неизвестная API LLM модель: ${model}`);
     }

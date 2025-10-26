@@ -16,15 +16,27 @@ import LargeTranscribeService from './models/local/LargeTranscribeService';
 import LargeV2TranscribeService from './models/local/LargeV2TranscribeService';
 import LargeV3TranscribeService from './models/local/LargeV3TranscribeService';
 
-export const createSpeechService = (mode: SpeechMode, model: SpeechModel, accessToken?: string): BaseSpeechService => {
+interface SpeechServiceOptions {
+  openaiKey?: string;
+  googleKey?: string;
+}
+
+export const createSpeechService = (
+  mode: SpeechMode,
+  model: SpeechModel,
+  options: SpeechServiceOptions = {}
+): BaseSpeechService => {
   if (mode === SPEECH_MODES.API) {
+    if (!options.openaiKey) {
+      throw new Error('Требуется OpenAI API Key для использования транскрибации в режиме API.');
+    }
     switch (model) {
       case 'gpt-4o-mini-transcribe':
-        return new Gpt4oMiniTranscribeService(accessToken);
+        return new Gpt4oMiniTranscribeService(options.openaiKey);
       case 'gpt-4o-transcribe':
-        return new Gpt4oTranscribeService(accessToken);
+        return new Gpt4oTranscribeService(options.openaiKey);
       case 'whisper-1':
-        return new Whisper1TranscribeService(accessToken);
+        return new Whisper1TranscribeService(options.openaiKey);
       default:
         throw new Error(`Неизвестная модель API транскрибации: ${model}`);
     }

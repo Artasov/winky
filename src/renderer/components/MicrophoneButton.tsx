@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import classNames from 'classnames';
+import { interactiveEnter, interactiveLeave } from '../utils/interactive';
 
 interface MicrophoneButtonProps {
   isRecording: boolean;
@@ -27,14 +28,12 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
   } | null>(null);
 
   const handleMouseEnter = () => {
-    // Когда мышь над кнопкой, делаем окно интерактивным
-    void window.winky?.mic?.setInteractive(true);
+    interactiveEnter();
   };
 
   const handleMouseLeave = () => {
-    // Когда мышь покидает кнопку, возвращаем click-through
     if (!dragStateRef.current?.isDragging) {
-      void window.winky?.mic?.setInteractive(false);
+      interactiveLeave();
     }
   };
 
@@ -105,7 +104,7 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
     const isInside = e.clientX >= rect.left && e.clientX <= rect.right &&
                      e.clientY >= rect.top && e.clientY <= rect.bottom;
     if (!isInside) {
-      void window.winky?.mic?.setInteractive(false);
+      interactiveLeave();
     }
 
     // Если не было перетаскивания - это клик
@@ -124,12 +123,14 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
     if (target.hasPointerCapture(pointerId)) {
       target.releasePointerCapture(pointerId);
     }
+    interactiveLeave();
   };
 
   const handleLostPointerCapture = (e: React.PointerEvent) => {
     // Если потеряли захват указателя во время перетаскивания
     if (dragStateRef.current && dragStateRef.current.pointerId === e.pointerId) {
       dragStateRef.current = null;
+      interactiveLeave();
     }
   };
 
@@ -139,6 +140,8 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({ isRecording, onTogg
       disabled={disabled}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onFocus={handleMouseEnter}
+      onBlur={handleMouseLeave}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

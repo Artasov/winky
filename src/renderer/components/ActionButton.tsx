@@ -1,6 +1,7 @@
 import React from 'react';
 import classNames from 'classnames';
 import type { ActionConfig } from '@shared/types';
+import { interactiveEnter, interactiveLeave } from '../utils/interactive';
 
 interface ActionButtonProps {
   action: ActionConfig;
@@ -23,8 +24,10 @@ const ActionButton: React.FC<ActionButtonProps> = ({ action, onClick, disabled, 
       type="button"
       disabled={disabled}
       onClick={() => onClick(action)}
-      onMouseEnter={() => window.winky?.mic?.setInteractive(true)}
-      onMouseLeave={() => window.winky?.mic?.setInteractive(false)}
+      onMouseEnter={() => interactiveEnter()}
+      onMouseLeave={() => interactiveLeave()}
+      onFocus={() => interactiveEnter()}
+      onBlur={() => interactiveLeave()}
       data-interactive="true"
       className={classNames(
         'app-region-no-drag',

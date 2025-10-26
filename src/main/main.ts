@@ -1,4 +1,4 @@
-import {app, BrowserWindow, clipboard, ipcMain, Menu} from 'electron';
+import {app, BrowserWindow, clipboard, ipcMain, Menu, screen} from 'electron';
 import path from 'path';
 import axios from 'axios';
 import {createTray, destroyTray} from './tray';
@@ -99,7 +99,7 @@ const createMainWindow = () => {
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
-    
+
     // НЕ показываем окно автоматически - оно покажется либо из handleAppReady, либо из трея
 };
 
@@ -153,6 +153,55 @@ const createResultWindow = () => {
     return resultWindow;
 };
 
+/**
+ * Проверяет и корректирует позицию окна, чтобы оно не выходило за границы экрана
+ */
+const ensureWindowWithinBounds = (
+    savedPosition: { x: number; y: number } | undefined,
+    windowWidth: number,
+    windowHeight: number
+): { x: number; y: number } | undefined => {
+    if (!savedPosition) {
+        return undefined;
+    }
+
+    const { x, y } = savedPosition;
+    
+    // Получаем дисплей, на котором должно быть окно
+    const display = screen.getDisplayNearestPoint({ x, y });
+    const { bounds } = display;
+    
+    // Минимальный отступ от края экрана (пиксели)
+    const EDGE_MARGIN = 10;
+    
+    // Корректируем x координату
+    let correctedX = x;
+    if (x < bounds.x + EDGE_MARGIN) {
+        // Окно за левым краем
+        correctedX = bounds.x + EDGE_MARGIN;
+    } else if (x + windowWidth > bounds.x + bounds.width - EDGE_MARGIN) {
+        // Окно за правым краем
+        correctedX = bounds.x + bounds.width - windowWidth - EDGE_MARGIN;
+    }
+    
+    // Корректируем y координату
+    let correctedY = y;
+    if (y < bounds.y + EDGE_MARGIN) {
+        // Окно за верхним краем
+        correctedY = bounds.y + EDGE_MARGIN;
+    } else if (y + windowHeight > bounds.y + bounds.height - EDGE_MARGIN) {
+        // Окно за нижним краем
+        correctedY = bounds.y + bounds.height - windowHeight - EDGE_MARGIN;
+    }
+    
+    // Если позиция была скорректирована, логируем
+    if (correctedX !== x || correctedY !== y) {
+        sendLogToRenderer('MIC_WINDOW', `📐 Position corrected: (${x}, ${y}) → (${correctedX}, ${correctedY})`);
+    }
+    
+    return { x: correctedX, y: correctedY };
+};
+
 const createMicWindow = async () => {
     if (micWindow) {
         return micWindow;
@@ -160,12 +209,18 @@ const createMicWindow = async () => {
 
     const config = await getStore();
     const savedPosition = config.get('micWindowPosition');
+    
+    const WINDOW_WIDTH = 160;
+    const WINDOW_HEIGHT = 160;
+    
+    // Проверяем и корректируем позицию
+    const safePosition = ensureWindowWithinBounds(savedPosition, WINDOW_WIDTH, WINDOW_HEIGHT);
 
     micWindow = new BrowserWindow({
-        width: 160,
-        height: 160,
-        x: savedPosition?.x,
-        y: savedPosition?.y,
+        width: WINDOW_WIDTH,
+        height: WINDOW_HEIGHT,
+        x: safePosition?.x,
+        y: safePosition?.y,
         resizable: false,
         frame: false,
         transparent: true,
@@ -295,16 +350,26 @@ const createOrShowErrorWindow = (errorData: {
 };
 
 // Показываем главное окно (для трея и т.д.)
-const showMainWindow = () => {
+const showMainWindow = (route?: string) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show();
         mainWindow.focus();
+        // Если указан маршрут, отправляем событие для навигации
+        if (route) {
+            mainWindow.webContents.send('navigate-to', route);
+        }
     } else {
         createMainWindow();
         if (mainWindow) {
             mainWindow.once('ready-to-show', () => {
                 mainWindow?.show();
                 mainWindow?.focus();
+                // Если указан маршрут, отправляем событие для навигации
+                if (route) {
+                    setTimeout(() => {
+                        mainWindow?.webContents.send('navigate-to', route);
+                    }, 100);
+                }
             });
         }
     }
@@ -563,20 +628,32 @@ const login = async ({email, password}: { email: string; password: string }) => 
     };
     const config = await setAuthTokens(tokens);
     
+    // Загружаем текущего пользователя после успешной авторизации
+    try {
+        currentUser = await fetchCurrentUser();
+        sendLogToRenderer('LOGIN', `✅ User fetched successfully: ${currentUser?.email || 'null'}`);
+    } catch (error) {
+        sendLogToRenderer('LOGIN', `❌ Failed to fetch user: ${error}`);
+        // Игнорируем ошибку, пользователь будет загружен при следующем запросе
+    }
+    
+    sendLogToRenderer('LOGIN', `🔍 Check: setupCompleted=${config.setupCompleted}, currentUser=${!!currentUser}, micWindow exists=${!!micWindow && !micWindow.isDestroyed()}`);
+    
     // Создаём mic окно только если уже пройдена первичная настройка
-    if (config.setupCompleted && (!micWindow || micWindow.isDestroyed())) {
+    if (config.setupCompleted && currentUser && (!micWindow || micWindow.isDestroyed())) {
+        sendLogToRenderer('LOGIN', '🎤 Creating mic window after login...');
         void createMicWindow().then(() => {
             if (isDev && micWindow) {
                 micWindow.webContents.openDevTools({mode: 'detach'});
             }
+            // Закрываем главное окно после создания микрофона
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                sendLogToRenderer('LOGIN', '🔒 Closing main window after mic window created');
+                mainWindow.close();
+            }
         });
-    }
-    
-    // Загружаем текущего пользователя после успешной авторизации
-    try {
-        currentUser = await fetchCurrentUser();
-    } catch (error) {
-        // Игнорируем ошибку, пользователь будет загружен при следующем запросе
+    } else {
+        sendLogToRenderer('LOGIN', '⏭️ Skipping mic window creation - conditions not met');
     }
     
     return {tokens, user: data.user, config};
@@ -798,12 +875,12 @@ const handleAppReady = async () => {
     if (isDev && mainWindow && shouldShowMainWindow) {
         mainWindow.webContents.openDevTools({mode: 'detach'});
     }
-
+    
     // Загружаем actions только если пользователь авторизован
     if (currentUser) {
-        try {
-            await fetchActions();
-        } catch (error) {
+    try {
+        await fetchActions();
+    } catch (error) {
             // Игнорируем ошибку, actions будут загружены позже
         }
     }

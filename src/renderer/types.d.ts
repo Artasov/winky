@@ -1,4 +1,4 @@
-import type { ActionConfig, ActionIcon, AppConfig, AuthTokens, WinkyProfile } from '@shared/types';
+import type { ActionConfig, ActionIcon, AppConfig, AuthTokens, WinkyProfile, User } from '@shared/types';
 
 declare global {
   interface WinkyConfigAPI {
@@ -20,6 +20,12 @@ declare global {
       user?: Record<string, unknown>;
       config: AppConfig;
     }>;
+    logout(): Promise<boolean>;
+  }
+
+  interface WinkyUserAPI {
+    fetch(): Promise<User | null>;
+    getCached(): Promise<User | null>;
   }
 
   interface WinkyActionsAPI {
@@ -72,6 +78,7 @@ declare global {
     config: WinkyConfigAPI;
     clipboard: WinkyClipboardAPI;
     auth: WinkyAuthAPI;
+    user: WinkyUserAPI;
     actions: WinkyActionsAPI;
     icons: WinkyIconsAPI;
     profile: WinkyProfileAPI;
@@ -81,6 +88,8 @@ declare global {
     windows: WinkyWindowsAPI;
     windowControls: WinkyWindowControlsAPI;
     mic: WinkyMicAPI;
+    on(channel: string, callback: (...args: any[]) => void): void;
+    removeListener(channel: string, callback: (...args: any[]) => void): void;
   }
 
   interface Window {

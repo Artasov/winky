@@ -186,6 +186,29 @@ const AppContent: React.FC = () => {
         }
     }, [config, handleNavigation, loading, location.pathname]);
 
+    // Обработка навигации от main process (из трея)
+    useEffect(() => {
+        if (isMicWindow || isResultWindow || isErrorWindow) {
+            return;
+        }
+        
+        const handleNavigateEvent = (_event: any, route: string) => {
+            console.log('[App] Navigate event received:', route);
+            navigate(route);
+        };
+        
+        const winky = window.winky as any; // TypeScript кеш может не обновиться, используем any
+        if (winky?.on) {
+            winky.on('navigate-to', handleNavigateEvent);
+        }
+        
+        return () => {
+            if (winky?.removeListener) {
+                winky.removeListener('navigate-to', handleNavigateEvent);
+            }
+        };
+    }, [navigate, isMicWindow, isResultWindow, isErrorWindow]);
+
     const configContextValue = useMemo(
         () => ({config, setConfig, refreshConfig, updateConfig}),
         [config, refreshConfig, setConfig, updateConfig]

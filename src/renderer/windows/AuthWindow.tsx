@@ -38,10 +38,14 @@ const AuthWindow: React.FC = () => {
       }
       
       showToast('Авторизация успешна', 'success');
+      
       if (!updated.setupCompleted) {
+        // Если настройка не завершена, идем на страницу setup
         navigate('/setup');
       } else {
-        navigate('/actions');
+        // Если настройка завершена, главное окно будет закрыто,
+        // а микрофон уже создан в main process
+        // Ничего не делаем, окно закроется автоматически
       }
     } catch (error) {
       console.error('[AuthWindow] login failed', error);

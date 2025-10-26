@@ -221,7 +221,7 @@ const ActionsPage: React.FC = () => {
             return (
               <div
                 key={action.id}
-                className="card-animated group relative flex flex-col gap-3 rounded-2xl border border-primary-200 bg-white p-6 shadow-primary-sm transition-all duration-base hover:border-primary hover:shadow-primary-md"
+                className="card-animated group relative flex flex-col gap-3 rounded-2xl border border-primary-200 bg-white p-3 shadow-primary-sm transition-all duration-base hover:border-primary hover:shadow-primary-md"
               >
                 <div className="absolute right-3 top-3 hidden gap-2 group-hover:flex">
                   <button
@@ -268,7 +268,6 @@ const ActionsPage: React.FC = () => {
                     <p className="text-xs text-text-tertiary">{action.icon_details?.name || 'No icon'}</p>
                   </div>
                 </div>
-                <p className="text-sm leading-relaxed text-text-secondary line-clamp-3">{action.prompt}</p>
               </div>
             );
           })}

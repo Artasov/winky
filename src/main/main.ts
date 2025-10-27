@@ -69,19 +69,22 @@ const setMicInteractive = (interactive: boolean) => {
     if (!micWindow || micWindow.isDestroyed()) {
         return;
     }
+    const platform = process.platform;
     if (interactive) {
-        // Окно полностью интерактивно
-        if (process.platform === 'darwin') {
+        if (platform === 'win32') {
+            micWindow.setIgnoreMouseEvents(false);
+        }
+        if (platform === 'darwin') {
             micWindow.setFocusable(true);
             micWindow.focus();
         }
-        micWindow.setIgnoreMouseEvents(false);
         ensureMicOnTop();
         micWindow.flashFrame(false);
     } else {
-        // Клики проходят сквозь с forward:true
-        micWindow.setIgnoreMouseEvents(true, { forward: true });
-        if (process.platform === 'darwin') {
+        if (platform === 'win32') {
+            micWindow.setIgnoreMouseEvents(true, { forward: true });
+        }
+        if (platform === 'darwin') {
             micWindow.setFocusable(false);
             micWindow.blur();
         }
@@ -312,7 +315,9 @@ const createMicWindow = async () => {
     }
     ensureMicOnTop();
 
-    micWindow.setIgnoreMouseEvents(true, { forward: true });
+    if (process.platform === 'win32') {
+        micWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
 
     if (isDev) {
         void micWindow.loadURL('http://localhost:5173/?window=mic#/mic');

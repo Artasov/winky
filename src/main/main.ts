@@ -93,9 +93,16 @@ const moveMicWindow = (x: number, y: number) => {
     if (!micWindow || micWindow.isDestroyed()) {
         return;
     }
-    // animate=false для мгновенного перемещения без анимации
     micWindow.setPosition(Math.round(x), Math.round(y), false);
     ensureMicOnTop();
+};
+
+const moveMicWindowBy = (dx: number, dy: number) => {
+    if (!micWindow || micWindow.isDestroyed()) {
+        return;
+    }
+    const [currentX, currentY] = micWindow.getPosition();
+    moveMicWindow(currentX + dx, currentY + dy);
 };
 
 const createMainWindow = () => {
@@ -507,6 +514,10 @@ const registerIpcHandlers = () => {
         moveMicWindow(x, y);
     });
 
+    ipcMain.handle('mic:move-by', (_event, dx: number, dy: number) => {
+        moveMicWindowBy(dx, dy);
+    });
+
     ipcMain.handle('mic:set-interactive', (_event, interactive: boolean) => {
         setMicInteractive(interactive);
     });
@@ -517,14 +528,6 @@ const registerIpcHandlers = () => {
         }
         const [x, y] = micWindow.getPosition();
         return { x, y };
-    });
-
-    ipcMain.handle('mic:move-by', (_event, dx: number, dy: number) => {
-        if (!micWindow || micWindow.isDestroyed()) {
-            return;
-        }
-        const [currentX, currentY] = micWindow.getPosition();
-        moveMicWindow(currentX + dx, currentY + dy);
     });
 
     ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {

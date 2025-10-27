@@ -8,14 +8,16 @@ interface HotkeyInputProps {
   placeholder?: string;
 }
 
-const MODIFIER_ORDER = ['Control', 'Shift', 'Alt', 'Meta'] as const;
+const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
-const modifierDisplayLabel: Record<string, string> = {
-  Control: 'Ctrl',
-  Shift: 'Shift',
-  Alt: 'Alt',
-  Meta: 'Cmd'
-};
+const MODIFIERS = [
+  { key: 'Control', prop: 'ctrlKey' as const, label: 'Ctrl' },
+  { key: 'Shift', prop: 'shiftKey' as const, label: 'Shift' },
+  { key: 'Alt', prop: 'altKey' as const, label: 'Alt' },
+  { key: 'Meta', prop: 'metaKey' as const, label: isMac ? 'Cmd' : 'Win' }
+] as const;
+
+const modifierKeySet = new Set<string>(MODIFIERS.map((item) => item.key));
 
 const keyDisplayLabel: Record<string, string> = {
   ' ': 'Space',
@@ -67,12 +69,15 @@ const HotkeyInput: React.FC<HotkeyInputProps> = ({ value, onChange, onInvalid, p
   const buildAccelerator = useCallback((event: React.KeyboardEvent<HTMLDivElement>): { accelerator: string | null; invalid?: 'non-english' | 'modifier-only' } => {
     const parts: string[] = [];
 
-    MODIFIER_ORDER.forEach((modifier) => {
-      const prop = `${modifier.toLowerCase()}Key` as 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey';
+    MODIFIERS.forEach(({ prop, label }) => {
       if (event[prop]) {
-        parts.push(modifierDisplayLabel[modifier]);
+        parts.push(label);
       }
     });
+
+    if (modifierKeySet.has(event.key)) {
+      return { accelerator: null };
+    }
 
     const normalizedResult = normalizeKey(event.key);
     if (!normalizedResult) {

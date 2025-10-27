@@ -69,8 +69,8 @@ linux:
         - x64
   category: Utility
   icon: public/resources/icons/app.svg
-  synopsis: 'Cross-platform voice assistant'
-  description: 'Winky - cross-platform voice assistant with LLM support'
+  synopsis: 'Winky - cute girl assistant'
+  description: 'Winky - cute girl assistant'
   maintainer: 'Winky Team <ivanhvalevskey@gmail.com>'
   artifactName: '${productName}-${version}-${arch}.${ext}'
 

@@ -139,7 +139,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ github.ref_name }}"
-          echo "## Installation Guide" > release-body.md
+          echo "✨ Meet **Winky** — your cute girl assistant" > release-body.md
+          echo "" >> release-body.md
+          echo "## Installation Guide" >> release-body.md
           echo "" >> release-body.md
           echo "### Windows" >> release-body.md
           echo "1. Download \`Winky-Setup-__VERSION__.exe\` from the assets list below." >> release-body.md

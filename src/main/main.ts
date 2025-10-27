@@ -682,22 +682,22 @@ const login = async ({email, password}: { email: string; password: string }) => 
     
     sendLogToRenderer('LOGIN', `🔍 Check: setupCompleted=${config.setupCompleted}, micWindow exists=${!!micWindow && !micWindow.isDestroyed()}`);
     
-    // Создаём mic окно если уже пройдена первичная настройка
-    // Не требуем наличие currentUser - он может быть загружен позже
-    if (config.setupCompleted && (!micWindow || micWindow.isDestroyed())) {
+    if (!micWindow || micWindow.isDestroyed()) {
         sendLogToRenderer('LOGIN', '🎤 Creating mic window after login...');
         void createMicWindow().then(() => {
             if (isDev && micWindow) {
                 micWindow.webContents.openDevTools({mode: 'detach'});
             }
-            // Закрываем главное окно после создания микрофона
-            if (mainWindow && !mainWindow.isDestroyed()) {
+            if (config.setupCompleted && mainWindow && !mainWindow.isDestroyed()) {
                 sendLogToRenderer('LOGIN', '🔒 Closing main window after mic window created');
                 mainWindow.close();
             }
-        });
+        }).catch((error) => sendLogToRenderer('LOGIN', `❌ Failed to create mic window: ${error}`));
     } else {
-        sendLogToRenderer('LOGIN', `⏭️ Skipping mic window creation - setupCompleted=${config.setupCompleted}`);
+        sendLogToRenderer('LOGIN', '⏭️ Mic window already exists, skipping creation');
+        if (config.setupCompleted && mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.close();
+        }
     }
     
     return {tokens, user: data.user, config};
@@ -889,15 +889,19 @@ const handleAppReady = async () => {
                 sendLogToRenderer('APP_READY', `⚠️ Failed to load user on startup: ${error}`);
                 // Не блокируем создание микрофона если не удалось загрузить пользователя
             }
-            
-            // Если setup завершен, показываем только микрофон (независимо от загрузки пользователя)
-            if (config.setupCompleted) {
-                shouldShowMainWindow = false;
+
+            if (!micWindow || micWindow.isDestroyed()) {
                 void createMicWindow().then(() => {
                     if (isDev && micWindow) {
                         micWindow.webContents.openDevTools({mode: 'detach'});
                     }
+                }).catch((error) => {
+                    sendLogToRenderer('APP_READY', `❌ Failed to create mic window: ${error}`);
                 });
+            }
+
+            if (config.setupCompleted) {
+                shouldShowMainWindow = false;
             }
         }
     } catch (error) {

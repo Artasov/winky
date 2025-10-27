@@ -66,28 +66,31 @@ const ensureMicOnTop = () => {
 
 const computeAnchorPosition = (anchor: MicAnchor, targetDisplay: Electron.Display) => {
     const area = targetDisplay.workArea;
-    const offsetX = (MIC_WINDOW_WIDTH - MIC_BUTTON_SIZE) / 2;
-    const offsetY = (MIC_WINDOW_HEIGHT - MIC_BUTTON_SIZE) / 2;
+    const buttonHalf = MIC_BUTTON_SIZE / 2;
+    const windowHalfWidth = MIC_WINDOW_WIDTH / 2;
+    const windowHalfHeight = MIC_WINDOW_HEIGHT / 2;
+    const centerMarginX = buttonHalf + MIC_WINDOW_MARGIN;
+    const centerMarginY = buttonHalf + MIC_WINDOW_MARGIN;
     const maxX = area.x + area.width - MIC_WINDOW_WIDTH;
     const maxY = area.y + area.height - MIC_WINDOW_HEIGHT;
 
     const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
-    const compute = (buttonX: number, buttonY: number) => ({
-        x: clamp(Math.round(buttonX - offsetX), area.x, maxX),
-        y: clamp(Math.round(buttonY - offsetY), area.y, maxY)
+    const compute = (centerX: number, centerY: number) => ({
+        x: clamp(Math.round(centerX - windowHalfWidth), area.x, maxX),
+        y: clamp(Math.round(centerY - windowHalfHeight), area.y, maxY)
     });
 
     switch (anchor) {
         case 'top-left':
-            return compute(area.x + MIC_WINDOW_MARGIN, area.y + MIC_WINDOW_MARGIN);
+            return compute(area.x + centerMarginX, area.y + centerMarginY);
         case 'top-right':
-            return compute(area.x + area.width - MIC_BUTTON_SIZE - MIC_WINDOW_MARGIN, area.y + MIC_WINDOW_MARGIN);
+            return compute(area.x + area.width - centerMarginX, area.y + centerMarginY);
         case 'bottom-left':
-            return compute(area.x + MIC_WINDOW_MARGIN, area.y + area.height - MIC_BUTTON_SIZE - MIC_WINDOW_MARGIN);
+            return compute(area.x + centerMarginX, area.y + area.height - centerMarginY);
         case 'bottom-right':
         default:
-            return compute(area.x + area.width - MIC_BUTTON_SIZE - MIC_WINDOW_MARGIN, area.y + area.height - MIC_BUTTON_SIZE - MIC_WINDOW_MARGIN);
+            return compute(area.x + area.width - centerMarginX, area.y + area.height - centerMarginY);
     }
 };
 

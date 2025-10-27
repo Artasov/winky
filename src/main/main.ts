@@ -12,6 +12,11 @@ import FormData from 'form-data';
 
 const isDev = process.env.NODE_ENV === 'development';
 
+if (process.platform === 'linux') {
+    app.commandLine.appendSwitch('enable-transparent-visuals');
+    app.disableHardwareAcceleration();
+}
+
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let resultWindow: BrowserWindow | null = null;
@@ -218,24 +223,27 @@ const createMicWindow = async () => {
 
     const isMac = process.platform === 'darwin';
     const isLinux = process.platform === 'linux';
+    const useTransparent = process.platform !== 'linux';
 
     micWindow = new BrowserWindow({
         width: WINDOW_WIDTH,
         height: WINDOW_HEIGHT,
         x: safePosition?.x,
         y: safePosition?.y,
+        center: !safePosition,
         resizable: false,
         movable: true,
         minimizable: false,
         maximizable: false,
         fullscreenable: false,
         frame: false,
-        transparent: true,
+        titleBarStyle: 'hidden',
+        transparent: useTransparent,
         show: false,
         skipTaskbar: true,
         alwaysOnTop: true,
         type: isMac ? 'panel' : 'toolbar',
-        backgroundColor: '#00000000',
+        backgroundColor: useTransparent ? '#00000000' : '#141a27',
         webPreferences: {
             preload: preloadPath,
             contextIsolation: true,
@@ -250,13 +258,9 @@ const createMicWindow = async () => {
     micWindow.setHasShadow(false);
     micWindow.setSkipTaskbar(true);
     if (isMac) {
-        micWindow.setAlwaysOnTop(true, 'floating');
+        micWindow.setAlwaysOnTop(true, 'floating', 1);
         micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         micWindow.setFocusable(false);
-    } else if (isLinux) {
-        micWindow.setAlwaysOnTop(true, 'floating');
-        micWindow.setVisibleOnAllWorkspaces(true);
-        micWindow.setFocusable(true);
     } else {
         micWindow.setAlwaysOnTop(true, 'screen-saver');
         micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -266,22 +270,27 @@ const createMicWindow = async () => {
     micWindow.setIgnoreMouseEvents(true, { forward: true });
 
     if (isDev) {
-        void micWindow.loadURL('http://localhost:5173/?window=mic#/main');
+        void micWindow.loadURL('http://localhost:5173/?window=mic#/mic');
     } else {
-        void micWindow.loadFile(rendererPath, {hash: '/main', query: {window: 'mic'}});
+        void micWindow.loadFile(rendererPath, {hash: '/mic', query: {window: 'mic'}});
     }
 
-    micWindow.once('ready-to-show', () => {
-        if (micWindow && !micWindow.isDestroyed()) {
-            if (isMac) {
-                micWindow.showInactive();
-            } else {
-                micWindow.show();
-            }
-            // НЕ вызываем focus() чтобы окно не появлялось на панели задач
-            micWindow.setSkipTaskbar(true); // Еще раз явно после show()
-            micWindow.setIgnoreMouseEvents(true, { forward: true });
+    const showMicWindow = () => {
+        if (!micWindow || micWindow.isDestroyed()) {
+            return;
         }
+        if (isMac) {
+            micWindow.showInactive();
+        } else {
+            micWindow.show();
+        }
+        micWindow.setSkipTaskbar(true);
+        micWindow.setIgnoreMouseEvents(true, { forward: true });
+    };
+
+    micWindow.once('ready-to-show', showMicWindow);
+    micWindow.webContents.once('did-finish-load', () => {
+        setTimeout(showMicWindow, 0);
     });
 
     micWindow.on('closed', () => {

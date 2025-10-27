@@ -268,7 +268,7 @@ const createMicWindow = async () => {
     if (isDev) {
         void micWindow.loadURL('http://localhost:5173/?window=mic#/main');
     } else {
-        void micWindow.loadFile(rendererPath, {hash: 'main', query: {window: 'mic'}});
+        void micWindow.loadFile(rendererPath, {hash: '/main', query: {window: 'mic'}});
     }
 
     micWindow.once('ready-to-show', () => {

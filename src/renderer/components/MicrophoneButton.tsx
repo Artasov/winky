@@ -44,7 +44,9 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
     const handlePointerDown = (e: React.PointerEvent) => {
         if (disabled) return;
 
-        interactiveEnter();
+        if (!isRecording) {
+            interactiveEnter();
+        }
 
         e.preventDefault();
         e.stopPropagation();
@@ -139,16 +141,23 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
         const rect = target.getBoundingClientRect();
         const isInside = e.clientX >= rect.left && e.clientX <= rect.right &&
             e.clientY >= rect.top && e.clientY <= rect.bottom;
+        const wasSimpleClick = !wasDragging;
+        const shouldRestoreAfterToggle = wasSimpleClick && isRecording && isInside;
+        const toggleResult = wasSimpleClick ? onToggle() : undefined;
+
         if (!isInside) {
             interactiveLeave();
+        } else if (wasSimpleClick && !shouldRestoreAfterToggle) {
+            interactiveEnter();
         }
 
-        // Если не было перетаскивания - это клик
-        if (!wasDragging) {
-            onToggle();
+        if (shouldRestoreAfterToggle) {
+            void Promise.resolve(toggleResult).finally(() => {
+                if (target.matches(':hover')) {
+                    interactiveEnter();
+                }
+            });
         }
-
-        interactiveLeave();
     };
 
     const handlePointerCancel = (e: React.PointerEvent) => {
@@ -176,6 +185,7 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
         <button
             type="button"
             disabled={disabled}
+            data-mic-button="true"
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             onFocus={handleMouseEnter}

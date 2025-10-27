@@ -153,6 +153,7 @@ const showMicWindowInstance = () => {
         micWindow.setSkipTaskbar(true);
         micWindowVisible = true;
         ensureMicOnTop();
+        setMicInteractive(false);
 
         clearMicWindowFadeTimeout();
         micWindowFadeTimeout = setTimeout(() => {

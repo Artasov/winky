@@ -1,6 +1,6 @@
 {
   "name": "winky",
-  "version": "1.0.22",
+  "version": "1.0.23",
   "description": "Cross-platform voice assistant built with Electron, React, and Tailwind CSS.",
   "main": "dist/main/main.js",
   "scripts": {

@@ -39,5 +39,14 @@ export const resetInteractive = () => {
     clearTimeout(disableTimeout);
     disableTimeout = null;
   }
-  void window.winky?.mic?.setInteractive(false);
+  const button = (typeof document !== 'undefined')
+    ? document.querySelector('[data-mic-button="true"]')
+    : null;
+  const isHovered = button instanceof HTMLElement && button.matches(':hover');
+  if (isHovered) {
+    hoverCount = 1;
+    void window.winky?.mic?.setInteractive(true);
+  } else {
+    void window.winky?.mic?.setInteractive(false);
+  }
 };

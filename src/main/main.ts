@@ -59,12 +59,16 @@ const setMicInteractive = (interactive: boolean) => {
             micWindow.focus();
         }
         micWindow.setIgnoreMouseEvents(false);
+        micWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'screen-saver', 1);
+        micWindow.flashFrame(false);
     } else {
         // Клики проходят сквозь с forward:true
         micWindow.setIgnoreMouseEvents(true, { forward: true });
         if (process.platform === 'darwin') {
             micWindow.setFocusable(false);
+            micWindow.blur();
         }
+        micWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'screen-saver', 1);
     }
 };
 
@@ -74,6 +78,8 @@ const moveMicWindow = (x: number, y: number) => {
     }
     // animate=false для мгновенного перемещения без анимации
     micWindow.setPosition(Math.round(x), Math.round(y), false);
+    const isMac = process.platform === 'darwin';
+    micWindow.setAlwaysOnTop(true, isMac ? 'floating' : 'screen-saver', 1);
 };
 
 const createMainWindow = () => {
@@ -277,7 +283,7 @@ const createMicWindow = async () => {
         micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         micWindow.setFocusable(false);
     } else {
-        micWindow.setAlwaysOnTop(true, 'screen-saver');
+        micWindow.setAlwaysOnTop(true, 'screen-saver', 1);
         micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         micWindow.setFocusable(true);
     }
@@ -300,6 +306,7 @@ const createMicWindow = async () => {
             micWindow.show();
         }
         micWindow.setSkipTaskbar(true);
+        micWindow.setAlwaysOnTop(true, isMac ? 'floating' : 'screen-saver', 1);
         micWindow.setIgnoreMouseEvents(true, { forward: true });
     };
 
@@ -324,7 +331,7 @@ const createMicWindow = async () => {
     // Дополнительная защита: если окно теряет статус alwaysOnTop, восстанавливаем его
     micWindow.on('blur', () => {
         if (micWindow && !micWindow.isDestroyed()) {
-            micWindow.setAlwaysOnTop(true, isMac ? 'floating' : 'screen-saver');
+            micWindow.setAlwaysOnTop(true, isMac ? 'floating' : 'screen-saver', 1);
             if (isMac) {
                 micWindow.setIgnoreMouseEvents(true, { forward: true });
                 micWindow.setFocusable(false);

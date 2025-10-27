@@ -40,6 +40,8 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
     const handlePointerDown = (e: React.PointerEvent) => {
         if (disabled) return;
 
+        interactiveEnter();
+
         e.preventDefault();
         e.stopPropagation();
 
@@ -111,6 +113,8 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
         if (!wasDragging) {
             onToggle();
         }
+
+        interactiveLeave();
     };
 
     const handlePointerCancel = (e: React.PointerEvent) => {

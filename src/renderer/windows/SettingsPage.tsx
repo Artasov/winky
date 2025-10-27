@@ -41,6 +41,36 @@ const SettingsPage: React.FC = () => {
     }
   }, [config]);
 
+  useEffect(() => {
+    const handleHotkeyError = (_event: unknown, payload: { source?: string; accelerator?: string; message?: string; reason?: string }) => {
+      if (!payload || payload.source !== 'mic') {
+        return;
+      }
+      const humanAccelerator = payload.accelerator ? ` "${payload.accelerator}"` : '';
+      let message = payload.message;
+      if (!message) {
+        switch (payload.reason) {
+          case 'invalid':
+            message = `Shortcut${humanAccelerator} could not be parsed. Please try a different combination.`;
+            break;
+          case 'register-failed':
+            message = `Shortcut${humanAccelerator} is not available on this platform. Try another key combo.`;
+            break;
+          default:
+            message = `Failed to register shortcut${humanAccelerator}. Try another key combo.`;
+        }
+      }
+      showToast(message, 'error');
+    };
+
+    const electronApi = (window as any).electron;
+    electronApi?.on?.('hotkey:register-error', handleHotkeyError);
+
+    return () => {
+      electronApi?.removeListener?.('hotkey:register-error', handleHotkeyError);
+    };
+  }, [showToast]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -95,12 +125,16 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleHotkeyInvalid = (reason: 'non-english' | 'modifier-only') => {
+  const handleHotkeyInvalid = (reason: 'non-english' | 'modifier-only' | 'needs-modifier') => {
     if (reason === 'non-english') {
       showToast('Please switch to English layout for shortcuts.', 'error');
-    } else {
-      showToast('Please include a non-modifier key in the shortcut.', 'info');
+      return;
     }
+    if (reason === 'needs-modifier') {
+      showToast('Add at least one modifier (Ctrl, Alt, Cmd) to the shortcut.', 'info');
+      return;
+    }
+    showToast('Please include a non-modifier key in the shortcut.', 'info');
   };
 
   const isAuthorized = Boolean(config?.auth.accessToken);

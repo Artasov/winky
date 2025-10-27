@@ -4,7 +4,7 @@ import classNames from 'classnames';
 interface HotkeyInputProps {
   value: string;
   onChange: (value: string) => void;
-  onInvalid?: (reason: 'non-english' | 'modifier-only') => void;
+  onInvalid?: (reason: 'non-english' | 'modifier-only' | 'needs-modifier') => void;
   placeholder?: string;
 }
 
@@ -66,7 +66,7 @@ const HotkeyInput: React.FC<HotkeyInputProps> = ({ value, onChange, onInvalid, p
     setDisplayValue(value);
   }, [value]);
 
-  const buildAccelerator = useCallback((event: React.KeyboardEvent<HTMLDivElement>): { accelerator: string | null; invalid?: 'non-english' | 'modifier-only' } => {
+  const buildAccelerator = useCallback((event: React.KeyboardEvent<HTMLDivElement>): { accelerator: string | null; invalid?: 'non-english' | 'modifier-only' | 'needs-modifier' } => {
     const parts: string[] = [];
 
     MODIFIERS.forEach(({ prop, label }) => {
@@ -87,7 +87,12 @@ const HotkeyInput: React.FC<HotkeyInputProps> = ({ value, onChange, onInvalid, p
       return { accelerator: null, invalid: normalizedResult.invalid };
     }
 
-    parts.push(normalizedResult.key);
+    const keyForAccelerator = normalizedResult.key;
+    if (parts.length === 0 && asciiKeyRegex.test(keyForAccelerator)) {
+      return { accelerator: null, invalid: 'needs-modifier' };
+    }
+
+    parts.push(keyForAccelerator);
     return { accelerator: parts.join('+') };
   }, []);
 

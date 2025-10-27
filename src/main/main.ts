@@ -99,15 +99,29 @@ const applyMicAnchorPosition = async (anchor: MicAnchor | undefined, persist = f
         ? anchor as MicAnchor
         : 'bottom-right';
 
-    const display = micWindow && !micWindow.isDestroyed()
-        ? screen.getDisplayMatching(micWindow.getBounds())
-        : screen.getPrimaryDisplay();
+    const store = await getStore();
+    const savedPosition = store.get<{ x: number; y: number } | undefined>('micWindowPosition');
 
-    const position = computeAnchorPosition(effectiveAnchor, display);
+    let targetDisplay: Electron.Display | null = null;
+    if (micWindow && !micWindow.isDestroyed()) {
+        const bounds = micWindow.getBounds();
+        if (bounds.width > 0 && bounds.height > 0) {
+            targetDisplay = screen.getDisplayMatching(bounds);
+        }
+    }
+
+    if (!targetDisplay && savedPosition) {
+        targetDisplay = screen.getDisplayNearestPoint(savedPosition);
+    }
+
+    if (!targetDisplay) {
+        targetDisplay = screen.getPrimaryDisplay();
+    }
+
+    const position = computeAnchorPosition(effectiveAnchor, targetDisplay);
 
     if (micWindow && !micWindow.isDestroyed()) {
         moveMicWindow(position.x, position.y);
-        ensureMicOnTop();
     }
 
     if (persist) {
@@ -255,6 +269,14 @@ const toggleMicWindow = async (fromShortcut = false) => {
     showMicWindowInstance();
 };
 
+const emitToAllWindows = (channel: string, payload?: any) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) {
+            win.webContents.send(channel, payload);
+        }
+    });
+};
+
 const toElectronAccelerator = (accelerator: string): string | null => {
     if (!accelerator) {
         return null;
@@ -272,6 +294,11 @@ const toElectronAccelerator = (accelerator: string): string | null => {
         switch (upper) {
             case 'CTRL':
             case 'CONTROL':
+                mapped.push('Ctrl');
+                break;
+            case 'COMMANDORCONTROL':
+            case 'CMDORCTRL':
+            case 'CMDORCONTROL':
                 mapped.push('CommandOrControl');
                 break;
             case 'CMD':
@@ -287,6 +314,7 @@ const toElectronAccelerator = (accelerator: string): string | null => {
                 break;
             case 'SUPER':
             case 'WIN':
+            case 'META':
                 mapped.push('Super');
                 break;
             default: {
@@ -313,6 +341,7 @@ const registerMicShortcut = async () => {
     }
 
     if (!accelerator) {
+        emitToAllWindows('hotkey:register-cleared', { source: 'mic' });
         return;
     }
 
@@ -320,6 +349,11 @@ const registerMicShortcut = async () => {
         const electronAccelerator = toElectronAccelerator(accelerator);
         if (!electronAccelerator) {
             console.warn(`[Hotkey] Invalid shortcut ${accelerator}`);
+            emitToAllWindows('hotkey:register-error', {
+                source: 'mic',
+                accelerator,
+                reason: 'invalid'
+            });
             return;
         }
 
@@ -330,21 +364,34 @@ const registerMicShortcut = async () => {
         if (success) {
             registeredMicShortcut = electronAccelerator;
             console.log(`[Hotkey] Successfully registered shortcut: ${accelerator} -> ${electronAccelerator}`);
+            emitToAllWindows('hotkey:register-success', {
+                source: 'mic',
+                accelerator,
+                electronAccelerator
+            });
         } else {
             console.warn(`[Hotkey] Failed to register shortcut ${accelerator}`);
+            emitToAllWindows('hotkey:register-error', {
+                source: 'mic',
+                accelerator,
+                electronAccelerator,
+                reason: 'register-failed'
+            });
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error(`[Hotkey] Error registering shortcut ${accelerator}`, error);
+        emitToAllWindows('hotkey:register-error', {
+            source: 'mic',
+            accelerator,
+            reason: 'exception',
+            message: error?.message
+        });
     }
 };
 
 const broadcastConfigUpdate = async () => {
     const config = await getConfig();
-    BrowserWindow.getAllWindows().forEach((win) => {
-        if (!win.isDestroyed()) {
-            win.webContents.send('config:updated', config);
-        }
-    });
+    emitToAllWindows('config:updated', config);
 };
 
 const setMicInteractive = (interactive: boolean) => {
@@ -359,9 +406,7 @@ const setMicInteractive = (interactive: boolean) => {
     
     const platform = process.platform;
     if (interactive) {
-        if (platform === 'win32') {
-            micWindow.setIgnoreMouseEvents(false);
-        }
+        micWindow.setIgnoreMouseEvents(false);
         if (platform === 'darwin') {
             micWindow.setFocusable(true);
             // НЕ вызываем focus() чтобы не показывать окно
@@ -369,9 +414,7 @@ const setMicInteractive = (interactive: boolean) => {
         ensureMicOnTop();
         micWindow.flashFrame(false);
     } else {
-        if (platform === 'win32') {
-            micWindow.setIgnoreMouseEvents(true, { forward: true });
-        }
+        micWindow.setIgnoreMouseEvents(true, { forward: true });
         if (platform === 'darwin') {
             micWindow.setFocusable(false);
             micWindow.blur();
@@ -394,6 +437,19 @@ const moveMicWindowBy = (dx: number, dy: number) => {
     }
     const [currentX, currentY] = micWindow.getPosition();
     moveMicWindow(currentX + dx, currentY + dy);
+};
+
+const ensureMicWindowReady = async (): Promise<BrowserWindow | null> => {
+    if (micWindow && !micWindow.isDestroyed()) {
+        return micWindow;
+    }
+    try {
+        await createMicWindow();
+        return micWindow && !micWindow.isDestroyed() ? micWindow : null;
+    } catch (error) {
+        sendLogToRenderer('MIC_WINDOW', `❌ Failed to ensure mic window: ${error}`);
+        return null;
+    }
 };
 
 const createMainWindow = () => {
@@ -542,8 +598,8 @@ const createMicWindow = async () => {
     const config = await getStore();
     const savedPosition = config.get('micWindowPosition');
     
-    const WINDOW_WIDTH = 160;
-    const WINDOW_HEIGHT = 160;
+    const WINDOW_WIDTH = MIC_WINDOW_WIDTH;
+    const WINDOW_HEIGHT = MIC_WINDOW_HEIGHT;
     
     // Проверяем и корректируем позицию
     const safePosition = ensureWindowWithinBounds(savedPosition, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -855,6 +911,7 @@ const registerIpcHandlers = () => {
     });
 
     ipcMain.handle('mic:set-anchor', async (_event, anchor: MicAnchor) => {
+        await ensureMicWindowReady();
         const position = await applyMicAnchorPosition(anchor, true);
         return position;
     });
@@ -1137,12 +1194,7 @@ interface PaginatedResponse<T> {
 }
 
 const sendLogToRenderer = (type: string, data: any) => {
-    const allWindows = BrowserWindow.getAllWindows();
-    allWindows.forEach(win => {
-        if (!win.isDestroyed()) {
-            win.webContents.send('api-log', { type, data });
-        }
-    });
+    emitToAllWindows('api-log', { type, data });
 };
 
 const fetchActions = async (): Promise<ActionConfig[]> => {

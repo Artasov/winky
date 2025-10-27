@@ -74,7 +74,14 @@ jobs:
         if: matrix.os == 'windows-latest'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run build:win -- --ia32
+        run: npm run build:win -- --x64 --ia32
+
+      - name: Remove per-arch installers
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path "release" -Filter "*-ia32.exe" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force
+          Get-ChildItem -Path "release" -Filter "*-x64.exe" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force
 
       - name: Build macOS artifacts
         if: matrix.os == 'macos-latest'

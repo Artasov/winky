@@ -216,6 +216,9 @@ const createMicWindow = async () => {
     // Проверяем и корректируем позицию
     const safePosition = ensureWindowWithinBounds(savedPosition, WINDOW_WIDTH, WINDOW_HEIGHT);
 
+    const isMac = process.platform === 'darwin';
+    const isLinux = process.platform === 'linux';
+
     micWindow = new BrowserWindow({
         width: WINDOW_WIDTH,
         height: WINDOW_HEIGHT,
@@ -231,7 +234,7 @@ const createMicWindow = async () => {
         show: false,
         skipTaskbar: true,
         alwaysOnTop: true,
-        type: process.platform === 'darwin' ? 'panel' : process.platform === 'linux' ? 'toolbar' : 'toolbar',
+        type: isMac ? 'panel' : 'toolbar',
         backgroundColor: '#00000000',
         webPreferences: {
             preload: preloadPath,
@@ -246,9 +249,19 @@ const createMicWindow = async () => {
     micWindow.setMenuBarVisibility(false);
     micWindow.setHasShadow(false);
     micWindow.setSkipTaskbar(true);
-    micWindow.setAlwaysOnTop(true, 'screen-saver');
-    micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    micWindow.setFocusable(process.platform === 'win32');
+    if (isMac) {
+        micWindow.setAlwaysOnTop(true, 'floating');
+        micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        micWindow.setFocusable(false);
+    } else if (isLinux) {
+        micWindow.setAlwaysOnTop(true, 'floating');
+        micWindow.setVisibleOnAllWorkspaces(true);
+        micWindow.setFocusable(true);
+    } else {
+        micWindow.setAlwaysOnTop(true, 'screen-saver');
+        micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        micWindow.setFocusable(true);
+    }
 
     micWindow.setIgnoreMouseEvents(true, { forward: true });
 
@@ -260,7 +273,11 @@ const createMicWindow = async () => {
 
     micWindow.once('ready-to-show', () => {
         if (micWindow && !micWindow.isDestroyed()) {
-            micWindow.show();
+            if (isMac) {
+                micWindow.showInactive();
+            } else {
+                micWindow.show();
+            }
             // НЕ вызываем focus() чтобы окно не появлялось на панели задач
             micWindow.setSkipTaskbar(true); // Еще раз явно после show()
             micWindow.setIgnoreMouseEvents(true, { forward: true });

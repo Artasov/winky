@@ -119,6 +119,13 @@ const applyMicAnchorPosition = async (anchor: MicAnchor | undefined, persist = f
     }
 
     const position = computeAnchorPosition(effectiveAnchor, targetDisplay);
+    sendLogToRenderer('MIC_WINDOW', {
+        message: 'Applying anchor',
+        anchor: effectiveAnchor,
+        position,
+        displayId: targetDisplay.id,
+        displayBounds: targetDisplay.workArea
+    });
 
     if (micWindow && !micWindow.isDestroyed()) {
         moveMicWindow(position.x, position.y);
@@ -430,20 +437,25 @@ const moveMicWindow = (x: number, y: number) => {
 
     const targetX = Math.round(x);
     const targetY = Math.round(y);
+    const platform = process.platform;
 
-    if (process.platform === 'win32') {
+    if (platform === 'win32') {
         micWindow.setPosition(targetX, targetY, false);
     } else {
-        const { width, height } = micWindow.getBounds();
         micWindow.setBounds(
             {
                 x: targetX,
                 y: targetY,
-                width: width || MIC_WINDOW_WIDTH,
-                height: height || MIC_WINDOW_HEIGHT
+                width: MIC_WINDOW_WIDTH,
+                height: MIC_WINDOW_HEIGHT
             },
             false
         );
+
+        const [actualX, actualY] = micWindow.getPosition();
+        if (actualX !== targetX || actualY !== targetY) {
+            micWindow.setPosition(targetX, targetY, false);
+        }
     }
 
     ensureMicOnTop();
@@ -638,6 +650,7 @@ const createMicWindow = async () => {
         show: false, // Не показываем окно сразу
         skipTaskbar: true,
         alwaysOnTop: true,
+        useContentSize: process.platform !== 'win32',
         backgroundColor: '#00000000', // Полностью прозрачный фон
         type: isMac ? 'panel' : 'toolbar',
         webPreferences: {

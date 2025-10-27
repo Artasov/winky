@@ -63,11 +63,22 @@ const SettingsPage: React.FC = () => {
       showToast(message, 'error');
     };
 
+    const handleHotkeySuccess = (_event: unknown, payload: { source?: string; accelerator?: string }) => {
+      if (!payload || payload.source !== 'mic') {
+        return;
+      }
+      if (payload.accelerator) {
+        showToast(`Hotkey ready: ${payload.accelerator}`, 'success');
+      }
+    };
+
     const electronApi = (window as any).electron;
     electronApi?.on?.('hotkey:register-error', handleHotkeyError);
+    electronApi?.on?.('hotkey:register-success', handleHotkeySuccess);
 
     return () => {
       electronApi?.removeListener?.('hotkey:register-error', handleHotkeyError);
+      electronApi?.removeListener?.('hotkey:register-success', handleHotkeySuccess);
     };
   }, [showToast]);
 

@@ -125,14 +125,9 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleHotkeyInvalid = (reason: 'non-english' | 'modifier-only' | 'needs-modifier') => {
+  const handleHotkeyInvalid = (reason: 'non-english' | 'modifier-only') => {
     if (reason === 'non-english') {
       showToast('Please switch to English layout for shortcuts.', 'error');
-      return;
-    }
-    if (reason === 'needs-modifier') {
-      showToast('Add at least one modifier (Ctrl, Alt, Cmd) to the shortcut.', 'info');
-      return;
     }
     showToast('Please include a non-modifier key in the shortcut.', 'info');
   };

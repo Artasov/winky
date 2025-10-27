@@ -427,7 +427,25 @@ const moveMicWindow = (x: number, y: number) => {
     if (!micWindow || micWindow.isDestroyed()) {
         return;
     }
-    micWindow.setPosition(Math.round(x), Math.round(y), false);
+
+    const targetX = Math.round(x);
+    const targetY = Math.round(y);
+
+    if (process.platform === 'win32') {
+        micWindow.setPosition(targetX, targetY, false);
+    } else {
+        const { width, height } = micWindow.getBounds();
+        micWindow.setBounds(
+            {
+                x: targetX,
+                y: targetY,
+                width: width || MIC_WINDOW_WIDTH,
+                height: height || MIC_WINDOW_HEIGHT
+            },
+            false
+        );
+    }
+
     ensureMicOnTop();
 };
 

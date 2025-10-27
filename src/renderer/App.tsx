@@ -10,6 +10,7 @@ import WelcomeWindow from './windows/WelcomeWindow';
 import AuthWindow from './windows/AuthWindow';
 import SetupWindow from './windows/SetupWindow';
 import MainWindow from './windows/MainWindow';
+import MicWindow from './windows/MicWindow';
 import MePage from './windows/MePage';
 import ActionsPage from './windows/ActionsPage';
 import SettingsPage from './windows/SettingsPage';
@@ -256,6 +257,7 @@ const AppContent: React.FC = () => {
             <Route path="/auth" element={<AuthWindow/>}/>
             <Route path="/setup" element={<SetupWindow/>}/>
             <Route path="/main" element={<MainWindow/>}/>
+            <Route path="/mic" element={<MicWindow/>}/>
             <Route path="/me" element={<MePage/>}/>
             <Route path="/actions" element={<ActionsPage/>}/>
             <Route path="/settings" element={<SettingsPage/>}/>
@@ -317,7 +319,7 @@ const AppContent: React.FC = () => {
                         <div className="fr flex-1 overflow-hidden">
                             {needsSidebar && <Sidebar/>}
                             <main className="flex-1 overflow-hidden bg-bg-secondary/50">
-                                <div className="h-full overflow-auto">{routes}</div>
+                <div className="h-full overflow-auto">{routes}</div>
                             </main>
                         </div>
                     </div>

@@ -773,12 +773,24 @@ const registerIpcHandlers = () => {
         }
         
         // Создаём mic окно если setupCompleted был установлен в true
-        if (updated.setupCompleted && updated.auth.accessToken && (!micWindow || micWindow.isDestroyed())) {
-            void createMicWindow().then(() => {
-                if (isDev && micWindow) {
-                    micWindow.webContents.openDevTools({mode: 'detach'});
-                }
-            });
+        const hasAuthToken = typeof updated.auth?.accessToken === 'string' && updated.auth.accessToken.trim().length > 0;
+        const shouldAutoShowMic = hasAuthToken && updated.setupCompleted;
+
+        if (shouldAutoShowMic) {
+            if (!micWindow || micWindow.isDestroyed()) {
+                void createMicWindow().then(() => {
+                    if (isDev && micWindow) {
+                        micWindow.webContents.openDevTools({mode: 'detach'});
+                    }
+                    if (micWindow && !micWindow.isDestroyed()) {
+                        showMicWindowInstance();
+                    }
+                }).catch((error) => {
+                    sendLogToRenderer('MIC_WINDOW', `❌ Failed to auto-show mic after config update: ${error}`);
+                });
+            } else if (partialConfig.setupCompleted === true) {
+                showMicWindowInstance();
+            }
         }
         
         return updated;
@@ -1076,6 +1088,9 @@ const login = async ({email, password}: { email: string; password: string }) => 
             if (isDev && micWindow) {
                 micWindow.webContents.openDevTools({mode: 'detach'});
             }
+            if (config.setupCompleted && micWindow && !micWindow.isDestroyed()) {
+                showMicWindowInstance();
+            }
             if (config.setupCompleted && mainWindow && !mainWindow.isDestroyed()) {
                 sendLogToRenderer('LOGIN', '🔒 Closing main window after mic window created');
                 mainWindow.close();
@@ -1083,6 +1098,9 @@ const login = async ({email, password}: { email: string; password: string }) => 
         }).catch((error) => sendLogToRenderer('LOGIN', `❌ Failed to create mic window: ${error}`));
     } else {
         sendLogToRenderer('LOGIN', '⏭️ Mic window already exists, skipping creation');
+        if (config.setupCompleted) {
+            showMicWindowInstance();
+        }
         if (config.setupCompleted && mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.close();
         }
@@ -1278,14 +1296,21 @@ const handleAppReady = async () => {
                 // Не блокируем создание микрофона если не удалось загрузить пользователя
             }
 
+            const shouldAutoShowMic = config.setupCompleted;
+
             if (!micWindow || micWindow.isDestroyed()) {
                 void createMicWindow().then(() => {
                     if (isDev && micWindow) {
                         micWindow.webContents.openDevTools({mode: 'detach'});
                     }
+                    if (shouldAutoShowMic && micWindow && !micWindow.isDestroyed()) {
+                        showMicWindowInstance();
+                    }
                 }).catch((error) => {
                     sendLogToRenderer('APP_READY', `❌ Failed to create mic window: ${error}`);
                 });
+            } else if (shouldAutoShowMic) {
+                showMicWindowInstance();
             }
 
             if (config.setupCompleted) {

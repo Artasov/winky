@@ -58,6 +58,7 @@ declare global {
     setInteractive(interactive: boolean): Promise<void>;
     getPosition(): Promise<{ x: number; y: number }>;
     moveBy(dx: number, dy: number): Promise<void>;
+    setAnchor(anchor: string): Promise<{ x: number; y: number }>;
   }
 
   interface WinkySpeechAPI {

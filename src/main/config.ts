@@ -1,6 +1,6 @@
 import type { Schema } from 'electron-store';
 import { LLM_API_MODELS, LLM_LOCAL_MODELS, LLM_MODES, SPEECH_API_MODELS, SPEECH_LOCAL_MODELS, SPEECH_MODES } from '@shared/constants';
-import type { ActionConfig, AppConfig, AuthTokens, LLMMode, SpeechMode } from '@shared/types';
+import type { ActionConfig, AppConfig, AuthTokens, LLMMode, MicAnchor, SpeechMode } from '@shared/types';
 
 const DEFAULT_CONFIG: AppConfig = {
   auth: {
@@ -21,7 +21,9 @@ const DEFAULT_CONFIG: AppConfig = {
     google: ''
   },
   actions: [],
-  micWindowPosition: undefined
+  micWindowPosition: undefined,
+  micHotkey: '',
+  micAnchor: 'bottom-right'
 };
 
 const schema: Schema<AppConfig> = {
@@ -77,6 +79,13 @@ const schema: Schema<AppConfig> = {
       x: { type: 'number' },
       y: { type: 'number' }
     }
+  },
+  micHotkey: {
+    type: 'string'
+  },
+  micAnchor: {
+    type: 'string',
+    enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
   }
 };
 
@@ -156,6 +165,17 @@ const ensureConfigIntegrity = async (): Promise<AppConfig> => {
       current.llm.model = current.llm.mode === LLM_MODES.API ? LLM_API_MODELS[0] : LLM_LOCAL_MODELS[0];
       changed = true;
     }
+  }
+
+  if (typeof current.micHotkey !== 'string') {
+    current.micHotkey = '';
+    changed = true;
+  }
+
+  const validAnchors: MicAnchor[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+  if (!current.micAnchor || !validAnchors.includes(current.micAnchor as MicAnchor)) {
+    current.micAnchor = 'bottom-right';
+    changed = true;
   }
 
   if (changed) {

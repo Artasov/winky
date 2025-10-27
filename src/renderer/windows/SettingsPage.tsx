@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import classNames from 'classnames';
 import { useConfig } from '../context/ConfigContext';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import { SPEECH_MODES, LLM_MODES, SPEECH_API_MODELS, LLM_API_MODELS } from '@shared/constants';
+import type { MicAnchor } from '@shared/types';
 import ModelConfigForm, { ModelConfigFormData } from '../components/ModelConfigForm';
+import HotkeyInput from '../components/HotkeyInput';
 
 const SettingsPage: React.FC = () => {
   const { config, updateConfig } = useConfig();
@@ -20,6 +23,8 @@ const SettingsPage: React.FC = () => {
   });
   
   const [saving, setSaving] = useState(false);
+  const [micHotkey, setMicHotkey] = useState('');
+  const [micAnchor, setMicAnchor] = useState<MicAnchor>('bottom-right');
 
   useEffect(() => {
     if (config) {
@@ -31,6 +36,8 @@ const SettingsPage: React.FC = () => {
         llmMode: config.llm.mode,
         llmModel: config.llm.model
       });
+      setMicHotkey(config.micHotkey ?? '');
+      setMicAnchor((config.micAnchor as MicAnchor) ?? 'bottom-right');
     }
   }, [config]);
 
@@ -61,6 +68,41 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  const handleAnchorSelect = async (anchor: MicAnchor) => {
+    setMicAnchor(anchor);
+    try {
+      await window.winky?.mic?.setAnchor(anchor);
+    } catch (error) {
+      console.error('[SettingsPage] Failed to set mic anchor', error);
+    }
+  };
+
+  const anchorOptions: { value: MicAnchor; label: string }[] = [
+    { value: 'top-left', label: 'Top Left' },
+    { value: 'top-right', label: 'Top Right' },
+    { value: 'bottom-left', label: 'Bottom Left' },
+    { value: 'bottom-right', label: 'Bottom Right' }
+  ];
+
+  const handleHotkeyChange = async (nextValue: string) => {
+    setMicHotkey(nextValue);
+    try {
+      await updateConfig({ micHotkey: nextValue.trim() });
+      showToast(nextValue ? `Hotkey set to ${nextValue}` : 'Hotkey cleared.', 'success');
+    } catch (error) {
+      console.error('[SettingsPage] Failed to update hotkey', error);
+      showToast('Failed to update hotkey.', 'error');
+    }
+  };
+
+  const handleHotkeyInvalid = (reason: 'non-english' | 'modifier-only') => {
+    if (reason === 'non-english') {
+      showToast('Please switch to English layout for shortcuts.', 'error');
+    } else {
+      showToast('Please include a non-modifier key in the shortcut.', 'info');
+    }
+  };
+
   const isAuthorized = Boolean(config?.auth.accessToken);
 
     if (!isAuthorized) {
@@ -87,6 +129,47 @@ const SettingsPage: React.FC = () => {
         submitButtonText="Save"
         requireApiKeys={false}
       />
+
+      <section className="mt-6 flex flex-col gap-4 rounded-2xl border border-primary-200 bg-white p-6 shadow-primary-sm">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-semibold text-text-primary">Mic Overlay</h2>
+          <p className="text-xs text-text-secondary">Configure the floating microphone overlay behaviour.</p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-text-primary">Toggle Hotkey</label>
+          <HotkeyInput
+            value={micHotkey}
+            onChange={handleHotkeyChange}
+            onInvalid={handleHotkeyInvalid}
+            placeholder="Press keys to set shortcut"
+          />
+          <p className="text-xs text-text-tertiary">Press the desired key combination. Press Escape or use Clear to remove the shortcut.</p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-text-primary">Default Position</label>
+          <div className="grid grid-cols-2 gap-2">
+            {anchorOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleAnchorSelect(option.value)}
+                className={classNames(
+                  'rounded-lg border px-3 py-2 text-sm transition-colors',
+                  micAnchor === option.value
+                    ? 'border-primary bg-primary-50 text-primary'
+                    : 'border-primary-200 bg-white text-text-secondary hover:border-primary hover:text-primary'
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-text-tertiary">Select one of the corners to dock the microphone overlay. The overlay moves immediately.</p>
+        </div>
+
+      </section>
         </div>
     );
 };

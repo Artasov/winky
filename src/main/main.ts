@@ -1,10 +1,10 @@
-import {app, BrowserWindow, BrowserWindowConstructorOptions, clipboard, ipcMain, Menu, screen} from 'electron';
+import {app, BrowserWindow, BrowserWindowConstructorOptions, clipboard, ipcMain, Menu, screen, globalShortcut} from 'electron';
 import path from 'path';
 import axios from 'axios';
 import {createTray, destroyTray} from './tray';
 import {getConfig, getConfigFilePath, getStore, resetConfig, setActions, setAuthTokens, updateConfig} from './config';
 import {ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME, ICONS_ENDPOINT, ME_ENDPOINT, PROFILE_ENDPOINT} from '@shared/constants';
-import type {ActionConfig, ActionIcon, AppConfig, AuthResponse, AuthTokens, User, WinkyProfile} from '@shared/types';
+import type {ActionConfig, ActionIcon, AppConfig, AuthResponse, AuthTokens, MicAnchor, User, WinkyProfile} from '@shared/types';
 import {createApiClient} from '@shared/api';
 import {createSpeechService} from './services/speech/factory';
 import {createLLMService} from './services/llm/factory';
@@ -38,6 +38,18 @@ const getIconPath = (): string => {
 };
 
 let micWindow: BrowserWindow | null = null;
+let micWindowVisible = false;
+let lastMicToggleTime = 0;
+let hotkeyToggleLocked = false;
+let micWindowAutoShowDisabled = false;
+let micWindowFadeTimeout: NodeJS.Timeout | null = null;
+
+const MIC_WINDOW_WIDTH = 160;
+const MIC_WINDOW_HEIGHT = 160;
+const MIC_WINDOW_MARGIN = 24;
+const MIC_BUTTON_SIZE = 80;
+
+let registeredMicShortcut: string | null = null;
 
 const ensureMicOnTop = () => {
     if (!micWindow || micWindow.isDestroyed()) {
@@ -49,10 +61,276 @@ const ensureMicOnTop = () => {
     } else {
         micWindow.setAlwaysOnTop(true, 'screen-saver', 1);
     }
+    // НЕ вызываем moveTop() чтобы не показывать окно
+};
+
+const computeAnchorPosition = (anchor: MicAnchor, targetDisplay: Electron.Display) => {
+    const area = targetDisplay.workArea;
+    const offsetX = (MIC_WINDOW_WIDTH - MIC_BUTTON_SIZE) / 2;
+    const offsetY = (MIC_WINDOW_HEIGHT - MIC_BUTTON_SIZE) / 2;
+    const maxX = area.x + area.width - MIC_WINDOW_WIDTH;
+    const maxY = area.y + area.height - MIC_WINDOW_HEIGHT;
+
+    const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+    const compute = (buttonX: number, buttonY: number) => ({
+        x: clamp(Math.round(buttonX - offsetX), area.x, maxX),
+        y: clamp(Math.round(buttonY - offsetY), area.y, maxY)
+    });
+
+    switch (anchor) {
+        case 'top-left':
+            return compute(area.x + MIC_WINDOW_MARGIN, area.y + MIC_WINDOW_MARGIN);
+        case 'top-right':
+            return compute(area.x + area.width - MIC_BUTTON_SIZE - MIC_WINDOW_MARGIN, area.y + MIC_WINDOW_MARGIN);
+        case 'bottom-left':
+            return compute(area.x + MIC_WINDOW_MARGIN, area.y + area.height - MIC_BUTTON_SIZE - MIC_WINDOW_MARGIN);
+        case 'bottom-right':
+        default:
+            return compute(area.x + area.width - MIC_BUTTON_SIZE - MIC_WINDOW_MARGIN, area.y + area.height - MIC_BUTTON_SIZE - MIC_WINDOW_MARGIN);
+    }
+};
+
+const applyMicAnchorPosition = async (anchor: MicAnchor | undefined, persist = false) => {
+    const effectiveAnchor: MicAnchor = anchor && ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(anchor)
+        ? anchor as MicAnchor
+        : 'bottom-right';
+
+    const display = micWindow && !micWindow.isDestroyed()
+        ? screen.getDisplayMatching(micWindow.getBounds())
+        : screen.getPrimaryDisplay();
+
+    const position = computeAnchorPosition(effectiveAnchor, display);
+
+    if (micWindow && !micWindow.isDestroyed()) {
+        moveMicWindow(position.x, position.y);
+        ensureMicOnTop();
+    }
+
+    if (persist) {
+        await updateConfig({ micAnchor: effectiveAnchor, micWindowPosition: position });
+        await broadcastConfigUpdate();
+    }
+
+    return position;
+};
+
+const clearMicWindowFadeTimeout = () => {
+    if (micWindowFadeTimeout) {
+        clearTimeout(micWindowFadeTimeout);
+        micWindowFadeTimeout = null;
+    }
+};
+const showMicWindowInstance = () => {
+    console.log('[Mic] showMicWindowInstance called', { micWindowVisible, micWindowAutoShowDisabled });
+    if (!micWindow || micWindow.isDestroyed()) {
+        console.log('[Mic] Window destroyed, ignoring');
+        return;
+    }
+
+    console.log('[Mic] Window state:', {
+        isVisible: micWindow.isVisible(),
+        isMinimized: micWindow.isMinimized(),
+        isMaximized: micWindow.isMaximized(),
+        isFocused: micWindow.isFocused()
+    });
+
+    micWindowAutoShowDisabled = false;
+    clearMicWindowFadeTimeout();
+    micWindow.setOpacity(0);
+
+    const performShow = () => {
+        if (!micWindow || micWindow.isDestroyed()) {
+            return;
+        }
+
+        console.log('[Mic] Performing show routine');
+        if (process.platform === 'darwin') {
+            micWindow.showInactive();
+        } else {
+            micWindow.show();
+        }
+        micWindow.setSkipTaskbar(true);
+        micWindowVisible = true;
+        ensureMicOnTop();
+
+        clearMicWindowFadeTimeout();
+        micWindowFadeTimeout = setTimeout(() => {
+            if (!micWindow || micWindow.isDestroyed() || !micWindowVisible) {
+                return;
+            }
+            micWindow.setOpacity(1);
+            ensureMicOnTop();
+            micWindowFadeTimeout = null;
+            console.log('[Mic] Window opacity restored to 1');
+        }, 16);
+
+        console.log('[Mic] Window state after show:', {
+            isVisible: micWindow.isVisible(),
+            isMinimized: micWindow.isMinimized(),
+            isMaximized: micWindow.isMaximized(),
+            isFocused: micWindow.isFocused()
+        });
+
+        const [x, y] = micWindow.getPosition();
+        const [width, height] = micWindow.getSize();
+        console.log('[Mic] Window position and size:', { x, y, width, height });
+        console.log('[Mic] Window shown successfully');
+    };
+
+    console.log('[Mic] Showing window');
+    if (micWindow.webContents.isLoading()) {
+        console.log('[Mic] Content still loading, waiting...');
+        micWindow.webContents.once('did-finish-load', () => {
+            if (!micWindow || micWindow.isDestroyed()) {
+                return;
+            }
+            console.log('[Mic] Content loaded, executing show');
+            performShow();
+        });
+    } else {
+        console.log('[Mic] Content already loaded, showing immediately');
+        performShow();
+    }
+};
+
+const toggleMicWindow = async (fromShortcut = false) => {
+    console.log('[Hotkey] toggleMicWindow called', { fromShortcut, micWindowVisible, micWindowAutoShowDisabled, hotkeyToggleLocked });
+    
+    if (fromShortcut) {
+        const now = Date.now();
+        if (hotkeyToggleLocked) {
+            console.log('[Hotkey] Toggle locked, ignoring');
+            return;
+        }
+        if (now - lastMicToggleTime < 500) { // Увеличили с 100ms до 500ms
+            console.log('[Hotkey] Too soon since last toggle, ignoring');
+            return;
+        }
+        lastMicToggleTime = now;
+        hotkeyToggleLocked = true;
+        console.log('[Hotkey] Locking toggle for 1000ms');
+        setTimeout(() => {
+            hotkeyToggleLocked = false;
+            console.log('[Hotkey] Toggle lock released');
+        }, 1000); // Увеличили с 200ms до 1000ms
+    }
+
+    if (!micWindow || micWindow.isDestroyed()) {
+        console.log('[Hotkey] Creating mic window');
+        await createMicWindow();
+        console.log('[Hotkey] Mic window created, now showing');
+        showMicWindowInstance();
+        return;
+    }
+
+    if (micWindowVisible) {
+        console.log('[Hotkey] Hiding mic window');
+        micWindowAutoShowDisabled = true;
+        micWindowVisible = false;
+        setMicInteractive(false);
+        clearMicWindowFadeTimeout();
+        if (micWindow && !micWindow.isDestroyed()) {
+            micWindow.setOpacity(0);
+        }
+        micWindow.hide();
+        console.log('[Hotkey] Mic window hidden');
+        if (fromShortcut) {
+            lastMicToggleTime = Date.now();
+        }
+        return;
+    }
+
+    console.log('[Hotkey] Showing mic window');
+    if (fromShortcut) {
+        lastMicToggleTime = Date.now();
+    }
+    
+    // Сбрасываем флаг auto-show disabled перед показом
+    micWindowAutoShowDisabled = false;
+    showMicWindowInstance();
+};
+
+const toElectronAccelerator = (accelerator: string): string | null => {
+    if (!accelerator) {
+        return null;
+    }
+    const parts = accelerator.split('+').map((part) => part.trim()).filter(Boolean);
+    if (parts.length === 0) {
+        return null;
+    }
+
+    const mapped: string[] = [];
+    let hasKey = false;
+
+    parts.forEach((part) => {
+        const upper = part.toUpperCase();
+        switch (upper) {
+            case 'CTRL':
+            case 'CONTROL':
+                mapped.push('CommandOrControl');
+                break;
+            case 'CMD':
+            case 'COMMAND':
+                mapped.push('Command');
+                break;
+            case 'ALT':
+            case 'OPTION':
+                mapped.push('Alt');
+                break;
+            case 'SHIFT':
+                mapped.push('Shift');
+                break;
+            case 'SUPER':
+            case 'WIN':
+                mapped.push('Super');
+                break;
+            default: {
+                hasKey = true;
+                mapped.push(part.length === 1 ? part.toUpperCase() : part);
+            }
+        }
+    });
+
+    if (!hasKey) {
+        return null;
+    }
+
+    return mapped.join('+');
+};
+
+const registerMicShortcut = async () => {
+    const config = await getConfig();
+    const accelerator = (config.micHotkey || '').trim();
+
+    if (registeredMicShortcut) {
+        globalShortcut.unregister(registeredMicShortcut);
+        registeredMicShortcut = null;
+    }
+
+    if (!accelerator) {
+        return;
+    }
+
     try {
-        micWindow.moveTop();
+        const electronAccelerator = toElectronAccelerator(accelerator);
+        if (!electronAccelerator) {
+            console.warn(`[Hotkey] Invalid shortcut ${accelerator}`);
+            return;
+        }
+
+        const success = globalShortcut.register(electronAccelerator, () => {
+            console.log('[Hotkey] Shortcut triggered:', electronAccelerator);
+            void toggleMicWindow(true);
+        });
+        if (success) {
+            registeredMicShortcut = electronAccelerator;
+            console.log(`[Hotkey] Successfully registered shortcut: ${accelerator} -> ${electronAccelerator}`);
+        } else {
+            console.warn(`[Hotkey] Failed to register shortcut ${accelerator}`);
+        }
     } catch (error) {
-        // moveTop not supported everywhere
+        console.error(`[Hotkey] Error registering shortcut ${accelerator}`, error);
     }
 };
 
@@ -69,6 +347,12 @@ const setMicInteractive = (interactive: boolean) => {
     if (!micWindow || micWindow.isDestroyed()) {
         return;
     }
+    
+    // Не делаем окно интерактивным если оно скрыто или auto-show отключен
+    if (interactive && (!micWindowVisible || micWindowAutoShowDisabled)) {
+        return;
+    }
+    
     const platform = process.platform;
     if (interactive) {
         if (platform === 'win32') {
@@ -76,7 +360,7 @@ const setMicInteractive = (interactive: boolean) => {
         }
         if (platform === 'darwin') {
             micWindow.setFocusable(true);
-            micWindow.focus();
+            // НЕ вызываем focus() чтобы не показывать окно
         }
         ensureMicOnTop();
         micWindow.flashFrame(false);
@@ -88,7 +372,7 @@ const setMicInteractive = (interactive: boolean) => {
             micWindow.setFocusable(false);
             micWindow.blur();
         }
-        ensureMicOnTop();
+        // НЕ вызываем ensureMicOnTop() после скрытия окна
     }
 };
 
@@ -273,10 +557,10 @@ const createMicWindow = async () => {
         frame: false,
         transparent: true,
         hasShadow: false,
-        show: false,
+        show: false, // Не показываем окно сразу
         skipTaskbar: true,
         alwaysOnTop: true,
-        backgroundColor: '#00000000',
+        backgroundColor: '#00000000', // Полностью прозрачный фон
         type: isMac ? 'panel' : 'toolbar',
         webPreferences: {
             preload: preloadPath,
@@ -284,13 +568,21 @@ const createMicWindow = async () => {
             nodeIntegration: false,
             devTools: isDev,
             sandbox: false,
-            webSecurity: false // Разрешаем загрузку локальных ресурсов из asar
+            webSecurity: false, // Разрешаем загрузку локальных ресурсов из asar
+            offscreen: false, // Отключаем offscreen рендеринг для лучшей производительности
+            backgroundThrottling: false // Отключаем throttling фоновых процессов
         }
     };
 
+    const anchorFromStore = config.get('micAnchor') as MicAnchor | undefined;
     if (safePosition) {
         windowOptions.x = safePosition.x;
         windowOptions.y = safePosition.y;
+    } else if (anchorFromStore) {
+        const display = screen.getPrimaryDisplay();
+        const anchorPosition = computeAnchorPosition(anchorFromStore, display);
+        windowOptions.x = anchorPosition.x;
+        windowOptions.y = anchorPosition.y;
     } else {
         windowOptions.center = true;
     }
@@ -304,6 +596,10 @@ const createMicWindow = async () => {
     micWindow.setMenuBarVisibility(false);
     micWindow.setHasShadow(false);
     micWindow.setSkipTaskbar(true);
+    
+    // Дополнительные настройки для предотвращения мерцания
+    micWindow.setBackgroundColor('#00000000'); // Убеждаемся что фон прозрачный
+    
     if (isMac) {
         micWindow.setAlwaysOnTop(true, 'floating', 1);
         micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -325,27 +621,28 @@ const createMicWindow = async () => {
         void micWindow.loadFile(rendererPath, {hash: '/mic', query: {window: 'mic'}});
     }
 
-    const showMicWindow = () => {
-        if (!micWindow || micWindow.isDestroyed()) {
-            return;
-        }
-        if (isMac) {
-            micWindow.showInactive();
-        } else {
-            micWindow.show();
-        }
-        micWindow.setSkipTaskbar(true);
-        ensureMicOnTop();
-        micWindow.setIgnoreMouseEvents(true, { forward: true });
-    };
+    // Не показываем окно автоматически при создании
+    // Оно будет показано только через hotkey
 
-    micWindow.once('ready-to-show', showMicWindow);
-    micWindow.webContents.once('did-finish-load', () => {
-        setTimeout(showMicWindow, 0);
+    micWindow.on('show', () => {
+        console.log('[Mic] Window show event fired');
+        micWindowVisible = true;
+    });
+
+    micWindow.on('hide', () => {
+        console.log('[Mic] Window hide event fired');
+        micWindowVisible = false;
+        setMicInteractive(false);
+        clearMicWindowFadeTimeout();
+        if (micWindow && !micWindow.isDestroyed()) {
+            micWindow.setOpacity(0);
+        }
     });
 
     micWindow.on('closed', () => {
+        micWindowVisible = false;
         micWindow = null;
+        clearMicWindowFadeTimeout();
     });
 
     // Сохраняем позицию окна при перемещении
@@ -466,6 +763,10 @@ const registerIpcHandlers = () => {
     ipcMain.handle('config:update', async (_event, partialConfig: Partial<AppConfig>) => {
         const updated = await updateConfig(partialConfig);
         await broadcastConfigUpdate();
+        await registerMicShortcut();
+        if (typeof partialConfig.micAnchor === 'string') {
+            void applyMicAnchorPosition(partialConfig.micAnchor as MicAnchor, false);
+        }
         
         // Создаём mic окно если setupCompleted был установлен в true
         if (updated.setupCompleted && updated.auth.accessToken && (!micWindow || micWindow.isDestroyed())) {
@@ -482,12 +783,14 @@ const registerIpcHandlers = () => {
     ipcMain.handle('config:setAuth', async (_event, tokens: AuthTokens) => {
         const updated = await setAuthTokens(tokens);
         await broadcastConfigUpdate();
+        await registerMicShortcut();
         return updated;
     });
 
     ipcMain.handle('config:reset', async () => {
         const reset = await resetConfig();
         await broadcastConfigUpdate();
+        await registerMicShortcut();
         
         // Закрываем mic окно при выходе из аккаунта
         if (micWindow && !micWindow.isDestroyed()) {
@@ -533,6 +836,11 @@ const registerIpcHandlers = () => {
         }
         const [x, y] = micWindow.getPosition();
         return { x, y };
+    });
+
+    ipcMain.handle('mic:set-anchor', async (_event, anchor: MicAnchor) => {
+        const position = await applyMicAnchorPosition(anchor, true);
+        return position;
     });
 
     ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {
@@ -997,6 +1305,7 @@ const handleAppReady = async () => {
     createTray(showMainWindow);
     
     registerIpcHandlers();
+    await registerMicShortcut();
 
     if (isDev && mainWindow && shouldShowMainWindow) {
         mainWindow.webContents.openDevTools({mode: 'detach'});
@@ -1029,4 +1338,8 @@ app.on('activate', () => {
 
 app.on('quit', () => {
     destroyTray();
+});
+
+app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
 });

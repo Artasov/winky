@@ -83,6 +83,8 @@ export interface AppConfig {
     x: number;
     y: number;
   };
+  micHotkey?: string;
+  micAnchor?: MicAnchor;
 }
 
 export interface LLMProcessResponse {
@@ -92,3 +94,5 @@ export interface LLMProcessResponse {
 export interface TranscriptionResponse {
   text: string;
 }
+
+export type MicAnchor = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';

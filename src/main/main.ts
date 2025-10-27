@@ -494,6 +494,14 @@ const registerIpcHandlers = () => {
         setMicInteractive(interactive);
     });
 
+    ipcMain.handle('mic:get-position', () => {
+        if (!micWindow || micWindow.isDestroyed()) {
+            return { x: 0, y: 0 };
+        }
+        const [x, y] = micWindow.getPosition();
+        return { x, y };
+    });
+
     ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {
         try {
             return await login(credentials);

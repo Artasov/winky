@@ -48,8 +48,7 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
         const target = e.currentTarget as HTMLElement;
         target.setPointerCapture(e.pointerId);
 
-        // Запоминаем начальную позицию
-        dragStateRef.current = {
+        const state = {
             isDragging: false,
             startX: e.screenX,
             startY: e.screenY,
@@ -58,6 +57,21 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
             pointerId: e.pointerId,
             lastMoveTime: 0
         };
+
+        dragStateRef.current = state;
+
+        void window.winky?.mic?.getPosition().then((pos) => {
+            if (!dragStateRef.current || dragStateRef.current.pointerId !== state.pointerId) {
+                return;
+            }
+            dragStateRef.current = {
+                ...dragStateRef.current,
+                windowStartX: pos.x,
+                windowStartY: pos.y
+            };
+        }).catch(() => {
+            // Игнорируем ошибки, остаемся на значениях по умолчанию
+        });
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {

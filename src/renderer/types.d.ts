@@ -56,6 +56,7 @@ declare global {
   interface WinkyMicAPI {
     moveWindow(x: number, y: number): Promise<void>;
     setInteractive(interactive: boolean): Promise<void>;
+    getPosition(): Promise<{ x: number; y: number }>;
   }
 
   interface WinkySpeechAPI {

@@ -119,7 +119,8 @@ const api = {
   },
   mic: {
     moveWindow: (x: number, y: number): Promise<void> => ipcRenderer.invoke('mic:move-window', x, y),
-    setInteractive: (interactive: boolean): Promise<void> => ipcRenderer.invoke('mic:set-interactive', interactive)
+    setInteractive: (interactive: boolean): Promise<void> => ipcRenderer.invoke('mic:set-interactive', interactive),
+    getPosition: (): Promise<{ x: number; y: number }> => ipcRenderer.invoke('mic:get-position')
   },
   on: (channel: string, callback: (...args: any[]) => void) => {
     ipcRenderer.on(channel, (_event, ...args) => callback(...args));

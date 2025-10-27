@@ -39,6 +39,19 @@ const getIconPath = (): string => {
 
 let micWindow: BrowserWindow | null = null;
 
+const ensureMicOnTop = () => {
+    if (!micWindow || micWindow.isDestroyed()) {
+        return;
+    }
+    if (process.platform === 'darwin') {
+        micWindow.setAlwaysOnTop(true, 'floating', 1);
+    } else if (process.platform === 'win32') {
+        micWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+    } else {
+        micWindow.setAlwaysOnTop(true);
+    }
+};
+
 const broadcastConfigUpdate = async () => {
     const config = await getConfig();
     BrowserWindow.getAllWindows().forEach((win) => {
@@ -59,7 +72,7 @@ const setMicInteractive = (interactive: boolean) => {
             micWindow.focus();
         }
         micWindow.setIgnoreMouseEvents(false);
-        micWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'screen-saver', 1);
+        ensureMicOnTop();
         micWindow.flashFrame(false);
     } else {
         // Клики проходят сквозь с forward:true
@@ -68,7 +81,7 @@ const setMicInteractive = (interactive: boolean) => {
             micWindow.setFocusable(false);
             micWindow.blur();
         }
-        micWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'screen-saver', 1);
+        ensureMicOnTop();
     }
 };
 
@@ -78,8 +91,7 @@ const moveMicWindow = (x: number, y: number) => {
     }
     // animate=false для мгновенного перемещения без анимации
     micWindow.setPosition(Math.round(x), Math.round(y), false);
-    const isMac = process.platform === 'darwin';
-    micWindow.setAlwaysOnTop(true, isMac ? 'floating' : 'screen-saver', 1);
+    ensureMicOnTop();
 };
 
 const createMainWindow = () => {
@@ -287,6 +299,7 @@ const createMicWindow = async () => {
         micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         micWindow.setFocusable(true);
     }
+    ensureMicOnTop();
 
     micWindow.setIgnoreMouseEvents(true, { forward: true });
 
@@ -306,7 +319,7 @@ const createMicWindow = async () => {
             micWindow.show();
         }
         micWindow.setSkipTaskbar(true);
-        micWindow.setAlwaysOnTop(true, isMac ? 'floating' : 'screen-saver', 1);
+        ensureMicOnTop();
         micWindow.setIgnoreMouseEvents(true, { forward: true });
     };
 
@@ -331,7 +344,7 @@ const createMicWindow = async () => {
     // Дополнительная защита: если окно теряет статус alwaysOnTop, восстанавливаем его
     micWindow.on('blur', () => {
         if (micWindow && !micWindow.isDestroyed()) {
-            micWindow.setAlwaysOnTop(true, isMac ? 'floating' : 'screen-saver', 1);
+            ensureMicOnTop();
             if (isMac) {
                 micWindow.setIgnoreMouseEvents(true, { forward: true });
                 micWindow.setFocusable(false);
@@ -500,6 +513,14 @@ const registerIpcHandlers = () => {
         }
         const [x, y] = micWindow.getPosition();
         return { x, y };
+    });
+
+    ipcMain.handle('mic:move-by', (_event, dx: number, dy: number) => {
+        if (!micWindow || micWindow.isDestroyed()) {
+            return;
+        }
+        const [currentX, currentY] = micWindow.getPosition();
+        moveMicWindow(currentX + dx, currentY + dy);
     });
 
     ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {

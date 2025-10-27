@@ -21,8 +21,8 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
         isDragging: boolean;
         startX: number;
         startY: number;
-        windowStartX: number;
-        windowStartY: number;
+        lastScreenX: number;
+        lastScreenY: number;
         pointerId: number;
         lastMoveTime: number;
     } | null>(null);
@@ -52,34 +52,23 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
             isDragging: false,
             startX: e.screenX,
             startY: e.screenY,
-            windowStartX: window.screenX,
-            windowStartY: window.screenY,
+            lastScreenX: e.screenX,
+            lastScreenY: e.screenY,
             pointerId: e.pointerId,
             lastMoveTime: 0
         };
 
         dragStateRef.current = state;
 
-        void window.winky?.mic?.getPosition().then((pos) => {
-            if (!dragStateRef.current || dragStateRef.current.pointerId !== state.pointerId) {
-                return;
-            }
-            dragStateRef.current = {
-                ...dragStateRef.current,
-                windowStartX: pos.x,
-                windowStartY: pos.y
-            };
-        }).catch(() => {
-            // Игнорируем ошибки, остаемся на значениях по умолчанию
-        });
+        void window.winky?.mic?.setInteractive(true);
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
         if (!dragStateRef.current || disabled) return;
 
-        const dx = e.screenX - dragStateRef.current.startX;
-        const dy = e.screenY - dragStateRef.current.startY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        const dxTotal = e.screenX - dragStateRef.current.startX;
+        const dyTotal = e.screenY - dragStateRef.current.startY;
+        const distance = Math.sqrt(dxTotal * dxTotal + dyTotal * dyTotal);
 
         // Если сдвинулись больше порога - начинаем перетаскивание
         if (distance > DRAG_THRESHOLD) {
@@ -94,11 +83,15 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
             }
             dragStateRef.current.lastMoveTime = now;
 
-            const newX = dragStateRef.current.windowStartX + dx;
-            const newY = dragStateRef.current.windowStartY + dy;
+            const deltaX = e.screenX - dragStateRef.current.lastScreenX;
+            const deltaY = e.screenY - dragStateRef.current.lastScreenY;
+            dragStateRef.current.lastScreenX = e.screenX;
+            dragStateRef.current.lastScreenY = e.screenY;
 
             // Не ждем ответа от IPC - fire and forget для плавности
-            void window.winky?.mic?.moveWindow(newX, newY);
+            if (deltaX !== 0 || deltaY !== 0) {
+                void window.winky?.mic?.moveBy(deltaX, deltaY);
+            }
         }
     };
 

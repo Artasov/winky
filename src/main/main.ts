@@ -222,12 +222,16 @@ const createMicWindow = async () => {
         x: safePosition?.x,
         y: safePosition?.y,
         resizable: false,
+        movable: true,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
         frame: false,
         transparent: true,
         show: false,
         skipTaskbar: true,
         alwaysOnTop: true,
-        type: 'toolbar', // Окно-инструмент без вкладки на панели задач
+        type: process.platform === 'darwin' ? 'panel' : process.platform === 'linux' ? 'toolbar' : 'toolbar',
         backgroundColor: '#00000000',
         webPreferences: {
             preload: preloadPath,
@@ -240,13 +244,12 @@ const createMicWindow = async () => {
     });
 
     micWindow.setMenuBarVisibility(false);
-    micWindow.setSkipTaskbar(true); // Явно устанавливаем, чтобы окно не появлялось в панели задач
-    // screen-saver - максимальный уровень, окно всегда поверх всех окон, даже полноэкранных
+    micWindow.setHasShadow(false);
+    micWindow.setSkipTaskbar(true);
     micWindow.setAlwaysOnTop(true, 'screen-saver');
     micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    micWindow.setFocusable(true);
+    micWindow.setFocusable(process.platform === 'win32');
 
-    // Окно игнорирует клики, но forward:true позволяет элементам с pointer-events-auto получать события
     micWindow.setIgnoreMouseEvents(true, { forward: true });
 
     if (isDev) {
@@ -260,6 +263,7 @@ const createMicWindow = async () => {
             micWindow.show();
             // НЕ вызываем focus() чтобы окно не появлялось на панели задач
             micWindow.setSkipTaskbar(true); // Еще раз явно после show()
+            micWindow.setIgnoreMouseEvents(true, { forward: true });
         }
     });
 

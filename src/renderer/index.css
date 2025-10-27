@@ -63,6 +63,10 @@ body.body-transparent {
   background: transparent;
 }
 
+body.body-transparent #root {
+  background: transparent;
+}
+
 .overflow-y-auto {
   scrollbar-width: thin;
   scrollbar-color: var(--color-primary-400) rgba(244, 63, 94, 0.12);

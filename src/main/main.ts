@@ -1,4 +1,4 @@
-import {app, BrowserWindow, clipboard, ipcMain, Menu, screen} from 'electron';
+import {app, BrowserWindow, BrowserWindowConstructorOptions, clipboard, ipcMain, Menu, screen} from 'electron';
 import path from 'path';
 import axios from 'axios';
 import {createTray, destroyTray} from './tray';
@@ -54,10 +54,17 @@ const setMicInteractive = (interactive: boolean) => {
     }
     if (interactive) {
         // Окно полностью интерактивно
+        if (process.platform === 'darwin') {
+            micWindow.setFocusable(true);
+            micWindow.focus();
+        }
         micWindow.setIgnoreMouseEvents(false);
     } else {
         // Клики проходят сквозь с forward:true
         micWindow.setIgnoreMouseEvents(true, { forward: true });
+        if (process.platform === 'darwin') {
+            micWindow.setFocusable(false);
+        }
     }
 };
 
@@ -222,28 +229,23 @@ const createMicWindow = async () => {
     const safePosition = ensureWindowWithinBounds(savedPosition, WINDOW_WIDTH, WINDOW_HEIGHT);
 
     const isMac = process.platform === 'darwin';
-    const isLinux = process.platform === 'linux';
-    const useTransparent = process.platform !== 'linux';
 
-    micWindow = new BrowserWindow({
+    const windowOptions: BrowserWindowConstructorOptions = {
         width: WINDOW_WIDTH,
         height: WINDOW_HEIGHT,
-        x: safePosition?.x,
-        y: safePosition?.y,
-        center: !safePosition,
         resizable: false,
         movable: true,
         minimizable: false,
         maximizable: false,
         fullscreenable: false,
         frame: false,
-        titleBarStyle: 'hidden',
-        transparent: useTransparent,
+        transparent: true,
+        hasShadow: false,
         show: false,
         skipTaskbar: true,
         alwaysOnTop: true,
+        backgroundColor: '#00000000',
         type: isMac ? 'panel' : 'toolbar',
-        backgroundColor: useTransparent ? '#00000000' : '#141a27',
         webPreferences: {
             preload: preloadPath,
             contextIsolation: true,
@@ -252,7 +254,20 @@ const createMicWindow = async () => {
             sandbox: false,
             webSecurity: false // Разрешаем загрузку локальных ресурсов из asar
         }
-    });
+    };
+
+    if (safePosition) {
+        windowOptions.x = safePosition.x;
+        windowOptions.y = safePosition.y;
+    } else {
+        windowOptions.center = true;
+    }
+
+    if (isMac) {
+        windowOptions.titleBarStyle = 'hidden';
+    }
+
+    micWindow = new BrowserWindow(windowOptions);
 
     micWindow.setMenuBarVisibility(false);
     micWindow.setHasShadow(false);
@@ -309,7 +324,11 @@ const createMicWindow = async () => {
     // Дополнительная защита: если окно теряет статус alwaysOnTop, восстанавливаем его
     micWindow.on('blur', () => {
         if (micWindow && !micWindow.isDestroyed()) {
-            micWindow.setAlwaysOnTop(true, 'screen-saver');
+            micWindow.setAlwaysOnTop(true, isMac ? 'floating' : 'screen-saver');
+            if (isMac) {
+                micWindow.setIgnoreMouseEvents(true, { forward: true });
+                micWindow.setFocusable(false);
+            }
         }
     });
 

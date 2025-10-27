@@ -128,8 +128,18 @@ const AppContent: React.FC = () => {
         // Mic окно всегда прозрачное
         if (isMicWindow && typeof document !== 'undefined') {
             document.body.classList.add('body-transparent');
+            document.documentElement.style.backgroundColor = 'transparent';
+            const root = document.getElementById('root');
+            if (root) {
+                root.style.backgroundColor = 'transparent';
+            }
         } else if (typeof document !== 'undefined') {
             document.body.classList.remove('body-transparent');
+            document.documentElement.style.backgroundColor = '';
+            const root = document.getElementById('root');
+            if (root) {
+                root.style.backgroundColor = '';
+            }
         }
     }, [isMicWindow]);
 

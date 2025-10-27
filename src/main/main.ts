@@ -43,12 +43,16 @@ const ensureMicOnTop = () => {
     if (!micWindow || micWindow.isDestroyed()) {
         return;
     }
-    if (process.platform === 'darwin') {
+    const platform = process.platform;
+    if (platform === 'darwin') {
         micWindow.setAlwaysOnTop(true, 'floating', 1);
-    } else if (process.platform === 'win32') {
-        micWindow.setAlwaysOnTop(true, 'screen-saver', 1);
     } else {
-        micWindow.setAlwaysOnTop(true);
+        micWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+    }
+    try {
+        micWindow.moveTop();
+    } catch (error) {
+        // moveTop not supported everywhere
     }
 };
 

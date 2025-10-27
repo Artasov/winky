@@ -23,6 +23,8 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
         startY: number;
         lastScreenX: number;
         lastScreenY: number;
+        windowStartX?: number;
+        windowStartY?: number;
         pointerId: number;
         lastMoveTime: number;
     } | null>(null);
@@ -36,6 +38,8 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
             interactiveLeave();
         }
     };
+
+    const isNativeMovementSupported = typeof PointerEvent !== 'undefined' && 'movementX' in PointerEvent.prototype;
 
     const handlePointerDown = (e: React.PointerEvent) => {
         if (disabled) return;
@@ -61,6 +65,19 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
         dragStateRef.current = state;
 
         void window.winky?.mic?.setInteractive(true);
+
+        void window.winky?.mic?.getPosition().then((pos) => {
+            if (!dragStateRef.current || dragStateRef.current.pointerId !== state.pointerId) {
+                return;
+            }
+            dragStateRef.current = {
+                ...dragStateRef.current,
+                windowStartX: pos.x,
+                windowStartY: pos.y
+            };
+        }).catch(() => {
+            // ignore, fallback to relative movement
+        });
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
@@ -83,13 +100,23 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
             }
             dragStateRef.current.lastMoveTime = now;
 
-            const deltaX = e.screenX - dragStateRef.current.lastScreenX;
-            const deltaY = e.screenY - dragStateRef.current.lastScreenY;
+            const deltaX = isNativeMovementSupported
+                ? e.movementX || 0
+                : e.screenX - dragStateRef.current.lastScreenX;
+            const deltaY = isNativeMovementSupported
+                ? e.movementY || 0
+                : e.screenY - dragStateRef.current.lastScreenY;
             dragStateRef.current.lastScreenX = e.screenX;
             dragStateRef.current.lastScreenY = e.screenY;
 
-            // Не ждем ответа от IPC - fire and forget для плавности
-            if (deltaX !== 0 || deltaY !== 0) {
+            const windowStartX = dragStateRef.current.windowStartX;
+            const windowStartY = dragStateRef.current.windowStartY;
+
+            if (typeof windowStartX === 'number' && typeof windowStartY === 'number') {
+                const newX = windowStartX + (e.screenX - dragStateRef.current.startX);
+                const newY = windowStartY + (e.screenY - dragStateRef.current.startY);
+                void window.winky?.mic?.moveWindow(newX, newY);
+            } else if (deltaX !== 0 || deltaY !== 0) {
                 void window.winky?.mic?.moveBy(deltaX, deltaY);
             }
         }

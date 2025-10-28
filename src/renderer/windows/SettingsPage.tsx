@@ -112,9 +112,13 @@ const SettingsPage: React.FC = () => {
   const handleAnchorSelect = async (anchor: MicAnchor) => {
     setMicAnchor(anchor);
     try {
-      await window.winky?.mic?.setAnchor(anchor);
+      const position = await window.winky?.mic?.setAnchor(anchor);
+      if (position) {
+        showToast(`Mic docked to ${anchor.replace('-', ' ')} (${position.x}, ${position.y})`, 'success');
+      }
     } catch (error) {
       console.error('[SettingsPage] Failed to set mic anchor', error);
+      showToast('Failed to move microphone. Try again.', 'error');
     }
   };
 

@@ -99,6 +99,10 @@ const applyMicAnchorPosition = async (anchor: MicAnchor | undefined, persist = f
         ? anchor as MicAnchor
         : 'bottom-right';
 
+    if (!micWindow || micWindow.isDestroyed()) {
+        await ensureMicWindowReady();
+    }
+
     const store = await getStore();
     const savedPosition = store.get<{ x: number; y: number } | undefined>('micWindowPosition');
 
@@ -301,7 +305,7 @@ const toElectronAccelerator = (accelerator: string): string | null => {
         switch (upper) {
             case 'CTRL':
             case 'CONTROL':
-                mapped.push('Ctrl');
+                mapped.push(process.platform === 'darwin' ? 'Command' : 'Control');
                 break;
             case 'COMMANDORCONTROL':
             case 'CMDORCTRL':

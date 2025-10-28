@@ -70,7 +70,7 @@ linux:
   category: Utility
   icon: public/resources/icons/app.svg
   synopsis: 'Winky - cute girl assistant'
-  description: 'Winky - cute girl assistant'
+  description: "Let's work this me, let's play with me"
   maintainer: 'Winky Team <ivanhvalevskey@gmail.com>'
   artifactName: '${productName}-${version}-${arch}.${ext}'
 

@@ -453,6 +453,32 @@ const MainWindow: React.FC = () => {
     };
   }, [isRecording, config?.actions, handleActionClick]);
 
+  // Обработка fade-in/fade-out анимаций
+  useEffect(() => {
+    const handleFadeIn = () => {
+      document.body.classList.remove('fade-out');
+      document.body.classList.add('fade-in');
+    };
+
+    const handleFadeOut = () => {
+      document.body.classList.remove('fade-in');
+      document.body.classList.add('fade-out');
+    };
+
+    const api = window.winky;
+    if (!api?.on) {
+      return;
+    }
+
+    api.on('mic:start-fade-in', handleFadeIn);
+    api.on('mic:start-fade-out', handleFadeOut);
+
+    return () => {
+      api.removeListener?.('mic:start-fade-in', handleFadeIn);
+      api.removeListener?.('mic:start-fade-out', handleFadeOut);
+    };
+  }, []);
+
   return (
     <>
       <audio ref={completionSoundRef} src='/sounds/completion.wav' preload='auto' />

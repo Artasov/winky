@@ -250,10 +250,12 @@ const showMicWindowInstance = (reason: MicVisibilityReason = 'system') => {
             if (!micWindow || micWindow.isDestroyed() || !micWindowVisible) {
                 return;
             }
+            // Запускаем fade-in анимацию
+            micWindow.webContents.send('mic:start-fade-in');
             micWindow.setOpacity(1);
             ensureMicOnTop();
             micWindowFadeTimeout = null;
-            console.log('[Mic] Window opacity restored to 1');
+            console.log('[Mic] Window opacity restored to 1, fade-in started');
         }, 16);
 
         console.log('[Mic] Window state after show:', {
@@ -302,9 +304,18 @@ const hideMicWindow = (reason: MicVisibilityReason = 'system', options: { disabl
     }
     setMicInteractive(false);
     clearMicWindowFadeTimeout();
-    micWindow.setOpacity(0);
-    micWindow.hide();
-    sendMicVisibilityChange(false, reason);
+    
+    // Запускаем fade-out анимацию
+    micWindow.webContents.send('mic:start-fade-out');
+    
+    // Ждем завершения анимации перед скрытием
+    setTimeout(() => {
+        if (micWindow && !micWindow.isDestroyed()) {
+            micWindow.setOpacity(0);
+            micWindow.hide();
+            sendMicVisibilityChange(false, reason);
+        }
+    }, 300); // 300ms - длительность fade-out анимации
 };
 
 const toggleMicWindow = async (source: MicVisibilityReason = 'manual') => {

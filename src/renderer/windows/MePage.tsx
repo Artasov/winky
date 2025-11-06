@@ -7,7 +7,8 @@ const MePage: React.FC = () => {
     const {user, loading, clearUser} = useUser();
     const {config} = useConfig();
     const {showToast} = useToast();
-    const isAuthorized = Boolean(config?.auth.accessToken);
+    const hasToken = config?.auth.access || config?.auth.accessToken;
+    const isAuthorized = Boolean(hasToken);
 
     const handleLogout = async () => {
         if (!window.winky?.auth?.logout) {

@@ -5,6 +5,7 @@ import {ConfigContext} from './context/ConfigContext';
 import {ToastContext} from './context/ToastContext';
 import {UserProvider, useUser} from './context/UserContext';
 import {IconsProvider} from './context/IconsContext';
+import {AuthProvider} from './auth';
 import Toast, {ToastMessage, ToastType} from './components/Toast';
 import WelcomeWindow from './windows/WelcomeWindow';
 import AuthWindow from './windows/AuthWindow';
@@ -96,7 +97,8 @@ const AppContent: React.FC = () => {
             const appRoutes = ['/me', '/actions', '/settings', '/info'];
 
             // Если пользователь не авторизован
-            if (!currentConfig.auth.accessToken) {
+            const hasToken = currentConfig.auth.access || currentConfig.auth.accessToken;
+            if (!hasToken) {
                 if (authRoutes.includes(currentPath)) {
                     return;
                 }
@@ -192,7 +194,8 @@ const AppContent: React.FC = () => {
         }
 
         const loadUser = async () => {
-            if (!config?.auth.accessToken || config.auth.accessToken.trim() === '') {
+            const hasToken = config?.auth.access || config?.auth.accessToken;
+            if (!hasToken || (typeof hasToken === 'string' && hasToken.trim() === '')) {
                 console.log('[App] No token found, skipping user fetch');
                 userFetchAttempted.current = true;
                 return;
@@ -220,7 +223,7 @@ const AppContent: React.FC = () => {
         };
 
         void loadUser();
-    }, [config?.auth.accessToken, user, userLoading, fetchUser]);
+    }, [config?.auth.access, config?.auth.accessToken, user, userLoading, fetchUser]);
 
     useEffect(() => {
         if (config && !loading) {
@@ -300,8 +303,9 @@ const AppContent: React.FC = () => {
 
     // Определяем, нужен ли Sidebar для текущего маршрута
     // Показываем sidebar если есть токен и setup завершен (не требуем загрузку пользователя)
+    const hasToken = config?.auth.access || config?.auth.accessToken;
     const needsSidebar = !loading && 
-        config?.auth.accessToken && 
+        hasToken && 
         config?.setupCompleted &&
         ['/me', '/actions', '/settings', '/info'].includes(location.pathname);
 
@@ -342,11 +346,13 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
     return (
-        <UserProvider>
-            <IconsProvider>
-                <AppContent />
-            </IconsProvider>
-        </UserProvider>
+        <AuthProvider>
+            <UserProvider>
+                <IconsProvider>
+                    <AppContent />
+                </IconsProvider>
+            </UserProvider>
+        </AuthProvider>
     );
 };
 

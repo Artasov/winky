@@ -1,14 +1,15 @@
-import {app, BrowserWindow, BrowserWindowConstructorOptions, clipboard, ipcMain, Menu, screen, globalShortcut} from 'electron';
+import {app, BrowserWindow, BrowserWindowConstructorOptions, clipboard, ipcMain, Menu, screen, globalShortcut, shell} from 'electron';
 import path from 'path';
 import axios from 'axios';
 import {createTray, destroyTray} from './tray';
 import {getConfig, getConfigFilePath, getStore, resetConfig, setActions, setAuthTokens, updateConfig} from './config';
-import {ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME, ICONS_ENDPOINT, ME_ENDPOINT, PROFILE_ENDPOINT} from '@shared/constants';
-import type {ActionConfig, ActionIcon, AppConfig, AuthResponse, AuthTokens, MicAnchor, User, WinkyProfile} from '@shared/types';
+import {ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME, ICONS_ENDPOINT, ME_ENDPOINT, PROFILE_ENDPOINT, IPC_CHANNELS} from '@shared/constants';
+import type {ActionConfig, ActionIcon, AppConfig, AuthResponse, AuthTokens, MicAnchor, User, WinkyProfile, AuthDeepLinkPayload, AuthProvider} from '@shared/types';
 import {createApiClient} from '@shared/api';
 import {createSpeechService} from './services/speech/factory';
 import {createLLMService} from './services/llm/factory';
 import FormData from 'form-data';
+import {buildOAuthStartUrl} from './services/oauth.service';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -30,6 +31,15 @@ let errorWindow: BrowserWindow | null = null;
 
 // Кеш текущего пользователя
 let currentUser: User | null = null;
+
+// OAuth deep links
+type PendingAuthPayload = {
+  payload: AuthDeepLinkPayload;
+  delivered: boolean;
+};
+const pendingAuthPayloads: PendingAuthPayload[] = [];
+const processedDeepLinks = new Set<string>();
+let authIpcRegistered = false;
 
 const preloadPath = path.resolve(__dirname, 'preload.js');
 const rendererPath = path.resolve(__dirname, '../renderer/index.html');
@@ -893,13 +903,37 @@ const createOrShowErrorWindow = (errorData: {
 };
 
 // Показываем главное окно (для трея и т.д.)
-const showMainWindow = (route?: string) => {
+const showMainWindow = async (route?: string) => {
+    // Определяем правильный маршрут на основе состояния авторизации
+    let targetRoute = route;
+    
+    if (!route) {
+        try {
+            const config = await getConfig();
+            const hasToken = config.auth.access || config.auth.accessToken;
+            
+            if (!hasToken) {
+                // Не авторизован - показываем welcome
+                targetRoute = '/';
+            } else if (!config.setupCompleted) {
+                // Авторизован, но setup не завершен
+                targetRoute = '/setup';
+            } else {
+                // Авторизован и setup завершен - показываем actions
+                targetRoute = '/actions';
+            }
+        } catch (error) {
+            console.error('[showMainWindow] Failed to determine route:', error);
+            targetRoute = '/';
+        }
+    }
+    
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show();
         mainWindow.focus();
-        // Если указан маршрут, отправляем событие для навигации
-        if (route) {
-            mainWindow.webContents.send('navigate-to', route);
+        // Отправляем событие для навигации
+        if (targetRoute) {
+            mainWindow.webContents.send('navigate-to', targetRoute);
         }
     } else {
         createMainWindow();
@@ -907,16 +941,167 @@ const showMainWindow = (route?: string) => {
             mainWindow.once('ready-to-show', () => {
                 mainWindow?.show();
                 mainWindow?.focus();
-                // Если указан маршрут, отправляем событие для навигации
-                if (route) {
+                // Отправляем событие для навигации
+                if (targetRoute) {
                     setTimeout(() => {
-                        mainWindow?.webContents.send('navigate-to', route);
+                        mainWindow?.webContents.send('navigate-to', targetRoute);
                     }, 100);
                 }
             });
         }
     }
 };
+
+// OAuth Deep Links
+function notifyAuthPayloads() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const contents = mainWindow.webContents;
+  if (!contents || contents.isDestroyed()) return;
+  for (const entry of pendingAuthPayloads) {
+    if (entry.delivered) continue;
+    try {
+      contents.send(IPC_CHANNELS.AUTH_DEEP_LINK, entry.payload);
+      entry.delivered = true;
+    } catch (error) {
+      console.warn('[auth] Failed to dispatch OAuth payload to renderer', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      break;
+    }
+  }
+}
+
+function enqueueAuthPayload(payload: AuthDeepLinkPayload) {
+  pendingAuthPayloads.push({ payload, delivered: false });
+  console.log('[auth] Queued OAuth payload', {
+    kind: payload.kind,
+    provider: payload.provider,
+  });
+  notifyAuthPayloads();
+}
+
+function parseAuthPayload(url: string): AuthDeepLinkPayload | null {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'winky:') return null;
+    if (parsed.hostname !== 'auth') return null;
+    if (!parsed.pathname.startsWith('/callback')) return null;
+    const rawPayload = parsed.searchParams.get('payload');
+    if (!rawPayload) return null;
+    const decoded = decodeURIComponent(rawPayload);
+    const data = JSON.parse(decoded) as Record<string, unknown>;
+    if (data?.app !== 'winky') {
+      return {
+        kind: 'error',
+        provider: String(data?.provider ?? 'unknown'),
+        error: 'Invalid application payload',
+      };
+    }
+    const provider = String(data?.provider ?? 'unknown');
+    if (typeof data?.error === 'string' && data.error.trim().length) {
+      return {
+        kind: 'error',
+        provider,
+        error: data.error,
+      };
+    }
+    const tokens = data?.tokens as Record<string, unknown> | undefined;
+    if (!tokens || typeof tokens.access !== 'string' || !tokens.access.trim().length) {
+      return {
+        kind: 'error',
+        provider,
+        error: 'Missing access token in OAuth payload',
+      };
+    }
+    const refresh = typeof tokens.refresh === 'string' && tokens.refresh.trim().length
+      ? tokens.refresh
+      : null;
+    const user = (data?.user && typeof data.user === 'object') ? data.user as Record<string, unknown> : null;
+    return {
+      kind: 'success',
+      provider,
+      tokens: {
+        access: tokens.access,
+        refresh,
+      },
+      user,
+    };
+  } catch (error) {
+    console.error('[auth] Failed to parse OAuth payload', {
+      url,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      kind: 'error',
+      provider: 'unknown',
+      error: 'Malformed OAuth payload',
+    };
+  }
+}
+
+function handleAuthUrl(url: string) {
+  if (typeof url !== 'string' || !url.trim().startsWith('winky://')) return;
+  if (processedDeepLinks.has(url)) return;
+  processedDeepLinks.add(url);
+  const payload = parseAuthPayload(url);
+  if (payload) {
+    enqueueAuthPayload(payload);
+  }
+}
+
+function extractDeepLinksFromArgv(argv: string[]): string[] {
+  return argv.filter((arg) => typeof arg === 'string' && arg.startsWith('winky://'));
+}
+
+function registerAuthProtocol() {
+  try {
+    const protocol = 'winky';
+    if (process.defaultApp && process.argv.length >= 2) {
+      const exePath = process.execPath;
+      const appPath = path.resolve(process.argv[1]);
+      app.setAsDefaultProtocolClient(protocol, exePath, [appPath]);
+    } else {
+      app.setAsDefaultProtocolClient(protocol);
+    }
+    console.log('[auth] Registered deep link protocol handler', { protocol });
+  } catch (error) {
+    console.warn('[auth] Failed to register protocol handler', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+function registerAuthIpc() {
+  if (authIpcRegistered) return;
+  authIpcRegistered = true;
+
+  ipcMain.handle(IPC_CHANNELS.AUTH_START_OAUTH, async (_event, provider: AuthProvider) => {
+    try {
+      const normalized = String(provider).toLowerCase() as AuthProvider;
+      const supportedProviders: AuthProvider[] = ['google', 'github', 'discord'];
+      if (!supportedProviders.includes(normalized)) {
+        throw new Error(`Unsupported OAuth provider: ${provider}`);
+      }
+      const url = buildOAuthStartUrl(normalized);
+      console.log('[auth] Launching OAuth in browser', { provider: normalized, url });
+      await shell.openExternal(url);
+    } catch (error) {
+      console.error('[auth] Failed to start OAuth flow', {
+        provider,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.AUTH_CONSUME_DEEP_LINKS, async () => {
+    if (!pendingAuthPayloads.length) {
+      return [];
+    }
+    const payloads = pendingAuthPayloads.splice(0, pendingAuthPayloads.length).map((entry) => entry.payload);
+    return payloads;
+  });
+}
 
 const registerIpcHandlers = () => {
     ipcMain.handle('config:get', async () => getConfig());
@@ -1044,7 +1229,7 @@ const registerIpcHandlers = () => {
     ipcMain.handle('auth:logout', async () => {
         try {
             // Очищаем токены
-            await setAuthTokens({ accessToken: '', refreshToken: '' });
+            await setAuthTokens({ access: '', refresh: null, accessToken: '', refreshToken: '' });
             // Очищаем кеш пользователя
             currentUser = null;
             // Закрываем окно микрофона
@@ -1059,8 +1244,8 @@ const registerIpcHandlers = () => {
         }
     });
 
-    ipcMain.handle('windows:open-settings', () => {
-        showMainWindow();
+    ipcMain.handle('windows:open-settings', async () => {
+        await showMainWindow();
     });
 
     ipcMain.handle('actions:fetch', async () => {
@@ -1145,7 +1330,7 @@ const registerIpcHandlers = () => {
             // Не показываем окно ошибки для 401/403, это означает что нужна авторизация
             if (status === 401 || status === 403) {
                 sendLogToRenderer('USER', '🔒 Auth required (401/403), clearing tokens');
-                await setAuthTokens({ accessToken: '', refreshToken: '' });
+                await setAuthTokens({ access: '', refresh: null, accessToken: '', refreshToken: '' });
                 currentUser = null;
                 await broadcastConfigUpdate();
                 return null;
@@ -1214,7 +1399,7 @@ if (gotSingleInstanceLock) {
             });
             return;
         }
-        showMainWindow();
+        void showMainWindow();
     });
 }
 
@@ -1239,6 +1424,8 @@ const login = async ({email, password}: { email: string; password: string }) => 
         throw lastError ?? new Error('Не удалось выполнить запрос авторизации');
     }
     const tokens: AuthTokens = {
+        access: data.access,
+        refresh: data.refresh,
         accessToken: data.access,
         refreshToken: data.refresh
     };
@@ -1453,6 +1640,15 @@ const handleAppReady = async () => {
     app.setName(APP_NAME);
     Menu.setApplicationMenu(null);
     
+    // Регистрируем протокол для OAuth deep links
+    registerAuthProtocol();
+    
+    // Обработка deep links при запуске
+    const initialDeepLinks = extractDeepLinksFromArgv(process.argv);
+    for (const link of initialDeepLinks) {
+      handleAuthUrl(link);
+    }
+    
     // Создаём главное окно (но не показываем его пока)
     createMainWindow();
     
@@ -1460,7 +1656,8 @@ const handleAppReady = async () => {
     let shouldShowMainWindow = true;
     try {
         const config = await getConfig();
-        if (config.auth.accessToken && config.auth.accessToken.trim() !== '') {
+        const hasToken = config.auth.access || config.auth.accessToken;
+        if (hasToken && (typeof hasToken === 'string' && hasToken.trim() !== '')) {
             // Есть токен, пытаемся загрузить пользователя
             try {
                 const user = await fetchCurrentUser();
@@ -1537,7 +1734,16 @@ const handleAppReady = async () => {
     }
     
     registerIpcHandlers();
+    registerAuthIpc();
     await registerMicShortcut();
+    
+    // Уведомляем renderer о pending OAuth payloads
+    if (mainWindow) {
+      mainWindow.webContents.on('did-finish-load', () => {
+        notifyAuthPayloads();
+      });
+    }
+    notifyAuthPayloads();
 
     if (isDev && mainWindow && shouldShowMainWindow) {
         mainWindow.webContents.openDevTools({mode: 'detach'});
@@ -1555,6 +1761,31 @@ const handleAppReady = async () => {
 
 app.whenReady().then(handleAppReady);
 
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleAuthUrl(url);
+  notifyAuthPayloads();
+});
+
+app.on('second-instance', (_event, argv) => {
+  console.log('[app] Second instance detected, focusing main window');
+  try {
+    const links = extractDeepLinksFromArgv(argv);
+    for (const link of links) {
+      handleAuthUrl(link);
+    }
+  } catch (error) {
+    console.warn('[auth] Failed to process deep link from second instance', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    notifyAuthPayloads();
+  }
+});
+
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         destroyTray();
@@ -1566,6 +1797,7 @@ app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
         createMainWindow();
     }
+    notifyAuthPayloads();
 });
 
 app.on('quit', () => {

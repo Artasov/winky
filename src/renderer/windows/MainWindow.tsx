@@ -43,7 +43,7 @@ const MainWindow: React.FC = () => {
       return;
     }
 
-    const accessToken = config.auth.accessToken || undefined;
+    const accessToken = config.auth.access || config.auth.accessToken || undefined;
 
     try {
       speechServiceRef.current = createSpeechService(config.speech.mode, config.speech.model, {
@@ -224,7 +224,7 @@ const MainWindow: React.FC = () => {
         model: config.llm.model,
         openaiKey: config.apiKeys.openai,
         googleKey: config.apiKeys.google,
-        accessToken: config.auth.accessToken
+        accessToken: config.auth.access || config.auth.accessToken
       };
 
       let response = '';

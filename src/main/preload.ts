@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-import type { ActionConfig, ActionIcon, AppConfig, AuthTokens, User, WinkyProfile } from '@shared/types';
+import type { ActionConfig, ActionIcon, AppConfig, AuthTokens, User, WinkyProfile, AuthDeepLinkPayload, AuthProvider } from '@shared/types';
+import { IPC_CHANNELS } from '@shared/constants';
 
 type UpdateConfigPayload = Partial<AppConfig>;
 type LoginResponse = {
@@ -66,7 +67,58 @@ const api = {
   auth: {
     login: (email: string, password: string): Promise<LoginResponse> =>
       ipcRenderer.invoke('auth:login', { email, password }),
-    logout: (): Promise<boolean> => ipcRenderer.invoke('auth:logout')
+    logout: (): Promise<boolean> => ipcRenderer.invoke('auth:logout'),
+    startOAuth: async (provider: AuthProvider): Promise<void> => {
+      await ipcRenderer.invoke(IPC_CHANNELS.AUTH_START_OAUTH, provider);
+    },
+    onOAuthPayload: (cb: (payload: AuthDeepLinkPayload) => void): (() => void) => {
+      const listeners = new Set<(payload: AuthDeepLinkPayload) => void>();
+      
+      const emit = (payload: AuthDeepLinkPayload) => {
+        for (const listener of listeners) {
+          try {
+            listener(payload);
+          } catch {
+          }
+        }
+      };
+      
+      const handler = (_event: IpcRendererEvent, payload: AuthDeepLinkPayload) => {
+        emit(payload);
+      };
+      
+      ipcRenderer.on(IPC_CHANNELS.AUTH_DEEP_LINK, handler);
+      listeners.add(cb);
+      
+      const consumePending = async () => {
+        try {
+          const payloads = await ipcRenderer.invoke(IPC_CHANNELS.AUTH_CONSUME_DEEP_LINKS) as AuthDeepLinkPayload[];
+          if (Array.isArray(payloads) && payloads.length) {
+            for (const payload of payloads) {
+              emit(payload);
+            }
+          }
+          return payloads;
+        } catch {
+          return [];
+        }
+      };
+      
+      void consumePending();
+      
+      return () => {
+        listeners.delete(cb);
+        ipcRenderer.removeListener(IPC_CHANNELS.AUTH_DEEP_LINK, handler);
+      };
+    },
+    consumePendingOAuthPayloads: async (): Promise<AuthDeepLinkPayload[]> => {
+      try {
+        const payloads = await ipcRenderer.invoke(IPC_CHANNELS.AUTH_CONSUME_DEEP_LINKS) as AuthDeepLinkPayload[];
+        return Array.isArray(payloads) ? payloads : [];
+      } catch {
+        return [];
+      }
+    }
   },
   actions: {
     fetch: (): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:fetch'),

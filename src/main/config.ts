@@ -4,6 +4,8 @@ import type { ActionConfig, AppConfig, AuthTokens, LLMMode, MicAnchor, SpeechMod
 
 const DEFAULT_CONFIG: AppConfig = {
   auth: {
+    access: '',
+    refresh: null,
     accessToken: '',
     refreshToken: ''
   },
@@ -31,10 +33,12 @@ const schema: Schema<AppConfig> = {
   auth: {
     type: 'object',
     properties: {
+      access: { type: 'string' },
+      refresh: { type: ['string', 'null'] },
       accessToken: { type: 'string' },
       refreshToken: { type: 'string' }
     },
-    required: ['accessToken', 'refreshToken']
+    required: []
   },
   setupCompleted: { type: 'boolean' },
   speech: {
@@ -142,6 +146,29 @@ const ensureConfigIntegrity = async (): Promise<AppConfig> => {
   const store = await getStore();
   const current = store.store;
   let changed = false;
+
+  // Нормализация auth токенов для обратной совместимости
+  if (current.auth) {
+    // Если есть accessToken но нет access, копируем
+    if (current.auth.accessToken && !current.auth.access) {
+      current.auth.access = current.auth.accessToken;
+      changed = true;
+    }
+    // Если есть refreshToken но нет refresh, копируем
+    if (current.auth.refreshToken && !current.auth.refresh) {
+      current.auth.refresh = current.auth.refreshToken;
+      changed = true;
+    }
+    // Синхронизируем в обратную сторону для legacy кода
+    if (current.auth.access && !current.auth.accessToken) {
+      current.auth.accessToken = current.auth.access;
+      changed = true;
+    }
+    if (current.auth.refresh && !current.auth.refreshToken) {
+      current.auth.refreshToken = current.auth.refresh;
+      changed = true;
+    }
+  }
 
   if (!current.speech) {
     current.speech = { mode: SPEECH_MODES.API, model: SPEECH_API_MODELS[0] };

@@ -1,4 +1,4 @@
-import type { ActionConfig, ActionIcon, AppConfig, AuthTokens, WinkyProfile, User } from '@shared/types';
+import type { ActionConfig, ActionIcon, AppConfig, AuthTokens, WinkyProfile, User, AuthDeepLinkPayload, AuthProvider } from '@shared/types';
 
 declare global {
   interface WinkyConfigAPI {
@@ -21,6 +21,9 @@ declare global {
       config: AppConfig;
     }>;
     logout(): Promise<boolean>;
+    startOAuth(provider: AuthProvider): Promise<void>;
+    onOAuthPayload(cb: (payload: AuthDeepLinkPayload) => void): () => void;
+    consumePendingOAuthPayloads(): Promise<AuthDeepLinkPayload[]>;
   }
 
   interface WinkyUserAPI {

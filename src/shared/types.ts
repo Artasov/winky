@@ -6,16 +6,44 @@ export type LLMModel = (typeof LLM_API_MODELS)[number] | (typeof LLM_LOCAL_MODEL
 export type SpeechModel = (typeof SPEECH_API_MODELS)[number] | (typeof SPEECH_LOCAL_MODELS)[number];
 
 export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
+  access: string;
+  refresh?: string | null;
+  // Legacy fields для обратной совместимости
+  accessToken?: string;
+  refreshToken?: string;
 }
+
+export type AuthProvider = 'google' | 'github' | 'discord';
+
+export type AuthTokensPayload = {
+  access: string;
+  refresh?: string | null;
+};
+
+export type AuthDeepLinkPayload =
+  | {
+      kind: 'success';
+      provider: AuthProvider | string;
+      tokens: AuthTokensPayload;
+      user?: Record<string, unknown> | null;
+    }
+  | {
+      kind: 'error';
+      provider: AuthProvider | string;
+      error: string;
+    };
 
 export interface User {
   id: number;
   email: string;
-  username?: string;
-  first_name?: string;
-  last_name?: string;
+  username?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  middle_name?: string | null;
+  birth_date?: string | null;
+  avatar?: string | null;
+  timezone?: string | Record<string, unknown> | null;
+  is_email_confirmed?: boolean;
   is_active?: boolean;
   date_joined?: string;
 }

@@ -3,7 +3,7 @@ import path from 'path';
 
 let tray: Tray | null = null;
 
-export const createTray = (onOpenWindow: (route?: string) => void, onQuit?: () => void, onOpenMic?: () => void): Tray => {
+export const createTray = (onOpenWindow: (route?: string) => void | Promise<void>, onQuit?: () => void, onOpenMic?: () => void): Tray => {
     if (tray) {
         return tray;
     }
@@ -20,7 +20,8 @@ export const createTray = (onOpenWindow: (route?: string) => void, onQuit?: () =
         {
             label: 'Open Winky',
             click: () => {
-                onOpenWindow('/settings');
+                // Не передаем маршрут, чтобы showMainWindow сама определила правильный
+                void onOpenWindow();
             }
         },
         {

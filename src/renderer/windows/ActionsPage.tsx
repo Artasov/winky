@@ -9,7 +9,8 @@ const ActionsPage: React.FC = () => {
     const {icons, loading: iconsLoading, fetchIcons} = useIcons();
     const {showToast} = useToast();
     const actions = useMemo(() => config?.actions ?? [], [config?.actions]);
-    const isAuthorized = Boolean(config?.auth.accessToken);
+    const hasToken = config?.auth.access || config?.auth.accessToken;
+    const isAuthorized = Boolean(hasToken);
 
     const MODAL_ANIMATION_MS = 180;
     const [isModalVisible, setIsModalVisible] = useState(false);

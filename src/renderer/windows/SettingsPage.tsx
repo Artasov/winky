@@ -173,7 +173,8 @@ const SettingsPage: React.FC = () => {
         }
     };
 
-    const isAuthorized = Boolean(config?.auth.accessToken);
+    const hasToken = config?.auth.access || config?.auth.accessToken;
+    const isAuthorized = Boolean(hasToken);
 
     if (!isAuthorized) {
         return (

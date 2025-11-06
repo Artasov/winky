@@ -1721,7 +1721,7 @@ const handleAppReady = async () => {
                 arguments: '--show-mic',
                 iconPath: getIconPath(),
                 iconIndex: 0,
-                title: 'OpenMic',
+                title: 'Mic',
                 description: 'Show the microphone overlay'
             }
         ]);

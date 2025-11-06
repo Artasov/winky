@@ -25,7 +25,7 @@ export const createTray = (onOpenWindow: (route?: string) => void | Promise<void
             }
         },
         {
-            label: 'OpenMic',
+            label: 'Mic',
             enabled: Boolean(onOpenMic),
             click: () => {
                 if (onOpenMic) {

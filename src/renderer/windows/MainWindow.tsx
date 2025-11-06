@@ -363,7 +363,19 @@ const MainWindow: React.FC = () => {
 
     const visibilityHandler = (_event: unknown, payload: { visible: boolean }) => {
       if (!payload?.visible) {
+        // Отключаем автозапуск при скрытии
         autoStartPendingRef.current = false;
+        // Если запись шла — корректно останавливаем её при скрытии окна (например, хоткеем)
+        if (isRecordingRef.current) {
+          (async () => {
+            try {
+              await finishRecording();
+            } finally {
+              setActiveActionId(null);
+              resetInteractive();
+            }
+          })();
+        }
       }
     };
 

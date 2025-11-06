@@ -26,6 +26,7 @@ const SettingsPage: React.FC = () => {
     const [micHotkey, setMicHotkey] = useState('');
     const [micAnchor, setMicAnchor] = useState<MicAnchor>('bottom-right');
     const [micAutoStart, setMicAutoStart] = useState(false);
+    const [completionSoundVolume, setCompletionSoundVolume] = useState(1.0);
 
     useEffect(() => {
         if (config) {
@@ -40,6 +41,7 @@ const SettingsPage: React.FC = () => {
             setMicHotkey(config.micHotkey ?? '');
             setMicAnchor((config.micAnchor as MicAnchor) ?? 'bottom-right');
             setMicAutoStart(Boolean(config.micAutoStartRecording));
+            setCompletionSoundVolume(config.completionSoundVolume ?? 1.0);
         }
     }, [config]);
 
@@ -154,6 +156,25 @@ const SettingsPage: React.FC = () => {
         showToast('Please include a non-modifier key in the shortcut.', 'info');
     };
 
+    const handleVolumeChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const nextValue = parseFloat(event.target.value);
+        setCompletionSoundVolume(nextValue);
+    };
+
+    const handleVolumeSave = async () => {
+        try {
+            await updateConfig({completionSoundVolume});
+            if (completionSoundVolume === 0) {
+                showToast('Completion sound disabled.', 'success');
+            } else {
+                showToast(`Completion sound volume set to ${Math.round(completionSoundVolume * 100)}%.`, 'success');
+            }
+        } catch (error) {
+            console.error('[SettingsPage] Failed to update completion sound volume', error);
+            showToast('Failed to update volume.', 'error');
+        }
+    };
+
     const handleAutoStartChange = async (event: ChangeEvent<HTMLInputElement>) => {
         const nextValue = event.target.checked;
         const previousValue = micAutoStart;
@@ -255,6 +276,26 @@ const SettingsPage: React.FC = () => {
                     </label>
                     <p className="text-xs text-text-tertiary">
                         When enabled, showing the mic via hotkey or taskbar menu immediately begins recording.
+                    </p>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-text-primary">
+                        Completion Sound Volume: {Math.round(completionSoundVolume * 100)}%
+                    </label>
+                    <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={completionSoundVolume}
+                        onChange={handleVolumeChange}
+                        onMouseUp={handleVolumeSave}
+                        onTouchEnd={handleVolumeSave}
+                        className="w-full accent-primary"
+                    />
+                    <p className="text-xs text-text-tertiary">
+                        Adjust the volume of the sound that plays when an action completes. Set to 0% to disable.
                     </p>
                 </div>
 

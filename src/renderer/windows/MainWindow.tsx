@@ -209,10 +209,14 @@ const MainWindow: React.FC = () => {
         }
         
         if (action.sound_on_complete && completionSoundRef.current) {
-          console.log('[MainWindow] Playing completion sound');
-          completionSoundRef.current.play().catch((error) => {
-            console.error('[MainWindow] Error playing sound:', error);
-          });
+          const volume = config?.completionSoundVolume ?? 1.0;
+          if (volume > 0) {
+            console.log('[MainWindow] Playing completion sound at volume:', volume);
+            completionSoundRef.current.volume = volume;
+            completionSoundRef.current.play().catch((error) => {
+              console.error('[MainWindow] Error playing sound:', error);
+            });
+          }
         }
         
         return;
@@ -245,10 +249,14 @@ const MainWindow: React.FC = () => {
       }
 
       if (action.sound_on_complete && completionSoundRef.current) {
-        console.log('[MainWindow] Playing completion sound (after LLM)');
-        completionSoundRef.current.play().catch((error) => {
-          console.error('[MainWindow] Error playing sound:', error);
-        });
+        const volume = config?.completionSoundVolume ?? 1.0;
+        if (volume > 0) {
+          console.log('[MainWindow] Playing completion sound (after LLM) at volume:', volume);
+          completionSoundRef.current.volume = volume;
+          completionSoundRef.current.play().catch((error) => {
+            console.error('[MainWindow] Error playing sound:', error);
+          });
+        }
       }
 
     } catch (error: any) {

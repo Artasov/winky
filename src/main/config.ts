@@ -26,7 +26,8 @@ const DEFAULT_CONFIG: AppConfig = {
   micWindowPosition: undefined,
   micHotkey: '',
   micAnchor: 'bottom-right',
-  micAutoStartRecording: false
+  micAutoStartRecording: false,
+  completionSoundVolume: 1.0
 };
 
 const schema: Schema<AppConfig> = {
@@ -94,6 +95,12 @@ const schema: Schema<AppConfig> = {
   },
   micAutoStartRecording: {
     type: 'boolean'
+  },
+  completionSoundVolume: {
+    type: 'number',
+    minimum: 0,
+    maximum: 1,
+    default: 1.0
   }
 };
 

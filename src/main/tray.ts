@@ -18,19 +18,19 @@ export const createTray = (onOpenWindow: (route?: string) => void | Promise<void
 
     const contextMenu = Menu.buildFromTemplate([
         {
-            label: 'Open Winky',
-            click: () => {
-                // Не передаем маршрут, чтобы showMainWindow сама определила правильный
-                void onOpenWindow();
-            }
-        },
-        {
             label: 'Mic',
             enabled: Boolean(onOpenMic),
             click: () => {
                 if (onOpenMic) {
                     onOpenMic();
                 }
+            }
+        },
+        {
+            label: 'Open Winky',
+            click: () => {
+                // Не передаем маршрут, чтобы showMainWindow сама определила правильный
+                void onOpenWindow();
             }
         },
         {

@@ -23,7 +23,8 @@ const DEFAULT_CONFIG: AppConfig = {
   actions: [],
   micWindowPosition: undefined,
   micHotkey: '',
-  micAnchor: 'bottom-right'
+  micAnchor: 'bottom-right',
+  micAutoStartRecording: false
 };
 
 const schema: Schema<AppConfig> = {
@@ -86,6 +87,9 @@ const schema: Schema<AppConfig> = {
   micAnchor: {
     type: 'string',
     enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+  },
+  micAutoStartRecording: {
+    type: 'boolean'
   }
 };
 
@@ -175,6 +179,11 @@ const ensureConfigIntegrity = async (): Promise<AppConfig> => {
   const validAnchors: MicAnchor[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
   if (!current.micAnchor || !validAnchors.includes(current.micAnchor as MicAnchor)) {
     current.micAnchor = 'bottom-right';
+    changed = true;
+  }
+
+  if (typeof current.micAutoStartRecording !== 'boolean') {
+    current.micAutoStartRecording = false;
     changed = true;
   }
 

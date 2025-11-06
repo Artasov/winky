@@ -15,6 +15,13 @@ import { resetInteractive } from '../utils/interactive';
 const MainWindow: React.FC = () => {
   const { config } = useConfig();
   const { showToast } = useToast();
+  const isMicOverlay = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    const params = new URLSearchParams(window.location.search);
+    return params.get('window') === 'mic';
+  }, []);
   const speechServiceRef = useRef<BaseSpeechService | null>(null);
   const llmServiceRef = useRef<BaseLLMService | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -26,6 +33,10 @@ const MainWindow: React.FC = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | undefined>(undefined);
+  const autoStartPendingRef = useRef(false);
+  const isRecordingRef = useRef(false);
+  const processingRef = useRef(false);
+  const handleMicrophoneToggleRef = useRef<(() => Promise<void> | void) | null>(null);
 
   useEffect(() => {
     if (!config) {
@@ -269,11 +280,15 @@ const MainWindow: React.FC = () => {
     }
 
     // Просто останавливаем запись без транскрипции (отмена)
-    await finishRecording();
-    setActiveActionId(null);
-    
-    // Сбрасываем интерактивность окна
-    resetInteractive();
+    try {
+      await finishRecording();
+    } finally {
+      setActiveActionId(null);
+      resetInteractive();
+      if (isMicOverlay) {
+        void window.winky?.mic?.hide({ reason: 'action' });
+      }
+    }
   };
 
   const handleActionClick = async (action: ActionConfig) => {
@@ -288,25 +303,78 @@ const MainWindow: React.FC = () => {
 
     setActiveActionId(action.id);
     setProcessing(true);
-    
-    // Останавливаем запись, но не меняем UI (isRecording остается true)
-    const blob = await finishRecording(false);
-    
-    if (blob) {
-      await processAction(action, blob);
+    try {
+      // Останавливаем запись, но не меняем UI (isRecording остается true)
+      const blob = await finishRecording(false);
+      if (blob) {
+        await processAction(action, blob);
+      }
+    } finally {
+      // Только сейчас возвращаем изначальный вид
+      setIsRecording(false);
+      stopVolumeMonitor();
+      setActiveActionId(null);
+      setProcessing(false);
+      // Сбрасываем интерактивность окна, чтобы клики проходили сквозь прозрачные области
+      resetInteractive();
+      if (isMicOverlay) {
+        void window.winky?.mic?.hide({ reason: 'action' });
+      }
     }
-    
-    // Только сейчас возвращаем изначальный вид
-    setIsRecording(false);
-    stopVolumeMonitor();
-    setActiveActionId(null);
-    setProcessing(false);
-    
-    // Сбрасываем интерактивность окна, чтобы клики проходили сквозь прозрачные области
-    resetInteractive();
   };
 
   const normalizedVolume = Math.min(volume * 2.5, 1);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  useEffect(() => {
+    processingRef.current = processing;
+  }, [processing]);
+
+  useEffect(() => {
+    handleMicrophoneToggleRef.current = handleMicrophoneToggle;
+  }, [handleMicrophoneToggle]);
+
+  useEffect(() => {
+    if (!isMicOverlay) {
+      return;
+    }
+
+    const api = window.winky;
+    if (!api?.on) {
+      return;
+    }
+
+    const startHandler = () => {
+      if (autoStartPendingRef.current || isRecordingRef.current || processingRef.current) {
+        return;
+      }
+      const toggle = handleMicrophoneToggleRef.current;
+      if (!toggle) {
+        return;
+      }
+      autoStartPendingRef.current = true;
+      Promise.resolve(toggle()).finally(() => {
+        autoStartPendingRef.current = false;
+      });
+    };
+
+    const visibilityHandler = (_event: unknown, payload: { visible: boolean }) => {
+      if (!payload?.visible) {
+        autoStartPendingRef.current = false;
+      }
+    };
+
+    api.on('mic:start-recording', startHandler);
+    api.on('mic:visibility-change', visibilityHandler);
+    return () => {
+      api.removeListener?.('mic:start-recording', startHandler);
+      api.removeListener?.('mic:visibility-change', visibilityHandler);
+    };
+  }, [isMicOverlay]);
+
   return (
     <>
       <audio ref={completionSoundRef} src='/sounds/completion.wav' preload='auto' />

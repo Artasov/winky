@@ -85,6 +85,7 @@ export interface AppConfig {
   };
   micHotkey?: string;
   micAnchor?: MicAnchor;
+  micAutoStartRecording?: boolean;
 }
 
 export interface LLMProcessResponse {

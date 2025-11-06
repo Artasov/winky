@@ -17,6 +17,12 @@ if (process.platform === 'linux') {
     app.disableHardwareAcceleration();
 }
 
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
+    app.quit();
+}
+
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let resultWindow: BrowserWindow | null = null;
@@ -50,6 +56,52 @@ const MIC_WINDOW_MARGIN = 24;
 const MIC_BUTTON_SIZE = 80;
 
 let registeredMicShortcut: string | null = null;
+type MicVisibilityReason = 'shortcut' | 'taskbar' | 'auto' | 'system' | 'manual' | 'renderer' | 'action';
+
+const sendMicVisibilityChange = (visible: boolean, reason: MicVisibilityReason) => {
+    if (!micWindow || micWindow.isDestroyed()) {
+        return;
+    }
+    const payload = { visible, reason };
+    if (micWindow.webContents.isLoading()) {
+        micWindow.webContents.once('did-finish-load', () => {
+            if (!micWindow || micWindow.isDestroyed()) {
+                return;
+            }
+            micWindow.webContents.send('mic:visibility-change', payload);
+        });
+        return;
+    }
+    micWindow.webContents.send('mic:visibility-change', payload);
+};
+
+const scheduleMicAutoStart = (reason: MicVisibilityReason) => {
+    if (reason !== 'shortcut' && reason !== 'taskbar') {
+        return;
+    }
+
+    void (async () => {
+        try {
+            const config = await getConfig();
+            if (!config.micAutoStartRecording) {
+                return;
+            }
+
+            if (!micWindow || micWindow.isDestroyed()) {
+                return;
+            }
+
+            setTimeout(() => {
+                if (!micWindow || micWindow.isDestroyed()) {
+                    return;
+                }
+                micWindow.webContents.send('mic:start-recording');
+            }, 50);
+        } catch (error) {
+            console.warn('[Mic] Failed to schedule auto start', error);
+        }
+    })();
+};
 
 const ensureMicOnTop = () => {
     if (!micWindow || micWindow.isDestroyed()) {
@@ -149,8 +201,8 @@ const clearMicWindowFadeTimeout = () => {
         micWindowFadeTimeout = null;
     }
 };
-const showMicWindowInstance = () => {
-    console.log('[Mic] showMicWindowInstance called', { micWindowVisible, micWindowAutoShowDisabled });
+const showMicWindowInstance = (reason: MicVisibilityReason = 'system') => {
+    console.log('[Mic] showMicWindowInstance called', { micWindowVisible, micWindowAutoShowDisabled, reason });
     if (!micWindow || micWindow.isDestroyed()) {
         console.log('[Mic] Window destroyed, ignoring');
         return;
@@ -205,6 +257,8 @@ const showMicWindowInstance = () => {
         const [width, height] = micWindow.getSize();
         console.log('[Mic] Window position and size:', { x, y, width, height });
         console.log('[Mic] Window shown successfully');
+        sendMicVisibilityChange(true, reason);
+        scheduleMicAutoStart(reason);
     };
 
     console.log('[Mic] Showing window');
@@ -223,10 +277,30 @@ const showMicWindowInstance = () => {
     }
 };
 
-const toggleMicWindow = async (fromShortcut = false) => {
-    console.log('[Hotkey] toggleMicWindow called', { fromShortcut, micWindowVisible, micWindowAutoShowDisabled, hotkeyToggleLocked });
+const hideMicWindow = (reason: MicVisibilityReason = 'system', options: { disableAutoShow?: boolean } = {}) => {
+    if (!micWindow || micWindow.isDestroyed()) {
+        return;
+    }
+
+    const { disableAutoShow = false } = options;
+
+    console.log('[Mic] hideMicWindow called', { reason, disableAutoShow });
+
+    micWindowVisible = false;
+    if (disableAutoShow) {
+        micWindowAutoShowDisabled = true;
+    }
+    setMicInteractive(false);
+    clearMicWindowFadeTimeout();
+    micWindow.setOpacity(0);
+    micWindow.hide();
+    sendMicVisibilityChange(false, reason);
+};
+
+const toggleMicWindow = async (source: MicVisibilityReason = 'manual') => {
+    console.log('[Hotkey] toggleMicWindow called', { source, micWindowVisible, micWindowAutoShowDisabled, hotkeyToggleLocked });
     
-    if (fromShortcut) {
+    if (source === 'shortcut') {
         const now = Date.now();
         if (hotkeyToggleLocked) {
             console.log('[Hotkey] Toggle locked, ignoring');
@@ -249,35 +323,27 @@ const toggleMicWindow = async (fromShortcut = false) => {
         console.log('[Hotkey] Creating mic window');
         await createMicWindow();
         console.log('[Hotkey] Mic window created, now showing');
-        showMicWindowInstance();
+        showMicWindowInstance(source);
         return;
     }
 
     if (micWindowVisible) {
         console.log('[Hotkey] Hiding mic window');
-        micWindowAutoShowDisabled = true;
-        micWindowVisible = false;
-        setMicInteractive(false);
-        clearMicWindowFadeTimeout();
-        if (micWindow && !micWindow.isDestroyed()) {
-            micWindow.setOpacity(0);
-        }
-        micWindow.hide();
-        console.log('[Hotkey] Mic window hidden');
-        if (fromShortcut) {
+        hideMicWindow(source, { disableAutoShow: source === 'shortcut' });
+        if (source === 'shortcut') {
             lastMicToggleTime = Date.now();
         }
         return;
     }
 
     console.log('[Hotkey] Showing mic window');
-    if (fromShortcut) {
+    if (source === 'shortcut') {
         lastMicToggleTime = Date.now();
     }
     
     // Сбрасываем флаг auto-show disabled перед показом
     micWindowAutoShowDisabled = false;
-    showMicWindowInstance();
+    showMicWindowInstance(source);
 };
 
 const emitToAllWindows = (channel: string, payload?: any) => {
@@ -370,7 +436,7 @@ const registerMicShortcut = async () => {
 
         const success = globalShortcut.register(electronAccelerator, () => {
             console.log('[Hotkey] Shortcut triggered:', electronAccelerator);
-            void toggleMicWindow(true);
+            void toggleMicWindow('shortcut');
         });
         if (success) {
             registeredMicShortcut = electronAccelerator;
@@ -874,13 +940,13 @@ const registerIpcHandlers = () => {
                         micWindow.webContents.openDevTools({mode: 'detach'});
                     }
                     if (micWindow && !micWindow.isDestroyed()) {
-                        showMicWindowInstance();
+                        showMicWindowInstance('auto');
                     }
                 }).catch((error) => {
                     sendLogToRenderer('MIC_WINDOW', `❌ Failed to auto-show mic after config update: ${error}`);
                 });
             } else if (partialConfig.setupCompleted === true) {
-                showMicWindowInstance();
+                showMicWindowInstance('auto');
             }
         }
         
@@ -949,6 +1015,17 @@ const registerIpcHandlers = () => {
         await ensureMicWindowReady();
         const position = await applyMicAnchorPosition(anchor, true);
         return position;
+    });
+
+    ipcMain.handle('mic:show', async (_event, reason?: MicVisibilityReason) => {
+        await ensureMicWindowReady();
+        showMicWindowInstance(reason ?? 'renderer');
+        return true;
+    });
+
+    ipcMain.handle('mic:hide', async (_event, options?: { reason?: MicVisibilityReason; disableAutoShow?: boolean }) => {
+        hideMicWindow(options?.reason ?? 'renderer', { disableAutoShow: Boolean(options?.disableAutoShow) });
+        return true;
     });
 
     ipcMain.handle('auth:login', async (_event, credentials: { email: string; password: string }) => {
@@ -1129,6 +1206,18 @@ const registerIpcHandlers = () => {
     });
 };
 
+if (gotSingleInstanceLock) {
+    app.on('second-instance', (_event, argv) => {
+        if (argv.includes('--show-mic')) {
+            void ensureMicWindowReady().then(() => {
+                showMicWindowInstance('taskbar');
+            });
+            return;
+        }
+        showMainWindow();
+    });
+}
+
 const login = async ({email, password}: { email: string; password: string }) => {
     let data: AuthResponse | undefined;
     let lastError: unknown = null;
@@ -1181,7 +1270,7 @@ const login = async ({email, password}: { email: string; password: string }) => 
                 micWindow.webContents.openDevTools({mode: 'detach'});
             }
             if (config.setupCompleted && micWindow && !micWindow.isDestroyed()) {
-                showMicWindowInstance();
+                showMicWindowInstance('auto');
             }
             if (config.setupCompleted && mainWindow && !mainWindow.isDestroyed()) {
                 sendLogToRenderer('LOGIN', '🔒 Closing main window after mic window created');
@@ -1191,7 +1280,7 @@ const login = async ({email, password}: { email: string; password: string }) => 
     } else {
         sendLogToRenderer('LOGIN', '⏭️ Mic window already exists, skipping creation');
         if (config.setupCompleted) {
-            showMicWindowInstance();
+            showMicWindowInstance('auto');
         }
         if (config.setupCompleted && mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.close();
@@ -1391,13 +1480,13 @@ const handleAppReady = async () => {
                         micWindow.webContents.openDevTools({mode: 'detach'});
                     }
                     if (shouldAutoShowMic && micWindow && !micWindow.isDestroyed()) {
-                        showMicWindowInstance();
+                        showMicWindowInstance('auto');
                     }
                 }).catch((error) => {
                     sendLogToRenderer('APP_READY', `❌ Failed to create mic window: ${error}`);
                 });
             } else if (shouldAutoShowMic) {
-                showMicWindowInstance();
+                showMicWindowInstance('auto');
             }
 
             if (config.setupCompleted) {
@@ -1418,7 +1507,34 @@ const handleAppReady = async () => {
     }
     
     // Создаём трей
-    createTray(showMainWindow);
+    createTray(
+        showMainWindow,
+        undefined,
+        () => {
+            void ensureMicWindowReady().then(() => {
+                showMicWindowInstance('taskbar');
+            });
+        }
+    );
+    
+    if (process.platform === 'win32') {
+        app.setUserTasks([
+            {
+                program: process.execPath,
+                arguments: '--show-mic',
+                iconPath: getIconPath(),
+                iconIndex: 0,
+                title: 'OpenMic',
+                description: 'Show the microphone overlay'
+            }
+        ]);
+    }
+    
+    if (process.argv.includes('--show-mic')) {
+        void ensureMicWindowReady().then(() => {
+            showMicWindowInstance('taskbar');
+        });
+    }
     
     registerIpcHandlers();
     await registerMicShortcut();

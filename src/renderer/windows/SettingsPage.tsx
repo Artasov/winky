@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {ChangeEvent, useEffect, useState} from 'react';
 import classNames from 'classnames';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
@@ -25,6 +25,7 @@ const SettingsPage: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [micHotkey, setMicHotkey] = useState('');
     const [micAnchor, setMicAnchor] = useState<MicAnchor>('bottom-right');
+    const [micAutoStart, setMicAutoStart] = useState(false);
 
     useEffect(() => {
         if (config) {
@@ -38,6 +39,7 @@ const SettingsPage: React.FC = () => {
             });
             setMicHotkey(config.micHotkey ?? '');
             setMicAnchor((config.micAnchor as MicAnchor) ?? 'bottom-right');
+            setMicAutoStart(Boolean(config.micAutoStartRecording));
         }
     }, [config]);
 
@@ -152,6 +154,25 @@ const SettingsPage: React.FC = () => {
         showToast('Please include a non-modifier key in the shortcut.', 'info');
     };
 
+    const handleAutoStartChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const nextValue = event.target.checked;
+        const previousValue = micAutoStart;
+        setMicAutoStart(nextValue);
+        try {
+            await updateConfig({micAutoStartRecording: nextValue});
+            showToast(
+                nextValue
+                    ? 'Recording starts automatically when the mic overlay opens.'
+                    : 'Automatic recording on overlay show disabled.',
+                'success'
+            );
+        } catch (error) {
+            console.error('[SettingsPage] Failed to update mic auto start', error);
+            setMicAutoStart(previousValue);
+            showToast('Failed to update microphone behaviour.', 'error');
+        }
+    };
+
     const isAuthorized = Boolean(config?.auth.accessToken);
 
     if (!isAuthorized) {
@@ -219,6 +240,21 @@ const SettingsPage: React.FC = () => {
                     </div>
                     <p className="text-xs text-text-tertiary">Select one of the corners to dock the microphone overlay.
                         The overlay moves immediately.</p>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                        <input
+                            type="checkbox"
+                            checked={micAutoStart}
+                            onChange={handleAutoStartChange}
+                            className="h-4 w-4 rounded border border-primary-200 text-primary focus:ring-primary"
+                        />
+                        Start recording automatically
+                    </label>
+                    <p className="text-xs text-text-tertiary">
+                        When enabled, showing the mic via hotkey or taskbar menu immediately begins recording.
+                    </p>
                 </div>
 
             </section>

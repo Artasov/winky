@@ -26,6 +26,7 @@ const SettingsPage: React.FC = () => {
     const [micHotkey, setMicHotkey] = useState('');
     const [micAnchor, setMicAnchor] = useState<MicAnchor>('bottom-right');
     const [micAutoStart, setMicAutoStart] = useState(false);
+    const [micHideOnStop, setMicHideOnStop] = useState(true);
     const [completionSoundVolume, setCompletionSoundVolume] = useState(1.0);
 
     useEffect(() => {
@@ -41,6 +42,7 @@ const SettingsPage: React.FC = () => {
             setMicHotkey(config.micHotkey ?? '');
             setMicAnchor((config.micAnchor as MicAnchor) ?? 'bottom-right');
             setMicAutoStart(Boolean(config.micAutoStartRecording));
+            setMicHideOnStop(config.micHideOnStopRecording ?? true);
             setCompletionSoundVolume(config.completionSoundVolume ?? 1.0);
         }
     }, [config]);
@@ -194,6 +196,25 @@ const SettingsPage: React.FC = () => {
         }
     };
 
+    const handleHideOnStopChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const nextValue = event.target.checked;
+        const previousValue = micHideOnStop;
+        setMicHideOnStop(nextValue);
+        try {
+            await updateConfig({micHideOnStopRecording: nextValue});
+            showToast(
+                nextValue
+                    ? 'Mic overlay will hide when recording stops.'
+                    : 'Mic overlay will stay visible when recording stops.',
+                'success'
+            );
+        } catch (error) {
+            console.error('[SettingsPage] Failed to update mic hide on stop', error);
+            setMicHideOnStop(previousValue);
+            showToast('Failed to update microphone behaviour.', 'error');
+        }
+    };
+
     const hasToken = config?.auth.access || config?.auth.accessToken;
     const isAuthorized = Boolean(hasToken);
 
@@ -276,6 +297,21 @@ const SettingsPage: React.FC = () => {
                     </label>
                     <p className="text-xs text-text-tertiary">
                         When enabled, showing the mic via hotkey or taskbar menu immediately begins recording.
+                    </p>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                        <input
+                            type="checkbox"
+                            checked={micHideOnStop}
+                            onChange={handleHideOnStopChange}
+                            className="h-4 w-4 rounded border border-primary-200 text-primary focus:ring-primary"
+                        />
+                        Hide mic overlay when recording stops
+                    </label>
+                    <p className="text-xs text-text-tertiary">
+                        When enabled, the mic overlay automatically hides after you stop recording. When disabled, it stays visible.
                     </p>
                 </div>
 

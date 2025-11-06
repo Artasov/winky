@@ -115,6 +115,7 @@ export interface AppConfig {
   micHotkey?: string;
   micAnchor?: MicAnchor;
   micAutoStartRecording?: boolean;
+  micHideOnStopRecording?: boolean;
   completionSoundVolume?: number;
 }
 

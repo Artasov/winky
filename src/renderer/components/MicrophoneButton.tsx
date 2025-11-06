@@ -183,27 +183,42 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
             onLostPointerCapture={handleLostPointerCapture}
             className={classNames(
                 'pointer-events-auto relative z-10 touch-none select-none',
-                'flex items-center justify-center rounded-full text-3xl shadow-xl transition-transform outline-none',
+                'flex items-center justify-center rounded-full text-3xl shadow-xl outline-none',
                 sizeClasses[size],
                 isRecording
                     ? 'bg-rose-600 text-white hover:bg-rose-500'
                     : 'bg-white text-white',
                 disabled && 'opacity-60',
-                isRecording ? 'scale-95' : 'scale-95',
                 disabled && 'cursor-not-allowed'
             )}
+            style={{
+                transform: isRecording ? 'scale(0.7)' : 'scale(1)',
+                transition: 'transform 0.3s ease-in-out, background-color 0.3s ease-in-out'
+            }}
         >
-            {isRecording ? (
-                <svg viewBox="0 0 24 24" className="h-10 w-10 fill-current pointer-events-none">
-                    <rect x="6" y="6" width="12" height="12" rx="2"/>
-                </svg>
-            ) : (
-                <svg viewBox="0 0 24 24" className="h-10 w-10 fill-current pointer-events-none text-black">
-                    <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/>
-                    <path
-                        d="M19 12a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.93V21h-3a1 1 0 0 0 0 2h8a1 1 0 0 0 0-2h-3v-2.07A7 7 0 0 0 19 12z"/>
-                </svg>
-            )}
+            {/* Иконка микрофона */}
+            <svg 
+                viewBox="0 0 24 24" 
+                className={classNames(
+                    'absolute h-10 w-10 fill-current pointer-events-none text-black transition-opacity duration-300',
+                    isRecording ? 'opacity-0' : 'opacity-100'
+                )}
+            >
+                <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/>
+                <path
+                    d="M19 12a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.93V21h-3a1 1 0 0 0 0 2h8a1 1 0 0 0 0-2h-3v-2.07A7 7 0 0 0 19 12z"/>
+            </svg>
+            
+            {/* Иконка квадратика (стоп) */}
+            <svg 
+                viewBox="0 0 24 24" 
+                className={classNames(
+                    'absolute h-10 w-10 fill-current pointer-events-none transition-opacity duration-300',
+                    isRecording ? 'opacity-100' : 'opacity-0'
+                )}
+            >
+                <rect x="6" y="6" width="12" height="12" rx="2"/>
+            </svg>
         </button>
     );
 };

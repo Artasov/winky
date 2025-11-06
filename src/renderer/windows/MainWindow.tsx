@@ -293,7 +293,7 @@ const MainWindow: React.FC = () => {
     } finally {
       setActiveActionId(null);
       resetInteractive();
-      if (isMicOverlay) {
+      if (isMicOverlay && config?.micHideOnStopRecording !== false) {
         void window.winky?.mic?.hide({ reason: 'action' });
       }
     }
@@ -325,11 +325,11 @@ const MainWindow: React.FC = () => {
       setProcessing(false);
       // Сбрасываем интерактивность окна, чтобы клики проходили сквозь прозрачные области
       resetInteractive();
-      if (isMicOverlay) {
+      if (isMicOverlay && config?.micHideOnStopRecording !== false) {
         void window.winky?.mic?.hide({ reason: 'action' });
       }
     }
-  }, [isRecording, processing, isMicOverlay]);
+  }, [isRecording, processing, isMicOverlay, config?.micHideOnStopRecording]);
 
   const normalizedVolume = Math.min(volume * 2.5, 1);
 
@@ -457,9 +457,9 @@ const MainWindow: React.FC = () => {
     <>
       <audio ref={completionSoundRef} src='/sounds/completion.wav' preload='auto' />
 
-      <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-visible">
+      <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-hidden">
       {/* Волны звука вокруг микрофона */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-visible">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
         {[4, 3, 2, 1].map((multiplier) => (
           <div
             key={multiplier}

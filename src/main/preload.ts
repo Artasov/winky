@@ -122,8 +122,8 @@ const api = {
   },
   actions: {
     fetch: (): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:fetch'),
-    create: (action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:create', action),
-    update: (actionId: string, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:update', actionId, action),
+    create: (action: { name: string; prompt: string; hotkey?: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:create', action),
+    update: (actionId: string, action: { name: string; prompt: string; hotkey?: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:update', actionId, action),
     delete: (actionId: string): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:delete', actionId)
   },
   icons: {

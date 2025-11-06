@@ -1260,7 +1260,7 @@ const registerIpcHandlers = () => {
             throw error;
         }
     });
-    ipcMain.handle('actions:create', async (_event, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => {
+    ipcMain.handle('actions:create', async (_event, action: { name: string; prompt: string; hotkey?: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => {
         try {
             return await createAction(action);
         } catch (error: any) {
@@ -1272,7 +1272,7 @@ const registerIpcHandlers = () => {
             throw error;
         }
     });
-    ipcMain.handle('actions:update', async (_event, actionId: string, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => {
+    ipcMain.handle('actions:update', async (_event, actionId: string, action: { name: string; prompt: string; hotkey?: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => {
         try {
             return await updateAction(actionId, action);
         } catch (error: any) {
@@ -1522,7 +1522,7 @@ const fetchActions = async (): Promise<ActionConfig[]> => {
     return actions;
 };
 
-const createAction = async (action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => {
+const createAction = async (action: { name: string; prompt: string; hotkey?: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => {
     const config = await getConfig();
     if (!config.auth.accessToken) {
         throw new Error('Необходимо авторизоваться.');
@@ -1536,7 +1536,7 @@ const createAction = async (action: { name: string; prompt: string; icon: string
     return updated;
 };
 
-const updateAction = async (actionId: string, action: { name: string; prompt: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => {
+const updateAction = async (actionId: string, action: { name: string; prompt: string; hotkey?: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => {
     const config = await getConfig();
     if (!config.auth.accessToken) {
         throw new Error('Необходимо авторизоваться.');

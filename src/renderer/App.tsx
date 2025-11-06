@@ -347,11 +347,11 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
     return (
         <AuthProvider>
-            <UserProvider>
-                <IconsProvider>
-                    <AppContent />
-                </IconsProvider>
-            </UserProvider>
+        <UserProvider>
+            <IconsProvider>
+                <AppContent />
+            </IconsProvider>
+        </UserProvider>
         </AuthProvider>
     );
 };

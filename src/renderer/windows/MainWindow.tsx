@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LLM_MODES, SPEECH_MODES } from '@shared/constants';
 import type { ActionConfig } from '@shared/types';
 import { useConfig } from '../context/ConfigContext';
@@ -291,7 +291,7 @@ const MainWindow: React.FC = () => {
     }
   };
 
-  const handleActionClick = async (action: ActionConfig) => {
+  const handleActionClick = useCallback(async (action: ActionConfig) => {
     console.debug('[MainWindow] action requested', { actionId: action.id, isRecording, processing });
     if (processing || !isRecording) {
       return;
@@ -321,7 +321,7 @@ const MainWindow: React.FC = () => {
         void window.winky?.mic?.hide({ reason: 'action' });
       }
     }
-  };
+  }, [isRecording, processing, isMicOverlay]);
 
   const normalizedVolume = Math.min(volume * 2.5, 1);
 
@@ -386,6 +386,64 @@ const MainWindow: React.FC = () => {
       api.removeListener?.('mic:visibility-change', visibilityHandler);
     };
   }, [isMicOverlay]);
+
+  // Обработка hotkeys для действий во время записи
+  useEffect(() => {
+    if (!isRecording || !config?.actions) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Игнорируем если фокус в input/textarea
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Создаем строку hotkey из нажатых клавиш
+      const modifiers: string[] = [];
+      if (event.ctrlKey || event.metaKey) modifiers.push('Ctrl');
+      if (event.altKey) modifiers.push('Alt');
+      if (event.shiftKey) modifiers.push('Shift');
+
+      // Получаем основную клавишу
+      let key = event.key;
+      if (key.length === 1) {
+        key = key.toUpperCase();
+      } else if (key === ' ') {
+        key = 'Space';
+      }
+
+      // Игнорируем если нажата только модификаторная клавиша
+      if (['Control', 'Alt', 'Shift', 'Meta'].includes(key)) {
+        return;
+      }
+
+      // Формируем строку hotkey
+      const hotkeyString = [...modifiers, key].join('+');
+
+      // Ищем действие с таким hotkey
+      const action = config.actions.find(a => {
+        if (!a.hotkey) return false;
+        // Нормализуем hotkey для сравнения
+        const normalizedActionHotkey = a.hotkey.trim().replace(/\s+/g, '');
+        const normalizedEventHotkey = hotkeyString.replace(/\s+/g, '');
+        return normalizedActionHotkey.toLowerCase() === normalizedEventHotkey.toLowerCase();
+      });
+
+      if (action) {
+        event.preventDefault();
+        event.stopPropagation();
+        console.log('[MainWindow] Hotkey triggered:', hotkeyString, 'for action:', action.name);
+        void handleActionClick(action);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isRecording, config?.actions, handleActionClick]);
 
   return (
     <>

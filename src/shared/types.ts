@@ -67,6 +67,7 @@ export interface ActionConfig {
   profile: string;
   name: string;
   prompt: string;
+  hotkey?: string;
   icon: string;
   icon_details: ActionIcon;
   created_at: string;

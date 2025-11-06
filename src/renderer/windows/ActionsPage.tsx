@@ -3,6 +3,7 @@ import type {ActionConfig, ActionIcon} from '@shared/types';
 import {useConfig} from '../context/ConfigContext';
 import {useIcons} from '../context/IconsContext';
 import {useToast} from '../context/ToastContext';
+import HotkeyInput from '../components/HotkeyInput';
 
 const ActionsPage: React.FC = () => {
     const {config, refreshConfig} = useConfig();
@@ -18,6 +19,7 @@ const ActionsPage: React.FC = () => {
     const [editingActionId, setEditingActionId] = useState<string | null>(null);
     const [name, setName] = useState('');
     const [prompt, setPrompt] = useState('');
+    const [hotkey, setHotkey] = useState('');
     const [iconId, setIconId] = useState('');
     const [showResults, setShowResults] = useState(false);
     const [soundOnComplete, setSoundOnComplete] = useState(false);
@@ -29,6 +31,7 @@ const ActionsPage: React.FC = () => {
     const resetForm = useCallback(() => {
         setName('');
         setPrompt('');
+        setHotkey('');
         setIconId('');
         setShowResults(false);
         setSoundOnComplete(false);
@@ -108,6 +111,7 @@ const ActionsPage: React.FC = () => {
         setEditingActionId(action.id);
         setName(action.name);
         setPrompt(action.prompt);
+        setHotkey(action.hotkey ?? '');
         setIconId(action.icon_details?.id ?? action.icon);
         setShowResults(action.show_results ?? false);
         setSoundOnComplete(action.sound_on_complete ?? false);
@@ -163,6 +167,7 @@ const ActionsPage: React.FC = () => {
             const actionData = {
                 name: name.trim(),
                 prompt: prompt.trim(),
+                hotkey: hotkey.trim(),
                 icon: iconId,
                 show_results: showResults,
                 sound_on_complete: soundOnComplete,
@@ -342,6 +347,24 @@ const ActionsPage: React.FC = () => {
                                     rows={4}
                                     className="input-animated resize-none rounded-lg border border-primary-200 bg-white px-4 py-3 text-text-primary placeholder:text-text-tertiary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
                                     placeholder="Describe what the action should do (leave empty if you only need transcription)"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <label className="text-sm font-medium text-text-primary">
+                                    Hotkey <span className="text-xs text-text-tertiary">(optional, works during recording)</span>
+                                </label>
+                                <HotkeyInput
+                                    value={hotkey}
+                                    onChange={setHotkey}
+                                    onInvalid={(reason) => {
+                                        if (reason === 'non-english') {
+                                            showToast('Please switch to English layout for shortcuts.', 'error');
+                                        } else {
+                                            showToast('Please include a non-modifier key in the shortcut.', 'info');
+                                        }
+                                    }}
+                                    placeholder="Press keys to record hotkey (e.g., Ctrl+Shift+A)"
                                 />
                             </div>
 

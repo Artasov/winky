@@ -33,8 +33,13 @@ export const createTextFieldOverrides = (theme: Theme): Pick<
                 }
             },
             input: {
-                paddingTop: theme.spacing(1.5),
-                paddingBottom: theme.spacing(1.5)
+                paddingTop: theme.spacing(1),
+                paddingBottom: theme.spacing(1.5),
+                '&.MuiInputBase-inputMultiline': {
+                    lineHeight: 1.5,
+                    padding: 0,
+                    marginTop: -7
+                }
             }
         }
     },

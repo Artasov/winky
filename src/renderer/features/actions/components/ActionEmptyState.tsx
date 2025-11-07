@@ -1,21 +1,43 @@
 import React from 'react';
+import {Button, Paper, Stack, Typography} from '@mui/material';
 
 type Props = {
-    onCreate: () => void;
+    title: string;
+    description: string;
+    ctaLabel: string;
+    onCta: () => void;
 };
 
-const ActionEmptyState: React.FC<Props> = ({onCreate}) => (
-    <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-white/5 p-10 text-center text-text-secondary">
-        <p className="text-lg font-semibold text-text-primary">No actions yet</p>
-        <p className="mt-2 text-sm">Create your first workflow to trigger it by voice or hotkey.</p>
-        <button
-            type="button"
-            onClick={onCreate}
-            className="mt-6 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow focus:outline-none focus:ring-2 focus:ring-primary/70"
-        >
-            Create action
-        </button>
-    </div>
+const ActionEmptyState: React.FC<Props> = ({title, description, ctaLabel, onCta}) => (
+    <Paper
+        elevation={0}
+        sx={{
+            borderRadius: 4,
+            border: '1px dashed',
+            borderColor: 'divider',
+            px: 4,
+            py: 8,
+            textAlign: 'center',
+            bgcolor: '#fff',
+            color: '#0f172a',
+            boxShadow: '0 12px 40px rgba(15, 23, 42, 0.08)'
+        }}
+    >
+        <Stack spacing={2} alignItems="center">
+            <Typography variant="h3" component="div" color="text.secondary">
+                ⚡
+            </Typography>
+            <Typography variant="h6" fontWeight={600}>
+                {title}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+                {description}
+            </Typography>
+            <Button variant="contained" onClick={onCta}>
+                {ctaLabel}
+            </Button>
+        </Stack>
+    </Paper>
 );
 
 export default ActionEmptyState;

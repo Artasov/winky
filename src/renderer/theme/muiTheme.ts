@@ -1,0 +1,67 @@
+import {createTheme, type ThemeOptions} from '@mui/material/styles';
+import {createButtonOverrides} from './components/button';
+import {
+    createDialogOverrides,
+    createDialogContentOverrides,
+    createDialogTitleOverrides,
+    createDialogActionsOverrides
+} from './components/dialog';
+import {createBackdropOverrides} from './components/backdrop';
+import {createTextFieldOverrides} from './components/textField';
+
+const baseOptions: ThemeOptions = {
+    palette: {
+        mode: 'dark',
+        primary: {
+            main: '#f43f5e',
+            dark: '#e11d48',
+            light: '#fb7185'
+        },
+        secondary: {
+            main: '#fb7185'
+        },
+        background: {
+            default: '#020617',
+            paper: '#111827'
+        },
+        text: {
+            primary: '#f8fafc',
+            secondary: '#d4d9e7'
+        }
+    },
+    shape: {
+        borderRadius: 20
+    },
+    typography: {
+        fontFamily: '"Inter", "Segoe UI", sans-serif',
+        button: {
+            fontWeight: 600
+        }
+    },
+    components: {
+        MuiCssBaseline: {
+            styleOverrides: {
+                body: {
+                    backgroundColor: '#020617',
+                    color: '#f8fafc'
+                }
+            }
+        }
+    }
+};
+
+let theme = createTheme(baseOptions);
+
+theme = createTheme(theme, {
+    components: {
+        MuiButton: createButtonOverrides(theme),
+        MuiDialog: createDialogOverrides(theme),
+        MuiDialogTitle: createDialogTitleOverrides(theme),
+        MuiDialogContent: createDialogContentOverrides(),
+        MuiDialogActions: createDialogActionsOverrides(theme),
+        MuiBackdrop: createBackdropOverrides(theme),
+        ...createTextFieldOverrides(theme)
+    }
+});
+
+export default theme;

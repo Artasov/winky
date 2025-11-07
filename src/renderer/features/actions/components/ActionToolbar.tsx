@@ -1,27 +1,36 @@
 import React from 'react';
+import {Button, Stack, Typography} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 
-type ActionToolbarProps = {
+type Props = {
     actionsCount: number;
     onCreate: () => void;
 };
 
-const ActionToolbar: React.FC<ActionToolbarProps> = ({actionsCount, onCreate}) => (
-    <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
-            <h1 className="text-3xl font-semibold text-text-primary">Actions</h1>
-            <p className="text-sm text-text-secondary">
+const ActionToolbar: React.FC<Props> = ({actionsCount, onCreate}) => (
+    <Stack
+        direction={{xs: 'column', sm: 'row'}}
+        alignItems={{xs: 'flex-start', sm: 'center'}}
+        justifyContent="space-between"
+        spacing={2}
+    >
+        <div>
+            <Typography variant="h4" fontWeight={600}>
+                Actions
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
                 Manage quick scenarios for your voice assistant.
-            </p>
+            </Typography>
         </div>
-        <button
-            type="button"
+        <Button
+            variant="contained"
             onClick={onCreate}
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-bg-base shadow-primary hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary/60"
+            startIcon={<AddIcon/>}
+            sx={{alignSelf: {xs: 'stretch', sm: 'auto'}}}
         >
-            <span className="text-lg">+</span>
             Create action ({actionsCount})
-        </button>
-    </div>
+        </Button>
+    </Stack>
 );
 
 export default ActionToolbar;

@@ -1,4 +1,5 @@
 import React, {useMemo} from 'react';
+import {Container, Stack} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useIcons} from '../context/IconsContext';
 import {useToast} from '../context/ToastContext';
@@ -26,28 +27,39 @@ const ActionsPage: React.FC = () => {
         refreshConfig
     });
 
-    if (!isAuthorized) {
-        return (
-            <div className="mx-auto flex h-full max-w-4xl flex-col items-center justify-center gap-4 text-center text-text-secondary">
-                <p className="text-2xl font-semibold text-text-primary">Sign in to manage actions</p>
-                <p className="text-sm">Авторизуйтесь, чтобы настраивать быстрые сценарии и горячие клавиши.</p>
-            </div>
-        );
-    }
+    const handleCreateAction = isAuthorized ? form.openCreateModal : () => {
+        showToast('Please sign in to manage actions.', 'error');
+    };
+
+    const content = !isAuthorized ? (
+        <ActionEmptyState
+            title="Sign in to manage actions"
+            description="Авторизуйтесь, чтобы настраивать быстрые сценарии и горячие клавиши."
+            ctaLabel="Open sign in"
+            onCta={handleCreateAction}
+        />
+    ) : actions.length === 0 ? (
+        <ActionEmptyState
+            title="No actions yet"
+            description="Click the button below to create your first action."
+            ctaLabel="Create action"
+            onCta={handleCreateAction}
+        />
+    ) : (
+        <ActionList
+            actions={actions}
+            deletingIds={form.deletingIds}
+            onEdit={form.openEditModal}
+            onDelete={form.handleDelete}
+        />
+    );
 
     return (
-        <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-6 px-8 py-6">
-            <ActionToolbar actionsCount={actions.length} onCreate={form.openCreateModal}/>
-            {actions.length === 0 ? (
-                <ActionEmptyState onCreate={form.openCreateModal}/>
-            ) : (
-                <ActionList
-                    actions={actions}
-                    deletingIds={form.deletingIds}
-                    onEdit={form.openEditModal}
-                    onDelete={form.handleDelete}
-                />
-            )}
+        <Container maxWidth="lg" sx={{py: 4}}>
+            <Stack spacing={4}>
+                <ActionToolbar actionsCount={actions.length} onCreate={handleCreateAction}/>
+                {content}
+            </Stack>
             <ActionForm
                 icons={icons}
                 iconsLoading={iconsLoading}
@@ -58,7 +70,7 @@ const ActionsPage: React.FC = () => {
                 editingActionId={form.editingActionId}
                 onSubmit={form.handleSubmit}
             />
-        </div>
+        </Container>
     );
 };
 

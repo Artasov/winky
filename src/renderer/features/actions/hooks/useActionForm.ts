@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import {z} from 'zod';
 import type {ActionConfig} from '@shared/types';
 
@@ -31,13 +31,10 @@ export const useActionForm = ({
     showToast,
     refreshConfig
 }: UseActionFormParams) => {
-    const MODAL_ANIMATION_MS = 180;
     const [isModalVisible, setIsModalVisible] = useState(false);
-    const [isModalClosing, setIsModalClosing] = useState(false);
     const [editingActionId, setEditingActionId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-    const closeTimeoutRef = useRef<number | null>(null);
 
     const [values, setValues] = useState<ActionFormValues>({
         name: '',
@@ -62,35 +59,16 @@ export const useActionForm = ({
         setEditingActionId(null);
     }, []);
 
-    const beginModalClose = useCallback(() => {
-        if (!isModalVisible || isModalClosing) {
+    const closeModal = useCallback(() => {
+        if (!isModalVisible) {
             return;
         }
-        if (closeTimeoutRef.current) {
-            window.clearTimeout(closeTimeoutRef.current);
-        }
-        setIsModalClosing(true);
-        closeTimeoutRef.current = window.setTimeout(() => {
-            setIsModalClosing(false);
-            setIsModalVisible(false);
-            closeTimeoutRef.current = null;
-            resetForm();
-        }, MODAL_ANIMATION_MS);
-    }, [isModalClosing, isModalVisible, resetForm]);
-
-    const handleOverlayMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-        if (event.target === event.currentTarget) {
-            beginModalClose();
-        }
-    }, [beginModalClose]);
+        setIsModalVisible(false);
+        resetForm();
+    }, [isModalVisible, resetForm]);
 
     const openCreateModal = useCallback(() => {
-        if (closeTimeoutRef.current) {
-            window.clearTimeout(closeTimeoutRef.current);
-            closeTimeoutRef.current = null;
-        }
         resetForm();
-        setIsModalClosing(false);
         setIsModalVisible(true);
     }, [resetForm]);
 
@@ -105,11 +83,6 @@ export const useActionForm = ({
             soundOnComplete: action.sound_on_complete ?? false,
             autoCopyResult: action.auto_copy_result ?? false
         });
-        if (closeTimeoutRef.current) {
-            window.clearTimeout(closeTimeoutRef.current);
-            closeTimeoutRef.current = null;
-        }
-        setIsModalClosing(false);
         setIsModalVisible(true);
     }, []);
 
@@ -143,13 +116,6 @@ export const useActionForm = ({
         }
     }, [isModalVisible, icons, iconsLoading, values.iconId, fetchIcons, isAuthorized, showToast, setField]);
 
-    useEffect(() => () => {
-        if (closeTimeoutRef.current) {
-            window.clearTimeout(closeTimeoutRef.current);
-            closeTimeoutRef.current = null;
-        }
-    }, []);
-
     const handleSubmit = useCallback(async (event: React.FormEvent) => {
         event.preventDefault();
         const validation = formSchema.safeParse(values);
@@ -179,7 +145,7 @@ export const useActionForm = ({
 
             await refreshConfig();
             showToast(editingActionId ? 'Действие обновлено.' : 'Действие добавлено.', 'success');
-            beginModalClose();
+            closeModal();
         } catch (error: any) {
             console.error('[ActionsPage] Ошибка сохранения действия', error);
             const message = error?.response?.data?.detail || error?.message || 'Не удалось сохранить действие.';
@@ -187,7 +153,7 @@ export const useActionForm = ({
         } finally {
             setSaving(false);
         }
-    }, [values, editingActionId, beginModalClose, refreshConfig, showToast]);
+    }, [values, editingActionId, closeModal, refreshConfig, showToast]);
 
     const handleDelete = useCallback(async (actionId: string, actionName: string) => {
         if (deletingIds.has(actionId)) {
@@ -217,10 +183,8 @@ export const useActionForm = ({
 
     const modalProps = useMemo(() => ({
         isModalVisible,
-        isModalClosing,
-        beginModalClose,
-        handleOverlayMouseDown
-    }), [isModalVisible, isModalClosing, beginModalClose, handleOverlayMouseDown]);
+        closeModal
+    }), [isModalVisible, closeModal]);
 
     return {
         values,

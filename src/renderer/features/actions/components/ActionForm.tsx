@@ -90,7 +90,7 @@ const ActionForm: React.FC<Props> = ({
                         value={values.name}
                         onChange={(event) => setField('name', event.target.value)}
                         placeholder="Send daily standup"
-                        fullWidth
+                        fullWidth sx={{mb: 1}}
                     />
 
                     <TextField

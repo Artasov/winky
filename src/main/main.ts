@@ -59,9 +59,10 @@ let lastMicToggleTime = 0;
 let hotkeyToggleLocked = false;
 let micWindowAutoShowDisabled = false;
 let micWindowFadeTimeout: NodeJS.Timeout | null = null;
+let micWindowInteractive = false;
 
-const MIC_WINDOW_WIDTH = 160;
-const MIC_WINDOW_HEIGHT = 160;
+const MIC_WINDOW_WIDTH = 300;
+const MIC_WINDOW_HEIGHT = 300;
 const MIC_WINDOW_MARGIN = 24;
 const MIC_BUTTON_SIZE = 80;
 
@@ -494,6 +495,7 @@ const broadcastConfigUpdate = async () => {
 
 const setMicInteractive = (interactive: boolean) => {
     if (!micWindow || micWindow.isDestroyed()) {
+        micWindowInteractive = false;
         return;
     }
     
@@ -503,7 +505,12 @@ const setMicInteractive = (interactive: boolean) => {
     }
     
     const platform = process.platform;
+    
     if (interactive) {
+        if (micWindowInteractive) {
+            return;
+        }
+        micWindowInteractive = true;
         micWindow.setIgnoreMouseEvents(false);
         if (platform === 'darwin') {
             micWindow.setFocusable(true);
@@ -511,13 +518,14 @@ const setMicInteractive = (interactive: boolean) => {
         }
         ensureMicOnTop();
         micWindow.flashFrame(false);
-    } else {
-        micWindow.setIgnoreMouseEvents(true, { forward: true });
-        if (platform === 'darwin') {
-            micWindow.setFocusable(false);
-            micWindow.blur();
-        }
-        // НЕ вызываем ensureMicOnTop() после скрытия окна
+        return;
+    }
+    
+    micWindowInteractive = false;
+    micWindow.setIgnoreMouseEvents(true, { forward: true });
+    if (platform === 'darwin') {
+        micWindow.setFocusable(false);
+        micWindow.blur();
     }
 };
 
@@ -1205,6 +1213,11 @@ const registerIpcHandlers = () => {
         }
         const [x, y] = micWindow.getPosition();
         return { x, y };
+    });
+
+    ipcMain.handle('mic:get-cursor-position', () => {
+        const point = screen.getCursorScreenPoint();
+        return { x: point.x, y: point.y };
     });
 
     ipcMain.handle('mic:set-anchor', async (_event, anchor: MicAnchor) => {

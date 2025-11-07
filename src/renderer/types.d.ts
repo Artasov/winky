@@ -59,6 +59,7 @@ declare global {
     moveWindow(x: number, y: number): Promise<void>;
     setInteractive(interactive: boolean): Promise<void>;
     getPosition(): Promise<{ x: number; y: number }>;
+    getCursorPosition(): Promise<{ x: number; y: number }>;
     moveBy(dx: number, dy: number): Promise<void>;
     setAnchor(anchor: string): Promise<{ x: number; y: number }>;
     show(reason?: string): Promise<void>;

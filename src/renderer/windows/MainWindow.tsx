@@ -10,7 +10,7 @@ import type { BaseSpeechService } from '@main/services/speech/BaseSpeechService'
 import type { BaseLLMService } from '@main/services/llm/BaseLLMService';
 import { createSpeechService } from '@main/services/speech/factory';
 import { createLLMService } from '@main/services/llm/factory';
-import { resetInteractive } from '../utils/interactive';
+import { interactiveEnter, interactiveLeave, resetInteractive } from '../utils/interactive';
 
 const MainWindow: React.FC = () => {
   const { config } = useConfig();
@@ -37,6 +37,11 @@ const MainWindow: React.FC = () => {
   const isRecordingRef = useRef(false);
   const processingRef = useRef(false);
   const handleMicrophoneToggleRef = useRef<(() => Promise<void> | void) | null>(null);
+  const dragPointerIdRef = useRef<number | null>(null);
+  const dragPointerCleanupRef = useRef<(() => void) | null>(null);
+  const suppressedHandleLeaveRef = useRef(false);
+  const dragHandleRef = useRef<HTMLDivElement | null>(null);
+  const handleHoveringRef = useRef(false);
 
   useEffect(() => {
     if (!config) {
@@ -121,6 +126,10 @@ const MainWindow: React.FC = () => {
 
   useEffect(() => () => {
     stopVolumeMonitor();
+  }, []);
+
+  useEffect(() => () => {
+    dragPointerCleanupRef.current?.();
   }, []);
 
   if (!config) {
@@ -345,6 +354,69 @@ const MainWindow: React.FC = () => {
     handleMicrophoneToggleRef.current = handleMicrophoneToggle;
   }, [handleMicrophoneToggle]);
 
+  const handleHandleMouseEnter = useCallback(() => {
+    if (handleHoveringRef.current) {
+      return;
+    }
+    handleHoveringRef.current = true;
+    if (suppressedHandleLeaveRef.current) {
+      suppressedHandleLeaveRef.current = false;
+      return;
+    }
+    interactiveEnter();
+  }, []);
+
+  const handleHandleMouseLeave = useCallback(() => {
+    if (!handleHoveringRef.current) {
+      return;
+    }
+    if (dragPointerIdRef.current !== null) {
+      suppressedHandleLeaveRef.current = true;
+      return;
+    }
+    handleHoveringRef.current = false;
+    interactiveLeave();
+  }, []);
+
+  const handleHandlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return;
+    }
+
+    dragPointerCleanupRef.current?.();
+
+    const pointerId = event.pointerId;
+    dragPointerIdRef.current = pointerId;
+    handleHandleMouseEnter();
+
+    function cleanupPointerListeners() {
+      window.removeEventListener('pointerup', handlePointerEnd, true);
+      window.removeEventListener('pointercancel', handlePointerEnd, true);
+      if (dragPointerIdRef.current === pointerId) {
+        dragPointerIdRef.current = null;
+      }
+      handleHoveringRef.current = false;
+      interactiveLeave();
+      if (suppressedHandleLeaveRef.current) {
+        suppressedHandleLeaveRef.current = false;
+        interactiveLeave();
+      }
+      dragPointerCleanupRef.current = null;
+    }
+
+    function handlePointerEnd(pointerEvent: PointerEvent) {
+      if (pointerEvent.pointerId !== pointerId) {
+        return;
+      }
+      cleanupPointerListeners();
+    }
+
+    dragPointerCleanupRef.current = cleanupPointerListeners;
+
+    window.addEventListener('pointerup', handlePointerEnd, true);
+    window.addEventListener('pointercancel', handlePointerEnd, true);
+  }, [handleHandleMouseEnter]);
+
   useEffect(() => {
     if (!isMicOverlay) {
       return;
@@ -394,6 +466,58 @@ const MainWindow: React.FC = () => {
       api.removeListener?.('mic:visibility-change', visibilityHandler);
     };
   }, [isMicOverlay]);
+
+  useEffect(() => {
+    if (!isMicOverlay) {
+      return;
+    }
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const pollCursor = async () => {
+      if (cancelled) {
+        return;
+      }
+      if (dragPointerIdRef.current !== null) {
+        timeoutId = setTimeout(pollCursor, 120);
+        return;
+      }
+      const handleElement = dragHandleRef.current;
+      const micApi = window.winky?.mic;
+      if (!handleElement || !micApi?.getCursorPosition) {
+        timeoutId = setTimeout(pollCursor, 200);
+        return;
+      }
+      try {
+        const cursor = await micApi.getCursorPosition();
+        const rect = handleElement.getBoundingClientRect();
+        const padding = 6;
+        const left = (window.screenX || 0) + rect.left - padding;
+        const top = (window.screenY || 0) + rect.top - padding;
+        const right = (window.screenX || 0) + rect.right + padding;
+        const bottom = (window.screenY || 0) + rect.bottom + padding;
+        const inside = cursor.x >= left && cursor.x <= right && cursor.y >= top && cursor.y <= bottom;
+        if (inside) {
+          handleHandleMouseEnter();
+        } else if (handleHoveringRef.current && dragPointerIdRef.current === null) {
+          handleHandleMouseLeave();
+        }
+      } catch {
+        // ignore polling errors
+      } finally {
+        timeoutId = setTimeout(pollCursor, 40);
+      }
+    };
+
+    pollCursor();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isMicOverlay, handleHandleMouseEnter, handleHandleMouseLeave]);
 
   // Обработка hotkeys для действий во время записи
   useEffect(() => {
@@ -483,9 +607,28 @@ const MainWindow: React.FC = () => {
     <>
       <audio ref={completionSoundRef} src='/sounds/completion.wav' preload='auto' />
 
-      <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-hidden">
+      {/* Палочки для перетаскивания - на верхнем уровне, позиционированы относительно центра */}
+      <div
+        className="frc absolute left-1/2 -translate-x-1/2 gap-1 rounded-full bg-gray-200/60 px-2 py-1 z-50 cursor-move select-none app-region-drag"
+        style={{
+          pointerEvents: 'auto',
+          top: isRecording ? 'calc(50% - 42px)' : 'calc(50% - 50px)'
+        }}
+        ref={dragHandleRef}
+        onMouseEnter={handleHandleMouseEnter}
+        onMouseLeave={handleHandleMouseLeave}
+        onPointerDown={handleHandlePointerDown}
+        title="Перетащить микрофон"
+        role="presentation"
+        aria-hidden="true"
+      >
+        <span className="h-4 w-1 rounded-full bg-gray-500" />
+        <span className="h-4 w-1 rounded-full bg-gray-500" />
+      </div>
+
+      <div className="pointer-events-none relative flex h-full w-full items-center justify-center">
       {/* Волны звука вокруг микрофона */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center" style={{ overflow: 'visible' }}>
         {[4, 3, 2, 1].map((multiplier) => (
           <div
             key={multiplier}
@@ -505,7 +648,7 @@ const MainWindow: React.FC = () => {
         ))}
       </div>
       
-      <div className="pointer-events-auto">
+      <div className="pointer-events-auto relative">
         <MicrophoneButton
           isRecording={isRecording}
           onToggle={handleMicrophoneToggle}

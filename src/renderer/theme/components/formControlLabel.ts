@@ -4,11 +4,12 @@ export const createFormControlLabelOverrides = (theme: Theme): Components['MuiFo
     styleOverrides: {
         root: {
             marginLeft: 0,
-            gap: theme.spacing(.7),
+            gap: theme.spacing(1.5),
             alignItems: 'center'
         },
         label: {
             marginLeft: 0,
+            fontWeight: 500
         }
     }
 });

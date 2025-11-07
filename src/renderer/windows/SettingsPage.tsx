@@ -1,5 +1,5 @@
 import React, {ChangeEvent, useEffect, useState} from 'react';
-import classNames from 'classnames';
+import {Box, Button, Checkbox, FormControlLabel, Slider, Stack, Typography} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
 import {useToast} from '../context/ToastContext';
@@ -160,18 +160,22 @@ const SettingsPage: React.FC = () => {
         showToast('Please include a non-modifier key in the shortcut.', 'info');
     };
 
-    const handleVolumeChange = (event: ChangeEvent<HTMLInputElement>) => {
-        const nextValue = parseFloat(event.target.value);
+    const handleVolumeChange = (_event: Event, value: number | number[]) => {
+        const nextValue = Array.isArray(value) ? value[0] : value;
         setCompletionSoundVolume(nextValue);
     };
 
-    const handleVolumeSave = async () => {
+    const handleVolumeSave = async (_event?: Event | React.SyntheticEvent, value?: number | number[]) => {
+        const resolvedValue = value !== undefined ? (Array.isArray(value) ? value[0] : value) : completionSoundVolume;
+        if (value !== undefined) {
+            setCompletionSoundVolume(resolvedValue);
+        }
         try {
-            await updateConfig({completionSoundVolume});
-            if (completionSoundVolume === 0) {
+            await updateConfig({completionSoundVolume: resolvedValue});
+            if (resolvedValue === 0) {
                 showToast('Completion sound disabled.', 'success');
             } else {
-                showToast(`Completion sound volume set to ${Math.round(completionSoundVolume * 100)}%.`, 'success');
+                showToast(`Completion sound volume set to ${Math.round(resolvedValue * 100)}%.`, 'success');
             }
         } catch (error) {
             console.error('[SettingsPage] Failed to update completion sound volume', error);
@@ -264,115 +268,147 @@ const SettingsPage: React.FC = () => {
                 requireApiKeys={false}
             />
 
-            <section
-                className="mt-6 flex flex-col gap-4 rounded-2xl border border-primary-200 bg-white p-6 shadow-primary-sm">
-                <div className="flex flex-col gap-1">
-                    <h2 className="text-lg font-semibold text-text-primary">Mic Overlay</h2>
-                    <p className="text-xs text-text-secondary">Configure the floating microphone overlay behaviour.</p>
-                </div>
+            <Box
+                component="section"
+                sx={{
+                    mt: 6,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    borderRadius: 4,
+                    border: '1px solid rgba(244,63,94,0.15)',
+                    backgroundColor: '#fff',
+                    p: {xs: 3, md: 4},
+                    boxShadow: '0 30px 60px rgba(2,6,23,0.12)'
+                }}
+            >
+                <Stack spacing={0.5}>
+                    <Typography variant="h6" color="text.primary" fontWeight={600}>
+                        Mic Overlay
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        Configure the floating microphone overlay behaviour.
+                    </Typography>
+                </Stack>
 
-                <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-text-primary">Toggle Hotkey</label>
-                    <HotkeyInput
-                        value={micHotkey}
-                        onChange={handleHotkeyChange}
-                        onInvalid={handleHotkeyInvalid}
-                        placeholder="Press keys to set shortcut"
-                    />
-                    <p className="text-xs text-text-tertiary">Press the desired key combination. Press Escape or use
-                        Clear to remove the shortcut.</p>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-text-primary">Default Position</label>
-                    <div className="grid grid-cols-2 gap-2">
-                        {anchorOptions.map((option) => (
-                            <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => handleAnchorSelect(option.value)}
-                                className={classNames(
-                                    'rounded-lg border px-3 py-2 text-sm transition-colors',
-                                    micAnchor === option.value
-                                        ? 'border-primary bg-primary-50 text-primary'
-                                        : 'border-primary-200 bg-white text-text-secondary hover:border-primary hover:text-primary'
-                                )}
-                            >
-                                {option.label}
-                            </button>
-                        ))}
-                    </div>
-                    <p className="text-xs text-text-tertiary">Select one of the corners to dock the microphone overlay.
-                        The overlay moves immediately.</p>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                    <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
-                        <input
-                            type="checkbox"
-                            checked={micAutoStart}
-                            onChange={handleAutoStartChange}
-                            className="h-4 w-4 rounded border border-primary-200 text-primary focus:ring-primary"
+                <Stack spacing={1}>
+                    <Typography variant="body2" fontWeight={600} color="text.primary">
+                        Toggle Hotkey
+                    </Typography>
+                    <Box
+                        sx={{
+                            borderRadius: 2,
+                            border: '1px solid rgba(15,23,42,0.12)',
+                            px: 2,
+                            py: 1.5,
+                            bgcolor: '#fff',
+                            transition: 'border-color 220ms ease, box-shadow 220ms ease',
+                            '&:hover': {
+                                borderColor: 'rgba(244,63,94,0.5)'
+                            },
+                            '&:focus-within': {
+                                borderColor: 'primary.main',
+                                boxShadow: '0 12px 28px rgba(244,63,94,0.12)'
+                            }
+                        }}
+                    >
+                        <HotkeyInput
+                            value={micHotkey}
+                            onChange={handleHotkeyChange}
+                            onInvalid={handleHotkeyInvalid}
+                            placeholder="Press keys to set shortcut"
                         />
-                        Start recording automatically
-                    </label>
-                    <p className="text-xs text-text-tertiary">
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                        Press the desired key combination. Press Escape or use Clear to remove the shortcut.
+                    </Typography>
+                </Stack>
+
+                <Stack spacing={1}>
+                    <Typography variant="body2" fontWeight={600} color="text.primary">
+                        Default Position
+                    </Typography>
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            gridTemplateColumns: {xs: 'repeat(2, 1fr)', sm: 'repeat(4, minmax(0, 1fr))'},
+                            gap: 1
+                        }}
+                    >
+                        {anchorOptions.map((option) => {
+                            const isSelected = micAnchor === option.value;
+                            return (
+                                <Button
+                                    key={option.value}
+                                    variant={isSelected ? 'contained' : 'outlined'}
+                                    color="primary"
+                                    size="small"
+                                    onClick={() => handleAnchorSelect(option.value)}
+                                    sx={{
+                                        borderRadius: 2,
+                                        textTransform: 'none',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    {option.label}
+                                </Button>
+                            );
+                        })}
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                        Select one of the corners to dock the microphone overlay. The overlay moves immediately.
+                    </Typography>
+                </Stack>
+
+                <Stack spacing={0.5}>
+                    <FormControlLabel
+                        control={<Checkbox checked={micAutoStart} onChange={handleAutoStartChange}/>}
+                        label="Start recording automatically"
+                    />
+                    <Typography variant="caption" color="text.secondary">
                         When enabled, showing the mic via hotkey or taskbar menu immediately begins recording.
-                    </p>
-                </div>
+                    </Typography>
+                </Stack>
 
-                <div className="flex flex-col gap-2">
-                    <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
-                        <input
-                            type="checkbox"
-                            checked={micHideOnStop}
-                            onChange={handleHideOnStopChange}
-                            className="h-4 w-4 rounded border border-primary-200 text-primary focus:ring-primary"
-                        />
-                        Hide mic overlay when recording stops
-                    </label>
-                    <p className="text-xs text-text-tertiary">
-                        When enabled, the mic overlay automatically hides after you stop recording. When disabled, it
-                        stays visible.
-                    </p>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                    <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
-                        <input
-                            type="checkbox"
-                            checked={micShowOnLaunch}
-                            onChange={handleShowOnLaunchChange}
-                            className="h-4 w-4 rounded border border-primary-200 text-primary focus:ring-primary"
-                        />
-                        Show mic overlay when Winky starts
-                    </label>
-                    <p className="text-xs text-text-tertiary">
-                        Controls whether the floating microphone opens automatically right after the app launches.
-                    </p>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-text-primary">
-                        Completion Sound Volume: {Math.round(completionSoundVolume * 100)}%
-                    </label>
-                    <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={completionSoundVolume}
-                        onChange={handleVolumeChange}
-                        onMouseUp={handleVolumeSave}
-                        onTouchEnd={handleVolumeSave}
-                        className="w-full accent-primary"
+                <Stack spacing={0.5}>
+                    <FormControlLabel
+                        control={<Checkbox checked={micHideOnStop} onChange={handleHideOnStopChange}/>}
+                        label="Hide mic overlay when recording stops"
                     />
-                    <p className="text-xs text-text-tertiary">
-                        Adjust the volume of the sound that plays when an action completes. Set to 0% to disable.
-                    </p>
-                </div>
+                    <Typography variant="caption" color="text.secondary">
+                        When enabled, the mic overlay automatically hides after you stop recording. When disabled, it stays visible.
+                    </Typography>
+                </Stack>
 
-            </section>
+                <Stack spacing={0.5}>
+                    <FormControlLabel
+                        control={<Checkbox checked={micShowOnLaunch} onChange={handleShowOnLaunchChange}/>}
+                        label="Show mic overlay when Winky starts"
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                        Controls whether the floating microphone opens automatically right after the app launches.
+                    </Typography>
+                </Stack>
+
+                <Stack spacing={1}>
+                    <Typography variant="body2" fontWeight={600} color="text.primary">
+                        Completion Sound Volume: {Math.round(completionSoundVolume * 100)}%
+                    </Typography>
+                    <Slider
+                        value={completionSoundVolume}
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        onChange={handleVolumeChange}
+                        onChangeCommitted={handleVolumeSave}
+                        valueLabelDisplay="auto"
+                        valueLabelFormat={(value) => `${Math.round((value as number) * 100)}%`}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                        Adjust the volume of the sound that plays when an action completes. Set to 0% to disable.
+                    </Typography>
+                </Stack>
+            </Box>
         </div>
     );
 };

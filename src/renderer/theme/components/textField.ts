@@ -24,6 +24,10 @@ export const createTextFieldOverrides = (theme: Theme): Pick<
                 '&:hover .MuiOutlinedInput-notchedOutline': {
                     borderColor: 'rgba(244,63,94,0.5)'
                 },
+                '&:hover': {
+                    borderColor: 'rgba(244,63,94,0.5)',
+                    border: '1px solid rgba(15, 23, 42, 0)',
+                },
                 '&.Mui-focused': {
                     backgroundColor: '#fff',
                     boxShadow: '0 6px 16px rgba(244,63,94,0.16)',
@@ -47,11 +51,13 @@ export const createTextFieldOverrides = (theme: Theme): Pick<
         styleOverrides: {
             root: {
                 fontWeight: 500,
+                marginTop: -6,
                 '&.MuiInputLabel-shrink': {
                     backgroundColor: '#fff',
                     padding: '0 6px',
                     borderRadius: theme.spacing(1),
                     marginLeft: -4,
+                    marginTop: 0,
                     lineHeight: 1.1,
                     display: 'inline-flex',
                     alignItems: 'center',

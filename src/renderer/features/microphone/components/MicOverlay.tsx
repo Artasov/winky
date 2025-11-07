@@ -88,8 +88,10 @@ const MicOverlay: React.FC = () => {
         );
     }
 
+    const handlePointerEvents = recording.view.processing ? ('none' as const) : ('auto' as const);
+
     const handleStyle = {
-        pointerEvents: 'auto' as const,
+        pointerEvents: handlePointerEvents,
         top: recording.view.isRecording ? 'calc(50% - 34px)' : 'calc(50% - 56px)',
         opacity: recording.view.isRecording ? 1 : 0.92,
         transition: 'top 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease'
@@ -99,7 +101,7 @@ const MicOverlay: React.FC = () => {
         width: 0,
         height: 0,
         opacity: recording.view.actionsVisible ? 1 : 0,
-        pointerEvents: recording.view.actionsVisible ? 'auto' as const : 'none' as const,
+        pointerEvents: recording.view.processing ? 'none' as const : (recording.view.actionsVisible ? 'auto' as const : 'none' as const),
         transform: `translate(-50%, -50%) scale(${recording.view.actionsVisible ? 1 : 0.85})`,
         transition: 'opacity 220ms ease, transform 240ms ease'
     };
@@ -161,7 +163,10 @@ const MicOverlay: React.FC = () => {
                     ))}
                 </div>
 
-                <div className="pointer-events-auto relative">
+                <div
+                    className="relative"
+                    style={{pointerEvents: recording.view.processing ? 'none' : 'auto'}}
+                >
                     <MicrophoneButton
                         isRecording={recording.view.isRecording}
                         onToggle={recording.handlers.handleMicrophoneToggle}

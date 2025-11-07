@@ -583,7 +583,7 @@ const MainWindow: React.FC = () => {
 
     const handleStyle = useMemo(() => ({
         pointerEvents: 'auto' as const,
-        top: isRecording ? 'calc(50% - 40px)' : 'calc(50% - 60px)',
+        top: isRecording ? 'calc(50% - 34px)' : 'calc(50% - 56px)',
         opacity: isRecording ? 1 : 0.92,
         transition: 'top 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease'
     }), [isRecording]);
@@ -645,8 +645,8 @@ const MainWindow: React.FC = () => {
                 role="presentation"
                 aria-hidden="true"
             >
-                <span className="h-1 w-6 rounded-full bg-gray-500"/>
-                <span className="h-1 w-6 rounded-full bg-gray-500"/>
+                <span className="h-[2px] w-6 rounded-full bg-[#ffffff43]"/>
+                <span className="h-[2px] w-6 rounded-full bg-[#ffffff43]"/>
             </div>
 
             <div className="pointer-events-none relative flex h-full w-full items-center justify-center">

@@ -44,41 +44,31 @@ const DialogTransition = forwardRef(function DialogTransition(
 });
 
 const ActionForm: React.FC<Props> = ({
-    icons,
-    iconsLoading,
-    values,
-    setField,
-    modal,
-    saving,
-    editingActionId,
-    onSubmit
-}) => {
+                                         icons,
+                                         iconsLoading,
+                                         values,
+                                         setField,
+                                         modal,
+                                         saving,
+                                         editingActionId,
+                                         onSubmit
+                                     }) => {
     const selectedIconName = icons.find((icon) => icon.id === values.iconId)?.name;
 
     return (
         <Dialog
             open={modal.isModalVisible}
             onClose={modal.closeModal}
-            fullWidth
             maxWidth="sm"
             slots={{transition: DialogTransition}}
             slotProps={{
-                transition: {timeout: 200},
-                backdrop: {timeout: 200},
                 paper: {
                     component: 'form',
-                    onSubmit, 
+                    onSubmit
                 }
             }}
         >
-            <DialogTitle
-                sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    pr: 1
-                }}
-            >
+            <DialogTitle>
                 <div>
                     <Typography variant="h5" fontWeight={600}>
                         {editingActionId ? 'Edit Action' : 'Create Action'}
@@ -91,77 +81,59 @@ const ActionForm: React.FC<Props> = ({
                     <CloseIcon fontSize="small"/>
                 </IconButton>
             </DialogTitle>
+            <DialogContent>
+                <Stack spacing={3} pt={1}>
+                    <TextField
+                        label="Action name"
+                        value={values.name}
+                        onChange={(event) => setField('name', event.target.value)}
+                        placeholder="Send daily standup"
+                        fullWidth
+                    />
 
-            <DialogContent
-                dividers={false}
-                sx={{
-                    pt: 1,
-                    px: 3,
-                    maxHeight: '65vh',
-                    overflowY: 'auto',
-                    '&::-webkit-scrollbar': {
-                        width: 6
-                    },
-                    '&::-webkit-scrollbar-thumb': {
-                        backgroundColor: 'rgba(244,63,94,0.4)',
-                        borderRadius: 999
-                    },
-                    '&::-webkit-scrollbar-track': {
-                        background: 'rgba(15,23,42,0.05)'
-                    }
-                }}
-            >
-                <Stack spacing={3}>
-                        <TextField
-                            label="Action name"
-                            value={values.name}
-                            onChange={(event) => setField('name', event.target.value)}
-                            placeholder="Send daily standup"
-                            fullWidth
-                        />
+                    <TextField
+                        label="Prompt"
+                        value={values.prompt}
+                        onChange={(event) => setField('prompt', event.target.value)}
+                        placeholder="Summarize last 5 Jira updates..."
+                        fullWidth
+                        multiline
+                        minRows={3}
+                    />
 
-                        <TextField
-                            label="Prompt"
-                            value={values.prompt}
-                            onChange={(event) => setField('prompt', event.target.value)}
-                            placeholder="Summarize last 5 Jira updates..."
-                            fullWidth
-                            multiline
-                            minRows={3}
-                        />
+                    <Stack spacing={1}>
+                        <Typography variant="body2" color="text.primary" fontWeight={600}>
+                            Hotkey
+                        </Typography>
+                        <Box
+                            sx={{
+                                borderRadius: 2,
+                                border: '1px solid rgba(15,23,42,0.12)',
+                                px: 2,
+                                py: 1.5,
+                                bgcolor: '#fff',
+                                transition: 'border-color 220ms ease, box-shadow 220ms ease',
+                                '&:hover': {
+                                    borderColor: 'rgba(244,63,94,0.6)'
+                                },
+                                '&:focus-within': {
+                                    borderColor: 'primary.main',
+                                    boxShadow: '0 10px 24px rgba(244,63,94,0.12)'
+                                }
+                            }}
+                        >
+                            <HotkeyInput value={values.hotkey ?? ''} onChange={(next) => setField('hotkey', next)}/>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary">
+                            Press the shortcut you want to assign.
+                        </Typography>
+                    </Stack>
 
-                        <Stack spacing={1}>
-                            <Typography variant="body2" color="text.primary" fontWeight={600}>
-                                Hotkey
-                            </Typography>
-                            <Box
-                                sx={{
-                                    borderRadius: 2,
-                                    border: '1px solid rgba(15,23,42,0.12)',
-                                    px: 2,
-                                    py: 1.5,
-                                    bgcolor: '#fff',
-                                    transition: 'border-color 220ms ease, box-shadow 220ms ease',
-                                    '&:hover': {
-                                        borderColor: 'rgba(244,63,94,0.6)'
-                                    },
-                                    '&:focus-within': {
-                                        borderColor: 'primary.main',
-                                        boxShadow: '0 10px 24px rgba(244,63,94,0.12)'
-                                    }
-                                }}
-                            >
-                                <HotkeyInput value={values.hotkey ?? ''} onChange={(next) => setField('hotkey', next)}/>
-                            </Box>
-                            <Typography variant="caption" color="text.secondary">
-                                Press the shortcut you want to assign.
-                            </Typography>
-                        </Stack>
-
-                        <Stack spacing={1}>
-                            <Typography variant="body2" color="text.primary" fontWeight={600}>
-                                Icon {selectedIconName && <Typography component="span" variant="caption" color="text.secondary">• {selectedIconName}</Typography>}
-                            </Typography>
+                    <Stack spacing={1}>
+                        <Typography variant="body2" color="text.primary" fontWeight={600}>
+                            Icon {selectedIconName && <Typography component="span" variant="caption"
+                                                                  color="text.secondary">• {selectedIconName}</Typography>}
+                        </Typography>
                         {iconsLoading ? (
                             <Box
                                 sx={{
@@ -238,42 +210,42 @@ const ActionForm: React.FC<Props> = ({
                         )}
                     </Stack>
 
-                        <Stack spacing={1}>
-                            <Typography variant="body2" color="text.primary" fontWeight={600}>
-                                Options
-                            </Typography>
-                            <FormGroup row>
-                                <FormControlLabel
-                                    control={
-                                        <Checkbox
-                                            checked={values.showResults}
-                                            onChange={(event) => setField('showResults', event.target.checked)}
-                                        />
-                                    }
-                                    label="Show result window"
-                                />
-                                <FormControlLabel
-                                    control={
-                                        <Checkbox
-                                            checked={values.soundOnComplete}
-                                            onChange={(event) => setField('soundOnComplete', event.target.checked)}
-                                        />
-                                    }
-                                    label="Play completion sound"
-                                />
-                                <FormControlLabel
-                                    control={
-                                        <Checkbox
-                                            checked={values.autoCopyResult}
-                                            onChange={(event) => setField('autoCopyResult', event.target.checked)}
-                                        />
-                                    }
-                                    label="Copy result to clipboard"
-                                />
-                            </FormGroup>
-                        </Stack>
+                    <Stack spacing={1}>
+                        <Typography variant="body2" color="text.primary" fontWeight={600}>
+                            Options
+                        </Typography>
+                        <FormGroup row>
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        checked={values.showResults}
+                                        onChange={(event) => setField('showResults', event.target.checked)}
+                                    />
+                                }
+                                label="Show result window"
+                            />
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        checked={values.soundOnComplete}
+                                        onChange={(event) => setField('soundOnComplete', event.target.checked)}
+                                    />
+                                }
+                                label="Play completion sound"
+                            />
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        checked={values.autoCopyResult}
+                                        onChange={(event) => setField('autoCopyResult', event.target.checked)}
+                                    />
+                                }
+                                label="Copy result to clipboard"
+                            />
+                        </FormGroup>
                     </Stack>
-                </DialogContent>
+                </Stack>
+            </DialogContent>
 
             <DialogActions sx={{px: 3, py: 2.5}}>
                 <Button onClick={modal.closeModal} variant="outlined">

@@ -101,6 +101,8 @@ const MIC_WINDOW_WIDTH = 300;
 const MIC_WINDOW_HEIGHT = 300;
 const MIC_WINDOW_MARGIN = 24;
 const MIC_BUTTON_SIZE = 80;
+const HOTKEY_MIN_INTERVAL_MS = 50;
+const HOTKEY_LOCK_DURATION_MS = 150;
 
 let registeredMicShortcut: string | null = null;
 type MicVisibilityReason = 'shortcut' | 'taskbar' | 'auto' | 'system' | 'manual' | 'renderer' | 'action';
@@ -369,17 +371,17 @@ const toggleMicWindow = async (source: MicVisibilityReason = 'manual') => {
             console.log('[Hotkey] Toggle locked, ignoring');
             return;
         }
-        if (now - lastMicToggleTime < 500) { // Увеличили с 100ms до 500ms
+        if (now - lastMicToggleTime < HOTKEY_MIN_INTERVAL_MS) {
             console.log('[Hotkey] Too soon since last toggle, ignoring');
             return;
         }
         lastMicToggleTime = now;
         hotkeyToggleLocked = true;
-        console.log('[Hotkey] Locking toggle for 1000ms');
+        console.log(`[Hotkey] Locking toggle for ${HOTKEY_LOCK_DURATION_MS}ms`);
         setTimeout(() => {
             hotkeyToggleLocked = false;
             console.log('[Hotkey] Toggle lock released');
-        }, 1000); // Увеличили с 200ms до 1000ms
+        }, HOTKEY_LOCK_DURATION_MS);
     }
 
     if (!micWindow || micWindow.isDestroyed()) {

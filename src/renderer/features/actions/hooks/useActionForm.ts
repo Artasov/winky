@@ -1,0 +1,237 @@
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {z} from 'zod';
+import type {ActionConfig} from '@shared/types';
+
+const formSchema = z.object({
+    name: z.string().min(1, 'Заполните название действия.'),
+    prompt: z.string().optional(),
+    hotkey: z.string().optional(),
+    iconId: z.string().min(1, 'Выберите иконку.'),
+    showResults: z.boolean(),
+    soundOnComplete: z.boolean(),
+    autoCopyResult: z.boolean()
+});
+
+export type ActionFormValues = z.infer<typeof formSchema>;
+
+type UseActionFormParams = {
+    icons: Array<{ id: string; name: string }>;
+    iconsLoading: boolean;
+    fetchIcons: () => Promise<Array<{ id: string; name: string }>>;
+    isAuthorized: boolean;
+    showToast: (message: string, type?: 'success' | 'info' | 'error') => void;
+    refreshConfig: () => Promise<unknown>;
+};
+
+export const useActionForm = ({
+    icons,
+    iconsLoading,
+    fetchIcons,
+    isAuthorized,
+    showToast,
+    refreshConfig
+}: UseActionFormParams) => {
+    const MODAL_ANIMATION_MS = 180;
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [isModalClosing, setIsModalClosing] = useState(false);
+    const [editingActionId, setEditingActionId] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+    const closeTimeoutRef = useRef<number | null>(null);
+
+    const [values, setValues] = useState<ActionFormValues>({
+        name: '',
+        prompt: '',
+        hotkey: '',
+        iconId: '',
+        showResults: false,
+        soundOnComplete: false,
+        autoCopyResult: false
+    });
+
+    const resetForm = useCallback(() => {
+        setValues({
+            name: '',
+            prompt: '',
+            hotkey: '',
+            iconId: '',
+            showResults: false,
+            soundOnComplete: false,
+            autoCopyResult: false
+        });
+        setEditingActionId(null);
+    }, []);
+
+    const beginModalClose = useCallback(() => {
+        if (!isModalVisible || isModalClosing) {
+            return;
+        }
+        if (closeTimeoutRef.current) {
+            window.clearTimeout(closeTimeoutRef.current);
+        }
+        setIsModalClosing(true);
+        closeTimeoutRef.current = window.setTimeout(() => {
+            setIsModalClosing(false);
+            setIsModalVisible(false);
+            closeTimeoutRef.current = null;
+            resetForm();
+        }, MODAL_ANIMATION_MS);
+    }, [isModalClosing, isModalVisible, resetForm]);
+
+    const handleOverlayMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+        if (event.target === event.currentTarget) {
+            beginModalClose();
+        }
+    }, [beginModalClose]);
+
+    const openCreateModal = useCallback(() => {
+        if (closeTimeoutRef.current) {
+            window.clearTimeout(closeTimeoutRef.current);
+            closeTimeoutRef.current = null;
+        }
+        resetForm();
+        setIsModalClosing(false);
+        setIsModalVisible(true);
+    }, [resetForm]);
+
+    const openEditModal = useCallback((action: ActionConfig) => {
+        setEditingActionId(action.id);
+        setValues({
+            name: action.name,
+            prompt: action.prompt,
+            hotkey: action.hotkey ?? '',
+            iconId: action.icon_details?.id ?? action.icon,
+            showResults: action.show_results ?? false,
+            soundOnComplete: action.sound_on_complete ?? false,
+            autoCopyResult: action.auto_copy_result ?? false
+        });
+        if (closeTimeoutRef.current) {
+            window.clearTimeout(closeTimeoutRef.current);
+            closeTimeoutRef.current = null;
+        }
+        setIsModalClosing(false);
+        setIsModalVisible(true);
+    }, []);
+
+    const setField = useCallback(<K extends keyof ActionFormValues>(key: K, value: ActionFormValues[K]) => {
+        setValues((prev) => ({
+            ...prev,
+            [key]: value
+        }));
+    }, []);
+
+    useEffect(() => {
+        if (!isModalVisible) {
+            return;
+        }
+
+        if (!isAuthorized) {
+            showToast('Please sign in to manage actions.', 'error');
+            return;
+        }
+
+        if (icons.length === 0 && !iconsLoading) {
+            void fetchIcons().then((loadedIcons) => {
+                if (loadedIcons.length > 0 && !values.iconId) {
+                    setField('iconId', loadedIcons[0].id);
+                } else if (loadedIcons.length === 0) {
+                    showToast('No icons available. Please add them on the backend.', 'info');
+                }
+            });
+        } else if (icons.length > 0 && !values.iconId) {
+            setField('iconId', icons[0].id);
+        }
+    }, [isModalVisible, icons, iconsLoading, values.iconId, fetchIcons, isAuthorized, showToast, setField]);
+
+    useEffect(() => () => {
+        if (closeTimeoutRef.current) {
+            window.clearTimeout(closeTimeoutRef.current);
+            closeTimeoutRef.current = null;
+        }
+    }, []);
+
+    const handleSubmit = useCallback(async (event: React.FormEvent) => {
+        event.preventDefault();
+        const validation = formSchema.safeParse(values);
+        if (!validation.success) {
+            const firstError = validation.error.errors[0]?.message ?? 'Заполните форму корректно.';
+            showToast(firstError, 'error');
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const payload = {
+                name: validation.data.name.trim(),
+                prompt: validation.data.prompt?.trim() ?? '',
+                hotkey: validation.data.hotkey?.trim() ?? '',
+                icon: validation.data.iconId,
+                show_results: validation.data.showResults,
+                sound_on_complete: validation.data.soundOnComplete,
+                auto_copy_result: validation.data.autoCopyResult
+            };
+
+            if (editingActionId) {
+                await window.winky?.actions.update(editingActionId, payload);
+            } else {
+                await window.winky?.actions.create(payload);
+            }
+
+            await refreshConfig();
+            showToast(editingActionId ? 'Действие обновлено.' : 'Действие добавлено.', 'success');
+            beginModalClose();
+        } catch (error: any) {
+            console.error('[ActionsPage] Ошибка сохранения действия', error);
+            const message = error?.response?.data?.detail || error?.message || 'Не удалось сохранить действие.';
+            showToast(message, 'error');
+        } finally {
+            setSaving(false);
+        }
+    }, [values, editingActionId, beginModalClose, refreshConfig, showToast]);
+
+    const handleDelete = useCallback(async (actionId: string, actionName: string) => {
+        if (deletingIds.has(actionId)) {
+            return;
+        }
+
+        if (!confirm(`Удалить действие \"${actionName}\"?`)) {
+            return;
+        }
+
+        setDeletingIds((prev) => new Set(prev).add(actionId));
+        try {
+            await window.winky?.actions.delete(actionId);
+            await refreshConfig();
+            showToast('Действие удалено.', 'success');
+        } catch (error) {
+            console.error('[ActionsPage] Ошибка удаления действия', error);
+            showToast('Не удалось удалить действие.', 'error');
+        } finally {
+            setDeletingIds((prev) => {
+                const next = new Set(prev);
+                next.delete(actionId);
+                return next;
+            });
+        }
+    }, [deletingIds, refreshConfig, showToast]);
+
+    const modalProps = useMemo(() => ({
+        isModalVisible,
+        isModalClosing,
+        beginModalClose,
+        handleOverlayMouseDown
+    }), [isModalVisible, isModalClosing, beginModalClose, handleOverlayMouseDown]);
+
+    return {
+        values,
+        setField,
+        modal: modalProps,
+        openCreateModal,
+        openEditModal,
+        editingActionId,
+        saving,
+        deletingIds,
+        handleSubmit,
+        handleDelete
+    };
+};

@@ -1,5 +1,5 @@
 import {createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState} from 'react';
-import {authClient, AuthError} from '../services/authClient';
+import {AuthClient, AuthError} from '../services/authClient';
 import type {AuthDeepLinkPayload, AuthProvider as OAuthProviderType, User} from '@shared/types';
 
 type AuthStatus =
@@ -24,6 +24,7 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const authClient = new AuthClient();
 
 type AuthProviderProps = {
     children: ReactNode;
@@ -45,7 +46,7 @@ export function AuthProvider({children}: AuthProviderProps) {
 
         const bootstrap = async () => {
             try {
-                const tokens = authClient.initializeFromStorage();
+                const tokens = authClient.getTokens();
                 if (!tokens?.access) {
                     setStatus('unauthenticated');
                     setUser(null);
@@ -121,13 +122,13 @@ export function AuthProvider({children}: AuthProviderProps) {
                 }
 
                 authClient.getCurrentUser(true)
-                    .then((profile) => {
+                    .then((profile: User) => {
                         if (cancelled) return;
                         setUser(profile);
                         setStatus('authenticated');
                         setError(null);
                     })
-                    .catch((err) => {
+                    .catch((err: unknown) => {
                         if (cancelled) return;
                         const normalized = normalizeAuthError(err);
                         console.warn('[auth] OAuth profile fetch failed', {error: normalized.message});

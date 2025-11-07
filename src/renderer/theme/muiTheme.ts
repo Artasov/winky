@@ -1,10 +1,10 @@
 import {createTheme, type ThemeOptions} from '@mui/material/styles';
 import {createButtonOverrides} from './components/button';
 import {
-    createDialogOverrides,
+    createDialogActionsOverrides,
     createDialogContentOverrides,
-    createDialogTitleOverrides,
-    createDialogActionsOverrides
+    createDialogOverrides,
+    createDialogTitleOverrides
 } from './components/dialog';
 import {createBackdropOverrides} from './components/backdrop';
 import {createTextFieldOverrides} from './components/textField';
@@ -25,12 +25,12 @@ const baseOptions: ThemeOptions = {
             paper: '#111827'
         },
         text: {
-            primary: '#f8fafc',
-            secondary: '#d4d9e7'
+            primary: '#050505',
+            secondary: '#888888'
         }
     },
     shape: {
-        borderRadius: 20
+        borderRadius: 10
     },
     typography: {
         fontFamily: '"Inter", "Segoe UI", sans-serif',

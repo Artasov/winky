@@ -17,13 +17,16 @@ export const createTextFieldOverrides = (theme: Theme): Pick<
                 backgroundColor: '#fff',
                 border: '1px solid rgba(15, 23, 42, 0.12)',
                 transition: 'border-color 220ms ease, box-shadow 220ms ease, background-color 220ms ease',
-                '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(244,63,94,0.5)',
+                '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'transparent',
                     transition: 'border-color 220ms ease'
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(244,63,94,0.5)'
                 },
                 '&.Mui-focused': {
                     backgroundColor: '#fff',
-                    boxShadow: '0 8px 20px rgba(244,63,94,0.12)',
+                    boxShadow: '0 6px 16px rgba(244,63,94,0.16)',
                     '& .MuiOutlinedInput-notchedOutline': {
                         borderColor: theme.palette.primary.main
                     }

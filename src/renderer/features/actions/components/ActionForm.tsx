@@ -59,55 +59,65 @@ const ActionForm: React.FC<Props> = ({
         <Dialog
             open={modal.isModalVisible}
             onClose={modal.closeModal}
-            TransitionComponent={DialogTransition}
             fullWidth
             maxWidth="sm"
+            slots={{transition: DialogTransition}}
             slotProps={{
-                backdrop: {
-                    timeout: 200
+                transition: {timeout: 200},
+                backdrop: {timeout: 200},
+                paper: {
+                    component: 'form',
+                    onSubmit,
+                    sx: {
+                        bgcolor: '#fff',
+                        color: '#0f172a',
+                        borderRadius: 3,
+                        boxShadow: '0 30px 60px rgba(15,23,42,0.25)'
+                    }
                 }
             }}
-            PaperProps={{
-                sx: {
-                    bgcolor: '#fff',
-                    color: '#0f172a'
-                },
-                component: 'form',
-                onSubmit
-            }}
         >
-            <Box>
-                <DialogTitle
-                    sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        pr: 1
-                    }}
-                >
-                    <div>
-                        <Typography variant="h6" component="p" fontWeight={600}>
-                            {editingActionId ? 'Edit Action' : 'Create Action'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Configure how Winky should react to this shortcut.
-                        </Typography>
-                    </div>
-                    <IconButton onClick={modal.closeModal} size="small">
-                        <CloseIcon fontSize="small"/>
-                    </IconButton>
-                </DialogTitle>
+            <DialogTitle
+                sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    pr: 1
+                }}
+            >
+                <div>
+                    <Typography variant="h5" fontWeight={600}>
+                        {editingActionId ? 'Edit Action' : 'Create Action'}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Configure how Winky should react to this shortcut.
+                    </Typography>
+                </div>
+                <IconButton onClick={modal.closeModal} size="small">
+                    <CloseIcon fontSize="small"/>
+                </IconButton>
+            </DialogTitle>
 
-                <DialogContent
-                    dividers={false}
-                    sx={{
-                        pt: 2,
-                        px: 3,
-                        maxHeight: '65vh',
-                        overflowY: 'auto'
-                    }}
-                >
-                    <Stack spacing={3}>
+            <DialogContent
+                dividers={false}
+                sx={{
+                    pt: 1,
+                    px: 3,
+                    maxHeight: '65vh',
+                    overflowY: 'auto',
+                    '&::-webkit-scrollbar': {
+                        width: 6
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                        backgroundColor: 'rgba(244,63,94,0.4)',
+                        borderRadius: 999
+                    },
+                    '&::-webkit-scrollbar-track': {
+                        background: 'rgba(15,23,42,0.05)'
+                    }
+                }}
+            >
+                <Stack spacing={3}>
                         <TextField
                             label="Action name"
                             value={values.name}
@@ -127,7 +137,7 @@ const ActionForm: React.FC<Props> = ({
                         />
 
                         <Stack spacing={1}>
-                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                            <Typography variant="body2" color="text.primary" fontWeight={600}>
                                 Hotkey
                             </Typography>
                             <Box
@@ -154,10 +164,10 @@ const ActionForm: React.FC<Props> = ({
                             </Typography>
                         </Stack>
 
-                    <Stack spacing={1}>
-                        <Typography variant="body2" color="text.secondary">
-                            Icon {selectedIconName && <Typography component="span" variant="caption" color="text.secondary">• {selectedIconName}</Typography>}
-                        </Typography>
+                        <Stack spacing={1}>
+                            <Typography variant="body2" color="text.primary" fontWeight={600}>
+                                Icon {selectedIconName && <Typography component="span" variant="caption" color="text.secondary">• {selectedIconName}</Typography>}
+                            </Typography>
                         {iconsLoading ? (
                             <Box
                                 sx={{
@@ -188,8 +198,8 @@ const ActionForm: React.FC<Props> = ({
                             <Box
                                 sx={{
                                     display: 'grid',
-                                    gridTemplateColumns: {xs: 'repeat(4, 1fr)', sm: 'repeat(6, 1fr)'},
-                                    gap: 1.5
+                                    gridTemplateColumns: {xs: 'repeat(5, 1fr)', sm: 'repeat(7, 1fr)'},
+                                    gap: 1.2
                                 }}
                             >
                                 {icons.map((icon) => {
@@ -234,54 +244,55 @@ const ActionForm: React.FC<Props> = ({
                         )}
                     </Stack>
 
-                        <Typography variant="body2" color="text.primary" fontWeight={600}>
-                            Options
-                        </Typography>
-                        <FormGroup row>
-                            <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        checked={values.showResults}
-                                        onChange={(event) => setField('showResults', event.target.checked)}
-                                    />
-                                }
-                                label="Show result window"
-                            />
-                            <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        checked={values.soundOnComplete}
-                                        onChange={(event) => setField('soundOnComplete', event.target.checked)}
-                                    />
-                                }
-                                label="Play completion sound"
-                            />
-                            <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        checked={values.autoCopyResult}
-                                        onChange={(event) => setField('autoCopyResult', event.target.checked)}
-                                    />
-                                }
-                                label="Copy result to clipboard"
-                            />
-                        </FormGroup>
+                        <Stack spacing={1}>
+                            <Typography variant="body2" color="text.primary" fontWeight={600}>
+                                Options
+                            </Typography>
+                            <FormGroup row>
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={values.showResults}
+                                            onChange={(event) => setField('showResults', event.target.checked)}
+                                        />
+                                    }
+                                    label="Show result window"
+                                />
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={values.soundOnComplete}
+                                            onChange={(event) => setField('soundOnComplete', event.target.checked)}
+                                        />
+                                    }
+                                    label="Play completion sound"
+                                />
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={values.autoCopyResult}
+                                            onChange={(event) => setField('autoCopyResult', event.target.checked)}
+                                        />
+                                    }
+                                    label="Copy result to clipboard"
+                                />
+                            </FormGroup>
+                        </Stack>
                     </Stack>
                 </DialogContent>
 
-                <DialogActions sx={{px: 3, py: 2.5}}>
-                    <Button onClick={modal.closeModal} variant="outlined">
-                        Cancel
-                    </Button>
-                    <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={saving || iconsLoading || icons.length === 0 || !values.iconId}
-                    >
-                        {saving ? 'Saving…' : editingActionId ? 'Save changes' : 'Create action'}
-                    </Button>
-                </DialogActions>
-            </Box>
+            <DialogActions sx={{px: 3, py: 2.5}}>
+                <Button onClick={modal.closeModal} variant="outlined">
+                    Cancel
+                </Button>
+                <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={saving || iconsLoading || icons.length === 0 || !values.iconId}
+                >
+                    {saving ? 'Saving…' : editingActionId ? 'Save changes' : 'Create action'}
+                </Button>
+            </DialogActions>
         </Dialog>
     );
 };

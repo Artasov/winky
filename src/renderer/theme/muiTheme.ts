@@ -8,6 +8,7 @@ import {
 } from './components/dialog';
 import {createBackdropOverrides} from './components/backdrop';
 import {createTextFieldOverrides} from './components/textField';
+import {createIconButtonOverrides} from './components/iconButton';
 
 const baseOptions: ThemeOptions = {
     palette: {
@@ -60,6 +61,7 @@ theme = createTheme(theme, {
         MuiDialogContent: createDialogContentOverrides(),
         MuiDialogActions: createDialogActionsOverrides(theme),
         MuiBackdrop: createBackdropOverrides(theme),
+        MuiIconButton: createIconButtonOverrides(theme),
         ...createTextFieldOverrides(theme)
     }
 });

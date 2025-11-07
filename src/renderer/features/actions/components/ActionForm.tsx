@@ -2,7 +2,6 @@ import React, {forwardRef} from 'react';
 import {
     Box,
     Button,
-    ButtonBase,
     Checkbox,
     Dialog,
     DialogActions,
@@ -68,21 +67,21 @@ const ActionForm: React.FC<Props> = ({
                 }
             }}
         >
-            <DialogTitle>
-                <div>
+            <DialogTitle className={'fc'}>
+                <div className={'frbc gap-2'}>
                     <Typography variant="h5" fontWeight={600}>
                         {editingActionId ? 'Edit Action' : 'Create Action'}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Configure how Winky should react to this shortcut.
-                    </Typography>
+                    <IconButton onClick={modal.closeModal} size="small">
+                        <CloseIcon fontSize="small"/>
+                    </IconButton>
                 </div>
-                <IconButton onClick={modal.closeModal} size="small">
-                    <CloseIcon fontSize="small"/>
-                </IconButton>
+                <Typography variant="body2" color="text.secondary">
+                    Configure how Winky should react to this shortcut.
+                </Typography>
             </DialogTitle>
             <DialogContent>
-                <Stack spacing={3} pt={1}>
+                <div className={'fc gap-2 pt-2'}>
                     <TextField
                         label="Action name"
                         value={values.name}
@@ -105,25 +104,8 @@ const ActionForm: React.FC<Props> = ({
                         <Typography variant="body2" color="text.primary" fontWeight={600}>
                             Hotkey
                         </Typography>
-                        <Box
-                            sx={{
-                                borderRadius: 2,
-                                border: '1px solid rgba(15,23,42,0.12)',
-                                px: 2,
-                                py: 1.5,
-                                bgcolor: '#fff',
-                                transition: 'border-color 220ms ease, box-shadow 220ms ease',
-                                '&:hover': {
-                                    borderColor: 'rgba(244,63,94,0.6)'
-                                },
-                                '&:focus-within': {
-                                    borderColor: 'primary.main',
-                                    boxShadow: '0 10px 24px rgba(244,63,94,0.12)'
-                                }
-                            }}
-                        >
-                            <HotkeyInput value={values.hotkey ?? ''} onChange={(next) => setField('hotkey', next)}/>
-                        </Box>
+                        <HotkeyInput value={values.hotkey ?? ''} onChange={(next) => setField('hotkey', next)}/>
+
                         <Typography variant="caption" color="text.secondary">
                             Press the shortcut you want to assign.
                         </Typography>
@@ -171,25 +153,10 @@ const ActionForm: React.FC<Props> = ({
                                 {icons.map((icon) => {
                                     const isSelected = values.iconId === icon.id;
                                     return (
-                                        <ButtonBase
+                                        <IconButton
                                             key={icon.id}
                                             onClick={() => setField('iconId', icon.id)}
-                                            sx={{
-                                                borderRadius: 3,
-                                                border: '1.5px solid',
-                                                borderColor: isSelected ? 'primary.main' : 'rgba(15,23,42,0.1)',
-                                                bgcolor: '#fff',
-                                                height: 48,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                transition: 'border-color 220ms ease, box-shadow 220ms ease',
-                                                boxShadow: isSelected ? '0 10px 20px rgba(244,63,94,0.16)' : 'none',
-                                                '&:hover': {
-                                                    borderColor: 'primary.light',
-                                                    boxShadow: '0 6px 16px rgba(244,63,94,0.1)'
-                                                }
-                                            }}
+
                                         >
                                             {icon.emoji ? (
                                                 <Typography variant="h5" component="span">
@@ -203,7 +170,7 @@ const ActionForm: React.FC<Props> = ({
                                                     sx={{width: 24, height: 24}}
                                                 />
                                             )}
-                                        </ButtonBase>
+                                        </IconButton>
                                     );
                                 })}
                             </Box>
@@ -244,7 +211,7 @@ const ActionForm: React.FC<Props> = ({
                             />
                         </FormGroup>
                     </Stack>
-                </Stack>
+                </div>
             </DialogContent>
 
             <DialogActions sx={{px: 3, py: 2.5}}>

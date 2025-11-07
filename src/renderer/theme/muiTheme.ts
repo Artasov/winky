@@ -10,6 +10,7 @@ import {createBackdropOverrides} from './components/backdrop';
 import {createTextFieldOverrides} from './components/textField';
 import {createIconButtonOverrides} from './components/iconButton';
 import {createCheckboxOverrides} from './components/checkbox';
+import {createFormControlLabelOverrides} from './components/formControlLabel';
 
 const baseOptions: ThemeOptions = {
     palette: {
@@ -64,6 +65,7 @@ theme = createTheme(theme, {
         MuiBackdrop: createBackdropOverrides(theme),
         MuiIconButton: createIconButtonOverrides(theme),
         MuiCheckbox: createCheckboxOverrides(theme),
+        MuiFormControlLabel: createFormControlLabelOverrides(theme),
         ...createTextFieldOverrides(theme)
     }
 });

@@ -15,18 +15,13 @@ export const createTextFieldOverrides = (theme: Theme): Pick<
             root: {
                 borderRadius: theme.spacing(2.5),
                 backgroundColor: '#fff',
-                border: '1px solid rgba(15, 23, 42, 0.12)',
-                transition: 'border-color 220ms ease, box-shadow 220ms ease, background-color 220ms ease',
+                transition: 'box-shadow 220ms ease, background-color 220ms ease',
                 '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'transparent',
+                    borderColor: 'rgba(15, 23, 42, 0.12)',
                     transition: 'border-color 220ms ease'
                 },
                 '&:hover .MuiOutlinedInput-notchedOutline': {
                     borderColor: 'rgba(244,63,94,0.5)'
-                },
-                '&:hover': {
-                    borderColor: 'rgba(244,63,94,0.5)',
-                    border: '1px solid rgba(15, 23, 42, 0)',
                 },
                 '&.Mui-focused': {
                     backgroundColor: '#fff',

@@ -11,6 +11,7 @@ import {createTextFieldOverrides} from './components/textField';
 import {createIconButtonOverrides} from './components/iconButton';
 import {createCheckboxOverrides} from './components/checkbox';
 import {createFormControlLabelOverrides} from './components/formControlLabel';
+import {createMenuOverrides} from './components/menu';
 
 const baseOptions: ThemeOptions = {
     palette: {
@@ -66,6 +67,7 @@ theme = createTheme(theme, {
         MuiIconButton: createIconButtonOverrides(theme),
         MuiCheckbox: createCheckboxOverrides(theme),
         MuiFormControlLabel: createFormControlLabelOverrides(theme),
+        MuiMenu: createMenuOverrides(theme),
         ...createTextFieldOverrides(theme)
     }
 });

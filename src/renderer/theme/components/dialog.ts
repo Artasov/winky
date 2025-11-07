@@ -46,6 +46,9 @@ export const createDialogContentOverrides = (): Components['MuiDialogContent'] =
 export const createDialogTitleOverrides = (theme: Theme): Components['MuiDialogTitle'] => ({
     styleOverrides: {
         root: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             padding: theme.spacing(3),
             paddingBottom: theme.spacing(2)
         }

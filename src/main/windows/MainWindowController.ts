@@ -23,6 +23,7 @@ export class MainWindowController implements WindowController {
 
     ensureWindow(): BrowserWindow {
         if (this.window && !this.window.isDestroyed()) {
+            this.openDevToolsIfNeeded();
             return this.window;
         }
 
@@ -61,6 +62,14 @@ export class MainWindowController implements WindowController {
             this.window = null;
         });
 
+        if (this.deps.isDev) {
+            if (this.window.webContents.isLoading()) {
+                this.window.webContents.once('did-finish-load', () => this.openDevToolsIfNeeded());
+            } else {
+                this.openDevToolsIfNeeded();
+            }
+        }
+
         return this.window;
     }
 
@@ -97,6 +106,16 @@ export class MainWindowController implements WindowController {
                 setTimeout(sendRoute, 100);
             }
         });
+    }
+
+    private openDevToolsIfNeeded(): void {
+        if (!this.deps.isDev || !this.window || this.window.isDestroyed()) {
+            return;
+        }
+        if (this.window.webContents.isDevToolsOpened()) {
+            return;
+        }
+        this.window.webContents.openDevTools({mode: 'detach'});
     }
 
     destroy(): void {

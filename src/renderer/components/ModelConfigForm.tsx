@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo} from 'react';
-import {Box, Button, MenuItem, Stack, TextField, Typography} from '@mui/material';
+import {Box, MenuItem, Stack, TextField, Typography} from '@mui/material';
 import {
     LLM_API_MODELS,
     LLM_LOCAL_MODELS,
@@ -22,20 +22,18 @@ export interface ModelConfigFormData {
 interface ModelConfigFormProps {
     values: ModelConfigFormData;
     onChange: (values: ModelConfigFormData) => void;
-    onSubmit: (e: React.FormEvent) => void;
+    onSave: (partial: Partial<ModelConfigFormData>) => Promise<void>;
     saving: boolean;
-    submitButtonText: string;
     requireApiKeys?: boolean;
 }
 
 const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
-    values,
-    onChange,
-    onSubmit,
-    saving,
-    submitButtonText,
-    requireApiKeys = false
-}) => {
+                                                             values,
+                                                             onChange,
+                                                             onSave,
+                                                             saving,
+                                                             requireApiKeys = false
+                                                         }) => {
     const formatLabel = (value: string) =>
         value
             .replace(/[:]/g, ' ')
@@ -78,17 +76,15 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
 
     return (
         <Box
-            component="form"
-            onSubmit={onSubmit}
             sx={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 4,
+                gap: 2,
                 borderRadius: 4,
                 border: '1px solid rgba(244,63,94,0.15)',
                 backgroundColor: '#fff',
                 p: {xs: 3, md: 4},
-                boxShadow: '0 30px 60px rgba(2,6,23,0.12)'
+                boxShadow: '0 30px 60px rgba(255, 255, 255, 0.03)'
             }}
         >
             <Stack spacing={2}>
@@ -106,7 +102,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         select
                         label="Speech Recognition"
                         value={values.speechMode}
-                        onChange={(e) => onChange({...values, speechMode: e.target.value as SpeechMode})}
+                        onChange={(e) => {
+                            const next = {...values, speechMode: e.target.value as SpeechMode};
+                            onChange(next);
+                            void onSave({speechMode: next.speechMode, speechModel: next.speechModel});
+                        }}
+                        disabled={saving}
                     >
                         <MenuItem value={SPEECH_MODES.API}>API</MenuItem>
                         <MenuItem value={SPEECH_MODES.LOCAL}>Local</MenuItem>
@@ -116,7 +117,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         select
                         label="Speech Model"
                         value={values.speechModel}
-                        onChange={(e) => onChange({...values, speechModel: e.target.value as SpeechModel})}
+                        onChange={(e) => {
+                            const next = {...values, speechModel: e.target.value as SpeechModel};
+                            onChange(next);
+                            void onSave({speechModel: next.speechModel});
+                        }}
+                        disabled={saving}
                     >
                         {speechModelOptions.map((model) => (
                             <MenuItem key={model} value={model}>
@@ -129,7 +135,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         select
                         label="LLM Mode"
                         value={values.llmMode}
-                        onChange={(e) => onChange({...values, llmMode: e.target.value as LLMMode})}
+                        onChange={(e) => {
+                            const next = {...values, llmMode: e.target.value as LLMMode};
+                            onChange(next);
+                            void onSave({llmMode: next.llmMode, llmModel: next.llmModel});
+                        }}
+                        disabled={saving}
                     >
                         <MenuItem value={LLM_MODES.API}>API</MenuItem>
                         <MenuItem value={LLM_MODES.LOCAL}>Local</MenuItem>
@@ -139,7 +150,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         select
                         label="LLM Model"
                         value={values.llmModel}
-                        onChange={(e) => onChange({...values, llmModel: e.target.value as LLMModel})}
+                        onChange={(e) => {
+                            const next = {...values, llmModel: e.target.value as LLMModel};
+                            onChange(next);
+                            void onSave({llmModel: next.llmModel});
+                        }}
+                        disabled={saving}
                     >
                         {llmModelOptions.map((model) => (
                             <MenuItem key={model} value={model}>
@@ -167,9 +183,14 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             type="password"
                             label="Google AI Key"
                             value={values.googleKey}
-                            onChange={(e) => onChange({...values, googleKey: e.target.value})}
+                            onChange={(e) => {
+                                const next = {...values, googleKey: e.target.value};
+                                onChange(next);
+                                void onSave({googleKey: next.googleKey});
+                            }}
                             placeholder="AIza..."
                             required={requireApiKeys && requiresGoogleKey && !requiresOpenAIKey}
+                            disabled={saving}
                         />
                         {requireApiKeys && requiresOpenAIKey && (
                             <Typography variant="caption" color="text.secondary">
@@ -186,9 +207,14 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             type="password"
                             label="OpenAI API Key"
                             value={values.openaiKey}
-                            onChange={(e) => onChange({...values, openaiKey: e.target.value})}
+                            onChange={(e) => {
+                                const next = {...values, openaiKey: e.target.value};
+                                onChange(next);
+                                void onSave({openaiKey: next.openaiKey});
+                            }}
                             placeholder="sk-..."
                             required={requireApiKeys && requiresOpenAIKey && !requiresGoogleKey}
+                            disabled={saving}
                         />
                         {requireApiKeys && requiresGoogleKey && (
                             <Typography variant="caption" color="text.secondary">
@@ -205,11 +231,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 )}
             </Stack>
 
-            <Box display="flex" justifyContent="flex-end">
-                <Button type="submit" variant="contained" size="large" disabled={saving} sx={{px: 4}}>
-                    {saving ? 'Saving…' : submitButtonText}
-                </Button>
-            </Box>
         </Box>
     );
 };

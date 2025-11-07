@@ -1,5 +1,5 @@
 import React, {ChangeEvent, useEffect, useState} from 'react';
-import {Box, Button, Checkbox, FormControlLabel, Slider, Stack, Typography} from '@mui/material';
+import {Box, Button, Checkbox, FormControlLabel, Slider, Typography} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
 import {useToast} from '../context/ToastContext';
@@ -7,6 +7,7 @@ import {LLM_API_MODELS, LLM_MODES, SPEECH_API_MODELS, SPEECH_MODES} from '@share
 import type {MicAnchor} from '@shared/types';
 import ModelConfigForm, {ModelConfigFormData} from '../components/ModelConfigForm';
 import HotkeyInput from '../components/HotkeyInput';
+import theme from "@renderer/theme/muiTheme";
 
 const SettingsPage: React.FC = () => {
     const {config, updateConfig} = useConfig();
@@ -95,28 +96,27 @@ const SettingsPage: React.FC = () => {
         };
     }, [showToast]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const persistModelConfig = async (partial: Partial<ModelConfigFormData>) => {
         setSaving(true);
         try {
+            const nextValues = {...formData, ...partial};
             await updateConfig({
                 apiKeys: {
-                    openai: formData.openaiKey.trim(),
-                    google: formData.googleKey.trim()
+                    openai: nextValues.openaiKey.trim(),
+                    google: nextValues.googleKey.trim()
                 },
                 speech: {
-                    mode: formData.speechMode,
-                    model: formData.speechModel
+                    mode: nextValues.speechMode,
+                    model: nextValues.speechModel
                 },
                 llm: {
-                    mode: formData.llmMode,
-                    model: formData.llmModel
+                    mode: nextValues.llmMode,
+                    model: nextValues.llmModel
                 }
             });
-            showToast('Settings saved successfully.', 'success');
         } catch (error) {
-            console.error('[SettingsPage] Failed to save settings', error);
-            showToast('Failed to save API keys.', 'error');
+            console.error('[SettingsPage] Failed to save model config', error);
+            showToast('Failed to update model config.', 'error');
         } finally {
             setSaving(false);
         }
@@ -262,19 +262,17 @@ const SettingsPage: React.FC = () => {
             <ModelConfigForm
                 values={formData}
                 onChange={setFormData}
-                onSubmit={handleSubmit}
+                onSave={persistModelConfig}
                 saving={saving}
-                submitButtonText="Save"
                 requireApiKeys={false}
             />
 
             <Box
                 component="section"
                 sx={{
-                    mt: 6,
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 3,
+                    gap: 2,
                     borderRadius: 4,
                     border: '1px solid rgba(244,63,94,0.15)',
                     backgroundColor: '#fff',
@@ -282,49 +280,31 @@ const SettingsPage: React.FC = () => {
                     boxShadow: '0 30px 60px rgba(2,6,23,0.12)'
                 }}
             >
-                <Stack spacing={0.5}>
+                <div className={'fc'}>
                     <Typography variant="h6" color="text.primary" fontWeight={600}>
                         Mic Overlay
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                         Configure the floating microphone overlay behaviour.
                     </Typography>
-                </Stack>
+                </div>
 
-                <Stack spacing={1}>
+                <div className={'fc gap-2'}>
                     <Typography variant="body2" fontWeight={600} color="text.primary">
                         Toggle Hotkey
                     </Typography>
-                    <Box
-                        sx={{
-                            borderRadius: 2,
-                            border: '1px solid rgba(15,23,42,0.12)',
-                            px: 2,
-                            py: 1.5,
-                            bgcolor: '#fff',
-                            transition: 'border-color 220ms ease, box-shadow 220ms ease',
-                            '&:hover': {
-                                borderColor: 'rgba(244,63,94,0.5)'
-                            },
-                            '&:focus-within': {
-                                borderColor: 'primary.main',
-                                boxShadow: '0 12px 28px rgba(244,63,94,0.12)'
-                            }
-                        }}
-                    >
-                        <HotkeyInput
-                            value={micHotkey}
-                            onChange={handleHotkeyChange}
-                            onInvalid={handleHotkeyInvalid}
-                            placeholder="Press keys to set shortcut"
-                        />
-                    </Box>
-                    <Typography variant="caption" color="text.secondary">
+                    <HotkeyInput
+                        value={micHotkey}
+                        onChange={handleHotkeyChange}
+                        onInvalid={handleHotkeyInvalid}
+                        placeholder="Press keys to set shortcut"
+                    />
+                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
                         Press the desired key combination. Press Escape or use Clear to remove the shortcut.
                     </Typography>
-                </Stack>
+                </div>
 
-                <Stack spacing={1}>
+                <div className={'fc gap-2'}>
                     <Typography variant="body2" fontWeight={600} color="text.primary">
                         Default Position
                     </Typography>
@@ -345,6 +325,7 @@ const SettingsPage: React.FC = () => {
                                     size="small"
                                     onClick={() => handleAnchorSelect(option.value)}
                                     sx={{
+                                        backgroundColor: theme.palette.primary.main + '11',
                                         borderRadius: 2,
                                         textTransform: 'none',
                                         fontWeight: 600
@@ -358,39 +339,40 @@ const SettingsPage: React.FC = () => {
                     <Typography variant="caption" color="text.secondary">
                         Select one of the corners to dock the microphone overlay. The overlay moves immediately.
                     </Typography>
-                </Stack>
+                </div>
 
-                <Stack spacing={0.5}>
+                <div className={'fc gap-2 -mt-[12px]'}>
                     <FormControlLabel
                         control={<Checkbox checked={micAutoStart} onChange={handleAutoStartChange}/>}
                         label="Start recording automatically"
                     />
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
                         When enabled, showing the mic via hotkey or taskbar menu immediately begins recording.
                     </Typography>
-                </Stack>
+                </div>
 
-                <Stack spacing={0.5}>
+                <div className={'fc gap-2 -mt-[12px]'}>
                     <FormControlLabel
                         control={<Checkbox checked={micHideOnStop} onChange={handleHideOnStopChange}/>}
                         label="Hide mic overlay when recording stops"
                     />
-                    <Typography variant="caption" color="text.secondary">
-                        When enabled, the mic overlay automatically hides after you stop recording. When disabled, it stays visible.
+                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
+                        When enabled, the mic overlay automatically hides after you stop recording. When disabled, it
+                        stays visible.
                     </Typography>
-                </Stack>
+                </div>
 
-                <Stack spacing={0.5}>
+                <div className={'fc gap-2 -mt-[12px]'}>
                     <FormControlLabel
                         control={<Checkbox checked={micShowOnLaunch} onChange={handleShowOnLaunchChange}/>}
                         label="Show mic overlay when Winky starts"
                     />
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
                         Controls whether the floating microphone opens automatically right after the app launches.
                     </Typography>
-                </Stack>
+                </div>
 
-                <Stack spacing={1}>
+                <div className={'fc '}>
                     <Typography variant="body2" fontWeight={600} color="text.primary">
                         Completion Sound Volume: {Math.round(completionSoundVolume * 100)}%
                     </Typography>
@@ -407,7 +389,7 @@ const SettingsPage: React.FC = () => {
                     <Typography variant="caption" color="text.secondary">
                         Adjust the volume of the sound that plays when an action completes. Set to 0% to disable.
                     </Typography>
-                </Stack>
+                </div>
             </Box>
         </div>
     );

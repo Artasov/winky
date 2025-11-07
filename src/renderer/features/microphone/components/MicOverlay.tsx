@@ -1,4 +1,4 @@
-import React, {useMemo, useEffect} from 'react';
+import React, {useEffect, useMemo} from 'react';
 import MicrophoneButton from '../../../components/MicrophoneButton';
 import ActionButton from '../../../components/ActionButton';
 import LoadingSpinner from '../../../components/LoadingSpinner';
@@ -130,13 +130,14 @@ const MicOverlay: React.FC = () => {
                     viewBox="0 0 25 10"
                     className="pointer-events-none text-white/55 drop-shadow-[0_0_4px_rgba(0,0,0,0.35)]"
                 >
-                    <rect x="0" y="0" width="25" height="2" rx="1" fill="currentColor" />
-                    <rect x="0" y="6" width="25" height="2" rx="1" fill="currentColor" />
+                    <rect x="0" y="0" width="25" height="2" rx="1" fill="currentColor"/>
+                    <rect x="0" y="6" width="25" height="2" rx="1" fill="currentColor"/>
                 </svg>
             </div>
 
             <div className="pointer-events-none relative flex h-full w-full items-center justify-center">
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center" style={{overflow: 'visible'}}>
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                     style={{overflow: 'visible'}}>
                     {[4, 3, 2, 1].map((multiplier) => (
                         <div
                             key={multiplier}

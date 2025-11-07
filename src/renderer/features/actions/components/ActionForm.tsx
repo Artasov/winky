@@ -143,20 +143,38 @@ const ActionForm: React.FC<Props> = ({
                                 No icons available.
                             </Box>
                         ) : (
-                            <Box
-                                sx={{
-                                    display: 'grid',
-                                    gridTemplateColumns: {xs: 'repeat(5, 1fr)', sm: 'repeat(7, 1fr)'},
-                                    gap: 1.2
-                                }}
-                            >
+                            <div className={'frsc gap-1 flex-wrap'}>
                                 {icons.map((icon) => {
                                     const isSelected = values.iconId === icon.id;
                                     return (
                                         <IconButton
                                             key={icon.id}
+                                            size={'small'}
+                                            aria-pressed={isSelected}
                                             onClick={() => setField('iconId', icon.id)}
-
+                                            sx={(theme) => ({
+                                                width: '100%',
+                                                aspectRatio: '1 / 1',
+                                                minHeight: 0,
+                                                padding: 0,
+                                                borderStyle: 'solid',
+                                                borderWidth: 2,
+                                                borderColor: isSelected
+                                                    ? theme.palette.primary.main
+                                                    : theme.palette.primary.main + '00',
+                                                backgroundColor: isSelected
+                                                    ? 'rgba(244, 63, 94, 0.18)'
+                                                    : 'rgba(15, 23, 42, 0.03)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                transition: 'all 260ms ease',
+                                                '&:hover': {
+                                                    backgroundColor: 'rgba(244, 63, 94, 0.18)',
+                                                    borderColor: theme.palette.primary.main
+                                                },
+                                                width: '45px'
+                                            })}
                                         >
                                             {icon.emoji ? (
                                                 <Typography variant="h5" component="span">
@@ -173,7 +191,7 @@ const ActionForm: React.FC<Props> = ({
                                         </IconButton>
                                     );
                                 })}
-                            </Box>
+                            </div>
                         )}
                     </Stack>
 

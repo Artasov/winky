@@ -106,10 +106,6 @@ const MePage: React.FC = () => {
                                             className="font-medium">{`${user.first_name || ''} ${user.last_name || ''}`.trim()}</span>
                                     </div>
                                 )}
-                                <div className="flex items-center justify-between">
-                                    <span className="text-text-secondary">User ID:</span>
-                                    <span className="font-mono text-xs">{user.id}</span>
-                                </div>
                             </div>
                         </section>
                     )}

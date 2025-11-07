@@ -91,18 +91,13 @@ const getIconPath = (): string => {
 
 let micWindow: BrowserWindow | null = null;
 let micWindowVisible = false;
-let lastMicToggleTime = 0;
-let hotkeyToggleLocked = false;
 let micWindowAutoShowDisabled = false;
-let micWindowFadeTimeout: NodeJS.Timeout | null = null;
 let micWindowInteractive = false;
 
 const MIC_WINDOW_WIDTH = 300;
 const MIC_WINDOW_HEIGHT = 300;
 const MIC_WINDOW_MARGIN = 24;
 const MIC_BUTTON_SIZE = 80;
-const HOTKEY_MIN_INTERVAL_MS = 50;
-const HOTKEY_LOCK_DURATION_MS = 150;
 
 let registeredMicShortcut: string | null = null;
 type MicVisibilityReason = 'shortcut' | 'taskbar' | 'auto' | 'system' | 'manual' | 'renderer' | 'action';
@@ -244,12 +239,6 @@ const applyMicAnchorPosition = async (anchor: MicAnchor | undefined, persist = f
     return position;
 };
 
-const clearMicWindowFadeTimeout = () => {
-    if (micWindowFadeTimeout) {
-        clearTimeout(micWindowFadeTimeout);
-        micWindowFadeTimeout = null;
-    }
-};
 const showMicWindowInstance = (reason: MicVisibilityReason = 'system') => {
     console.log('[Mic] showMicWindowInstance called', {micWindowVisible, micWindowAutoShowDisabled, reason});
     if (!micWindow || micWindow.isDestroyed()) {
@@ -265,8 +254,7 @@ const showMicWindowInstance = (reason: MicVisibilityReason = 'system') => {
     });
 
     micWindowAutoShowDisabled = false;
-    clearMicWindowFadeTimeout();
-    micWindow.setOpacity(0);
+    micWindow.setOpacity(1);
 
     const performShow = () => {
         if (!micWindow || micWindow.isDestroyed()) {
@@ -284,18 +272,8 @@ const showMicWindowInstance = (reason: MicVisibilityReason = 'system') => {
         ensureMicOnTop();
         setMicInteractive(false);
 
-        clearMicWindowFadeTimeout();
-        micWindowFadeTimeout = setTimeout(() => {
-            if (!micWindow || micWindow.isDestroyed() || !micWindowVisible) {
-                return;
-            }
-            // Запускаем fade-in анимацию
-            micWindow.webContents.send('mic:start-fade-in');
-            micWindow.setOpacity(1);
-            ensureMicOnTop();
-            micWindowFadeTimeout = null;
-            console.log('[Mic] Window opacity restored to 1, fade-in started');
-        }, 16);
+        micWindow.webContents.send('mic:start-fade-in');
+        ensureMicOnTop();
 
         console.log('[Mic] Window state after show:', {
             isVisible: micWindow.isVisible(),
@@ -342,47 +320,21 @@ const hideMicWindow = (reason: MicVisibilityReason = 'system', options: { disabl
         micWindowAutoShowDisabled = true;
     }
     setMicInteractive(false);
-    clearMicWindowFadeTimeout();
 
-    // Запускаем fade-out анимацию
     micWindow.webContents.send('mic:start-fade-out');
-
-    // Ждем завершения анимации перед скрытием
-    setTimeout(() => {
-        if (micWindow && !micWindow.isDestroyed()) {
-            micWindow.setOpacity(0);
-            micWindow.hide();
-            sendMicVisibilityChange(false, reason);
-        }
-    }, 300); // 300ms - длительность fade-out анимации
+    if (micWindow && !micWindow.isDestroyed()) {
+        micWindow.setOpacity(0);
+        micWindow.hide();
+        sendMicVisibilityChange(false, reason);
+    }
 };
 
 const toggleMicWindow = async (source: MicVisibilityReason = 'manual') => {
     console.log('[Hotkey] toggleMicWindow called', {
         source,
         micWindowVisible,
-        micWindowAutoShowDisabled,
-        hotkeyToggleLocked
+        micWindowAutoShowDisabled
     });
-
-    if (source === 'shortcut') {
-        const now = Date.now();
-        if (hotkeyToggleLocked) {
-            console.log('[Hotkey] Toggle locked, ignoring');
-            return;
-        }
-        if (now - lastMicToggleTime < HOTKEY_MIN_INTERVAL_MS) {
-            console.log('[Hotkey] Too soon since last toggle, ignoring');
-            return;
-        }
-        lastMicToggleTime = now;
-        hotkeyToggleLocked = true;
-        console.log(`[Hotkey] Locking toggle for ${HOTKEY_LOCK_DURATION_MS}ms`);
-        setTimeout(() => {
-            hotkeyToggleLocked = false;
-            console.log('[Hotkey] Toggle lock released');
-        }, HOTKEY_LOCK_DURATION_MS);
-    }
 
     if (!micWindow || micWindow.isDestroyed()) {
         console.log('[Hotkey] Creating mic window');
@@ -395,16 +347,10 @@ const toggleMicWindow = async (source: MicVisibilityReason = 'manual') => {
     if (micWindowVisible) {
         console.log('[Hotkey] Hiding mic window');
         hideMicWindow(source, {disableAutoShow: source === 'shortcut'});
-        if (source === 'shortcut') {
-            lastMicToggleTime = Date.now();
-        }
         return;
     }
 
     console.log('[Hotkey] Showing mic window');
-    if (source === 'shortcut') {
-        lastMicToggleTime = Date.now();
-    }
 
     // Сбрасываем флаг auto-show disabled перед показом
     micWindowAutoShowDisabled = false;
@@ -866,7 +812,6 @@ const createMicWindow = async () => {
         console.log('[Mic] Window hide event fired');
         micWindowVisible = false;
         setMicInteractive(false);
-        clearMicWindowFadeTimeout();
         if (micWindow && !micWindow.isDestroyed()) {
             micWindow.setOpacity(0);
         }
@@ -875,7 +820,6 @@ const createMicWindow = async () => {
     micWindow.on('closed', () => {
         micWindowVisible = false;
         micWindow = null;
-        clearMicWindowFadeTimeout();
     });
 
     // Сохраняем позицию окна при перемещении

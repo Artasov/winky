@@ -67,13 +67,7 @@ const ActionForm: React.FC<Props> = ({
                 backdrop: {timeout: 200},
                 paper: {
                     component: 'form',
-                    onSubmit,
-                    sx: {
-                        bgcolor: '#fff',
-                        color: '#0f172a',
-                        borderRadius: 3,
-                        boxShadow: '0 30px 60px rgba(15,23,42,0.25)'
-                    }
+                    onSubmit, 
                 }
             }}
         >

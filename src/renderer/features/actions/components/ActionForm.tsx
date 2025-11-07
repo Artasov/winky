@@ -204,30 +204,24 @@ const ActionForm: React.FC<Props> = ({
                         </Typography>
                         <FormGroup row>
                             <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        checked={values.showResults}
-                                        onChange={(event) => setField('showResults', event.target.checked)}
-                                    />
-                                }
+                                control={<Checkbox
+                                    checked={values.showResults}
+                                    onChange={(event) => setField('showResults', event.target.checked)}
+                                />}
                                 label="Show result window"
                             />
                             <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        checked={values.soundOnComplete}
-                                        onChange={(event) => setField('soundOnComplete', event.target.checked)}
-                                    />
-                                }
+                                control={<Checkbox
+                                    checked={values.soundOnComplete}
+                                    onChange={(event) => setField('soundOnComplete', event.target.checked)}
+                                />}
                                 label="Play completion sound"
                             />
                             <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        checked={values.autoCopyResult}
-                                        onChange={(event) => setField('autoCopyResult', event.target.checked)}
-                                    />
-                                }
+                                control={<Checkbox
+                                    checked={values.autoCopyResult}
+                                    onChange={(event) => setField('autoCopyResult', event.target.checked)}
+                                />}
                                 label="Copy result to clipboard"
                             />
                         </FormGroup>

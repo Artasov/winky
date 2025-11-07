@@ -123,6 +123,7 @@ export interface AppConfig {
     micAnchor?: MicAnchor;
     micAutoStartRecording?: boolean;
     micHideOnStopRecording?: boolean;
+    micShowOnLaunch?: boolean;
     completionSoundVolume?: number;
 }
 

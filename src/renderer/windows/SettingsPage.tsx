@@ -27,6 +27,7 @@ const SettingsPage: React.FC = () => {
     const [micAnchor, setMicAnchor] = useState<MicAnchor>('bottom-right');
     const [micAutoStart, setMicAutoStart] = useState(false);
     const [micHideOnStop, setMicHideOnStop] = useState(true);
+    const [micShowOnLaunch, setMicShowOnLaunch] = useState(true);
     const [completionSoundVolume, setCompletionSoundVolume] = useState(1.0);
 
     useEffect(() => {
@@ -43,6 +44,7 @@ const SettingsPage: React.FC = () => {
             setMicAnchor((config.micAnchor as MicAnchor) ?? 'bottom-right');
             setMicAutoStart(Boolean(config.micAutoStartRecording));
             setMicHideOnStop(config.micHideOnStopRecording ?? true);
+            setMicShowOnLaunch(config.micShowOnLaunch !== false);
             setCompletionSoundVolume(config.completionSoundVolume ?? 1.0);
         }
     }, [config]);
@@ -215,6 +217,25 @@ const SettingsPage: React.FC = () => {
         }
     };
 
+    const handleShowOnLaunchChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const nextValue = event.target.checked;
+        const previousValue = micShowOnLaunch;
+        setMicShowOnLaunch(nextValue);
+        try {
+            await updateConfig({micShowOnLaunch: nextValue});
+            showToast(
+                nextValue
+                    ? 'Mic overlay will appear automatically when the app starts.'
+                    : 'Mic overlay will stay hidden until you open it manually.',
+                'success'
+            );
+        } catch (error) {
+            console.error('[SettingsPage] Failed to update mic show on launch', error);
+            setMicShowOnLaunch(previousValue);
+            showToast('Failed to update microphone behaviour.', 'error');
+        }
+    };
+
     const hasToken = config?.auth.access || config?.auth.accessToken;
     const isAuthorized = Boolean(hasToken);
 
@@ -313,6 +334,21 @@ const SettingsPage: React.FC = () => {
                     <p className="text-xs text-text-tertiary">
                         When enabled, the mic overlay automatically hides after you stop recording. When disabled, it
                         stays visible.
+                    </p>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                        <input
+                            type="checkbox"
+                            checked={micShowOnLaunch}
+                            onChange={handleShowOnLaunchChange}
+                            className="h-4 w-4 rounded border border-primary-200 text-primary focus:ring-primary"
+                        />
+                        Show mic overlay when Winky starts
+                    </label>
+                    <p className="text-xs text-text-tertiary">
+                        Controls whether the floating microphone opens automatically right after the app launches.
                     </p>
                 </div>
 

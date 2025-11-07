@@ -46,7 +46,8 @@ export const handleAppReady = async (deps: AppLifecycleDeps): Promise<void> => {
                 sendLogToRenderer('APP_READY', `⚠️ Failed to load user on startup: ${error}`);
             }
 
-            const shouldAutoShowMic = config.setupCompleted;
+            const wantsMicOnLaunch = config.micShowOnLaunch !== false;
+            const shouldAutoShowMic = config.setupCompleted && wantsMicOnLaunch;
             const micWindowInstance = deps.micWindowController.getWindow();
             if (!micWindowInstance || micWindowInstance.isDestroyed()) {
                 void deps.createMicWindow().then(() => {

@@ -35,6 +35,7 @@ const DEFAULT_CONFIG: AppConfig = {
     micAnchor: 'bottom-right',
     micAutoStartRecording: false,
     micHideOnStopRecording: true,
+    micShowOnLaunch: true,
     completionSoundVolume: 1.0
 };
 
@@ -105,6 +106,10 @@ const schema: Schema<AppConfig> = {
         type: 'boolean'
     },
     micHideOnStopRecording: {
+        type: 'boolean',
+        default: true
+    },
+    micShowOnLaunch: {
         type: 'boolean',
         default: true
     },
@@ -235,6 +240,11 @@ const ensureConfigIntegrity = async (): Promise<AppConfig> => {
 
     if (typeof current.micAutoStartRecording !== 'boolean') {
         current.micAutoStartRecording = false;
+        changed = true;
+    }
+
+    if (typeof current.micShowOnLaunch !== 'boolean') {
+        current.micShowOnLaunch = true;
         changed = true;
     }
 

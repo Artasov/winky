@@ -54,7 +54,7 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
 
         // Создаём mic окно если setupCompleted был установлен в true
         const hasAuthToken = typeof updated.auth?.accessToken === 'string' && updated.auth.accessToken.trim().length > 0;
-        const shouldAutoShowMic = hasAuthToken && updated.setupCompleted;
+        const shouldAutoShowMic = hasAuthToken && updated.setupCompleted && updated.micShowOnLaunch !== false;
 
         if (shouldAutoShowMic) {
             const existingMicWindow = deps.micWindowController.getWindow();

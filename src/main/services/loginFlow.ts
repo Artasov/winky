@@ -66,7 +66,11 @@ export const performLogin = async (
     }
 
     const micWindow = deps.micWindowController.getWindow();
-    sendLogToRenderer('LOGIN', `🔍 Check: setupCompleted=${config.setupCompleted}, micWindow exists=${Boolean(micWindow && !micWindow.isDestroyed())}`);
+    const shouldAutoShowMic = config.setupCompleted && config.micShowOnLaunch !== false;
+    sendLogToRenderer(
+        'LOGIN',
+        `🔍 Check: setupCompleted=${config.setupCompleted}, micShowOnLaunch=${config.micShowOnLaunch}, micWindow exists=${Boolean(micWindow && !micWindow.isDestroyed())}`
+    );
 
     if (!micWindow || micWindow.isDestroyed()) {
         sendLogToRenderer('LOGIN', '🎤 Creating mic window after login...');
@@ -75,7 +79,7 @@ export const performLogin = async (
             if (deps.isDev && created) {
                 created.webContents.openDevTools({mode: 'detach'});
             }
-            if (config.setupCompleted && created && !created.isDestroyed()) {
+            if (shouldAutoShowMic && created && !created.isDestroyed()) {
                 deps.showMicWindowInstance('auto');
             }
             const mainWin = deps.mainWindowController.getWindow();
@@ -86,7 +90,7 @@ export const performLogin = async (
         }).catch((error) => sendLogToRenderer('LOGIN', `❌ Failed to create mic window: ${error}`));
     } else {
         sendLogToRenderer('LOGIN', '⏭️ Mic window already exists, skipping creation');
-        if (config.setupCompleted && micWindow && !micWindow.isDestroyed()) {
+        if (shouldAutoShowMic && micWindow && !micWindow.isDestroyed()) {
             deps.showMicWindowInstance('auto');
         }
         const mainWin = deps.mainWindowController.getWindow();

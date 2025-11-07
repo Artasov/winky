@@ -38,10 +38,16 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete}) => 
                     transform: 'translateY(-2px)',
                     boxShadow: '0 20px 40px rgba(244, 63, 94, 0.15)',
                     borderColor: 'rgba(244,63,94,0.6)'
+                },
+                '&:hover .action-card__delete, &:focus-within .action-card__delete': {
+                    opacity: 1,
+                    pointerEvents: 'auto',
+                    transform: 'translateY(0)'
                 }
             }}
         >
             <IconButton
+                className="action-card__delete"
                 size="small"
                 color="error"
                 disabled={isDeleting}
@@ -54,8 +60,13 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete}) => 
                     top: 12,
                     right: 12,
                     bgcolor: 'rgba(244,63,94,0.06)',
-                    '&:hover': {bgcolor: 'rgba(244,63,94,0.15)'}
+                    '&:hover': {bgcolor: 'rgba(244,63,94,0.15)'},
+                    transition: 'opacity 160ms ease, transform 160ms ease, background-color 160ms ease',
+                    opacity: 0,
+                    pointerEvents: 'none',
+                    transform: 'translateY(-4px)'
                 }}
+                aria-label="Delete action"
             >
                 <DeleteOutlineIcon fontSize="small"/>
             </IconButton>

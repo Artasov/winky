@@ -38,7 +38,7 @@ export class MainWindowController implements WindowController {
             show: false,
             titleBarStyle: 'hidden',
             transparent: false,
-            backgroundColor: '#020617',
+            backgroundColor: '#ffffff',
             webPreferences: {
                 preload: this.deps.preloadPath,
                 contextIsolation: true,

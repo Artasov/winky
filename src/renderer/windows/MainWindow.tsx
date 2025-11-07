@@ -80,6 +80,7 @@ const MainWindow: React.FC = () => {
     const MAX_FLOATING_ACTIONS = 6;
     return actions.slice(0, MAX_FLOATING_ACTIONS);
   }, [actions, isRecording]);
+  const actionsVisible = displayedActions.length > 0;
 
   const startVolumeMonitor = (stream: MediaStream) => {
     stopVolumeMonitor();
@@ -577,6 +578,28 @@ const MainWindow: React.FC = () => {
     };
   }, [isRecording, config?.actions, handleActionClick]);
 
+  const handleStyle = useMemo(() => ({
+    pointerEvents: 'auto' as const,
+    top: isRecording ? 'calc(50% - 40px)' : 'calc(50% - 60px)',
+    opacity: isRecording ? 1 : 0.92,
+    transition: 'top 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease'
+  }), [isRecording]);
+
+  const actionsWrapperStyle = useMemo(() => ({
+    width: 0,
+    height: 0,
+    opacity: actionsVisible ? 1 : 0,
+    pointerEvents: actionsVisible ? 'auto' as const : 'none' as const,
+    transform: `translate(-50%, -50%) scale(${actionsVisible ? 1 : 0.85})`,
+    transition: 'opacity 220ms ease, transform 240ms ease'
+  }), [actionsVisible]);
+
+  const actionsAuraStyle = useMemo(() => ({
+    opacity: actionsVisible ? 1 : 0,
+    transform: `scale(${actionsVisible ? 1 : 0.85})`,
+    transition: 'opacity 220ms ease, transform 240ms ease'
+  }), [actionsVisible]);
+
   // Обработка fade-in/fade-out анимаций
   useEffect(() => {
     const handleFadeIn = () => {
@@ -610,10 +633,7 @@ const MainWindow: React.FC = () => {
       {/* Палочки для перетаскивания - на верхнем уровне, позиционированы относительно центра */}
       <div
         className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 z-50 cursor-move select-none app-region-drag"
-        style={{
-          pointerEvents: 'auto',
-          top: isRecording ? 'calc(50% - 42px)' : 'calc(50% - 50px)'
-        }}
+        style={handleStyle}
         ref={dragHandleRef}
         onMouseEnter={handleHandleMouseEnter}
         onMouseLeave={handleHandleMouseLeave}
@@ -657,9 +677,15 @@ const MainWindow: React.FC = () => {
         />
       </div>
 
-      {displayedActions.length > 0 && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="pointer-events-none absolute rounded-full bg-rose-500/20 blur-md" style={{ width: '64px', height: '64px' }} />
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div
+          className="pointer-events-none absolute rounded-full bg-rose-500/20 blur-md"
+          style={{ width: '64px', height: '64px', ...actionsAuraStyle }}
+        />
+        <div
+          className="absolute left-1/2 top-1/2"
+          style={actionsWrapperStyle}
+        >
           {displayedActions.map((action, index) => {
             const total = displayedActions.length;
             const angleStep = total <= 2 ? 50 : total <= 4 ? 42 : 36;
@@ -672,9 +698,11 @@ const MainWindow: React.FC = () => {
             return (
               <div
                 key={action.id}
-                className="pointer-events-auto absolute left-1/2 top-1/2 transition-transform duration-200"
+                className="pointer-events-auto absolute transition-transform duration-200"
                 style={{
-                  transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`
+                  left: 0,
+                  top: 0,
+                  transform: `translate(${offsetX}px, ${offsetY}px) translate(-50%, -50%)`
                 }}
               >
                 <ActionButton
@@ -689,7 +717,7 @@ const MainWindow: React.FC = () => {
             );
           })}
         </div>
-      )}
+      </div>
       </div>
     </>
   );

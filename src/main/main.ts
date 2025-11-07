@@ -1651,6 +1651,10 @@ const handleAppReady = async () => {
     app.setName(APP_NAME);
     Menu.setApplicationMenu(null);
     
+    // Регистрируем IPC обработчики ДО создания окон
+    registerIpcHandlers();
+    registerAuthIpc();
+    
     // Регистрируем протокол для OAuth deep links
     registerAuthProtocol();
     
@@ -1744,8 +1748,6 @@ const handleAppReady = async () => {
         });
     }
     
-    registerIpcHandlers();
-    registerAuthIpc();
     await registerMicShortcut();
     
     // Уведомляем renderer о pending OAuth payloads

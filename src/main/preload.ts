@@ -162,8 +162,7 @@ const api = {
     }
   },
   windows: {
-    openSettings: (): Promise<void> => ipcRenderer.invoke('windows:open-settings'),
-    setMode: (mode: 'default' | 'main'): Promise<void> => ipcRenderer.invoke('window:set-mode', mode)
+    openSettings: (): Promise<void> => ipcRenderer.invoke('windows:open-settings')
   },
   windowControls: {
     minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),

@@ -48,7 +48,6 @@ declare global {
 
   interface WinkyWindowsAPI {
     openSettings(): Promise<void>;
-    setMode(mode: 'default' | 'main'): Promise<void>;
   }
 
   interface WinkyWindowControlsAPI {
@@ -100,8 +99,15 @@ declare global {
     removeListener(channel: string, callback: (...args: any[]) => void): void;
   }
 
+  interface ElectronAPI {
+    on(channel: string, callback: (...args: any[]) => void): void;
+    removeListener(channel: string, callback: (...args: any[]) => void): void;
+    windowControls: WinkyWindowControlsAPI;
+  }
+
   interface Window {
     winky?: WinkyPreload;
+    electron?: ElectronAPI;
   }
 }
 

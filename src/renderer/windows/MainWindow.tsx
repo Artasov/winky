@@ -635,7 +635,7 @@ const MainWindow: React.FC = () => {
 
             {/* Палочки для перетаскивания - на верхнем уровне, позиционированы относительно центра */}
             <div
-                className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 z-50 cursor-move select-none app-region-drag"
+                className="absolute left-1/2 -translate-x-1/2 z-50 cursor-move select-none app-region-drag flex items-center justify-center"
                 style={handleStyle}
                 ref={dragHandleRef}
                 onMouseEnter={handleHandleMouseEnter}
@@ -645,8 +645,15 @@ const MainWindow: React.FC = () => {
                 role="presentation"
                 aria-hidden="true"
             >
-                <span className="h-[2px] w-6 rounded-full bg-[#ffffff43]"/>
-                <span className="h-[2px] w-6 rounded-full bg-[#ffffff43]"/>
+                <svg
+                    width={30}
+                    height={10}
+                    viewBox="0 0 25 10"
+                    className="pointer-events-none text-white/55 drop-shadow-[0_0_4px_rgba(0,0,0,0.35)]"
+                >
+                    <rect x="0" y="0" width="25" height="2" rx="1" fill="currentColor" />
+                    <rect x="0" y="6" width="25" height="2" rx="1" fill="currentColor" />
+                </svg>
             </div>
 
             <div className="pointer-events-none relative flex h-full w-full items-center justify-center">

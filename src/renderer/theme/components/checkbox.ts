@@ -35,7 +35,7 @@ export const createCheckboxOverrides = (theme: Theme): Components['MuiCheckbox']
             borderRadius: theme.spacing(1),
             position: 'relative',
             color: theme.palette.text.primary,
-            transition: 'color 180ms ease',
+            transition: 'color 260ms ease',
             '&:hover': {
                 backgroundColor: 'transparent'
             },

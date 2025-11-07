@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-    Box,
-    Chip,
-    IconButton,
-    Stack,
-    Typography
-} from '@mui/material';
+import {Box, Chip, IconButton, Stack, Typography} from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import type {ActionConfig} from '@shared/types';
 
@@ -33,7 +27,7 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete}) => 
                 position: 'relative',
                 cursor: 'pointer',
                 boxShadow: '0 12px 32px rgba(15, 23, 42, 0.08)',
-                transition: 'transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease',
+                transition: 'transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease',
                 '&:hover': {
                     transform: 'translateY(-2px)',
                     boxShadow: '0 20px 40px rgba(244, 63, 94, 0.15)',
@@ -61,7 +55,7 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete}) => 
                     right: 12,
                     bgcolor: 'rgba(244,63,94,0.06)',
                     '&:hover': {bgcolor: 'rgba(244,63,94,0.15)'},
-                    transition: 'opacity 160ms ease, transform 160ms ease, background-color 160ms ease',
+                    transition: 'opacity 260ms ease, transform 260ms ease, background-color 260ms ease',
                     opacity: 0,
                     pointerEvents: 'none',
                     transform: 'translateY(-4px)'

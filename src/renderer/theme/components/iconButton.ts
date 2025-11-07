@@ -8,7 +8,7 @@ export const createIconButtonOverrides = (theme: Theme): Components['MuiIconButt
             backgroundColor: 'rgba(15, 23, 42, 0.04)',
             boxShadow: '0 6px 20px rgba(15, 23, 42, 0.08)',
             padding: theme.spacing(1),
-            transition: 'background-color 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease',
+            transition: 'background-color 260ms ease, color 260ms ease, border-color 260ms ease, box-shadow 260ms ease',
             '&:hover': {
                 backgroundColor: alpha(theme.palette.primary.main, 0.16),
                 color: theme.palette.primary.main,

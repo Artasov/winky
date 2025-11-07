@@ -30,6 +30,7 @@ type Props = {
     values: ActionFormValues;
     setField: <K extends keyof ActionFormValues>(key: K, value: ActionFormValues[K]) => void;
     modal: ModalProps;
+    mode: 'create' | 'edit';
     saving: boolean;
     editingActionId: string | null;
     onSubmit: (event: React.FormEvent) => Promise<void>;
@@ -48,10 +49,12 @@ const ActionForm: React.FC<Props> = ({
                                          values,
                                          setField,
                                          modal,
+                                         mode,
                                          saving,
                                          editingActionId,
                                          onSubmit
                                      }) => {
+    const isEditMode = mode === 'edit';
     const selectedIconName = icons.find((icon) => icon.id === values.iconId)?.name;
 
     return (
@@ -70,7 +73,7 @@ const ActionForm: React.FC<Props> = ({
             <DialogTitle className={'fc'}>
                 <div className={'frbc gap-2'}>
                     <Typography variant="h5" fontWeight={600}>
-                        {editingActionId ? 'Edit Action' : 'Create Action'}
+                        {isEditMode ? 'Edit Action' : 'Create Action'}
                     </Typography>
                     <IconButton onClick={modal.closeModal} size="small">
                         <CloseIcon fontSize="small"/>
@@ -153,7 +156,8 @@ const ActionForm: React.FC<Props> = ({
                                             aria-pressed={isSelected}
                                             onClick={() => setField('iconId', icon.id)}
                                             sx={(theme) => ({
-                                                width: '100%',
+                                                width: 48,
+                                                height: 48,
                                                 aspectRatio: '1 / 1',
                                                 minHeight: 0,
                                                 padding: 0,
@@ -172,8 +176,7 @@ const ActionForm: React.FC<Props> = ({
                                                 '&:hover': {
                                                     backgroundColor: 'rgba(244, 63, 94, 0.18)',
                                                     borderColor: theme.palette.primary.main
-                                                },
-                                                width: '45px'
+                                                }
                                             })}
                                         >
                                             {icon.emoji ? (
@@ -241,7 +244,7 @@ const ActionForm: React.FC<Props> = ({
                     variant="contained"
                     disabled={saving || iconsLoading || icons.length === 0 || !values.iconId}
                 >
-                    {saving ? 'Saving…' : editingActionId ? 'Save changes' : 'Create action'}
+                    {saving ? 'Saving…' : isEditMode ? 'Save changes' : 'Create action'}
                 </Button>
             </DialogActions>
         </Dialog>

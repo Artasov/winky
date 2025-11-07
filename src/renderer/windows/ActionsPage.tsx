@@ -66,6 +66,7 @@ const ActionsPage: React.FC = () => {
                 values={form.values}
                 setField={form.setField}
                 modal={form.modal}
+                mode={form.mode}
                 saving={form.saving}
                 editingActionId={form.editingActionId}
                 onSubmit={form.handleSubmit}

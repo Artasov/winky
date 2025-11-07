@@ -33,6 +33,7 @@ export const useActionForm = ({
 }: UseActionFormParams) => {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [editingActionId, setEditingActionId] = useState<string | null>(null);
+    const [mode, setMode] = useState<'create' | 'edit'>('create');
     const [saving, setSaving] = useState(false);
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
@@ -68,11 +69,13 @@ export const useActionForm = ({
     }, [isModalVisible, resetForm]);
 
     const openCreateModal = useCallback(() => {
+        setMode('create');
         resetForm();
         setIsModalVisible(true);
     }, [resetForm]);
 
     const openEditModal = useCallback((action: ActionConfig) => {
+        setMode('edit');
         setEditingActionId(action.id);
         setValues({
             name: action.name,
@@ -190,6 +193,7 @@ export const useActionForm = ({
         values,
         setField,
         modal: modalProps,
+        mode,
         openCreateModal,
         openEditModal,
         editingActionId,

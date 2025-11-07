@@ -41,7 +41,17 @@ export const createTextFieldOverrides = (theme: Theme): Pick<
     MuiInputLabel: {
         styleOverrides: {
             root: {
-                fontWeight: 500
+                fontWeight: 500,
+                '&.MuiInputLabel-shrink': {
+                    backgroundColor: '#fff',
+                    padding: '0 6px',
+                    borderRadius: theme.spacing(1),
+                    marginLeft: -4,
+                    lineHeight: 1.1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    zIndex: 1
+                }
             }
         }
     }

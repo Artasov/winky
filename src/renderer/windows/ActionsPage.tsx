@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import type {ActionConfig, ActionIcon} from '@shared/types';
+import type {ActionConfig} from '@shared/types';
 import {useConfig} from '../context/ConfigContext';
 import {useIcons} from '../context/IconsContext';
 import {useToast} from '../context/ToastContext';
@@ -244,7 +244,8 @@ const ActionsPage: React.FC = () => {
                                 }}
                                 className="card-animated group relative flex flex-col gap-3 rounded-2xl border border-primary-200 bg-white p-3 shadow-primary-sm transition-all duration-base hover:border-primary hover:shadow-primary-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
                             >
-                                <div className="absolute right-3 top-3 flex gap-2 opacity-0 transition-opacity duration-base group-hover:opacity-100">
+                                <div
+                                    className="absolute right-3 top-3 flex gap-2 opacity-0 transition-opacity duration-base group-hover:opacity-100">
                                     <button
                                         type="button"
                                         onClick={() => handleDelete(action.id, action.name)}
@@ -432,7 +433,8 @@ const ActionsPage: React.FC = () => {
                                                     }`}
                                                     title={iconOption.name}
                                                 >
-                                                    <img src={iconOption.svg} alt={iconOption.name} className="h-7 w-7"/>
+                                                    <img src={iconOption.svg} alt={iconOption.name}
+                                                         className="h-7 w-7"/>
                                                 </button>
                                             );
                                         })}

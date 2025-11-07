@@ -11,7 +11,7 @@ const ResultWindowPage: React.FC = () => {
     const contentRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        contentRef.current?.focus({ preventScroll: true });
+        contentRef.current?.focus({preventScroll: true});
     }, []);
 
     useEffect(() => {

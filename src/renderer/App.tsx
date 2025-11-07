@@ -25,7 +25,7 @@ const AppContent: React.FC = () => {
     const [config, setConfigState] = useState<AppConfig | null>(null);
     const [loading, setLoading] = useState(true);
     const [toasts, setToasts] = useState<ToastMessage[]>([]);
-    const { user, fetchUser, loading: userLoading } = useUser();
+    const {user, fetchUser, loading: userLoading} = useUser();
     const [preloadError, setPreloadError] = useState<string | null>(() =>
         typeof window !== 'undefined' && window.winky ? null : 'Preload-скрипт не загружен.'
     );
@@ -213,7 +213,7 @@ const AppContent: React.FC = () => {
             userFetchAttempted.current = true;
             try {
                 const userData = await fetchUser();
-                
+
                 if (!userData) {
                     console.warn('[App] Failed to fetch user, token might be invalid');
                 }
@@ -236,17 +236,17 @@ const AppContent: React.FC = () => {
         if (isMicWindow || isResultWindow || isErrorWindow) {
             return;
         }
-        
+
         const handleNavigateEvent = (_event: any, route: string) => {
             console.log('[App] Navigate event received:', route);
             navigate(route);
         };
-        
+
         const winky = window.winky as any; // TypeScript кеш может не обновиться, используем any
         if (winky?.on) {
             winky.on('navigate-to', handleNavigateEvent);
         }
-        
+
         return () => {
             if (winky?.removeListener) {
                 winky.removeListener('navigate-to', handleNavigateEvent);
@@ -304,8 +304,8 @@ const AppContent: React.FC = () => {
     // Определяем, нужен ли Sidebar для текущего маршрута
     // Показываем sidebar если есть токен и setup завершен (не требуем загрузку пользователя)
     const hasToken = config?.auth.access || config?.auth.accessToken;
-    const needsSidebar = !loading && 
-        hasToken && 
+    const needsSidebar = !loading &&
+        hasToken &&
         config?.setupCompleted &&
         ['/me', '/actions', '/settings', '/info'].includes(location.pathname);
 
@@ -329,11 +329,11 @@ const AppContent: React.FC = () => {
                     <div className="fc disable-tap-select h-full bg-bg-base text-text-primary">{routes}</div>
                 ) : (
                     <div className="fc disable-tap-select h-full bg-bg-base text-text-primary">
-                        <TitleBar />
+                        <TitleBar/>
                         <div className="fr flex-1 overflow-hidden">
                             {needsSidebar && <Sidebar/>}
                             <main className="flex-1 overflow-hidden bg-bg-secondary/50">
-                <div className="h-full overflow-auto">{routes}</div>
+                                <div className="h-full overflow-auto">{routes}</div>
                             </main>
                         </div>
                     </div>
@@ -347,11 +347,11 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
     return (
         <AuthProvider>
-        <UserProvider>
-            <IconsProvider>
-                <AppContent />
-            </IconsProvider>
-        </UserProvider>
+            <UserProvider>
+                <IconsProvider>
+                    <AppContent/>
+                </IconsProvider>
+            </UserProvider>
         </AuthProvider>
     );
 };

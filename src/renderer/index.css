@@ -4,174 +4,174 @@
 @import './styles/checkbox.sass';
 
 @theme {
-  --color-primary: #e11d48;
-  --color-primary-light: #fb7185;
-  --color-primary-dark: #be123c;
-  --color-primary-hover: #f43f5e;
-  --color-primary-50: #fff1f2;
-  --color-primary-100: #ffe4e6;
-  --color-primary-200: #fecdd3;
-  --color-primary-300: #fda4af;
-  --color-primary-400: #fb7185;
-  --color-primary-500: #f43f5e;
-  --color-primary-600: #e11d48;
-  --color-primary-700: #be123c;
-  --color-primary-800: #9f1239;
-  --color-primary-900: #881337;
-  
-  --color-bg-base: #ffffff;
-  --color-bg-secondary: #fef2f2;
-  --color-bg-tertiary: #fee2e2;
-  --color-bg-elevated: #fafafa;
-  
-  --color-text-primary: #1e293b;
-  --color-text-secondary: #64748b;
-  --color-text-tertiary: #94a3b8;
-  --color-text-inverse: #ffffff;
-  
-  --color-border-light: #fecdd3;
-  --color-border-base: #fda4af;
-  --color-border-strong: #fb7185;
-  
-  --shadow-primary-sm: 0 1px 2px 0 rgba(225, 29, 72, 0.05);
-  --shadow-primary: 0 4px 6px -1px rgba(225, 29, 72, 0.1), 0 2px 4px -1px rgba(225, 29, 72, 0.06);
-  --shadow-primary-md: 0 10px 15px -3px rgba(225, 29, 72, 0.1), 0 4px 6px -2px rgba(225, 29, 72, 0.05);
-  --shadow-primary-lg: 0 20px 25px -5px rgba(225, 29, 72, 0.1), 0 10px 10px -5px rgba(225, 29, 72, 0.04);
-  --shadow-primary-xl: 0 25px 50px -12px rgba(225, 29, 72, 0.25);
-  
-  --transition-duration-fast: 150ms;
-  --transition-duration-base: 250ms;
-  --transition-duration-slow: 350ms;
-  
-  --transition-timing-function-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-timing-function-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  --transition-timing-function-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
+    --color-primary: #e11d48;
+    --color-primary-light: #fb7185;
+    --color-primary-dark: #be123c;
+    --color-primary-hover: #f43f5e;
+    --color-primary-50: #fff1f2;
+    --color-primary-100: #ffe4e6;
+    --color-primary-200: #fecdd3;
+    --color-primary-300: #fda4af;
+    --color-primary-400: #fb7185;
+    --color-primary-500: #f43f5e;
+    --color-primary-600: #e11d48;
+    --color-primary-700: #be123c;
+    --color-primary-800: #9f1239;
+    --color-primary-900: #881337;
+
+    --color-bg-base: #ffffff;
+    --color-bg-secondary: #fef2f2;
+    --color-bg-tertiary: #fee2e2;
+    --color-bg-elevated: #fafafa;
+
+    --color-text-primary: #1e293b;
+    --color-text-secondary: #64748b;
+    --color-text-tertiary: #94a3b8;
+    --color-text-inverse: #ffffff;
+
+    --color-border-light: #fecdd3;
+    --color-border-base: #fda4af;
+    --color-border-strong: #fb7185;
+
+    --shadow-primary-sm: 0 1px 2px 0 rgba(225, 29, 72, 0.05);
+    --shadow-primary: 0 4px 6px -1px rgba(225, 29, 72, 0.1), 0 2px 4px -1px rgba(225, 29, 72, 0.06);
+    --shadow-primary-md: 0 10px 15px -3px rgba(225, 29, 72, 0.1), 0 4px 6px -2px rgba(225, 29, 72, 0.05);
+    --shadow-primary-lg: 0 20px 25px -5px rgba(225, 29, 72, 0.1), 0 10px 10px -5px rgba(225, 29, 72, 0.04);
+    --shadow-primary-xl: 0 25px 50px -12px rgba(225, 29, 72, 0.25);
+
+    --transition-duration-fast: 150ms;
+    --transition-duration-base: 250ms;
+    --transition-duration-slow: 350ms;
+
+    --transition-timing-function-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-timing-function-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --transition-timing-function-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
 }
 
 html,
 body,
 #root {
-  height: 100%;
-  overflow: hidden;
+    height: 100%;
+    overflow: hidden;
 }
 
 body {
-  margin: 0;
-  @apply bg-bg-base text-text-primary font-sans;
+    margin: 0;
+    @apply bg-bg-base text-text-primary font-sans;
 }
 
 body.body-transparent {
-  background: transparent;
+    background: transparent;
 }
 
 body.body-transparent #root {
-  background: transparent;
+    background: transparent;
 }
 
 .overflow-y-auto {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-primary-400) rgba(244, 63, 94, 0.12);
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-primary-400) rgba(244, 63, 94, 0.12);
 }
 
 .overflow-y-auto::-webkit-scrollbar {
-  width: 10px;
+    width: 10px;
 }
 
 .overflow-y-auto::-webkit-scrollbar-track {
-  background: linear-gradient(180deg, rgba(255, 241, 242, 0.95), rgba(254, 226, 226, 0.65));
-  border-radius: 9999px;
-  box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.08);
+    background: linear-gradient(180deg, rgba(255, 241, 242, 0.95), rgba(254, 226, 226, 0.65));
+    border-radius: 9999px;
+    box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.08);
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--color-primary-500), var(--color-primary-400));
-  border-radius: 9999px;
-  border: 2px solid rgba(255, 241, 242, 0.9);
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4);
-  transition: background var(--transition-duration-base) var(--transition-timing-function-smooth),
-              box-shadow var(--transition-duration-base) var(--transition-timing-function-smooth);
+    background: linear-gradient(180deg, var(--color-primary-500), var(--color-primary-400));
+    border-radius: 9999px;
+    border: 2px solid rgba(255, 241, 242, 0.9);
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4);
+    transition: background var(--transition-duration-base) var(--transition-timing-function-smooth),
+    box-shadow var(--transition-duration-base) var(--transition-timing-function-smooth);
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, var(--color-primary-600), var(--color-primary-500));
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.55), 0 0 6px rgba(244, 63, 94, 0.35);
+    background: linear-gradient(180deg, var(--color-primary-600), var(--color-primary-500));
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.55), 0 0 6px rgba(244, 63, 94, 0.35);
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb:active {
-  background: linear-gradient(180deg, var(--color-primary-700), var(--color-primary-500));
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.25), 0 0 4px rgba(190, 18, 60, 0.4);
+    background: linear-gradient(180deg, var(--color-primary-700), var(--color-primary-500));
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.25), 0 0 4px rgba(190, 18, 60, 0.4);
 }
 
 .app-region-drag {
-  -webkit-app-region: drag;
+    -webkit-app-region: drag;
 }
 
 .app-region-no-drag {
-  -webkit-app-region: no-drag;
+    -webkit-app-region: no-drag;
 }
 
 .microphone-wave {
-  position: absolute;
-  border-radius: 9999px;
-  border: 1px solid rgba(225, 29, 72, 0.35);
-  opacity: 0;
-  transition: transform 0.2s ease, opacity 0.25s ease;
-  pointer-events: none;
+    position: absolute;
+    border-radius: 9999px;
+    border: 1px solid rgba(225, 29, 72, 0.35);
+    opacity: 0;
+    transition: transform 0.2s ease, opacity 0.25s ease;
+    pointer-events: none;
 }
 
 @keyframes modal-fade-scale-in {
-  0% {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
+    0% {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 @keyframes modal-fade-scale-out {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.95);
-  }
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.95);
+    }
 }
 
 .animate-modal-in {
-  animation: modal-fade-scale-in 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: modal-fade-scale-in 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .animate-modal-out {
-  animation: modal-fade-scale-out 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: modal-fade-scale-out 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* Fade анимации для микрофона */
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes fade-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
 }
 
 body.fade-in {
-  animation: fade-in 0.3s ease-in-out forwards;
+    animation: fade-in 0.3s ease-in-out forwards;
 }
 
 body.fade-out {
-  animation: fade-out 0.3s ease-in-out forwards;
+    animation: fade-out 0.3s ease-in-out forwards;
 }

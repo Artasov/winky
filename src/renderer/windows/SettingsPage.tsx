@@ -311,7 +311,8 @@ const SettingsPage: React.FC = () => {
                         Hide mic overlay when recording stops
                     </label>
                     <p className="text-xs text-text-tertiary">
-                        When enabled, the mic overlay automatically hides after you stop recording. When disabled, it stays visible.
+                        When enabled, the mic overlay automatically hides after you stop recording. When disabled, it
+                        stays visible.
                     </p>
                 </div>
 

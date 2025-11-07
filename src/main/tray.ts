@@ -8,12 +8,12 @@ export const createTray = (onOpenWindow: (route?: string) => void | Promise<void
         return tray;
     }
 
-  const isDev = process.env.NODE_ENV === 'development';
-  const iconPath = isDev
-    ? path.resolve(__dirname, '../../public/resources/logo-rounded.png')
-    : path.join(process.resourcesPath, 'resources', 'logo-rounded.png');
-  
-  const icon = nativeImage.createFromPath(iconPath);
+    const isDev = process.env.NODE_ENV === 'development';
+    const iconPath = isDev
+        ? path.resolve(__dirname, '../../public/resources/logo-rounded.png')
+        : path.join(process.resourcesPath, 'resources', 'logo-rounded.png');
+
+    const icon = nativeImage.createFromPath(iconPath);
     tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
 
     const contextMenu = Menu.buildFromTemplate([

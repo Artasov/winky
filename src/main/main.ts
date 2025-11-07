@@ -1,12 +1,39 @@
-import {app, BrowserWindow, BrowserWindowConstructorOptions, clipboard, ipcMain, Menu, screen, globalShortcut, shell} from 'electron';
+import {
+    app,
+    BrowserWindow,
+    BrowserWindowConstructorOptions,
+    clipboard,
+    globalShortcut,
+    ipcMain,
+    Menu,
+    screen,
+    shell
+} from 'electron';
 import path from 'path';
-import axios, { AxiosInstance } from 'axios';
+import axios, {AxiosInstance} from 'axios';
 import {createTray, destroyTray} from './tray';
 import {getConfig, getConfigFilePath, getStore, resetConfig, setActions, setAuthTokens, updateConfig} from './config';
-import {ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME, ICONS_ENDPOINT, ME_ENDPOINT, PROFILE_ENDPOINT, IPC_CHANNELS, SPEECH_MODES, SPEECH_TRANSCRIBE_ENDPOINT} from '@shared/constants';
-import type {ActionConfig, ActionIcon, AppConfig, AuthResponse, AuthTokens, MicAnchor, User, WinkyProfile, AuthDeepLinkPayload, AuthProvider} from '@shared/types';
+import {
+    API_BASE_URL_FALLBACKS,
+    APP_NAME,
+    IPC_CHANNELS,
+    ME_ENDPOINT,
+    SPEECH_MODES,
+    SPEECH_TRANSCRIBE_ENDPOINT
+} from '@shared/constants';
+import type {
+    ActionConfig,
+    ActionIcon,
+    AppConfig,
+    AuthDeepLinkPayload,
+    AuthProvider,
+    AuthResponse,
+    AuthTokens,
+    MicAnchor,
+    User,
+    WinkyProfile
+} from '@shared/types';
 import {createApiClient} from '@shared/api';
-import {createSpeechService} from './services/speech/factory';
 import {createLLMService} from './services/llm/factory';
 import FormData from 'form-data';
 import {buildOAuthStartUrl} from './services/oauth.service';
@@ -34,8 +61,8 @@ let currentUser: User | null = null;
 
 // OAuth deep links
 type PendingAuthPayload = {
-  payload: AuthDeepLinkPayload;
-  delivered: boolean;
+    payload: AuthDeepLinkPayload;
+    delivered: boolean;
 };
 const pendingAuthPayloads: PendingAuthPayload[] = [];
 const processedDeepLinks = new Set<string>();
@@ -55,11 +82,11 @@ const SPEECH_TRANSCRIBE_ENDPOINTS = Array.from(
 
 // Путь к иконке приложения
 const getIconPath = (): string => {
-  if (isDev) {
-    return path.resolve(__dirname, '../../public/resources/logo-rounded.png');
-  }
-  // В production иконка из extraResources
-  return path.join(process.resourcesPath, 'resources', 'logo-rounded.png');
+    if (isDev) {
+        return path.resolve(__dirname, '../../public/resources/logo-rounded.png');
+    }
+    // В production иконка из extraResources
+    return path.join(process.resourcesPath, 'resources', 'logo-rounded.png');
 };
 
 let micWindow: BrowserWindow | null = null;
@@ -82,7 +109,7 @@ const sendMicVisibilityChange = (visible: boolean, reason: MicVisibilityReason) 
     if (!micWindow || micWindow.isDestroyed()) {
         return;
     }
-    const payload = { visible, reason };
+    const payload = {visible, reason};
     if (micWindow.webContents.isLoading()) {
         micWindow.webContents.once('did-finish-load', () => {
             if (!micWindow || micWindow.isDestroyed()) {
@@ -208,7 +235,7 @@ const applyMicAnchorPosition = async (anchor: MicAnchor | undefined, persist = f
     }
 
     if (persist) {
-        await updateConfig({ micAnchor: effectiveAnchor, micWindowPosition: position });
+        await updateConfig({micAnchor: effectiveAnchor, micWindowPosition: position});
         await broadcastConfigUpdate();
     }
 
@@ -222,7 +249,7 @@ const clearMicWindowFadeTimeout = () => {
     }
 };
 const showMicWindowInstance = (reason: MicVisibilityReason = 'system') => {
-    console.log('[Mic] showMicWindowInstance called', { micWindowVisible, micWindowAutoShowDisabled, reason });
+    console.log('[Mic] showMicWindowInstance called', {micWindowVisible, micWindowAutoShowDisabled, reason});
     if (!micWindow || micWindow.isDestroyed()) {
         console.log('[Mic] Window destroyed, ignoring');
         return;
@@ -277,7 +304,7 @@ const showMicWindowInstance = (reason: MicVisibilityReason = 'system') => {
 
         const [x, y] = micWindow.getPosition();
         const [width, height] = micWindow.getSize();
-        console.log('[Mic] Window position and size:', { x, y, width, height });
+        console.log('[Mic] Window position and size:', {x, y, width, height});
         console.log('[Mic] Window shown successfully');
         sendMicVisibilityChange(true, reason);
         scheduleMicAutoStart(reason);
@@ -304,9 +331,9 @@ const hideMicWindow = (reason: MicVisibilityReason = 'system', options: { disabl
         return;
     }
 
-    const { disableAutoShow = false } = options;
+    const {disableAutoShow = false} = options;
 
-    console.log('[Mic] hideMicWindow called', { reason, disableAutoShow });
+    console.log('[Mic] hideMicWindow called', {reason, disableAutoShow});
 
     micWindowVisible = false;
     if (disableAutoShow) {
@@ -314,10 +341,10 @@ const hideMicWindow = (reason: MicVisibilityReason = 'system', options: { disabl
     }
     setMicInteractive(false);
     clearMicWindowFadeTimeout();
-    
+
     // Запускаем fade-out анимацию
     micWindow.webContents.send('mic:start-fade-out');
-    
+
     // Ждем завершения анимации перед скрытием
     setTimeout(() => {
         if (micWindow && !micWindow.isDestroyed()) {
@@ -329,8 +356,13 @@ const hideMicWindow = (reason: MicVisibilityReason = 'system', options: { disabl
 };
 
 const toggleMicWindow = async (source: MicVisibilityReason = 'manual') => {
-    console.log('[Hotkey] toggleMicWindow called', { source, micWindowVisible, micWindowAutoShowDisabled, hotkeyToggleLocked });
-    
+    console.log('[Hotkey] toggleMicWindow called', {
+        source,
+        micWindowVisible,
+        micWindowAutoShowDisabled,
+        hotkeyToggleLocked
+    });
+
     if (source === 'shortcut') {
         const now = Date.now();
         if (hotkeyToggleLocked) {
@@ -360,7 +392,7 @@ const toggleMicWindow = async (source: MicVisibilityReason = 'manual') => {
 
     if (micWindowVisible) {
         console.log('[Hotkey] Hiding mic window');
-        hideMicWindow(source, { disableAutoShow: source === 'shortcut' });
+        hideMicWindow(source, {disableAutoShow: source === 'shortcut'});
         if (source === 'shortcut') {
             lastMicToggleTime = Date.now();
         }
@@ -371,7 +403,7 @@ const toggleMicWindow = async (source: MicVisibilityReason = 'manual') => {
     if (source === 'shortcut') {
         lastMicToggleTime = Date.now();
     }
-    
+
     // Сбрасываем флаг auto-show disabled перед показом
     micWindowAutoShowDisabled = false;
     showMicWindowInstance(source);
@@ -449,7 +481,7 @@ const registerMicShortcut = async () => {
     }
 
     if (!accelerator) {
-        emitToAllWindows('hotkey:register-cleared', { source: 'mic' });
+        emitToAllWindows('hotkey:register-cleared', {source: 'mic'});
         return;
     }
 
@@ -507,14 +539,14 @@ const setMicInteractive = (interactive: boolean) => {
         micWindowInteractive = false;
         return;
     }
-    
+
     // Не делаем окно интерактивным если оно скрыто или auto-show отключен
     if (interactive && (!micWindowVisible || micWindowAutoShowDisabled)) {
         return;
     }
-    
+
     const platform = process.platform;
-    
+
     if (interactive) {
         if (micWindowInteractive) {
             return;
@@ -529,9 +561,9 @@ const setMicInteractive = (interactive: boolean) => {
         micWindow.flashFrame(false);
         return;
     }
-    
+
     micWindowInteractive = false;
-    micWindow.setIgnoreMouseEvents(true, { forward: true });
+    micWindow.setIgnoreMouseEvents(true, {forward: true});
     if (platform === 'darwin') {
         micWindow.setFocusable(false);
         micWindow.blur();
@@ -672,7 +704,7 @@ const createResultWindow = () => {
     resultWindow.once('ready-to-show', () => {
         resultWindow?.show();
         if (isDev && resultWindow) {
-            resultWindow.webContents.openDevTools({ mode: 'detach' });
+            resultWindow.webContents.openDevTools({mode: 'detach'});
         }
     });
 
@@ -691,15 +723,15 @@ const ensureWindowWithinBounds = (
         return undefined;
     }
 
-    const { x, y } = savedPosition;
-    
+    const {x, y} = savedPosition;
+
     // Получаем дисплей, на котором должно быть окно
-    const display = screen.getDisplayNearestPoint({ x, y });
-    const { bounds } = display;
-    
+    const display = screen.getDisplayNearestPoint({x, y});
+    const {bounds} = display;
+
     // Минимальный отступ от края экрана (пиксели)
     const EDGE_MARGIN = 10;
-    
+
     // Корректируем x координату
     let correctedX = x;
     if (x < bounds.x + EDGE_MARGIN) {
@@ -709,7 +741,7 @@ const ensureWindowWithinBounds = (
         // Окно за правым краем
         correctedX = bounds.x + bounds.width - windowWidth - EDGE_MARGIN;
     }
-    
+
     // Корректируем y координату
     let correctedY = y;
     if (y < bounds.y + EDGE_MARGIN) {
@@ -719,13 +751,13 @@ const ensureWindowWithinBounds = (
         // Окно за нижним краем
         correctedY = bounds.y + bounds.height - windowHeight - EDGE_MARGIN;
     }
-    
+
     // Если позиция была скорректирована, логируем
     if (correctedX !== x || correctedY !== y) {
         sendLogToRenderer('MIC_WINDOW', `📐 Position corrected: (${x}, ${y}) → (${correctedX}, ${correctedY})`);
     }
-    
-    return { x: correctedX, y: correctedY };
+
+    return {x: correctedX, y: correctedY};
 };
 
 const createMicWindow = async () => {
@@ -735,10 +767,10 @@ const createMicWindow = async () => {
 
     const config = await getStore();
     const savedPosition = config.get('micWindowPosition');
-    
+
     const WINDOW_WIDTH = MIC_WINDOW_WIDTH;
     const WINDOW_HEIGHT = MIC_WINDOW_HEIGHT;
-    
+
     // Проверяем и корректируем позицию
     const safePosition = ensureWindowWithinBounds(savedPosition, WINDOW_WIDTH, WINDOW_HEIGHT);
 
@@ -795,23 +827,23 @@ const createMicWindow = async () => {
     micWindow.setMenuBarVisibility(false);
     micWindow.setHasShadow(false);
     micWindow.setSkipTaskbar(true);
-    
+
     // Дополнительные настройки для предотвращения мерцания
     micWindow.setBackgroundColor('#00000000'); // Убеждаемся что фон прозрачный
-    
+
     if (isMac) {
         micWindow.setAlwaysOnTop(true, 'floating', 1);
-        micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        micWindow.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
         micWindow.setFocusable(false);
     } else {
         micWindow.setAlwaysOnTop(true, 'screen-saver', 1);
-        micWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        micWindow.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
         micWindow.setFocusable(true);
     }
     ensureMicOnTop();
 
     if (process.platform === 'win32') {
-        micWindow.setIgnoreMouseEvents(true, { forward: true });
+        micWindow.setIgnoreMouseEvents(true, {forward: true});
     }
 
     if (isDev) {
@@ -849,7 +881,7 @@ const createMicWindow = async () => {
         if (micWindow && !micWindow.isDestroyed()) {
             const [x, y] = micWindow.getPosition();
             const config = await getStore();
-            config.set('micWindowPosition', { x, y });
+            config.set('micWindowPosition', {x, y});
         }
     });
 
@@ -858,7 +890,7 @@ const createMicWindow = async () => {
         if (micWindow && !micWindow.isDestroyed()) {
             ensureMicOnTop();
             if (isMac) {
-                micWindow.setIgnoreMouseEvents(true, { forward: true });
+                micWindow.setIgnoreMouseEvents(true, {forward: true});
                 micWindow.setFocusable(false);
             }
         }
@@ -911,7 +943,7 @@ const createOrShowErrorWindow = (errorData: {
     if (isDev) {
         void errorWindow.loadURL('http://localhost:5173/?window=error#/error');
     } else {
-        void errorWindow.loadFile(rendererPath, { hash: '/error', query: { window: 'error' } });
+        void errorWindow.loadFile(rendererPath, {hash: '/error', query: {window: 'error'}});
     }
 
     errorWindow.once('ready-to-show', () => {
@@ -934,12 +966,12 @@ const createOrShowErrorWindow = (errorData: {
 const showMainWindow = async (route?: string) => {
     // Определяем правильный маршрут на основе состояния авторизации
     let targetRoute = route;
-    
+
     if (!route) {
         try {
             const config = await getConfig();
             const hasToken = config.auth.access || config.auth.accessToken;
-            
+
             if (!hasToken) {
                 // Не авторизован - показываем welcome
                 targetRoute = '/';
@@ -955,7 +987,7 @@ const showMainWindow = async (route?: string) => {
             targetRoute = '/';
         }
     }
-    
+
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show();
         mainWindow.focus();
@@ -982,153 +1014,153 @@ const showMainWindow = async (route?: string) => {
 
 // OAuth Deep Links
 function notifyAuthPayloads() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  const contents = mainWindow.webContents;
-  if (!contents || contents.isDestroyed()) return;
-  for (const entry of pendingAuthPayloads) {
-    if (entry.delivered) continue;
-    try {
-      contents.send(IPC_CHANNELS.AUTH_DEEP_LINK, entry.payload);
-      entry.delivered = true;
-    } catch (error) {
-      console.warn('[auth] Failed to dispatch OAuth payload to renderer', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      break;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const contents = mainWindow.webContents;
+    if (!contents || contents.isDestroyed()) return;
+    for (const entry of pendingAuthPayloads) {
+        if (entry.delivered) continue;
+        try {
+            contents.send(IPC_CHANNELS.AUTH_DEEP_LINK, entry.payload);
+            entry.delivered = true;
+        } catch (error) {
+            console.warn('[auth] Failed to dispatch OAuth payload to renderer', {
+                error: error instanceof Error ? error.message : String(error),
+            });
+            break;
+        }
     }
-  }
 }
 
 function enqueueAuthPayload(payload: AuthDeepLinkPayload) {
-  pendingAuthPayloads.push({ payload, delivered: false });
-  console.log('[auth] Queued OAuth payload', {
-    kind: payload.kind,
-    provider: payload.provider,
-  });
-  notifyAuthPayloads();
+    pendingAuthPayloads.push({payload, delivered: false});
+    console.log('[auth] Queued OAuth payload', {
+        kind: payload.kind,
+        provider: payload.provider,
+    });
+    notifyAuthPayloads();
 }
 
 function parseAuthPayload(url: string): AuthDeepLinkPayload | null {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'winky:') return null;
-    if (parsed.hostname !== 'auth') return null;
-    if (!parsed.pathname.startsWith('/callback')) return null;
-    const rawPayload = parsed.searchParams.get('payload');
-    if (!rawPayload) return null;
-    const decoded = decodeURIComponent(rawPayload);
-    const data = JSON.parse(decoded) as Record<string, unknown>;
-    if (data?.app !== 'winky') {
-      return {
-        kind: 'error',
-        provider: String(data?.provider ?? 'unknown'),
-        error: 'Invalid application payload',
-      };
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'winky:') return null;
+        if (parsed.hostname !== 'auth') return null;
+        if (!parsed.pathname.startsWith('/callback')) return null;
+        const rawPayload = parsed.searchParams.get('payload');
+        if (!rawPayload) return null;
+        const decoded = decodeURIComponent(rawPayload);
+        const data = JSON.parse(decoded) as Record<string, unknown>;
+        if (data?.app !== 'winky') {
+            return {
+                kind: 'error',
+                provider: String(data?.provider ?? 'unknown'),
+                error: 'Invalid application payload',
+            };
+        }
+        const provider = String(data?.provider ?? 'unknown');
+        if (typeof data?.error === 'string' && data.error.trim().length) {
+            return {
+                kind: 'error',
+                provider,
+                error: data.error,
+            };
+        }
+        const tokens = data?.tokens as Record<string, unknown> | undefined;
+        if (!tokens || typeof tokens.access !== 'string' || !tokens.access.trim().length) {
+            return {
+                kind: 'error',
+                provider,
+                error: 'Missing access token in OAuth payload',
+            };
+        }
+        const refresh = typeof tokens.refresh === 'string' && tokens.refresh.trim().length
+            ? tokens.refresh
+            : null;
+        const user = (data?.user && typeof data.user === 'object') ? data.user as Record<string, unknown> : null;
+        return {
+            kind: 'success',
+            provider,
+            tokens: {
+                access: tokens.access,
+                refresh,
+            },
+            user,
+        };
+    } catch (error) {
+        console.error('[auth] Failed to parse OAuth payload', {
+            url,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return {
+            kind: 'error',
+            provider: 'unknown',
+            error: 'Malformed OAuth payload',
+        };
     }
-    const provider = String(data?.provider ?? 'unknown');
-    if (typeof data?.error === 'string' && data.error.trim().length) {
-      return {
-        kind: 'error',
-        provider,
-        error: data.error,
-      };
-    }
-    const tokens = data?.tokens as Record<string, unknown> | undefined;
-    if (!tokens || typeof tokens.access !== 'string' || !tokens.access.trim().length) {
-      return {
-        kind: 'error',
-        provider,
-        error: 'Missing access token in OAuth payload',
-      };
-    }
-    const refresh = typeof tokens.refresh === 'string' && tokens.refresh.trim().length
-      ? tokens.refresh
-      : null;
-    const user = (data?.user && typeof data.user === 'object') ? data.user as Record<string, unknown> : null;
-    return {
-      kind: 'success',
-      provider,
-      tokens: {
-        access: tokens.access,
-        refresh,
-      },
-      user,
-    };
-  } catch (error) {
-    console.error('[auth] Failed to parse OAuth payload', {
-      url,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return {
-      kind: 'error',
-      provider: 'unknown',
-      error: 'Malformed OAuth payload',
-    };
-  }
 }
 
 function handleAuthUrl(url: string) {
-  if (typeof url !== 'string' || !url.trim().startsWith('winky://')) return;
-  if (processedDeepLinks.has(url)) return;
-  processedDeepLinks.add(url);
-  const payload = parseAuthPayload(url);
-  if (payload) {
-    enqueueAuthPayload(payload);
-  }
+    if (typeof url !== 'string' || !url.trim().startsWith('winky://')) return;
+    if (processedDeepLinks.has(url)) return;
+    processedDeepLinks.add(url);
+    const payload = parseAuthPayload(url);
+    if (payload) {
+        enqueueAuthPayload(payload);
+    }
 }
 
 function extractDeepLinksFromArgv(argv: string[]): string[] {
-  return argv.filter((arg) => typeof arg === 'string' && arg.startsWith('winky://'));
+    return argv.filter((arg) => typeof arg === 'string' && arg.startsWith('winky://'));
 }
 
 function registerAuthProtocol() {
-  try {
-    const protocol = 'winky';
-    if (process.defaultApp && process.argv.length >= 2) {
-      const exePath = process.execPath;
-      const appPath = path.resolve(process.argv[1]);
-      app.setAsDefaultProtocolClient(protocol, exePath, [appPath]);
-    } else {
-      app.setAsDefaultProtocolClient(protocol);
+    try {
+        const protocol = 'winky';
+        if (process.defaultApp && process.argv.length >= 2) {
+            const exePath = process.execPath;
+            const appPath = path.resolve(process.argv[1]);
+            app.setAsDefaultProtocolClient(protocol, exePath, [appPath]);
+        } else {
+            app.setAsDefaultProtocolClient(protocol);
+        }
+        console.log('[auth] Registered deep link protocol handler', {protocol});
+    } catch (error) {
+        console.warn('[auth] Failed to register protocol handler', {
+            error: error instanceof Error ? error.message : String(error),
+        });
     }
-    console.log('[auth] Registered deep link protocol handler', { protocol });
-  } catch (error) {
-    console.warn('[auth] Failed to register protocol handler', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
 }
 
 function registerAuthIpc() {
-  if (authIpcRegistered) return;
-  authIpcRegistered = true;
+    if (authIpcRegistered) return;
+    authIpcRegistered = true;
 
-  ipcMain.handle(IPC_CHANNELS.AUTH_START_OAUTH, async (_event, provider: AuthProvider) => {
-    try {
-      const normalized = String(provider).toLowerCase() as AuthProvider;
-      const supportedProviders: AuthProvider[] = ['google', 'github', 'discord'];
-      if (!supportedProviders.includes(normalized)) {
-        throw new Error(`Unsupported OAuth provider: ${provider}`);
-      }
-      const url = buildOAuthStartUrl(normalized);
-      console.log('[auth] Launching OAuth in browser', { provider: normalized, url });
-      await shell.openExternal(url);
-    } catch (error) {
-      console.error('[auth] Failed to start OAuth flow', {
-        provider,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error instanceof Error ? error : new Error(String(error));
-    }
-  });
+    ipcMain.handle(IPC_CHANNELS.AUTH_START_OAUTH, async (_event, provider: AuthProvider) => {
+        try {
+            const normalized = String(provider).toLowerCase() as AuthProvider;
+            const supportedProviders: AuthProvider[] = ['google', 'github', 'discord'];
+            if (!supportedProviders.includes(normalized)) {
+                throw new Error(`Unsupported OAuth provider: ${provider}`);
+            }
+            const url = buildOAuthStartUrl(normalized);
+            console.log('[auth] Launching OAuth in browser', {provider: normalized, url});
+            await shell.openExternal(url);
+        } catch (error) {
+            console.error('[auth] Failed to start OAuth flow', {
+                provider,
+                error: error instanceof Error ? error.message : String(error),
+            });
+            throw error instanceof Error ? error : new Error(String(error));
+        }
+    });
 
-  ipcMain.handle(IPC_CHANNELS.AUTH_CONSUME_DEEP_LINKS, async () => {
-    if (!pendingAuthPayloads.length) {
-      return [];
-    }
-    const payloads = pendingAuthPayloads.splice(0, pendingAuthPayloads.length).map((entry) => entry.payload);
-    return payloads;
-  });
+    ipcMain.handle(IPC_CHANNELS.AUTH_CONSUME_DEEP_LINKS, async () => {
+        if (!pendingAuthPayloads.length) {
+            return [];
+        }
+        const payloads = pendingAuthPayloads.splice(0, pendingAuthPayloads.length).map((entry) => entry.payload);
+        return payloads;
+    });
 }
 
 const registerIpcHandlers = () => {
@@ -1141,7 +1173,7 @@ const registerIpcHandlers = () => {
         if (typeof partialConfig.micAnchor === 'string') {
             void applyMicAnchorPosition(partialConfig.micAnchor as MicAnchor, false);
         }
-        
+
         // Создаём mic окно если setupCompleted был установлен в true
         const hasAuthToken = typeof updated.auth?.accessToken === 'string' && updated.auth.accessToken.trim().length > 0;
         const shouldAutoShowMic = hasAuthToken && updated.setupCompleted;
@@ -1162,7 +1194,7 @@ const registerIpcHandlers = () => {
                 showMicWindowInstance('auto');
             }
         }
-        
+
         return updated;
     });
 
@@ -1177,13 +1209,13 @@ const registerIpcHandlers = () => {
         const reset = await resetConfig();
         await broadcastConfigUpdate();
         await registerMicShortcut();
-        
+
         // Закрываем mic окно при выходе из аккаунта
         if (micWindow && !micWindow.isDestroyed()) {
             micWindow.close();
             micWindow = null;
         }
-        
+
         return reset;
     });
 
@@ -1218,15 +1250,15 @@ const registerIpcHandlers = () => {
 
     ipcMain.handle('mic:get-position', () => {
         if (!micWindow || micWindow.isDestroyed()) {
-            return { x: 0, y: 0 };
+            return {x: 0, y: 0};
         }
         const [x, y] = micWindow.getPosition();
-        return { x, y };
+        return {x, y};
     });
 
     ipcMain.handle('mic:get-cursor-position', () => {
         const point = screen.getCursorScreenPoint();
-        return { x: point.x, y: point.y };
+        return {x: point.x, y: point.y};
     });
 
     ipcMain.handle('mic:set-anchor', async (_event, anchor: MicAnchor) => {
@@ -1241,8 +1273,11 @@ const registerIpcHandlers = () => {
         return true;
     });
 
-    ipcMain.handle('mic:hide', async (_event, options?: { reason?: MicVisibilityReason; disableAutoShow?: boolean }) => {
-        hideMicWindow(options?.reason ?? 'renderer', { disableAutoShow: Boolean(options?.disableAutoShow) });
+    ipcMain.handle('mic:hide', async (_event, options?: {
+        reason?: MicVisibilityReason;
+        disableAutoShow?: boolean
+    }) => {
+        hideMicWindow(options?.reason ?? 'renderer', {disableAutoShow: Boolean(options?.disableAutoShow)});
         return true;
     });
 
@@ -1262,7 +1297,7 @@ const registerIpcHandlers = () => {
     ipcMain.handle('auth:logout', async () => {
         try {
             // Очищаем токены
-            await setAuthTokens({ access: '', refresh: null, accessToken: '', refreshToken: '' });
+            await setAuthTokens({access: '', refresh: null, accessToken: '', refreshToken: ''});
             // Очищаем кеш пользователя
             currentUser = null;
             // Закрываем окно микрофона
@@ -1293,7 +1328,15 @@ const registerIpcHandlers = () => {
             throw error;
         }
     });
-    ipcMain.handle('actions:create', async (_event, action: { name: string; prompt: string; hotkey?: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => {
+    ipcMain.handle('actions:create', async (_event, action: {
+        name: string;
+        prompt: string;
+        hotkey?: string;
+        icon: string;
+        show_results?: boolean;
+        sound_on_complete?: boolean;
+        auto_copy_result?: boolean
+    }) => {
         try {
             return await createAction(action);
         } catch (error: any) {
@@ -1305,7 +1348,15 @@ const registerIpcHandlers = () => {
             throw error;
         }
     });
-    ipcMain.handle('actions:update', async (_event, actionId: string, action: { name: string; prompt: string; hotkey?: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }) => {
+    ipcMain.handle('actions:update', async (_event, actionId: string, action: {
+        name: string;
+        prompt: string;
+        hotkey?: string;
+        icon: string;
+        show_results?: boolean;
+        sound_on_complete?: boolean;
+        auto_copy_result?: boolean
+    }) => {
         try {
             return await updateAction(actionId, action);
         } catch (error: any) {
@@ -1353,29 +1404,29 @@ const registerIpcHandlers = () => {
             throw error;
         }
     });
-    
+
     ipcMain.handle('user:fetch', async () => {
         try {
             return await fetchCurrentUser();
         } catch (error: any) {
             const status = error?.response?.status;
-            
+
             // Не показываем окно ошибки для 401/403, это означает что нужна авторизация
             if (status === 401 || status === 403) {
                 sendLogToRenderer('USER', '🔒 Auth required (401/403), clearing tokens');
-                await setAuthTokens({ access: '', refresh: null, accessToken: '', refreshToken: '' });
+                await setAuthTokens({access: '', refresh: null, accessToken: '', refreshToken: ''});
                 currentUser = null;
                 await broadcastConfigUpdate();
                 return null;
             }
-            
+
             // Для 500 ошибок - просто логируем, не показываем popup
             if (status >= 500) {
                 sendLogToRenderer('USER', `⚠️ Server error (${status}), user data not available`);
                 currentUser = null;
                 return null;
             }
-            
+
             // Для других ошибок показываем окно ошибки
             sendLogToRenderer('USER', `❌ User fetch failed with status ${status || 'unknown'}`);
             createOrShowErrorWindow({
@@ -1383,20 +1434,38 @@ const registerIpcHandlers = () => {
                 message: error?.response?.data?.detail || error?.message || 'Could not load user data. Please check your connection and try again.',
                 details: JSON.stringify(error?.response?.data || error, null, 2)
             });
-            
+
             currentUser = null;
             return null;
         }
     });
-    
+
     ipcMain.handle('user:get-cached', async () => {
         return currentUser;
     });
-    
-    ipcMain.handle('speech:transcribe', async (_event, audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }) => transcribeAudio(audioData, config));
-    ipcMain.handle('llm:process', async (_event, text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }) => processLLM(text, prompt, config));
-    ipcMain.handle('llm:process-stream', async (_event, text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }) => processLLMStream(text, prompt, config));
-    
+
+    ipcMain.handle('speech:transcribe', async (_event, audioData: ArrayBuffer, config: {
+        mode: string;
+        model: string;
+        openaiKey?: string;
+        googleKey?: string;
+        accessToken?: string
+    }) => transcribeAudio(audioData, config));
+    ipcMain.handle('llm:process', async (_event, text: string, prompt: string, config: {
+        mode: string;
+        model: string;
+        openaiKey?: string;
+        googleKey?: string;
+        accessToken?: string
+    }) => processLLM(text, prompt, config));
+    ipcMain.handle('llm:process-stream', async (_event, text: string, prompt: string, config: {
+        mode: string;
+        model: string;
+        openaiKey?: string;
+        googleKey?: string;
+        accessToken?: string
+    }) => processLLMStream(text, prompt, config));
+
     ipcMain.handle('result:open', async () => {
         const win = createResultWindow();
         // Ждем пока окно полностью загрузится
@@ -1417,7 +1486,11 @@ const registerIpcHandlers = () => {
             resultWindow.close();
         }
     });
-    ipcMain.handle('result:update', (_event, data: { transcription?: string; llmResponse?: string; isStreaming?: boolean }) => {
+    ipcMain.handle('result:update', (_event, data: {
+        transcription?: string;
+        llmResponse?: string;
+        isStreaming?: boolean
+    }) => {
         if (resultWindow && !resultWindow.isDestroyed()) {
             resultWindow.webContents.send('result:data', data);
         }
@@ -1463,7 +1536,7 @@ const login = async ({email, password}: { email: string; password: string }) => 
         refreshToken: data.refresh
     };
     const config = await setAuthTokens(tokens);
-    
+
     // Загружаем текущего пользователя после успешной авторизации
     try {
         currentUser = await fetchCurrentUser();
@@ -1480,9 +1553,9 @@ const login = async ({email, password}: { email: string; password: string }) => 
     } catch (error) {
         sendLogToRenderer('LOGIN', `⚠️ Failed to sync actions after login: ${error}`);
     }
-    
+
     sendLogToRenderer('LOGIN', `🔍 Check: setupCompleted=${config.setupCompleted}, micWindow exists=${!!micWindow && !micWindow.isDestroyed()}`);
-    
+
     if (!micWindow || micWindow.isDestroyed()) {
         sendLogToRenderer('LOGIN', '🎤 Creating mic window after login...');
         void createMicWindow().then(() => {
@@ -1506,22 +1579,22 @@ const login = async ({email, password}: { email: string; password: string }) => 
             mainWindow.close();
         }
     }
-    
+
     return {tokens, user: data.user, config};
 };
 
 const fetchCurrentUser = async (): Promise<User | null> => {
     const config = await getConfig();
-    
+
     if (!config.auth.accessToken) {
         currentUser = null;
         return null;
     }
 
     const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
-    
+
     try {
-        const { data } = await client.get<User>(ME_ENDPOINT);
+        const {data} = await client.get<User>(ME_ENDPOINT);
         currentUser = data;
         return data;
     } catch (error: any) {
@@ -1550,7 +1623,7 @@ const fetchAllPages = async <T>(client: AxiosInstance, initialPath: string): Pro
         }
         visited.add(normalizedUrl);
 
-        const { data } = await client.get<PaginatedResponse<T>>(currentUrl);
+        const {data} = await client.get<PaginatedResponse<T>>(currentUrl);
         if (Array.isArray(data.results)) {
             results.push(...data.results);
         }
@@ -1584,7 +1657,7 @@ const extractSpeechText = (payload: any): string => {
 
 const describeAxiosError = (error: unknown, fallback: string): string => {
     if (axios.isAxiosError(error)) {
-        const { response, message } = error;
+        const {response, message} = error;
         const detail = response?.data?.detail || response?.data?.error?.message || response?.data?.message;
         if (typeof detail === 'string' && detail.trim()) {
             return detail;
@@ -1601,7 +1674,7 @@ const describeAxiosError = (error: unknown, fallback: string): string => {
 };
 
 const sendLogToRenderer = (type: string, data: any) => {
-    emitToAllWindows('api-log', { type, data });
+    emitToAllWindows('api-log', {type, data});
 };
 
 const fetchActions = async (): Promise<ActionConfig[]> => {
@@ -1617,7 +1690,15 @@ const fetchActions = async (): Promise<ActionConfig[]> => {
     return actions;
 };
 
-const createAction = async (action: { name: string; prompt: string; hotkey?: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => {
+const createAction = async (action: {
+    name: string;
+    prompt: string;
+    hotkey?: string;
+    icon: string;
+    show_results?: boolean;
+    sound_on_complete?: boolean;
+    auto_copy_result?: boolean
+}): Promise<ActionConfig[]> => {
     const config = await getConfig();
     if (!config.auth.accessToken) {
         throw new Error('Необходимо авторизоваться.');
@@ -1631,7 +1712,15 @@ const createAction = async (action: { name: string; prompt: string; hotkey?: str
     return updated;
 };
 
-const updateAction = async (actionId: string, action: { name: string; prompt: string; hotkey?: string; icon: string; show_results?: boolean; sound_on_complete?: boolean; auto_copy_result?: boolean }): Promise<ActionConfig[]> => {
+const updateAction = async (actionId: string, action: {
+    name: string;
+    prompt: string;
+    hotkey?: string;
+    icon: string;
+    show_results?: boolean;
+    sound_on_complete?: boolean;
+    auto_copy_result?: boolean
+}): Promise<ActionConfig[]> => {
     const config = await getConfig();
     if (!config.auth.accessToken) {
         throw new Error('Необходимо авторизоваться.');
@@ -1722,9 +1811,9 @@ const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTranscribeC
         let lastError: unknown = null;
 
         for (const endpoint of SPEECH_TRANSCRIBE_ENDPOINTS) {
-            const formData = buildFormData({ response_format: 'json' });
+            const formData = buildFormData({response_format: 'json'});
             try {
-                const { data } = await axios.post(endpoint, formData, {
+                const {data} = await axios.post(endpoint, formData, {
                     headers: {
                         ...formData.getHeaders(),
                         Authorization: `Bearer ${resolvedToken}`
@@ -1756,7 +1845,7 @@ const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTranscribeC
     };
 
     try {
-        const { data } = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
+        const {data} = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
             headers,
             timeout: 120_000
         });
@@ -1771,23 +1860,35 @@ const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTranscribeC
     }
 };
 
-const processLLM = async (text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string> => {
+const processLLM = async (text: string, prompt: string, config: {
+    mode: string;
+    model: string;
+    openaiKey?: string;
+    googleKey?: string;
+    accessToken?: string
+}): Promise<string> => {
     const service = createLLMService(config.mode as any, config.model as any, {
         openaiKey: config.openaiKey,
         googleKey: config.googleKey,
         accessToken: config.accessToken
     });
-    
+
     return await service.process(text, prompt);
 };
 
-const processLLMStream = async (text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string> => {
+const processLLMStream = async (text: string, prompt: string, config: {
+    mode: string;
+    model: string;
+    openaiKey?: string;
+    googleKey?: string;
+    accessToken?: string
+}): Promise<string> => {
     const service = createLLMService(config.mode as any, config.model as any, {
         openaiKey: config.openaiKey,
         googleKey: config.googleKey,
         accessToken: config.accessToken
     });
-    
+
     // Для стриминга нужно вернуть через другой механизм, пока используем обычный process
     return await service.process(text, prompt);
 };
@@ -1795,23 +1896,23 @@ const processLLMStream = async (text: string, prompt: string, config: { mode: st
 const handleAppReady = async () => {
     app.setName(APP_NAME);
     Menu.setApplicationMenu(null);
-    
+
     // Регистрируем IPC обработчики ДО создания окон
     registerIpcHandlers();
     registerAuthIpc();
-    
+
     // Регистрируем протокол для OAuth deep links
     registerAuthProtocol();
-    
+
     // Обработка deep links при запуске
     const initialDeepLinks = extractDeepLinksFromArgv(process.argv);
     for (const link of initialDeepLinks) {
-      handleAuthUrl(link);
+        handleAuthUrl(link);
     }
-    
+
     // Создаём главное окно (но не показываем его пока)
     createMainWindow();
-    
+
     // Проверяем авторизацию и первичную настройку
     let shouldShowMainWindow = true;
     try {
@@ -1854,7 +1955,7 @@ const handleAppReady = async () => {
         // Ошибка при проверке авторизации, показываем главное окно
         sendLogToRenderer('APP_READY', `❌ Error checking auth: ${error}`);
     }
-    
+
     // Показываем главное окно только если пользователь не авторизован или setup не пройден
     if (shouldShowMainWindow && mainWindow) {
         mainWindow.once('ready-to-show', () => {
@@ -1862,7 +1963,7 @@ const handleAppReady = async () => {
             mainWindow?.focus();
         });
     }
-    
+
     // Создаём трей
     createTray(
         showMainWindow,
@@ -1873,7 +1974,7 @@ const handleAppReady = async () => {
             });
         }
     );
-    
+
     if (process.platform === 'win32') {
         app.setUserTasks([
             {
@@ -1886,32 +1987,32 @@ const handleAppReady = async () => {
             }
         ]);
     }
-    
+
     if (process.argv.includes('--show-mic')) {
         void ensureMicWindowReady().then(() => {
             showMicWindowInstance('taskbar');
         });
     }
-    
+
     await registerMicShortcut();
-    
+
     // Уведомляем renderer о pending OAuth payloads
     if (mainWindow) {
-      mainWindow.webContents.on('did-finish-load', () => {
-        notifyAuthPayloads();
-      });
+        mainWindow.webContents.on('did-finish-load', () => {
+            notifyAuthPayloads();
+        });
     }
     notifyAuthPayloads();
 
     if (isDev && mainWindow && shouldShowMainWindow) {
         mainWindow.webContents.openDevTools({mode: 'detach'});
     }
-    
+
     // Загружаем actions только если пользователь авторизован
     if (currentUser) {
-    try {
-        await fetchActions();
-    } catch (error) {
+        try {
+            await fetchActions();
+        } catch (error) {
             // Игнорируем ошибку, actions будут загружены позже
         }
     }
@@ -1920,28 +2021,28 @@ const handleAppReady = async () => {
 app.whenReady().then(handleAppReady);
 
 app.on('open-url', (event, url) => {
-  event.preventDefault();
-  handleAuthUrl(url);
-  notifyAuthPayloads();
+    event.preventDefault();
+    handleAuthUrl(url);
+    notifyAuthPayloads();
 });
 
 app.on('second-instance', (_event, argv) => {
-  console.log('[app] Second instance detected, focusing main window');
-  try {
-    const links = extractDeepLinksFromArgv(argv);
-    for (const link of links) {
-      handleAuthUrl(link);
+    console.log('[app] Second instance detected, focusing main window');
+    try {
+        const links = extractDeepLinksFromArgv(argv);
+        for (const link of links) {
+            handleAuthUrl(link);
+        }
+    } catch (error) {
+        console.warn('[auth] Failed to process deep link from second instance', {
+            error: error instanceof Error ? error.message : String(error),
+        });
     }
-  } catch (error) {
-    console.warn('[auth] Failed to process deep link from second instance', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
-    notifyAuthPayloads();
-  }
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+        notifyAuthPayloads();
+    }
 });
 
 app.on('window-all-closed', () => {

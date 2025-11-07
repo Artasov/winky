@@ -49,8 +49,8 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
             }}
         >
             {/* Иконка микрофона */}
-            <svg 
-                viewBox="0 0 24 24" 
+            <svg
+                viewBox="0 0 24 24"
                 className={classNames(
                     'absolute h-10 w-10 fill-current pointer-events-none text-black transition-opacity duration-300',
                     isRecording ? 'opacity-0' : 'opacity-100'
@@ -60,10 +60,10 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
                 <path
                     d="M19 12a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.93V21h-3a1 1 0 0 0 0 2h8a1 1 0 0 0 0-2h-3v-2.07A7 7 0 0 0 19 12z"/>
             </svg>
-            
+
             {/* Иконка квадратика (стоп) */}
-            <svg 
-                viewBox="0 0 24 24" 
+            <svg
+                viewBox="0 0 24 24"
                 className={classNames(
                     'absolute h-10 w-10 fill-current pointer-events-none transition-opacity duration-300',
                     isRecording ? 'opacity-100' : 'opacity-0'

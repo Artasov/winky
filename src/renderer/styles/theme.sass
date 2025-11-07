@@ -5,42 +5,42 @@
   --color-primary-light: #fb7185
   --color-primary-dark: #be123c
   --color-primary-hover: #f43f5e
-  
+
   // Фоновые цвета
   --color-bg-base: #ffffff
   --color-bg-secondary: #fef2f2
   --color-bg-tertiary: #fee2e2
   --color-bg-elevated: #fafafa
-  
+
   // Текстовые цвета
   --color-text-primary: #1e293b
   --color-text-secondary: #64748b
   --color-text-tertiary: #94a3b8
   --color-text-inverse: #ffffff
-  
+
   // Границы
   --color-border-light: #fecdd3
   --color-border-base: #fda4af
   --color-border-strong: #fb7185
-  
+
   // Тени
   --shadow-sm: 0 1px 2px 0 rgba(225, 29, 72, 0.05)
   --shadow-base: 0 4px 6px -1px rgba(225, 29, 72, 0.1), 0 2px 4px -1px rgba(225, 29, 72, 0.06)
   --shadow-md: 0 10px 15px -3px rgba(225, 29, 72, 0.1), 0 4px 6px -2px rgba(225, 29, 72, 0.05)
   --shadow-lg: 0 20px 25px -5px rgba(225, 29, 72, 0.1), 0 10px 10px -5px rgba(225, 29, 72, 0.04)
   --shadow-xl: 0 25px 50px -12px rgba(225, 29, 72, 0.25)
-  
+
   // Радиусы
   --radius-sm: 0.5rem
   --radius-md: 0.75rem
   --radius-lg: 1rem
   --radius-xl: 1.5rem
-  
+
   // Длительности анимаций
   --duration-fast: 150ms
   --duration-base: 250ms
   --duration-slow: 350ms
-  
+
   // Функции плавности
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1)
   --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55)
@@ -66,11 +66,11 @@
 // Анимации для инпутов
 .input-animated
   @include smooth-transition(border-color, box-shadow, background-color)
-  
+
   &:hover:not(:disabled):not(:focus)
     border-color: var(--color-border-strong)
     background-color: var(--color-bg-secondary)
-  
+
   &:focus
     border-color: var(--color-primary)
     box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1)
@@ -80,13 +80,13 @@
 // Анимации для кнопок
 .button-animated
   @include smooth-transition(background-color, border-color, color, transform, box-shadow)
-  
+
   &:hover:not(:disabled)
     transform: translateY(-1px)
-  
+
   &:active:not(:disabled)
     transform: translateY(0)
-  
+
   &:disabled
     opacity: 0.5
     cursor: not-allowed
@@ -95,11 +95,11 @@
   @extend .button-animated
   background-color: var(--color-primary)
   color: var(--color-text-inverse)
-  
+
   &:hover:not(:disabled)
     background-color: var(--color-primary-hover)
     box-shadow: var(--shadow-md)
-  
+
   &:active:not(:disabled)
     background-color: var(--color-primary-dark)
 
@@ -108,7 +108,7 @@
   background-color: var(--color-bg-secondary)
   color: var(--color-text-primary)
   border: 1px solid var(--color-border-base)
-  
+
   &:hover:not(:disabled)
     background-color: var(--color-bg-tertiary)
     border-color: var(--color-border-strong)
@@ -116,7 +116,7 @@
 // Анимации для карточек
 .card-animated
   @include smooth-transition(transform, box-shadow, border-color, background-color)
-  
+
   &:hover
     transform: translateY(-4px)
     box-shadow: var(--shadow-lg)
@@ -170,11 +170,11 @@
 // Анимация для чекбоксов
 .checkbox-animated
   @include smooth-transition(background-color, border-color, transform)
-  
+
   &:hover:not(:disabled)
     border-color: var(--color-primary)
     transform: scale(1.05)
-  
+
   &:checked
     background-color: var(--color-primary)
     border-color: var(--color-primary)
@@ -182,11 +182,11 @@
 // Анимация для селектов
 .select-animated
   @include smooth-transition(border-color, box-shadow, background-color)
-  
+
   &:hover:not(:disabled)
     border-color: var(--color-border-strong)
     background-color: var(--color-bg-secondary)
-  
+
   &:focus
     border-color: var(--color-primary)
     box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1)
@@ -195,11 +195,11 @@
 // Анимация для навигационных элементов
 .nav-item-animated
   @include smooth-transition(background-color, color, transform, border-color)
-  
+
   &:hover:not(.active)
     background-color: var(--color-bg-tertiary)
     transform: translateX(4px)
-  
+
   &.active
     background-color: rgba(225, 29, 72, 0.1)
     color: var(--color-primary)

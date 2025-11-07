@@ -67,7 +67,7 @@ declare global {
   }
 
   interface WinkySpeechAPI {
-    transcribe(audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string }): Promise<string>;
+    transcribe(audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string>;
   }
 
   interface WinkyLLMAPI {

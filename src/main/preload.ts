@@ -137,7 +137,7 @@ const api = {
     getCached: (): Promise<User | null> => ipcRenderer.invoke('user:get-cached')
   },
   speech: {
-    transcribe: (audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string }): Promise<string> => 
+    transcribe: (audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string> => 
       ipcRenderer.invoke('speech:transcribe', audioData, config)
   },
   llm: {

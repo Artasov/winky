@@ -1,9 +1,9 @@
 import {app, BrowserWindow, BrowserWindowConstructorOptions, clipboard, ipcMain, Menu, screen, globalShortcut, shell} from 'electron';
 import path from 'path';
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import {createTray, destroyTray} from './tray';
 import {getConfig, getConfigFilePath, getStore, resetConfig, setActions, setAuthTokens, updateConfig} from './config';
-import {ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME, ICONS_ENDPOINT, ME_ENDPOINT, PROFILE_ENDPOINT, IPC_CHANNELS} from '@shared/constants';
+import {ACTIONS_ENDPOINT, API_BASE_URL_FALLBACKS, APP_NAME, ICONS_ENDPOINT, ME_ENDPOINT, PROFILE_ENDPOINT, IPC_CHANNELS, SPEECH_MODES, SPEECH_TRANSCRIBE_ENDPOINT} from '@shared/constants';
 import type {ActionConfig, ActionIcon, AppConfig, AuthResponse, AuthTokens, MicAnchor, User, WinkyProfile, AuthDeepLinkPayload, AuthProvider} from '@shared/types';
 import {createApiClient} from '@shared/api';
 import {createSpeechService} from './services/speech/factory';
@@ -43,6 +43,15 @@ let authIpcRegistered = false;
 
 const preloadPath = path.resolve(__dirname, 'preload.js');
 const rendererPath = path.resolve(__dirname, '../renderer/index.html');
+const ACTIONS_API_PATH = 'winky/actions/';
+const ICONS_API_PATH = 'winky/icons/';
+const PROFILE_API_PATH = 'winky/profile/';
+const SPEECH_TRANSCRIBE_ENDPOINTS = Array.from(
+    new Set([
+        SPEECH_TRANSCRIBE_ENDPOINT,
+        ...API_BASE_URL_FALLBACKS.map((base) => `${base.replace(/\/$/, '')}/speech/transcribe`)
+    ])
+);
 
 // Путь к иконке приложения
 const getIconPath = (): string => {
@@ -1384,7 +1393,7 @@ const registerIpcHandlers = () => {
         return currentUser;
     });
     
-    ipcMain.handle('speech:transcribe', async (_event, audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string }) => transcribeAudio(audioData, config));
+    ipcMain.handle('speech:transcribe', async (_event, audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }) => transcribeAudio(audioData, config));
     ipcMain.handle('llm:process', async (_event, text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }) => processLLM(text, prompt, config));
     ipcMain.handle('llm:process-stream', async (_event, text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }) => processLLMStream(text, prompt, config));
     
@@ -1528,6 +1537,69 @@ interface PaginatedResponse<T> {
     results: T[];
 }
 
+const fetchAllPages = async <T>(client: AxiosInstance, initialPath: string): Promise<T[]> => {
+    const results: T[] = [];
+    let nextUrl: string | null = initialPath;
+    const visited = new Set<string>();
+
+    while (nextUrl) {
+        const currentUrl = nextUrl as string;
+        const normalizedUrl = currentUrl.trim();
+        if (visited.has(normalizedUrl)) {
+            break;
+        }
+        visited.add(normalizedUrl);
+
+        const { data } = await client.get<PaginatedResponse<T>>(currentUrl);
+        if (Array.isArray(data.results)) {
+            results.push(...data.results);
+        }
+        nextUrl = data.next;
+    }
+
+    return results;
+};
+
+const extractSpeechText = (payload: any): string => {
+    if (!payload) {
+        return '';
+    }
+    if (typeof payload === 'string') {
+        return payload;
+    }
+    if (typeof payload.text === 'string') {
+        return payload.text;
+    }
+    if (typeof payload.transcription === 'string') {
+        return payload.transcription;
+    }
+    if (typeof payload.result === 'string') {
+        return payload.result;
+    }
+    if (payload.data) {
+        return extractSpeechText(payload.data);
+    }
+    return '';
+};
+
+const describeAxiosError = (error: unknown, fallback: string): string => {
+    if (axios.isAxiosError(error)) {
+        const { response, message } = error;
+        const detail = response?.data?.detail || response?.data?.error?.message || response?.data?.message;
+        if (typeof detail === 'string' && detail.trim()) {
+            return detail;
+        }
+        if (typeof response?.data === 'string' && response.data.trim()) {
+            return response.data.trim();
+        }
+        return message || fallback;
+    }
+    if (error instanceof Error) {
+        return error.message || fallback;
+    }
+    return fallback;
+};
+
 const sendLogToRenderer = (type: string, data: any) => {
     emitToAllWindows('api-log', { type, data });
 };
@@ -1539,8 +1611,7 @@ const fetchActions = async (): Promise<ActionConfig[]> => {
     }
 
     const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
-    const {data} = await client.get<PaginatedResponse<ActionConfig>>('/winky/actions/');
-    const actions = data.results || [];
+    const actions = await fetchAllPages<ActionConfig>(client, ACTIONS_API_PATH);
     await setActions(actions);
     await broadcastConfigUpdate();
     return actions;
@@ -1553,7 +1624,7 @@ const createAction = async (action: { name: string; prompt: string; hotkey?: str
     }
 
     const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
-    const {data} = await client.post<ActionConfig>('/winky/actions/', action);
+    const {data} = await client.post<ActionConfig>(ACTIONS_API_PATH, action);
     const updated = [...config.actions.filter(({id}) => id !== data.id), data];
     await setActions(updated);
     await broadcastConfigUpdate();
@@ -1567,7 +1638,7 @@ const updateAction = async (actionId: string, action: { name: string; prompt: st
     }
 
     const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
-    const {data} = await client.patch<ActionConfig>(`/winky/actions/${actionId}/`, action);
+    const {data} = await client.patch<ActionConfig>(`${ACTIONS_API_PATH}${actionId}/`, action);
     const updated = config.actions.map((a) => (a.id === actionId ? data : a));
     await setActions(updated);
     await broadcastConfigUpdate();
@@ -1581,7 +1652,7 @@ const deleteAction = async (actionId: string): Promise<ActionConfig[]> => {
     }
 
     const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
-    await client.delete(`/winky/actions/${actionId}/`);
+    await client.delete(`${ACTIONS_API_PATH}${actionId}/`);
     const updated = config.actions.filter(({id}) => id !== actionId);
     await setActions(updated);
     await broadcastConfigUpdate();
@@ -1595,9 +1666,7 @@ const fetchIcons = async (): Promise<ActionIcon[]> => {
     }
 
     const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
-    const {data} = await client.get<PaginatedResponse<ActionIcon>>('/winky/icons/');
-    const icons = data.results || [];
-    return icons;
+    return await fetchAllPages<ActionIcon>(client, ICONS_API_PATH);
 };
 
 const fetchProfile = async (): Promise<WinkyProfile> => {
@@ -1607,36 +1676,99 @@ const fetchProfile = async (): Promise<WinkyProfile> => {
     }
 
     const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
-    const {data} = await client.get<WinkyProfile>('/winky/profile/');
+    const {data} = await client.get<WinkyProfile>(PROFILE_API_PATH);
     return data;
 };
 
-const transcribeAudio = async (audioData: ArrayBuffer, config: { mode: string; model: string; openaiKey?: string; googleKey?: string }): Promise<string> => {
-    // Для API-based сервисов делаем запрос напрямую из main process
-    if (config.mode === 'api') {
-        const buffer = Buffer.from(audioData);
+type SpeechTranscribeConfig = {
+    mode: string;
+    model: string;
+    openaiKey?: string;
+    googleKey?: string;
+    accessToken?: string;
+};
+
+const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTranscribeConfig): Promise<string> => {
+    const buffer = Buffer.from(audioData);
+
+    const buildFormData = (extraFields: Record<string, string> = {}) => {
         const formData = new FormData();
         formData.append('file', buffer, {
             filename: 'audio.webm',
             contentType: 'audio/webm'
         });
         formData.append('model', config.model);
-        
-        const headers = {
-            ...formData.getHeaders(),
-            'Authorization': `Bearer ${config.openaiKey}`
-        };
-        
-        try {
-            const { data } = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, { headers });
-            return data.text || '';
-        } catch (error: any) {
-            throw new Error('Не удалось распознать речь: ' + (error.response?.data?.error?.message || error.message));
+        for (const [key, value] of Object.entries(extraFields)) {
+            formData.append(key, value);
         }
+        return formData;
+    };
+
+    if (config.mode === SPEECH_MODES.LOCAL) {
+        const resolveLocalToken = async (): Promise<string> => {
+            if (config.accessToken && config.accessToken.trim().length) {
+                return config.accessToken;
+            }
+            const storedConfig = await getConfig();
+            return storedConfig.auth.access || storedConfig.auth.accessToken || '';
+        };
+
+        const resolvedToken = await resolveLocalToken();
+
+        if (!resolvedToken) {
+            throw new Error('Необходимо войти в аккаунт для локальной транскрибации.');
+        }
+
+        let lastError: unknown = null;
+
+        for (const endpoint of SPEECH_TRANSCRIBE_ENDPOINTS) {
+            const formData = buildFormData({ response_format: 'json' });
+            try {
+                const { data } = await axios.post(endpoint, formData, {
+                    headers: {
+                        ...formData.getHeaders(),
+                        Authorization: `Bearer ${resolvedToken}`
+                    },
+                    timeout: 120_000
+                });
+                const text = extractSpeechText(data);
+                if (text) {
+                    return text;
+                }
+                lastError = new Error('Сервис вернул пустой ответ.');
+            } catch (error) {
+                lastError = error;
+            }
+        }
+
+        const reason = describeAxiosError(lastError, 'Не удалось выполнить локальную транскрибацию.');
+        throw new Error(reason);
     }
-    
-    // Для локальных моделей - пока не реализовано
-    throw new Error('Local speech recognition not implemented yet');
+
+    if (!config.openaiKey) {
+        throw new Error('Укажите OpenAI API ключ для транскрибации.');
+    }
+
+    const formData = buildFormData();
+    const headers = {
+        ...formData.getHeaders(),
+        Authorization: `Bearer ${config.openaiKey}`
+    };
+
+    try {
+        const { data } = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
+            headers,
+            timeout: 120_000
+        });
+        const text = extractSpeechText(data);
+        if (!text) {
+            throw new Error('OpenAI вернул пустой ответ.');
+        }
+        return text;
+    } catch (error) {
+        const reason = describeAxiosError(error, 'Не удалось распознать речь через OpenAI.');
+        throw new Error(`Не удалось распознать речь: ${reason}`);
+    }
 };
 
 const processLLM = async (text: string, prompt: string, config: { mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string }): Promise<string> => {

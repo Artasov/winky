@@ -144,6 +144,8 @@ const MainWindow: React.FC = () => {
     );
   }
 
+  const authToken = config.auth.access || config.auth.accessToken || undefined;
+
   const ensureSpeechService = () => {
     if (!speechServiceRef.current) {
       showToast('Сервис записи недоступен.', 'error');
@@ -190,7 +192,8 @@ const MainWindow: React.FC = () => {
         mode: config.speech.mode,
         model: config.speech.model,
         openaiKey: config.apiKeys.openai,
-        googleKey: config.apiKeys.google
+        googleKey: config.apiKeys.google,
+        accessToken: authToken
       });
 
       if (!transcription) {
@@ -238,7 +241,7 @@ const MainWindow: React.FC = () => {
         model: config.llm.model,
         openaiKey: config.apiKeys.openai,
         googleKey: config.apiKeys.google,
-        accessToken: config.auth.access || config.auth.accessToken
+        accessToken: authToken
       };
 
       let response = '';

@@ -609,7 +609,7 @@ const MainWindow: React.FC = () => {
 
       {/* Палочки для перетаскивания - на верхнем уровне, позиционированы относительно центра */}
       <div
-        className="frc absolute left-1/2 -translate-x-1/2 gap-1 rounded-full bg-gray-200/60 px-2 py-1 z-50 cursor-move select-none app-region-drag"
+        className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 z-50 cursor-move select-none app-region-drag"
         style={{
           pointerEvents: 'auto',
           top: isRecording ? 'calc(50% - 42px)' : 'calc(50% - 50px)'
@@ -622,8 +622,8 @@ const MainWindow: React.FC = () => {
         role="presentation"
         aria-hidden="true"
       >
-        <span className="h-4 w-1 rounded-full bg-gray-500" />
-        <span className="h-4 w-1 rounded-full bg-gray-500" />
+        <span className="h-1 w-6 rounded-full bg-gray-500" />
+        <span className="h-1 w-6 rounded-full bg-gray-500" />
       </div>
 
       <div className="pointer-events-none relative flex h-full w-full items-center justify-center">

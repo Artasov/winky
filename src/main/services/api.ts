@@ -121,10 +121,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
                 timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT
             });
             const text = extractSpeechText(data);
-            if (!text) {
-                throw new Error('Локальный сервис распознавания вернул пустой ответ.');
-            }
-            return text;
+            return typeof text === 'string' ? text : '';
         } catch (error) {
             const reason = describeAxiosError(
                 error,

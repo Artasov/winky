@@ -50,7 +50,17 @@ const AppContent: React.FC = () => {
 
     const showToast = useCallback((message: string, type: ToastType = 'info') => {
         const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}`;
-        setToasts((prev) => [...prev, {id, message, type}]);
+        let added = false;
+        setToasts((prev) => {
+            if (prev.some((toast) => toast.message === message && toast.type === type)) {
+                return prev;
+            }
+            added = true;
+            return [...prev, {id, message, type}];
+        });
+        if (!added) {
+            return;
+        }
         setTimeout(() => {
             setToasts((prev) => prev.filter((toast) => toast.id !== id));
         }, 4000);

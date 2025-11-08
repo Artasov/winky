@@ -38,11 +38,30 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     const processingRef = useRef(false);
     const handleMicrophoneToggleRef = useRef<(() => Promise<void> | void) | null>(null);
     const completionSoundRef = useRef<HTMLAudioElement | null>(null);
+    const localServerAlertInFlightRef = useRef(false);
+    const localServerAlertReleaseRef = useRef<number | null>(null);
 
     const [isRecording, setIsRecording] = useState(false);
     const [activeActionId, setActiveActionId] = useState<string | null>(null);
     const [processing, setProcessing] = useState(false);
     const [volume, setVolume] = useState(0);
+
+    const scheduleLocalServerAlertRelease = useCallback(() => {
+        if (typeof window === 'undefined') {
+            localServerAlertInFlightRef.current = false;
+            if (localServerAlertReleaseRef.current !== null) {
+                localServerAlertReleaseRef.current = null;
+            }
+            return;
+        }
+        if (localServerAlertReleaseRef.current !== null) {
+            window.clearTimeout(localServerAlertReleaseRef.current);
+        }
+        localServerAlertReleaseRef.current = window.setTimeout(() => {
+            localServerAlertInFlightRef.current = false;
+            localServerAlertReleaseRef.current = null;
+        }, 4000);
+    }, []);
 
     useEffect(() => {
         if (!config) {
@@ -124,9 +143,14 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         if (!isLocalServerUnavailableMessage(message)) {
             return false;
         }
+        if (localServerAlertInFlightRef.current) {
+            return true;
+        }
+        localServerAlertInFlightRef.current = true;
         const failureMessage = 'Локальный сервер распознавания недоступен. Открываем Settings…';
         if (typeof window === 'undefined' || !window.winky) {
             showToast(failureMessage, 'error');
+            localServerAlertInFlightRef.current = false;
             return true;
         }
         let notified = false;
@@ -136,7 +160,12 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             }
             notified = true;
             void window.winky?.windows.navigate?.('/settings');
-            void window.winky?.notifications?.showToast?.(failureMessage, 'error');
+            const publishToast = () => {
+                void window.winky?.notifications?.showToast?.(failureMessage, 'error');
+            };
+            publishToast();
+            setTimeout(publishToast, 800);
+            scheduleLocalServerAlertRelease();
         };
         const attemptOpen = (): Promise<void> | undefined => window.winky?.windows.openSettings?.();
         const promise = attemptOpen();
@@ -162,11 +191,12 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                         })
                         .catch((retryError) => {
                             console.error('[MicOverlay] Не удалось открыть главное окно настроек.', retryError);
+                            notifyMainWindow();
                         });
                 }, 600);
             });
         return true;
-    }, [config?.speech.mode, showToast]);
+    }, [config?.speech.mode, showToast, scheduleLocalServerAlertRelease]);
 
     const ensureSpeechService = useCallback(() => {
         if (!speechServiceRef.current) {

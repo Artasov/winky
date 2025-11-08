@@ -291,6 +291,57 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         handleMicrophoneToggleRef.current = handleMicrophoneToggle;
     }, [handleMicrophoneToggle]);
 
+    useEffect(() => {
+        if (!isMicOverlay || typeof window === 'undefined') {
+            return;
+        }
+        const hotkeysApi = window.winky?.actionHotkeys;
+        if (!hotkeysApi) {
+            return;
+        }
+        if (!isRecording) {
+            void hotkeysApi.clear();
+            return;
+        }
+        const hotkeys = actions
+            .filter((action) => typeof action.hotkey === 'string' && action.hotkey.trim().length > 0)
+            .map((action) => ({
+                id: action.id,
+                accelerator: action.hotkey!.trim()
+            }));
+
+        if (hotkeys.length === 0) {
+            void hotkeysApi.clear();
+            return;
+        }
+
+        void hotkeysApi.register(hotkeys);
+
+        return () => {
+            void hotkeysApi.clear();
+        };
+    }, [actions, isMicOverlay, isRecording]);
+
+    useEffect(() => {
+        if (!isMicOverlay || typeof window === 'undefined') {
+            return;
+        }
+        const handler = (payload: { actionId?: string }) => {
+            if (!payload?.actionId || !isRecording) {
+                return;
+            }
+            const action = actions.find((item) => item.id === payload.actionId);
+            if (!action) {
+                return;
+            }
+            void handleActionClick(action);
+        };
+        window.electron?.on?.('hotkey:action-triggered', handler);
+        return () => {
+            window.electron?.removeListener?.('hotkey:action-triggered', handler);
+        };
+    }, [actions, handleActionClick, isMicOverlay, isRecording]);
+
     return {
         view: {
             isRecording,

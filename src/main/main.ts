@@ -101,9 +101,19 @@ const registerMicShortcut = async (): Promise<void> => {
     }
 };
 
+const registerActionHotkeys = (hotkeys: Array<{ id: string; accelerator: string }>): void => {
+    hotkeyManager.registerActionHotkeys(hotkeys);
+};
+
+const clearActionHotkeys = (): void => {
+    hotkeyManager.clearActionHotkeys();
+};
+
 registerIpcHandlers({
     isDev,
     registerMicShortcut,
+    registerActionHotkeys,
+    clearActionHotkeys,
     showMainWindow,
     showMicWindowInstance,
     hideMicWindow,

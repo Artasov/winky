@@ -25,6 +25,8 @@ import {sendLogToRenderer} from '../utils/logger';
 type IpcDependencies = {
     isDev: boolean;
     registerMicShortcut: () => Promise<void>;
+    registerActionHotkeys: (hotkeys: Array<{ id: string; accelerator: string }>) => void;
+    clearActionHotkeys: () => void;
     showMainWindow: (route?: string) => Promise<void>;
     showMicWindowInstance: (reason?: MicVisibilityReason) => void;
     hideMicWindow: (reason?: MicVisibilityReason, options?: {disableAutoShow?: boolean}) => void;
@@ -111,6 +113,16 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
 
     ipcMain.handle('window:close', () => {
         deps.mainWindowController.getWindow()?.close();
+    });
+
+    ipcMain.handle('actions:hotkeys:register', (_event, hotkeys: Array<{ id: string; accelerator: string }>) => {
+        deps.registerActionHotkeys(hotkeys ?? []);
+        return true;
+    });
+
+    ipcMain.handle('actions:hotkeys:clear', () => {
+        deps.clearActionHotkeys();
+        return true;
     });
 
     ipcMain.handle('mic:move-window', (_event, x: number, y: number) => {

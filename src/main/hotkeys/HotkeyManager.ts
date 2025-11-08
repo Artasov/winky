@@ -44,6 +44,60 @@ export class HotkeyManager {
         return 'success';
     }
 
+    registerActionHotkeys(hotkeys: Array<{ id: string; accelerator: string }>): void {
+        this.clearActionHotkeys();
+        if (!hotkeys || hotkeys.length === 0) {
+            return;
+        }
+
+        const usedAccelerators = new Set<string>();
+
+        for (const {id, accelerator} of hotkeys) {
+            const trimmed = (accelerator || '').trim();
+            if (!trimmed) {
+                continue;
+            }
+            const normalized = this.toElectronAccelerator(trimmed);
+            if (!normalized || usedAccelerators.has(normalized)) {
+                this.emit('hotkey:register-error', {
+                    source: 'action',
+                    accelerator: trimmed,
+                    actionId: id,
+                    reason: 'invalid'
+                });
+                continue;
+            }
+
+            const success = globalShortcut.register(normalized, () => {
+                this.emit('hotkey:action-triggered', {actionId: id});
+            });
+
+            if (!success) {
+                this.emit('hotkey:register-error', {
+                    source: 'action',
+                    accelerator: trimmed,
+                    actionId: id,
+                    electronAccelerator: normalized,
+                    reason: 'register-failed'
+                });
+                continue;
+            }
+
+            usedAccelerators.add(normalized);
+            this.registered.set(`action:${id}`, normalized);
+        }
+    }
+
+    clearActionHotkeys(): void {
+        for (const [key, accelerator] of Array.from(this.registered.entries())) {
+            if (!key.startsWith('action:')) {
+                continue;
+            }
+            globalShortcut.unregister(accelerator);
+            this.registered.delete(key);
+        }
+    }
+
     clearMicShortcut(): void {
         const existing = this.registered.get('mic');
         if (existing) {

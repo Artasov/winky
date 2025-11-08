@@ -96,10 +96,9 @@ const SettingsPage: React.FC = () => {
         };
     }, [showToast]);
 
-    const persistModelConfig = async (partial: Partial<ModelConfigFormData>) => {
+    const persistModelConfig = async (nextValues: ModelConfigFormData) => {
         setSaving(true);
         try {
-            const nextValues = {...formData, ...partial};
             await updateConfig({
                 apiKeys: {
                     openai: nextValues.openaiKey.trim(),
@@ -262,7 +261,8 @@ const SettingsPage: React.FC = () => {
             <ModelConfigForm
                 values={formData}
                 onChange={setFormData}
-                onSave={persistModelConfig}
+                autoSave
+                onAutoSave={persistModelConfig}
                 saving={saving}
                 requireApiKeys={false}
             />

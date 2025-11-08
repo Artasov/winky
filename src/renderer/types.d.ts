@@ -154,6 +154,11 @@ declare global {
         }) => void): () => void;
     }
 
+    interface WinkyActionHotkeysAPI {
+        register(hotkeys: Array<{ id: string; accelerator: string }>): Promise<void>;
+        clear(): Promise<void>;
+    }
+
     interface WinkyPreload {
         config: WinkyConfigAPI;
         clipboard: WinkyClipboardAPI;
@@ -168,6 +173,7 @@ declare global {
         windows: WinkyWindowsAPI;
         windowControls: WinkyWindowControlsAPI;
         mic: WinkyMicAPI;
+        actionHotkeys: WinkyActionHotkeysAPI;
 
         on(channel: string, callback: (...args: any[]) => void): void;
 

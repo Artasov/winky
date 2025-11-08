@@ -89,11 +89,8 @@ const SetupWindow: React.FC = () => {
                     <ModelConfigForm
                         values={formData}
                         onChange={setFormData}
-                        onSave={async (partial) => {
-                            if (partial.openaiKey !== undefined || partial.googleKey !== undefined) {
-                                await handleSubmit(new Event('submit') as unknown as React.FormEvent);
-                            }
-                        }}
+                        onSubmit={handleSubmit}
+                        submitButtonText="Complete Setup"
                         saving={saving}
                         requireApiKeys={true}
                     />

@@ -151,6 +151,11 @@ const api = {
         }): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:update', actionId, action),
         delete: (actionId: string): Promise<ActionConfig[]> => ipcRenderer.invoke('actions:delete', actionId)
     },
+    actionHotkeys: {
+        register: (hotkeys: Array<{ id: string; accelerator: string }>): Promise<void> =>
+            ipcRenderer.invoke('actions:hotkeys:register', hotkeys),
+        clear: (): Promise<void> => ipcRenderer.invoke('actions:hotkeys:clear')
+    },
     icons: {
         fetch: (): Promise<ActionIcon[]> => ipcRenderer.invoke('icons:fetch')
     },

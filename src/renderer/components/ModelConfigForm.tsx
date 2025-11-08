@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo} from 'react';
-import {Box, MenuItem, Stack, TextField, Typography} from '@mui/material';
+import {Box, Button, MenuItem, Stack, TextField, Typography} from '@mui/material';
 import {
     LLM_API_MODELS,
     LLM_LOCAL_MODELS,
@@ -19,21 +19,35 @@ export interface ModelConfigFormData {
     llmModel: LLMModel;
 }
 
+const getDefaultSpeechModel = (mode: SpeechMode): SpeechModel =>
+    (mode === SPEECH_MODES.API ? SPEECH_API_MODELS[0] : SPEECH_LOCAL_MODELS[0]) as SpeechModel;
+
+const getDefaultLLMModel = (mode: LLMMode): LLMModel =>
+    (mode === LLM_MODES.API ? LLM_API_MODELS[0] : LLM_LOCAL_MODELS[0]) as LLMModel;
+
 interface ModelConfigFormProps {
     values: ModelConfigFormData;
     onChange: (values: ModelConfigFormData) => void;
-    onSave: (partial: Partial<ModelConfigFormData>) => Promise<void>;
     saving: boolean;
     requireApiKeys?: boolean;
+    autoSave?: boolean;
+    onAutoSave?: (nextValues: ModelConfigFormData) => Promise<void>;
+    onSubmit?: (e: React.FormEvent) => void;
+    submitButtonText?: string;
 }
 
 const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
-                                                             values,
-                                                             onChange,
-                                                             onSave,
-                                                             saving,
-                                                             requireApiKeys = false
-                                                         }) => {
+    values,
+    onChange,
+    saving,
+    requireApiKeys = false,
+    autoSave = false,
+    onAutoSave,
+    onSubmit,
+    submitButtonText = 'Save'
+}) => {
+    const shouldAutoSave = autoSave && typeof onAutoSave === 'function';
+
     const formatLabel = (value: string) =>
         value
             .replace(/[:]/g, ' ')
@@ -53,21 +67,23 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         return [...base] as LLMModel[];
     }, [values.llmMode]);
 
+    const emitChange = (partial: Partial<ModelConfigFormData>) => {
+        const nextValues = {...values, ...partial};
+        onChange(nextValues);
+        if (shouldAutoSave && onAutoSave) {
+            void onAutoSave(nextValues);
+        }
+    };
+
     useEffect(() => {
         if (!speechModelOptions.includes(values.speechModel)) {
-            onChange({
-                ...values,
-                speechModel: speechModelOptions[0] as SpeechModel
-            });
+            emitChange({speechModel: speechModelOptions[0] as SpeechModel});
         }
     }, [speechModelOptions, values.speechModel]);
 
     useEffect(() => {
         if (!llmModelOptions.includes(values.llmModel)) {
-            onChange({
-                ...values,
-                llmModel: llmModelOptions[0] as LLMModel
-            });
+            emitChange({llmModel: llmModelOptions[0] as LLMModel});
         }
     }, [llmModelOptions, values.llmModel]);
 
@@ -76,6 +92,8 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
 
     return (
         <Box
+            component={shouldAutoSave ? 'div' : 'form'}
+            onSubmit={shouldAutoSave ? undefined : onSubmit}
             sx={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -103,9 +121,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         label="Speech Recognition"
                         value={values.speechMode}
                         onChange={(e) => {
-                            const next = {...values, speechMode: e.target.value as SpeechMode};
-                            onChange(next);
-                            void onSave({speechMode: next.speechMode, speechModel: next.speechModel});
+                            const speechMode = e.target.value as SpeechMode;
+                            const speechModel = getDefaultSpeechModel(speechMode);
+                            emitChange({speechMode, speechModel});
                         }}
                         disabled={saving}
                     >
@@ -117,11 +135,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         select
                         label="Speech Model"
                         value={values.speechModel}
-                        onChange={(e) => {
-                            const next = {...values, speechModel: e.target.value as SpeechModel};
-                            onChange(next);
-                            void onSave({speechModel: next.speechModel});
-                        }}
+                        onChange={(e) => emitChange({speechModel: e.target.value as SpeechModel})}
                         disabled={saving}
                     >
                         {speechModelOptions.map((model) => (
@@ -136,9 +150,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         label="LLM Mode"
                         value={values.llmMode}
                         onChange={(e) => {
-                            const next = {...values, llmMode: e.target.value as LLMMode};
-                            onChange(next);
-                            void onSave({llmMode: next.llmMode, llmModel: next.llmModel});
+                            const llmMode = e.target.value as LLMMode;
+                            const llmModel = getDefaultLLMModel(llmMode);
+                            emitChange({llmMode, llmModel});
                         }}
                         disabled={saving}
                     >
@@ -150,11 +164,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         select
                         label="LLM Model"
                         value={values.llmModel}
-                        onChange={(e) => {
-                            const next = {...values, llmModel: e.target.value as LLMModel};
-                            onChange(next);
-                            void onSave({llmModel: next.llmModel});
-                        }}
+                        onChange={(e) => emitChange({llmModel: e.target.value as LLMModel})}
                         disabled={saving}
                     >
                         {llmModelOptions.map((model) => (
@@ -183,11 +193,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             type="password"
                             label="Google AI Key"
                             value={values.googleKey}
-                            onChange={(e) => {
-                                const next = {...values, googleKey: e.target.value};
-                                onChange(next);
-                                void onSave({googleKey: next.googleKey});
-                            }}
+                            onChange={(e) => emitChange({googleKey: e.target.value})}
                             placeholder="AIza..."
                             required={requireApiKeys && requiresGoogleKey && !requiresOpenAIKey}
                             disabled={saving}
@@ -207,11 +213,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             type="password"
                             label="OpenAI API Key"
                             value={values.openaiKey}
-                            onChange={(e) => {
-                                const next = {...values, openaiKey: e.target.value};
-                                onChange(next);
-                                void onSave({openaiKey: next.openaiKey});
-                            }}
+                            onChange={(e) => emitChange({openaiKey: e.target.value})}
                             placeholder="sk-..."
                             required={requireApiKeys && requiresOpenAIKey && !requiresGoogleKey}
                             disabled={saving}
@@ -231,6 +233,13 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 )}
             </Stack>
 
+            {!shouldAutoSave && onSubmit && (
+                <Box display="flex" justifyContent="flex-end" mt={2}>
+                    <Button type="submit" variant="contained" size="large" disabled={saving} sx={{px: 4}}>
+                        {saving ? 'Saving…' : submitButtonText}
+                    </Button>
+                </Box>
+            )}
         </Box>
     );
 };

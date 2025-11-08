@@ -136,3 +136,24 @@ export interface TranscriptionResponse {
 }
 
 export type MicAnchor = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+export type FastWhisperPhase =
+    | 'not-installed'
+    | 'installing'
+    | 'starting'
+    | 'running'
+    | 'stopping'
+    | 'idle'
+    | 'error';
+
+export interface FastWhisperStatus {
+    installed: boolean;
+    running: boolean;
+    phase: FastWhisperPhase;
+    message?: string;
+    error?: string;
+    lastAction?: 'install' | 'start' | 'restart' | 'reinstall';
+    lastSuccessAt?: number;
+    logLine?: string;
+    updatedAt: number;
+}

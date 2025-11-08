@@ -21,6 +21,7 @@ import type {ResultWindowController} from '../windows/ResultWindowController';
 import {performLogin} from '../services/loginFlow';
 import {setCurrentUserCache, getCurrentUserCache} from '../state/currentUser';
 import {sendLogToRenderer} from '../utils/logger';
+import {fastWhisperManager} from '../services/localSpeech/FastWhisperManager';
 
 type IpcDependencies = {
     isDev: boolean;
@@ -329,4 +330,11 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
             win.webContents.send('result:data', data);
         }
     });
+
+    ipcMain.handle('local-speech:get-status', async () => fastWhisperManager.getStatus());
+    ipcMain.handle('local-speech:install', async () => fastWhisperManager.installAndStart());
+    ipcMain.handle('local-speech:start', async () => fastWhisperManager.startExisting());
+    ipcMain.handle('local-speech:restart', async () => fastWhisperManager.restart());
+    ipcMain.handle('local-speech:reinstall', async () => fastWhisperManager.reinstall());
+    ipcMain.handle('local-speech:stop', async () => fastWhisperManager.stop());
 };

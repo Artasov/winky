@@ -2,10 +2,9 @@ import axios, {AxiosInstance} from 'axios';
 import FormData from 'form-data';
 import {createApiClient} from '@shared/api';
 import {
-    API_BASE_URL_FALLBACKS,
     SPEECH_MODES,
-    SPEECH_TRANSCRIBE_ENDPOINT,
-    ME_ENDPOINT
+    ME_ENDPOINT,
+    FAST_WHISPER_TRANSCRIBE_ENDPOINT
 } from '@shared/constants';
 import type {ActionConfig, ActionIcon, AppConfig, AuthTokens, WinkyProfile, User} from '@shared/types';
 import {getConfig, setActions} from '../config';
@@ -112,44 +111,26 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
     };
 
     if (config.mode === SPEECH_MODES.LOCAL) {
-        const resolveLocalToken = async (): Promise<string> => {
-            if (config.accessToken && config.accessToken.trim().length) {
-                return config.accessToken;
+        const formData = buildFormData({response_format: 'json'});
+        try {
+            const {data} = await axios.post(FAST_WHISPER_TRANSCRIBE_ENDPOINT, formData, {
+                headers: {
+                    ...formData.getHeaders()
+                },
+                timeout: 120_000
+            });
+            const text = extractSpeechText(data);
+            if (!text) {
+                throw new Error('Локальный сервис распознавания вернул пустой ответ.');
             }
-            const storedConfig = await getConfig();
-            return storedConfig.auth.access || storedConfig.auth.accessToken || '';
-        };
-
-        const resolvedToken = await resolveLocalToken();
-
-        if (!resolvedToken) {
-            throw new Error('Необходимо войти в аккаунт для локальной транскрибации.');
+            return text;
+        } catch (error) {
+            const reason = describeAxiosError(
+                error,
+                'Локальный сервер fast-fast-whisper не отвечает. Проверьте установку и статус сервера.'
+            );
+            throw new Error(reason);
         }
-
-        let lastError: unknown = null;
-
-        for (const endpoint of SPEECH_TRANSCRIBE_ENDPOINTS) {
-            const formData = buildFormData({response_format: 'json'});
-            try {
-                const {data} = await axios.post(endpoint, formData, {
-                    headers: {
-                        ...formData.getHeaders(),
-                        Authorization: `Bearer ${resolvedToken}`
-                    },
-                    timeout: 120_000
-                });
-                const text = extractSpeechText(data);
-                if (text) {
-                    return text;
-                }
-                lastError = new Error('Сервис вернул пустой ответ.');
-            } catch (error) {
-                lastError = error;
-            }
-        }
-
-        const reason = describeAxiosError(lastError, 'Не удалось выполнить локальную транскрибацию.');
-        throw new Error(reason);
     }
 
     if (!config.openaiKey) {
@@ -286,9 +267,3 @@ const describeAxiosError = (error: unknown, fallback: string): string => {
     }
     return fallback;
 };
-const SPEECH_TRANSCRIBE_ENDPOINTS = Array.from(
-    new Set([
-        SPEECH_TRANSCRIBE_ENDPOINT,
-        ...API_BASE_URL_FALLBACKS.map((base) => `${base.replace(/\/$/, '')}/speech/transcribe`)
-    ])
-);

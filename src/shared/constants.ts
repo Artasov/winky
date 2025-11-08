@@ -12,6 +12,12 @@ export const ACTIONS_ENDPOINT = `${API_BASE_URL}/winky/actions`;
 export const ICONS_ENDPOINT = `${API_BASE_URL}/winky/icons`;
 export const PROFILE_ENDPOINT = `${API_BASE_URL}/winky/profile`;
 export const ME_ENDPOINT = `${API_BASE_URL}/me/`;
+export const FAST_WHISPER_REPO_URL = 'https://github.com/Artasov/fast-fast-whisper.git';
+export const FAST_WHISPER_REPO_NAME = 'fast-fast-whisper';
+export const FAST_WHISPER_PORT = 8868;
+export const FAST_WHISPER_BASE_URL = `http://127.0.0.1:${FAST_WHISPER_PORT}`;
+export const FAST_WHISPER_HEALTH_ENDPOINT = `${FAST_WHISPER_BASE_URL}/health`;
+export const FAST_WHISPER_TRANSCRIBE_ENDPOINT = `${FAST_WHISPER_BASE_URL}/v1/audio/transcriptions`;
 
 export const CONFIG_FILE_NAME = 'config.json';
 

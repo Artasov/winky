@@ -6,6 +6,7 @@ import type {
     AuthDeepLinkPayload,
     AuthProvider,
     AuthTokens,
+    FastWhisperStatus,
     User,
     WinkyProfile
 } from '@shared/types';
@@ -175,6 +176,23 @@ const api = {
             accessToken?: string
         }): Promise<string> =>
             ipcRenderer.invoke('speech:transcribe', audioData, config)
+    },
+    localSpeech: {
+        getStatus: (): Promise<FastWhisperStatus> => ipcRenderer.invoke('local-speech:get-status'),
+        install: (): Promise<FastWhisperStatus> => ipcRenderer.invoke('local-speech:install'),
+        start: (): Promise<FastWhisperStatus> => ipcRenderer.invoke('local-speech:start'),
+        restart: (): Promise<FastWhisperStatus> => ipcRenderer.invoke('local-speech:restart'),
+        reinstall: (): Promise<FastWhisperStatus> => ipcRenderer.invoke('local-speech:reinstall'),
+        stop: (): Promise<FastWhisperStatus> => ipcRenderer.invoke('local-speech:stop'),
+        onStatus: (callback: (status: FastWhisperStatus) => void): (() => void) => {
+            const handler = (_event: IpcRendererEvent, status: FastWhisperStatus) => {
+                callback(status);
+            };
+            ipcRenderer.on('local-speech:status', handler);
+            return () => {
+                ipcRenderer.removeListener('local-speech:status', handler);
+            };
+        }
     },
     llm: {
         process: (text: string, prompt: string, config: {

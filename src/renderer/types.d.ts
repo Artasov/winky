@@ -5,6 +5,7 @@ import type {
     AuthDeepLinkPayload,
     AuthProvider,
     AuthTokens,
+    FastWhisperStatus,
     User,
     WinkyProfile
 } from '@shared/types';
@@ -122,6 +123,22 @@ declare global {
         }): Promise<string>;
     }
 
+    interface WinkyLocalSpeechAPI {
+        getStatus(): Promise<FastWhisperStatus>;
+
+        install(): Promise<FastWhisperStatus>;
+
+        start(): Promise<FastWhisperStatus>;
+
+        restart(): Promise<FastWhisperStatus>;
+
+        reinstall(): Promise<FastWhisperStatus>;
+
+        stop(): Promise<FastWhisperStatus>;
+
+        onStatus(callback: (status: FastWhisperStatus) => void): () => void;
+    }
+
     interface WinkyLLMAPI {
         process(text: string, prompt: string, config: {
             mode: string;
@@ -168,6 +185,7 @@ declare global {
         icons: WinkyIconsAPI;
         profile: WinkyProfileAPI;
         speech: WinkySpeechAPI;
+        localSpeech: WinkyLocalSpeechAPI;
         llm: WinkyLLMAPI;
         result: WinkyResultAPI;
         windows: WinkyWindowsAPI;

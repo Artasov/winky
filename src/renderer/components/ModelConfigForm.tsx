@@ -9,6 +9,7 @@ import {
     SPEECH_MODES
 } from '@shared/constants';
 import type {LLMMode, LLMModel, SpeechMode, SpeechModel} from '@shared/types';
+import LocalSpeechInstallControl from './LocalSpeechInstallControl';
 
 export interface ModelConfigFormData {
     openaiKey: string;
@@ -37,15 +38,15 @@ interface ModelConfigFormProps {
 }
 
 const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
-    values,
-    onChange,
-    saving,
-    requireApiKeys = false,
-    autoSave = false,
-    onAutoSave,
-    onSubmit,
-    submitButtonText = 'Save'
-}) => {
+                                                             values,
+                                                             onChange,
+                                                             saving,
+                                                             requireApiKeys = false,
+                                                             autoSave = false,
+                                                             onAutoSave,
+                                                             onSubmit,
+                                                             submitButtonText = 'Save'
+                                                         }) => {
     const shouldAutoSave = autoSave && typeof onAutoSave === 'function';
 
     const formatLabel = (value: string) =>
@@ -87,6 +88,25 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         }
     }, [llmModelOptions, values.llmModel]);
 
+    const renderSpeechModeSelector = (sx?: any) => (
+        <TextField
+            select
+            label="Speech Recognition"
+            value={values.speechMode}
+            onChange={(e) => {
+                const speechMode = e.target.value as SpeechMode;
+                const speechModel = getDefaultSpeechModel(speechMode);
+                emitChange({speechMode, speechModel});
+            }}
+            disabled={saving}
+            fullWidth
+            sx={sx}
+        >
+            <MenuItem value={SPEECH_MODES.API}>API</MenuItem>
+            <MenuItem value={SPEECH_MODES.LOCAL}>Local</MenuItem>
+        </TextField>
+    );
+
     const requiresOpenAIKey = values.llmMode === LLM_MODES.API;
     const requiresGoogleKey = values.speechMode === SPEECH_MODES.API;
 
@@ -116,21 +136,14 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         gridTemplateColumns: {xs: 'repeat(1, minmax(0, 1fr))', md: 'repeat(2, minmax(0, 1fr))'}
                     }}
                 >
-                    <TextField
-                        select
-                        label="Speech Recognition"
-                        value={values.speechMode}
-                        onChange={(e) => {
-                            const speechMode = e.target.value as SpeechMode;
-                            const speechModel = getDefaultSpeechModel(speechMode);
-                            emitChange({speechMode, speechModel});
-                        }}
-                        disabled={saving}
-                    >
-                        <MenuItem value={SPEECH_MODES.API}>API</MenuItem>
-                        <MenuItem value={SPEECH_MODES.LOCAL}>Local</MenuItem>
-                    </TextField>
-
+                    {values.speechMode === SPEECH_MODES.LOCAL ? (
+                        <div className={'fc gap-2'}>
+                            {renderSpeechModeSelector({flex: 1})}
+                            <LocalSpeechInstallControl disabled={saving}/>
+                        </div>
+                    ) : (
+                        renderSpeechModeSelector()
+                    )}
                     <TextField
                         select
                         label="Speech Model"

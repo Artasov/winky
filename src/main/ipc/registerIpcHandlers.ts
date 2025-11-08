@@ -223,13 +223,18 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
         emitToAllWindows('navigate-to', route);
     });
 
-    ipcMain.handle('notifications:toast', async (_event, payload: { message?: string; type?: 'success' | 'info' | 'error' }) => {
+    ipcMain.handle('notifications:toast', async (_event, payload: {
+        message?: string;
+        type?: 'success' | 'info' | 'error';
+        options?: { durationMs?: number };
+    }) => {
         if (!payload?.message) {
             return;
         }
         emitToAllWindows('app:toast', {
             message: payload.message,
-            type: payload.type ?? 'info'
+            type: payload.type ?? 'info',
+            options: payload.options
         });
     });
 

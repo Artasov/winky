@@ -50,35 +50,45 @@ const AppContent: React.FC = () => {
     const isErrorWindow = windowKind === 'error';
     const shouldRenderToasts = !isMicWindow && !isResultWindow && !isErrorWindow;
 
-    const showToast = useCallback((message: string, type: ToastType = 'info') => {
-        if (!shouldRenderToasts) {
-            return;
-        }
-        const toastId = `${type}:${message}`;
-        toast(message, {
-            type,
-            toastId,
-            position: 'top-right',
-            autoClose: 4000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            pauseOnFocusLoss: false,
-            draggable: false,
-            newestOnTop: true,
-            transition: Slide
-        });
-    }, [shouldRenderToasts]);
+    const showToast = useCallback(
+        (message: string, type: ToastType = 'info', options?: { durationMs?: number }) => {
+            if (!shouldRenderToasts) {
+                return;
+            }
+            const toastId = `${type}:${message}`;
+            const resolvedDuration = options?.durationMs;
+            const autoCloseValue =
+                typeof resolvedDuration === 'number'
+                    ? resolvedDuration <= 0
+                        ? false
+                        : resolvedDuration
+                    : 4_000;
+            toast(message, {
+                type,
+                toastId,
+                position: 'top-right',
+                autoClose: autoCloseValue,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                pauseOnFocusLoss: false,
+                draggable: false,
+                newestOnTop: true,
+                transition: Slide
+            });
+        },
+        [shouldRenderToasts]
+    );
 
     useEffect(() => {
         if (!shouldRenderToasts || !window.winky?.on) {
             return;
         }
-        const handler = (payload?: { message?: string; type?: ToastType }) => {
+        const handler = (payload?: { message?: string; type?: ToastType; options?: { durationMs?: number } }) => {
             if (!payload?.message) {
                 return;
             }
-            showToast(payload.message, payload.type ?? 'info');
+            showToast(payload.message, payload.type ?? 'info', payload.options);
         };
         window.winky.on('app:toast', handler as any);
         return () => {
@@ -380,7 +390,7 @@ const AppContent: React.FC = () => {
                         pauseOnFocusLoss={false}
                         pauseOnHover
                         draggable={false}
-                        autoClose={4000}
+                        autoClose={false}
                         limit={3}
                     />
                 ) : null}

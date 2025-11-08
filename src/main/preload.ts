@@ -236,8 +236,12 @@ const api = {
         navigate: (route: string): Promise<void> => ipcRenderer.invoke('windows:navigate', route)
     },
     notifications: {
-        showToast: (message: string, type: 'success' | 'info' | 'error' = 'info'): Promise<void> =>
-            ipcRenderer.invoke('notifications:toast', {message, type})
+        showToast: (
+            message: string,
+            type: 'success' | 'info' | 'error' = 'info',
+            options?: { durationMs?: number }
+        ): Promise<void> =>
+            ipcRenderer.invoke('notifications:toast', {message, type, options})
     },
     windowControls: {
         minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),

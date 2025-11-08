@@ -91,7 +91,7 @@ declare global {
     }
 
     interface WinkyNotificationsAPI {
-        showToast(message: string, type?: 'success' | 'error' | 'info'): Promise<void>;
+        showToast(message: string, type?: 'success' | 'error' | 'info', options?: { durationMs?: number }): Promise<void>;
     }
 
     interface WinkyWindowControlsAPI {

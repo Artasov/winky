@@ -149,7 +149,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         localServerAlertInFlightRef.current = true;
         const failureMessage = 'Локальный сервер распознавания недоступен. Открываем Settings…';
         if (typeof window === 'undefined' || !window.winky) {
-            showToast(failureMessage, 'error');
+            showToast(failureMessage, 'error', {durationMs: 4000});
             localServerAlertInFlightRef.current = false;
             return true;
         }
@@ -161,7 +161,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             notified = true;
             void window.winky?.windows.navigate?.('/settings');
             const publishToast = () => {
-                void window.winky?.notifications?.showToast?.(failureMessage, 'error');
+                void window.winky?.notifications?.showToast?.(failureMessage, 'error', {durationMs: 1_000_000_000});
             };
             publishToast();
             setTimeout(publishToast, 800);

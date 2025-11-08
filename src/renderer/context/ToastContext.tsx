@@ -3,7 +3,7 @@ import {createContext, useContext} from 'react';
 export type ToastType = 'success' | 'info' | 'error';
 
 export interface ToastContextValue {
-    showToast: (message: string, type?: ToastType) => void;
+    showToast: (message: string, type?: ToastType, options?: { durationMs?: number }) => void;
 }
 
 export const ToastContext = createContext<ToastContextValue | undefined>(undefined);

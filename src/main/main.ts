@@ -2,7 +2,7 @@ import {app, BrowserWindow} from 'electron';
 import path from 'path';
 import {destroyTray} from './tray';
 import {registerIpcHandlers} from './ipc/registerIpcHandlers';
-import {registerAuthIpc, registerAuthProtocol, handleAuthUrl, notifyAuthPayloads} from './app/oauth';
+import {registerAuthIpc, registerAuthProtocol, handleAuthUrl, notifyAuthPayloads, extractDeepLinksFromArgv} from './app/oauth';
 import {handleAppReady} from './app/appLifecycle';
 import {MainWindowController} from './windows/MainWindowController';
 import {MicWindowController, type MicVisibilityReason} from './windows/MicWindowController';
@@ -158,6 +158,16 @@ app.on('second-instance', (_event, argv) => {
         });
         return;
     }
+
+    const deepLinks = extractDeepLinksFromArgv(argv);
+    for (const link of deepLinks) {
+        handleAuthUrl(link);
+    }
+    if (deepLinks.length > 0) {
+        const targetWindow = mainWindowController.getWindow();
+        notifyAuthPayloads(targetWindow ?? null);
+    }
+
     void showMainWindow();
 });
 

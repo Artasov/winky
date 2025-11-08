@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {app, BrowserWindow, ipcMain, shell} from 'electron';
 import type {AuthDeepLinkPayload, AuthProvider} from '@shared/types';
 import {IPC_CHANNELS} from '@shared/constants';
@@ -57,7 +58,7 @@ export const registerAuthProtocol = (): void => {
         const protocol = 'winky';
         if (process.defaultApp && process.argv.length >= 2) {
             const exePath = process.execPath;
-            const appPath = process.argv[1];
+            const appPath = path.resolve(process.argv[1]);
             app.setAsDefaultProtocolClient(protocol, exePath, [appPath]);
         } else {
             app.setAsDefaultProtocolClient(protocol);

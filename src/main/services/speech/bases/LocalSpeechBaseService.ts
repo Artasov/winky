@@ -1,6 +1,6 @@
 import axios, {AxiosInstance} from 'axios';
 import RecordingSpeechBaseService from './RecordingSpeechBaseService';
-import {FAST_WHISPER_BASE_URL} from '@shared/constants';
+import {FAST_WHISPER_BASE_URL, FAST_WHISPER_TRANSCRIBE_TIMEOUT} from '@shared/constants';
 
 export abstract class LocalSpeechBaseService extends RecordingSpeechBaseService {
     protected readonly model: string;
@@ -9,7 +9,7 @@ export abstract class LocalSpeechBaseService extends RecordingSpeechBaseService 
     protected constructor(model: string) {
         super();
         this.model = model;
-        this.client = axios.create({baseURL: FAST_WHISPER_BASE_URL, timeout: 120_000});
+        this.client = axios.create({baseURL: FAST_WHISPER_BASE_URL, timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT});
     }
 
     protected buildEndpoint(): string {

@@ -28,28 +28,47 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
 
     useEffect(() => {
         let mounted = true;
-        const init = async () => {
+
+        const fetchStatus = async () => {
             try {
-                const initialStatus = await window.winky?.localSpeech?.getStatus();
-                if (mounted && initialStatus) {
-                    setStatus(initialStatus);
-                    setErrorMessage(initialStatus.error ?? null);
+                const nextStatus = await window.winky?.localSpeech?.getStatus();
+                if (mounted && nextStatus) {
+                    console.info('[LocalSpeechInstallControl] fetchStatus ->', nextStatus.phase, nextStatus);
+                    setStatus(nextStatus);
+                    setErrorMessage(nextStatus.error ?? null);
                 }
             } catch (error: any) {
+                console.warn('[LocalSpeechInstallControl] fetchStatus failed', error);
                 if (mounted) {
                     setErrorMessage(error?.message || 'Failed to request local server status.');
                 }
             }
         };
-        void init();
+
+        void fetchStatus();
+
+        const handleFocus = () => {
+            void fetchStatus();
+        };
+
+        window.addEventListener('focus', handleFocus);
+        const pollInterval = setInterval(() => {
+            void fetchStatus();
+        }, 15_000);
 
         const unsubscribe = window.winky?.localSpeech?.onStatus?.((nextStatus) => {
+            if (!mounted) {
+                return;
+            }
+            console.info('[LocalSpeechInstallControl] push status ->', nextStatus.phase, nextStatus);
             setStatus(nextStatus);
             setErrorMessage(nextStatus.error ?? null);
         });
 
         return () => {
             mounted = false;
+            window.removeEventListener('focus', handleFocus);
+            clearInterval(pollInterval);
             unsubscribe?.();
         };
     }, []);
@@ -81,16 +100,25 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
     const busyPhase = status?.phase === 'installing' || status?.phase === 'starting' || status?.phase === 'stopping';
     const isBusy = loadingAction !== null || busyPhase;
 
+    const isLoading = status === null;
+    const safeStatus: FastWhisperStatus = status ?? {
+        installed: false,
+        running: false,
+        phase: 'not-installed',
+        message: 'Checking server status…',
+        updatedAt: Date.now()
+    };
+
     const primaryAction: PrimaryAction = useMemo(() => {
-        if (!status?.installed) {
+        if (!safeStatus.installed) {
             return 'install';
         }
-        return status.running ? 'restart' : 'start';
-    }, [status?.installed, status?.running]);
+        return safeStatus.running ? 'restart' : 'start';
+    }, [safeStatus.installed, safeStatus.running]);
 
     const primaryLabel = actionLabels[primaryAction];
-    const successLabel = status?.lastAction
-        ? actionLabels[status.lastAction as ActionKind] ?? primaryLabel
+    const successLabel = safeStatus.lastAction
+        ? actionLabels[safeStatus.lastAction as ActionKind] ?? primaryLabel
         : primaryLabel;
 
     const derivedMessage = useMemo(() => {
@@ -100,28 +128,28 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         if (errorMessage) {
             return errorMessage;
         }
-        return status?.message || '';
-    }, [errorMessage, status?.message, isRunning, showSuccessState]);
+        return safeStatus.message || '';
+    }, [errorMessage, safeStatus.message, isRunning, showSuccessState]);
 
     const messageColor = useMemo(() => {
-        if (errorMessage || status?.phase === 'error') {
+        if (errorMessage || safeStatus.phase === 'error') {
             return 'error.main';
         }
-        if (status?.phase === 'running') {
+        if (safeStatus.phase === 'running') {
             return 'success.main';
         }
         return 'text.secondary';
-    }, [errorMessage, status?.phase]);
+    }, [errorMessage, safeStatus.phase]);
 
     const logSnippet = useMemo(() => {
         if (isRunning || showSuccessState) {
             return '';
         }
-        if (!status?.logLine) {
+        if (!safeStatus.logLine) {
             return '';
         }
-        return status.logLine.length > 180 ? `${status.logLine.slice(0, 179)}…` : status.logLine;
-    }, [status?.logLine, status?.updatedAt, isRunning, showSuccessState]);
+        return safeStatus.logLine.length > 180 ? `${safeStatus.logLine.slice(0, 179)}…` : safeStatus.logLine;
+    }, [safeStatus.logLine, safeStatus.updatedAt, isRunning, showSuccessState]);
 
     const callOperation = async (action: ActionKind, fn: () => Promise<FastWhisperStatus | undefined>) => {
         if (!window.winky?.localSpeech) {
@@ -133,10 +161,12 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         try {
             const result = await fn();
             if (result) {
+                console.info('[LocalSpeechInstallControl] action result', action, result.phase);
                 setStatus(result);
                 setErrorMessage(result.error ?? null);
             }
         } catch (error: any) {
+            console.error('[LocalSpeechInstallControl] action error', action, error);
             const fallback =
                 action === 'install'
                     ? 'Failed to install fast-fast-whisper.'
@@ -180,6 +210,23 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
     const buttonColor = showSuccessState && status?.phase === 'running' ? 'success' : 'primary';
 
     const renderPrimaryControl = () => {
+        if (isLoading) {
+            return (
+                <Button
+                    variant="outlined"
+                    disabled
+                    fullWidth
+                    sx={{
+                        minHeight: 48,
+                        textTransform: 'none',
+                        fontWeight: 600
+                    }}
+                >
+                    <CircularProgress size={18}/>
+                </Button>
+            );
+        }
+
         if (isRunning) {
             const restartDisabled = disabled || isBusy || loadingAction === 'restart';
             return (
@@ -250,7 +297,7 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
     };
 
     const showMessages = Boolean(derivedMessage) || Boolean(logSnippet);
-    const showReinstall = status?.installed && !isRunning && !busyPhase;
+    const showReinstall = safeStatus.installed && !isRunning && !busyPhase && !isLoading;
 
     return (
         <Box sx={{

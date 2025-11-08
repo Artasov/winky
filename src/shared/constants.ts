@@ -18,6 +18,7 @@ export const FAST_WHISPER_PORT = 8868;
 export const FAST_WHISPER_BASE_URL = `http://127.0.0.1:${FAST_WHISPER_PORT}`;
 export const FAST_WHISPER_HEALTH_ENDPOINT = `${FAST_WHISPER_BASE_URL}/health`;
 export const FAST_WHISPER_TRANSCRIBE_ENDPOINT = `${FAST_WHISPER_BASE_URL}/v1/audio/transcriptions`;
+export const FAST_WHISPER_TRANSCRIBE_TIMEOUT = 600_000; // 10 минут
 
 export const CONFIG_FILE_NAME = 'config.json';
 

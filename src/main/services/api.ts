@@ -4,7 +4,8 @@ import {createApiClient} from '@shared/api';
 import {
     SPEECH_MODES,
     ME_ENDPOINT,
-    FAST_WHISPER_TRANSCRIBE_ENDPOINT
+    FAST_WHISPER_TRANSCRIBE_ENDPOINT,
+    FAST_WHISPER_TRANSCRIBE_TIMEOUT
 } from '@shared/constants';
 import type {ActionConfig, ActionIcon, AppConfig, AuthTokens, WinkyProfile, User} from '@shared/types';
 import {getConfig, setActions} from '../config';
@@ -117,7 +118,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
                 headers: {
                     ...formData.getHeaders()
                 },
-                timeout: 120_000
+                timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT
             });
             const text = extractSpeechText(data);
             if (!text) {

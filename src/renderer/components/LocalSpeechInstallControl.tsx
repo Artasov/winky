@@ -297,7 +297,7 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
     };
 
     const showMessages = Boolean(derivedMessage) || Boolean(logSnippet);
-    const showReinstall = safeStatus.installed && !isRunning && !busyPhase && !isLoading;
+    const showReinstall = safeStatus.installed && !isRunning && !isBusy && !isLoading;
 
     return (
         <Box sx={{

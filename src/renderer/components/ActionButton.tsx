@@ -36,7 +36,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
                 'app-region-no-drag',
                 baseClasses,
                 disabled && 'cursor-not-allowed opacity-50',
-                isActive && 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
+                isActive && '...'
             )}
             title={action.name}
         >

@@ -22,10 +22,10 @@ const ActionButton: React.FC<ActionButtonProps> = ({
                                                    }) => {
     const baseClasses =
         variant === 'floating'
-            ? 'pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-slate-950/90 text-white/80 transition hover:border-white/50 hover:text-white hover:bg-slate-900'
-            : 'pointer-events-auto flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white transition hover:bg-white/10';
+            ? 'frcc pointer-events-auto h-7 w-7 rounded-full border border-white/20 bg-[#000000cc] text-white/80 transition hover:border-white/50 hover:text-white hover:bg-[#000]'
+            : 'fccc pointer-events-auto h-20 w-20 gap-1 rounded-xl border border-white/10 bg-white/5 text-sm font-medium text-white transition hover:bg-white/10';
     const iconClass = variant === 'floating' ? 'text-xs' : 'text-2xl';
-    const iconSize = variant === 'floating' ? 12 : 32;
+    const iconSize = variant === 'floating' ? 15 : 32;
 
     return (
         <button
@@ -78,7 +78,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
                             width={iconSize}
                             height={iconSize}
                             aria-hidden="true"
-                            className={variant === 'floating' ? 'h-3 w-3 filter brightness-0 invert' : undefined}
+                            className={variant === 'floating' ? 'filter brightness-0 invert' : undefined}
                         />
                     ) : (
                         <span className={classNames(iconClass, variant === 'floating' ? 'text-white' : undefined)}

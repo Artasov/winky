@@ -92,7 +92,7 @@ const MicOverlay: React.FC = () => {
 
     const handleStyle = {
         pointerEvents: handlePointerEvents,
-        top: recording.view.isRecording ? 'calc(50% - 34px)' : 'calc(50% - 56px)',
+        top: recording.view.isRecording ? 'calc(50% - 35px)' : 'calc(50% - 56px)',
         opacity: recording.view.isRecording ? 1 : 0.92,
         transition: 'top 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease'
     };
@@ -196,7 +196,7 @@ const MicOverlay: React.FC = () => {
                             return (
                                 <div
                                     key={action.id}
-                                    className="pointer-events-auto absolute transition-transform duration-200"
+                                    className="action-btn-container pointer-events-auto absolute transition-transform duration-200"
                                     style={{
                                         left: 0,
                                         top: 0,

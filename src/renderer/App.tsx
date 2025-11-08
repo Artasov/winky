@@ -56,6 +56,22 @@ const AppContent: React.FC = () => {
         }, 4000);
     }, []);
 
+    useEffect(() => {
+        if (isMicWindow || !window.winky?.on) {
+            return;
+        }
+        const handler = (payload?: { message?: string; type?: ToastType }) => {
+            if (!payload?.message) {
+                return;
+            }
+            showToast(payload.message, payload.type ?? 'info');
+        };
+        window.winky.on('app:toast', handler as any);
+        return () => {
+            window.winky?.removeListener?.('app:toast', handler as any);
+        };
+    }, [showToast, isMicWindow]);
+
     const refreshConfig = useCallback(async (): Promise<AppConfig> => {
         if (!window.winky) {
             const message = 'Preload-скрипт недоступен.';
@@ -237,7 +253,10 @@ const AppContent: React.FC = () => {
             return;
         }
 
-        const handleNavigateEvent = (_event: any, route: string) => {
+        const handleNavigateEvent = (route?: string) => {
+            if (typeof route !== 'string' || route.length === 0) {
+                return;
+            }
             console.log('[App] Navigate event received:', route);
             navigate(route);
         };
@@ -312,6 +331,8 @@ const AppContent: React.FC = () => {
     // Эти страницы имеют встроенный TitleBar
     const hasBuiltInTitleBar = ['/', '/auth', '/setup'].includes(location.pathname);
 
+    const toastPlacement = isMicWindow ? 'center-right' : 'top-right';
+
     return (
         <ToastContext.Provider value={toastContextValue}>
             <ConfigContext.Provider value={configContextValue}>
@@ -338,7 +359,7 @@ const AppContent: React.FC = () => {
                         </div>
                     </div>
                 )}
-                {!isMicWindow && !isResultWindow && !isErrorWindow && <Toast toasts={toasts} placement="top-right"/>}
+                {!isResultWindow && !isErrorWindow && <Toast toasts={toasts} placement={toastPlacement}/>}
             </ConfigContext.Provider>
         </ToastContext.Provider>
     );

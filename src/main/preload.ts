@@ -232,7 +232,12 @@ const api = {
         }
     },
     windows: {
-        openSettings: (): Promise<void> => ipcRenderer.invoke('windows:open-settings')
+        openSettings: (): Promise<void> => ipcRenderer.invoke('windows:open-settings'),
+        navigate: (route: string): Promise<void> => ipcRenderer.invoke('windows:navigate', route)
+    },
+    notifications: {
+        showToast: (message: string, type: 'success' | 'info' | 'error' = 'info'): Promise<void> =>
+            ipcRenderer.invoke('notifications:toast', {message, type})
     },
     windowControls: {
         minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),

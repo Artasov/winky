@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {FAST_WHISPER_PORT, SPEECH_MODES} from '@shared/constants';
 import type {ActionConfig, AppConfig} from '@shared/types';
 import type {BaseSpeechService} from '@main/services/speech/BaseSpeechService';
 import type {BaseLLMService} from '@main/services/llm/BaseLLMService';
@@ -12,6 +13,18 @@ type UseSpeechRecordingParams = {
     config: AppConfig | null;
     showToast: ToastFn;
     isMicOverlay: boolean;
+};
+
+const isLocalServerUnavailableMessage = (message?: string): boolean => {
+    if (!message) {
+        return false;
+    }
+    const normalized = message.toLowerCase();
+    return normalized.includes('fast-fast-whisper')
+        || normalized.includes('local server')
+        || normalized.includes(`127.0.0.1:${FAST_WHISPER_PORT}`)
+        || normalized.includes('econnrefused')
+        || (normalized.includes('локал') && normalized.includes('сервер'));
 };
 
 export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechRecordingParams) => {
@@ -103,6 +116,57 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             analyserRef.current = null;
         }
     }, []);
+
+    const handleLocalSpeechServerFailure = useCallback((message?: string): boolean => {
+        if (config?.speech.mode !== SPEECH_MODES.LOCAL) {
+            return false;
+        }
+        if (!isLocalServerUnavailableMessage(message)) {
+            return false;
+        }
+        const failureMessage = 'Локальный сервер распознавания недоступен. Открываем Settings…';
+        if (typeof window === 'undefined' || !window.winky) {
+            showToast(failureMessage, 'error');
+            return true;
+        }
+        let notified = false;
+        const notifyMainWindow = () => {
+            if (notified) {
+                return;
+            }
+            notified = true;
+            void window.winky?.windows.navigate?.('/settings');
+            void window.winky?.notifications?.showToast?.(failureMessage, 'error');
+        };
+        const attemptOpen = (): Promise<void> | undefined => window.winky?.windows.openSettings?.();
+        const promise = attemptOpen();
+        if (!promise || typeof promise.then !== 'function') {
+            notifyMainWindow();
+            return true;
+        }
+        promise
+            .then(() => {
+                notifyMainWindow();
+            })
+            .catch((error) => {
+                console.warn('[MicOverlay] Первое открытие Settings не удалось, повторяем попытку…', error);
+                setTimeout(() => {
+                    const retry = attemptOpen();
+                    if (!retry || typeof retry.then !== 'function') {
+                        notifyMainWindow();
+                        return;
+                    }
+                    retry
+                        .then(() => {
+                            notifyMainWindow();
+                        })
+                        .catch((retryError) => {
+                            console.error('[MicOverlay] Не удалось открыть главное окно настроек.', retryError);
+                        });
+                }, 600);
+            });
+        return true;
+    }, [config?.speech.mode, showToast]);
 
     const ensureSpeechService = useCallback(() => {
         if (!speechServiceRef.current) {
@@ -209,9 +273,12 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             }
         } catch (error: any) {
             console.error(error);
-            showToast(error?.message || 'Ошибка при обработке действия.', 'error');
+            const message = error?.message || 'Ошибка при обработке действия.';
+            if (!handleLocalSpeechServerFailure(message)) {
+                showToast(message, 'error');
+            }
         }
-    }, [config, showToast]);
+    }, [config, showToast, handleLocalSpeechServerFailure]);
 
     const handleMicrophoneToggle = useCallback(async () => {
         if (!ensureSpeechService()) {

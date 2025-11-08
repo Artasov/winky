@@ -130,7 +130,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
                 error,
                 'Локальный сервер fast-fast-whisper не отвечает. Проверьте установку и статус сервера.'
             );
-            throw new Error(reason);
+            throw new Error(`Локальный сервер fast-fast-whisper не отвечает: ${reason}`);
         }
     }
 

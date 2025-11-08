@@ -87,6 +87,11 @@ declare global {
 
     interface WinkyWindowsAPI {
         openSettings(): Promise<void>;
+        navigate(route: string): Promise<void>;
+    }
+
+    interface WinkyNotificationsAPI {
+        showToast(message: string, type?: 'success' | 'error' | 'info'): Promise<void>;
     }
 
     interface WinkyWindowControlsAPI {
@@ -189,6 +194,7 @@ declare global {
         llm: WinkyLLMAPI;
         result: WinkyResultAPI;
         windows: WinkyWindowsAPI;
+        notifications: WinkyNotificationsAPI;
         windowControls: WinkyWindowControlsAPI;
         mic: WinkyMicAPI;
         actionHotkeys: WinkyActionHotkeysAPI;

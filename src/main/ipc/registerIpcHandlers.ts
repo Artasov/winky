@@ -22,6 +22,7 @@ import {performLogin} from '../services/loginFlow';
 import {setCurrentUserCache, getCurrentUserCache} from '../state/currentUser';
 import {sendLogToRenderer} from '../utils/logger';
 import {fastWhisperManager} from '../services/localSpeech/FastWhisperManager';
+import {emitToAllWindows} from '../windows/emitToAllWindows';
 
 type IpcDependencies = {
     isDev: boolean;
@@ -203,7 +204,33 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
     });
 
     ipcMain.handle('windows:open-settings', async () => {
-        await deps.showMainWindow();
+        await deps.showMainWindow('/settings');
+        const forceRoute = () => {
+            const win = deps.mainWindowController.getWindow();
+            if (win && !win.isDestroyed()) {
+                win.webContents.send('navigate-to', '/settings');
+            }
+        };
+        forceRoute();
+        setTimeout(forceRoute, 500);
+        setTimeout(forceRoute, 1500);
+    });
+
+    ipcMain.handle('windows:navigate', async (_event, route: string) => {
+        if (typeof route !== 'string' || route.trim().length === 0) {
+            return;
+        }
+        emitToAllWindows('navigate-to', route);
+    });
+
+    ipcMain.handle('notifications:toast', async (_event, payload: { message?: string; type?: 'success' | 'info' | 'error' }) => {
+        if (!payload?.message) {
+            return;
+        }
+        emitToAllWindows('app:toast', {
+            message: payload.message,
+            type: payload.type ?? 'info'
+        });
     });
 
     ipcMain.handle('actions:fetch', async () => {

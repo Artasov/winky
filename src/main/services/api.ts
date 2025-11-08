@@ -123,6 +123,9 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             const text = extractSpeechText(data);
             return typeof text === 'string' ? text : '';
         } catch (error) {
+            if (isEmptyLocalTranscriptionError(error)) {
+                return '';
+            }
             const reason = describeAxiosError(
                 error,
                 'Локальный сервер fast-fast-whisper не отвечает. Проверьте установку и статус сервера.'
@@ -264,4 +267,17 @@ const describeAxiosError = (error: unknown, fallback: string): string => {
         return error.message || fallback;
     }
     return fallback;
+};
+
+const isEmptyLocalTranscriptionError = (error: unknown): boolean => {
+    if (!error) {
+        return false;
+    }
+    const detail =
+        (axios.isAxiosError(error) && (error.response?.data?.detail || error.response?.data?.message)) || (error as any)?.message;
+    if (typeof detail !== 'string') {
+        return false;
+    }
+    const normalized = detail.toLowerCase();
+    return normalized.includes('пустой ответ') || normalized.includes('empty response');
 };

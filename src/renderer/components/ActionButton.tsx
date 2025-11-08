@@ -40,7 +40,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
             className={classNames(
                 'app-region-no-drag',
                 baseClasses,
-                'focus:outline-none focus:ring-2 focus:ring-emerald-300',
                 disabled && 'cursor-not-allowed opacity-50',
                 isActive && 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
             )}

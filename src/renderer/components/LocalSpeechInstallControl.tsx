@@ -128,8 +128,18 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         if (errorMessage) {
             return errorMessage;
         }
+        if (busyPhase) {
+            switch (safeStatus.phase) {
+                case 'installing':
+                    return 'Дождитесь окончания установки…';
+                case 'starting':
+                    return 'Запуск локального сервера…';
+                case 'stopping':
+                    return 'Останавливаем локальный сервер…';
+            }
+        }
         return safeStatus.message || '';
-    }, [errorMessage, safeStatus.message, isRunning, showSuccessState]);
+    }, [errorMessage, safeStatus.message, isRunning, showSuccessState, busyPhase, safeStatus.phase]);
 
     const messageColor = useMemo(() => {
         if (errorMessage || safeStatus.phase === 'error') {

@@ -209,7 +209,6 @@ const MicOverlay: React.FC = () => {
                                         disabled={recording.view.processing && recording.view.activeActionId !== action.id}
                                         isActive={recording.view.activeActionId === action.id}
                                         isLoading={recording.view.processing && recording.view.activeActionId === action.id}
-                                        variant="floating"
                                     />
                                 </div>
                             );

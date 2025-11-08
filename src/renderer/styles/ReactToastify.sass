@@ -1,0 +1,138 @@
+:root
+  --toastify-color-light: #fff
+  --toastify-color-dark: #12121255
+  --toastify-color-info: #3498db
+  --toastify-color-success: rgba(0, 255, 2, 0.78)
+  --toastify-color-warning: #f1c40f
+  --toastify-color-error: #ff1540
+  --toastify-color-transparent: rgba(255, 255, 255, 0.7)
+  --toastify-icon-color-info: var(--toastify-color-info)
+  --toastify-icon-color-success: var(--toastify-color-success)
+  --toastify-icon-color-warning: var(--toastify-color-warning)
+  --toastify-icon-color-error: var(--toastify-color-error)
+  --toastify-toast-width: 320px
+  --toastify-toast-offset: 16px
+  --toastify-toast-top: max(var(--toastify-toast-offset), env(safe-area-inset-top))
+  --toastify-toast-right: max(var(--toastify-toast-offset), env(safe-area-inset-right))
+  --toastify-toast-left: max(var(--toastify-toast-offset), env(safe-area-inset-left))
+  --toastify-toast-bottom: max(var(--toastify-toast-offset), env(safe-area-inset-bottom))
+  --toastify-toast-background: #fff
+  --toastify-toast-min-height: 64px
+  --toastify-toast-max-height: 800px
+  --toastify-toast-bd-radius: 6px
+  --toastify-font-family: sans-serif
+  --toastify-z-index: 9999
+  --toastify-text-color-light: #757575
+  --toastify-text-color-dark: #fff
+  --toastify-text-color-info: #fff
+  --toastify-text-color-success: #fff
+  --toastify-text-color-warning: #fff
+  --toastify-text-color-error: #fff
+  --toastify-spinner-color: #616161
+  --toastify-spinner-color-empty-area: #e0e0e0
+  --toastify-color-progress-light: linear-gradient(to right, #4cd964, #5ac8fa, #007aff, #34aadc, #5856d6, #ff2d55)
+  --toastify-color-progress-dark: #bb86fc
+  --toastify-color-progress-info: var(--toastify-color-info)
+  --toastify-color-progress-success: var(--toastify-color-success)
+  --toastify-color-progress-warning: var(--toastify-color-warning)
+  --toastify-color-progress-error: var(--toastify-color-error)
+  --toastify-color-progress-bgo: 0.2
+
+.Toastify__toast-theme--dark
+  background: var(--toastify-color-dark)
+  color: var(--toastify-text-color-dark)
+
+.Toastify__toast-theme--light
+  background: var(--toastify-color-light)
+  color: var(--toastify-text-color-light)
+
+.Toastify__toast-theme--colored.Toastify__toast--default
+  background: var(--toastify-color-light)
+  color: var(--toastify-text-color-light)
+
+.Toastify__toast-theme--colored.Toastify__toast--info
+  color: var(--toastify-text-color-info)
+  background: var(--toastify-color-info)
+
+.Toastify__toast-theme--colored.Toastify__toast--success
+  color: var(--toastify-text-color-success)
+  background: var(--toastify-color-success)
+
+.Toastify__toast-theme--colored.Toastify__toast--warning
+  color: var(--toastify-text-color-warning)
+  background: var(--toastify-color-warning)
+
+.Toastify__toast-theme--colored.Toastify__toast--error
+  color: var(--toastify-text-color-error)
+  background: var(--toastify-color-error)
+
+.Toastify__progress-bar-theme--light
+  background: var(--toastify-color-progress-light)
+
+.Toastify__progress-bar-theme--dark
+  background: var(--toastify-color-progress-dark)
+
+.Toastify__progress-bar--info
+  background: var(--toastify-color-progress-info)
+
+.Toastify__progress-bar--success
+  background: var(--toastify-color-progress-success)
+
+.Toastify__progress-bar--warning
+  background: var(--toastify-color-progress-warning)
+
+.Toastify__progress-bar--error
+  background: var(--toastify-color-progress-error)
+
+.Toastify__progress-bar-theme--colored.Toastify__progress-bar--info,
+.Toastify__progress-bar-theme--colored.Toastify__progress-bar--success,
+.Toastify__progress-bar-theme--colored.Toastify__progress-bar--warning,
+.Toastify__progress-bar-theme--colored.Toastify__progress-bar--error
+  background: var(--toastify-color-transparent)
+
+.Toastify__spinner
+  width: 20px
+  height: 20px
+  box-sizing: border-box
+  border: 2px solid
+  border-radius: 100%
+  border-color: var(--toastify-spinner-color-empty-area)
+  border-right-color: var(--toastify-spinner-color)
+  animation: Toastify__spin 0.65s linear infinite
+
+.Toastify__toast
+  border-radius: 0.8rem !important
+  padding-right: 12px !important
+  backdrop-filter: blur(15px)
+  box-shadow: 0 0 2rem rgba(0, 0, 0, 0.2509803922) !important
+  margin: 0 !important
+
+.Toastify__toast-container
+  display: flex !important
+  flex-direction: column !important
+  gap: 0.25rem !important
+  padding: 0.35rem 0.35rem 0.35rem 0.35rem !important
+  margin-top: 50px
+
+.Toastify__toast-container .Toastify__toast--error
+  background: rgba(220, 53, 69, 0.07) !important
+
+.Toastify__toast-container .Toastify__toast--success
+  background: rgba(81, 220, 53, 0.07) !important
+
+.Toastify__toast-container .Toastify__toast--info
+  background: rgba(53, 134, 220, 0.07) !important
+
+.Toastify__progress-bar--wrp
+  position: absolute
+  bottom: 0
+  top: 0
+  height: 100% !important
+  width: 100% !important
+  border-bottom-left-radius: .8rem
+  border-bottom-right-radius: .8rem
+
+  .Toastify__progress-bar--bg, .Toastify__progress-bar
+    position: absolute
+    bottom: 0
+    height: 3px

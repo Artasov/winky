@@ -2,11 +2,13 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Route, Routes, useLocation, useNavigate} from 'react-router-dom';
 import type {AppConfig} from '@shared/types';
 import {ConfigContext} from './context/ConfigContext';
-import {ToastContext} from './context/ToastContext';
+import {ToastContext, type ToastType} from './context/ToastContext';
 import {UserProvider, useUser} from './context/UserContext';
 import {IconsProvider} from './context/IconsContext';
 import {AuthProvider} from './auth';
-import Toast, {ToastMessage, ToastType} from './components/Toast';
+import {Slide, ToastContainer, toast} from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import './styles/ReactToastify.sass';
 import WelcomeWindow from './windows/WelcomeWindow';
 import AuthWindow from './windows/AuthWindow';
 import SetupWindow from './windows/SetupWindow';
@@ -24,7 +26,6 @@ import Sidebar from './components/Sidebar';
 const AppContent: React.FC = () => {
     const [config, setConfigState] = useState<AppConfig | null>(null);
     const [loading, setLoading] = useState(true);
-    const [toasts, setToasts] = useState<ToastMessage[]>([]);
     const {user, fetchUser, loading: userLoading} = useUser();
     const [preloadError, setPreloadError] = useState<string | null>(() =>
         typeof window !== 'undefined' && window.winky ? null : 'Preload-скрипт не загружен.'
@@ -47,27 +48,30 @@ const AppContent: React.FC = () => {
     const isMicWindow = windowKind === 'mic';
     const isResultWindow = windowKind === 'result';
     const isErrorWindow = windowKind === 'error';
+    const shouldRenderToasts = !isMicWindow && !isResultWindow && !isErrorWindow;
 
     const showToast = useCallback((message: string, type: ToastType = 'info') => {
-        const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}`;
-        let added = false;
-        setToasts((prev) => {
-            if (prev.some((toast) => toast.message === message && toast.type === type)) {
-                return prev;
-            }
-            added = true;
-            return [...prev, {id, message, type}];
-        });
-        if (!added) {
+        if (!shouldRenderToasts) {
             return;
         }
-        setTimeout(() => {
-            setToasts((prev) => prev.filter((toast) => toast.id !== id));
-        }, 4000);
-    }, []);
+        const toastId = `${type}:${message}`;
+        toast(message, {
+            type,
+            toastId,
+            position: 'top-right',
+            autoClose: 4000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            pauseOnFocusLoss: false,
+            draggable: false,
+            newestOnTop: true,
+            transition: Slide
+        });
+    }, [shouldRenderToasts]);
 
     useEffect(() => {
-        if (isMicWindow || !window.winky?.on) {
+        if (!shouldRenderToasts || !window.winky?.on) {
             return;
         }
         const handler = (payload?: { message?: string; type?: ToastType }) => {
@@ -80,7 +84,7 @@ const AppContent: React.FC = () => {
         return () => {
             window.winky?.removeListener?.('app:toast', handler as any);
         };
-    }, [showToast, isMicWindow]);
+    }, [showToast, shouldRenderToasts]);
 
     const refreshConfig = useCallback(async (): Promise<AppConfig> => {
         if (!window.winky) {
@@ -341,8 +345,6 @@ const AppContent: React.FC = () => {
     // Эти страницы имеют встроенный TitleBar
     const hasBuiltInTitleBar = ['/', '/auth', '/setup'].includes(location.pathname);
 
-    const toastPlacement = isMicWindow ? 'center-right' : 'top-right';
-
     return (
         <ToastContext.Provider value={toastContextValue}>
             <ConfigContext.Provider value={configContextValue}>
@@ -369,7 +371,19 @@ const AppContent: React.FC = () => {
                         </div>
                     </div>
                 )}
-                {!isResultWindow && !isErrorWindow && <Toast toasts={toasts} placement={toastPlacement}/>}
+                {shouldRenderToasts ? (
+                    <ToastContainer
+                        position="top-right"
+                        theme="colored"
+                        newestOnTop
+                        closeOnClick
+                        pauseOnFocusLoss={false}
+                        pauseOnHover
+                        draggable={false}
+                        autoClose={4000}
+                        limit={3}
+                    />
+                ) : null}
             </ConfigContext.Provider>
         </ToastContext.Provider>
     );

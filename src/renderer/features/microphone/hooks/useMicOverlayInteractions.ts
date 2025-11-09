@@ -139,3 +139,5 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
         dragPointerIdRef
     };
 };
+
+export type MicOverlayInteractions = ReturnType<typeof useMicOverlayInteractions>;

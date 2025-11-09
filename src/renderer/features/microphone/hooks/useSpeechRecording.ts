@@ -7,7 +7,7 @@ import {createSpeechService} from '@main/services/speech/factory';
 import {createLLMService} from '@main/services/llm/factory';
 import {resetInteractive} from '../../../utils/interactive';
 
-type ToastFn = (message: string, type?: 'success' | 'info' | 'error') => void;
+type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
 
 type UseSpeechRecordingParams = {
     config: AppConfig | null;
@@ -40,11 +40,23 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     const completionSoundRef = useRef<HTMLAudioElement | null>(null);
     const localServerAlertInFlightRef = useRef(false);
     const localServerAlertReleaseRef = useRef<number | null>(null);
+    const lastCommittedVolumeRef = useRef<{ value: number; timestamp: number }>({value: 0, timestamp: 0});
 
     const [isRecording, setIsRecording] = useState(false);
     const [activeActionId, setActiveActionId] = useState<string | null>(null);
     const [processing, setProcessing] = useState(false);
     const [volume, setVolume] = useState(0);
+
+    const commitVolumeSample = useCallback((nextValue: number) => {
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        const previous = lastCommittedVolumeRef.current;
+        const difference = Math.abs(nextValue - previous.value);
+        if (difference < 0.025 && now - previous.timestamp < 48) {
+            return;
+        }
+        lastCommittedVolumeRef.current = {value: nextValue, timestamp: now};
+        setVolume(nextValue);
+    }, []);
 
     const scheduleLocalServerAlertRelease = useCallback(() => {
         if (typeof window === 'undefined') {
@@ -92,6 +104,22 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         }
     }, [config]);
 
+    const stopVolumeMonitor = useCallback(() => {
+        if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+        }
+        animationFrameRef.current = undefined;
+        if (audioContextRef.current) {
+            audioContextRef.current.close().catch(() => {
+                /* ignore */
+            });
+            audioContextRef.current = null;
+            analyserRef.current = null;
+        }
+        lastCommittedVolumeRef.current = {value: 0, timestamp: 0};
+        setVolume(0);
+    }, []);
+
     const startVolumeMonitor = useCallback((stream: MediaStream) => {
         stopVolumeMonitor();
         try {
@@ -110,7 +138,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                     sumSquares += deviation * deviation;
                 }
                 const rms = Math.sqrt(sumSquares / buffer.length) / 128;
-                setVolume(Number.isFinite(rms) ? rms : 0);
+                commitVolumeSample(Number.isFinite(rms) ? rms : 0);
                 animationFrameRef.current = requestAnimationFrame(update);
             };
 
@@ -120,21 +148,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         } catch (error) {
             console.error('[MicOverlay] Не удалось инициализировать визуализацию микрофона', error);
         }
-    }, []);
-
-    const stopVolumeMonitor = useCallback(() => {
-        if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-        }
-        animationFrameRef.current = undefined;
-        if (audioContextRef.current) {
-            audioContextRef.current.close().catch(() => {
-                /* ignore */
-            });
-            audioContextRef.current = null;
-            analyserRef.current = null;
-        }
-    }, []);
+    }, [commitVolumeSample, stopVolumeMonitor]);
 
     const handleLocalSpeechServerFailure = useCallback((message?: string): boolean => {
         if (config?.speech.mode !== SPEECH_MODES.LOCAL) {

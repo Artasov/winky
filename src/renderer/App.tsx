@@ -1,11 +1,15 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Route, Routes, useLocation, useNavigate} from 'react-router-dom';
-import type {AppConfig} from '@shared/types';
+import React, {useCallback, useEffect, useMemo, useRef} from 'react';
+import {Route, Routes, useLocation} from 'react-router-dom';
 import {ConfigContext} from './context/ConfigContext';
 import {ToastContext, type ToastType} from './context/ToastContext';
 import {UserProvider, useUser} from './context/UserContext';
 import {IconsProvider} from './context/IconsContext';
 import {AuthProvider} from './auth';
+import {useWindowIdentity} from './app/hooks/useWindowIdentity';
+import {useConfigController} from './app/hooks/useConfigController';
+import {useNavigationSync} from './app/hooks/useNavigationSync';
+import {useToastBridge} from './app/hooks/useToastBridge';
+import {useWindowChrome} from './app/hooks/useWindowChrome';
 import {Slide, ToastContainer, toast} from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './styles/ReactToastify.sass';
@@ -24,31 +28,12 @@ import TitleBar from './components/TitleBar';
 import Sidebar from './components/Sidebar';
 
 const AppContent: React.FC = () => {
-    const [config, setConfigState] = useState<AppConfig | null>(null);
-    const [loading, setLoading] = useState(true);
+    const windowIdentity = useWindowIdentity();
+    const {config, loading, preloadError, refreshConfig, updateConfig, setConfig} = useConfigController();
     const {user, fetchUser, loading: userLoading} = useUser();
-    const [preloadError, setPreloadError] = useState<string | null>(() =>
-        typeof window !== 'undefined' && window.winky ? null : 'Preload-скрипт не загружен.'
-    );
     const userFetchAttempted = useRef(false);
-    const windowKind = useMemo<'main' | 'settings' | 'mic' | 'result' | 'error'>(() => {
-        if (typeof window === 'undefined') {
-            return 'main';
-        }
-        const params = new URLSearchParams(window.location.search);
-        const value = params.get('window');
-        if (value === 'settings' || value === 'mic' || value === 'result' || value === 'error') {
-            return value as 'settings' | 'mic' | 'result' | 'error';
-        }
-        return 'main';
-    }, []);
-    const navigate = useNavigate();
     const location = useLocation();
-    const isAuxWindow = windowKind !== 'main';
-    const isMicWindow = windowKind === 'mic';
-    const isResultWindow = windowKind === 'result';
-    const isErrorWindow = windowKind === 'error';
-    const shouldRenderToasts = !isMicWindow && !isResultWindow && !isErrorWindow;
+    const shouldRenderToasts = windowIdentity.allowsToasts;
 
     const showToast = useCallback(
         (message: string, type: ToastType = 'info', options?: { durationMs?: number }) => {
@@ -73,153 +58,15 @@ const AppContent: React.FC = () => {
                 pauseOnHover: true,
                 pauseOnFocusLoss: false,
                 draggable: false,
-                newestOnTop: true,
                 transition: Slide
             });
         },
         [shouldRenderToasts]
     );
 
-    useEffect(() => {
-        if (!shouldRenderToasts || !window.winky?.on) {
-            return;
-        }
-        const handler = (payload?: { message?: string; type?: ToastType; options?: { durationMs?: number } }) => {
-            if (!payload?.message) {
-                return;
-            }
-            showToast(payload.message, payload.type ?? 'info', payload.options);
-        };
-        window.winky.on('app:toast', handler as any);
-        return () => {
-            window.winky?.removeListener?.('app:toast', handler as any);
-        };
-    }, [showToast, shouldRenderToasts]);
-
-    const refreshConfig = useCallback(async (): Promise<AppConfig> => {
-        if (!window.winky) {
-            const message = 'Preload-скрипт недоступен.';
-            setPreloadError(message);
-            throw new Error(message);
-        }
-        const result = await window.winky.config.get();
-        setConfigState(result);
-        setPreloadError(null);
-        return result;
-    }, []);
-
-    const updateConfig = useCallback(async (partial: Partial<AppConfig>): Promise<AppConfig> => {
-        if (!window.winky) {
-            const message = 'Preload-скрипт недоступен.';
-            setPreloadError(message);
-            throw new Error(message);
-        }
-        const result = await window.winky.config.update(partial);
-        setConfigState(result);
-        setPreloadError(null);
-        return result;
-    }, []);
-
-    const setConfig = useCallback((next: AppConfig) => {
-        setConfigState(next);
-    }, []);
-
-    const handleNavigation = useCallback(
-        (currentConfig: AppConfig, currentPath: string) => {
-            // Mic, Result и Error окна не управляют навигацией
-            if (isMicWindow || isResultWindow || isErrorWindow) {
-                return;
-            }
-
-            // Разрешённые маршруты
-            const authRoutes = ['/', '/auth'];
-            const setupRoutes = ['/setup'];
-            const appRoutes = ['/me', '/actions', '/settings', '/info'];
-
-            // Если пользователь не авторизован
-            const hasToken = currentConfig.auth.access || currentConfig.auth.accessToken;
-            if (!hasToken) {
-                if (authRoutes.includes(currentPath)) {
-                    return;
-                }
-                navigate('/');
-                return;
-            }
-
-            // Если настройка не завершена
-            if (!currentConfig.setupCompleted) {
-                if (setupRoutes.includes(currentPath)) {
-                    return;
-                }
-                navigate('/setup');
-                return;
-            }
-
-            // Пользователь авторизован и настройка завершена
-            if (appRoutes.includes(currentPath)) {
-                return;
-            }
-
-            // По умолчанию переходим на /actions
-            navigate('/actions');
-        },
-        [navigate, isMicWindow, isResultWindow, isErrorWindow]
-    );
-
-    useEffect(() => {
-        // Mic окно всегда прозрачное
-        if (isMicWindow && typeof document !== 'undefined') {
-            document.body.classList.add('body-transparent');
-            document.documentElement.style.backgroundColor = 'transparent';
-            const root = document.getElementById('root');
-            if (root) {
-                root.style.backgroundColor = 'transparent';
-            }
-        } else if (typeof document !== 'undefined') {
-            document.body.classList.remove('body-transparent');
-            document.documentElement.style.backgroundColor = '';
-            const root = document.getElementById('root');
-            if (root) {
-                root.style.backgroundColor = '';
-            }
-        }
-    }, [isMicWindow]);
-
-    useEffect(() => {
-        // Result окно без sidebar и titlebar
-        if (isResultWindow && typeof document !== 'undefined') {
-            document.body.style.background = '#ffffff';
-        }
-    }, [isResultWindow]);
-
-    useEffect(() => {
-        const subscribe = window.winky?.config?.subscribe;
-        if (!subscribe) {
-            return;
-        }
-        const unsubscribe = subscribe((nextConfig) => {
-            setConfigState(nextConfig);
-        });
-        return () => {
-            if (typeof unsubscribe === 'function') {
-                unsubscribe();
-            }
-        };
-    }, []);
-
-    // Загружаем конфиг при монтировании
-    useEffect(() => {
-        const load = async () => {
-            try {
-                await refreshConfig();
-            } catch (error) {
-                console.error('[App] Failed to load config', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        void load();
-    }, [refreshConfig]);
+    useToastBridge({enabled: shouldRenderToasts, showToast});
+    useWindowChrome(windowIdentity);
+    useNavigationSync({config, loading, windowIdentity});
 
     // Загружаем пользователя только если его нет в кеше и есть токен
     useEffect(() => {
@@ -264,38 +111,6 @@ const AppContent: React.FC = () => {
 
         void loadUser();
     }, [config?.auth.access, config?.auth.accessToken, user, userLoading, fetchUser]);
-
-    useEffect(() => {
-        if (config && !loading) {
-            handleNavigation(config, location.pathname);
-        }
-    }, [config, handleNavigation, loading, location.pathname]);
-
-    // Обработка навигации от main process (из трея)
-    useEffect(() => {
-        if (isMicWindow || isResultWindow || isErrorWindow) {
-            return;
-        }
-
-        const handleNavigateEvent = (route?: string) => {
-            if (typeof route !== 'string' || route.length === 0) {
-                return;
-            }
-            console.log('[App] Navigate event received:', route);
-            navigate(route);
-        };
-
-        const winky = window.winky as any; // TypeScript кеш может не обновиться, используем any
-        if (winky?.on) {
-            winky.on('navigate-to', handleNavigateEvent);
-        }
-
-        return () => {
-            if (winky?.removeListener) {
-                winky.removeListener('navigate-to', handleNavigateEvent);
-            }
-        };
-    }, [navigate, isMicWindow, isResultWindow, isErrorWindow]);
 
     const configContextValue = useMemo(
         () => ({config, setConfig, refreshConfig, updateConfig}),
@@ -358,13 +173,13 @@ const AppContent: React.FC = () => {
     return (
         <ToastContext.Provider value={toastContextValue}>
             <ConfigContext.Provider value={configContextValue}>
-                {isMicWindow ? (
+                {windowIdentity.isMicWindow ? (
                     // Окно с плавающим микрофоном
                     <div className="frcc h-full w-full bg-transparent text-white">{routes}</div>
-                ) : isResultWindow ? (
+                ) : windowIdentity.isResultWindow ? (
                     // Окно результатов - с TitleBar но без sidebar
                     <div className="fc disable-tap-select h-full w-full bg-bg-base text-text-primary">{routes}</div>
-                ) : isErrorWindow ? (
+                ) : windowIdentity.isErrorWindow ? (
                     // Окно ошибки - полноэкранное без sidebar
                     <div className="fc disable-tap-select h-full w-full bg-bg-base text-text-primary">{routes}</div>
                 ) : hasBuiltInTitleBar ? (

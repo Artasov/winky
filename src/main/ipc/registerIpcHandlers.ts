@@ -2,6 +2,8 @@ import {BrowserWindow, clipboard, ipcMain, screen} from 'electron';
 import type {AppConfig, AuthTokens, MicAnchor} from '@shared/types';
 import {getConfig, getConfigFilePath, resetConfig, setAuthTokens, updateConfig} from '../config';
 import {broadcastConfigUpdate} from '../services/configSync';
+import {syncAutoLaunchSetting} from '../services/autoLaunch';
+import {ensureLocalSpeechAutoStart, shouldAutoStartLocalSpeech} from '../services/localSpeech/autoStart';
 import {
     createAction,
     deleteAction,
@@ -49,7 +51,26 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
     ipcMain.handle('config:get', async () => getConfig());
 
     ipcMain.handle('config:update', async (_event, partialConfig: Partial<AppConfig>) => {
-        const updated = await updateConfig(partialConfig);
+        const prevConfig = await getConfig();
+        const prevLocalSpeechAutoStart = shouldAutoStartLocalSpeech(prevConfig);
+        let updated = await updateConfig(partialConfig);
+
+        if (typeof partialConfig.launchOnSystemStartup === 'boolean') {
+            try {
+                await syncAutoLaunchSetting(Boolean(updated.launchOnSystemStartup));
+            } catch (error) {
+                sendLogToRenderer('AUTO_LAUNCH', `❌ Failed to update auto-launch setting: ${error}`);
+                await updateConfig({launchOnSystemStartup: prevConfig.launchOnSystemStartup ?? false});
+                updated = await getConfig();
+                throw error;
+            }
+        }
+
+        const nextLocalSpeechAutoStart = shouldAutoStartLocalSpeech(updated);
+        if (!prevLocalSpeechAutoStart && nextLocalSpeechAutoStart) {
+            void ensureLocalSpeechAutoStart(updated);
+        }
+
         await broadcastConfigUpdate();
         await deps.registerMicShortcut();
         if (typeof partialConfig.micAnchor === 'string') {
@@ -91,6 +112,12 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
 
     ipcMain.handle('config:reset', async () => {
         const reset = await resetConfig();
+        try {
+            await syncAutoLaunchSetting(Boolean(reset.launchOnSystemStartup));
+        } catch (error) {
+            sendLogToRenderer('AUTO_LAUNCH', `❌ Failed to sync auto-launch on reset: ${error}`);
+            throw error;
+        }
         await broadcastConfigUpdate();
         await deps.registerMicShortcut();
 

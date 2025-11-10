@@ -29,6 +29,8 @@ const SettingsPage: React.FC = () => {
     const [micAutoStart, setMicAutoStart] = useState(false);
     const [micHideOnStop, setMicHideOnStop] = useState(true);
     const [micShowOnLaunch, setMicShowOnLaunch] = useState(true);
+    const [launchOnSystemStartup, setLaunchOnSystemStartup] = useState(false);
+    const [autoStartLocalSpeech, setAutoStartLocalSpeech] = useState(false);
     const [completionSoundVolume, setCompletionSoundVolume] = useState(1.0);
 
     useEffect(() => {
@@ -47,6 +49,8 @@ const SettingsPage: React.FC = () => {
             setMicHideOnStop(config.micHideOnStopRecording ?? true);
             setMicShowOnLaunch(config.micShowOnLaunch !== false);
             setCompletionSoundVolume(config.completionSoundVolume ?? 1.0);
+            setLaunchOnSystemStartup(Boolean(config.launchOnSystemStartup));
+            setAutoStartLocalSpeech(Boolean(config.autoStartLocalSpeechServer));
         }
     }, [config]);
 
@@ -242,6 +246,44 @@ const SettingsPage: React.FC = () => {
     const hasToken = config?.auth.access || config?.auth.accessToken;
     const isAuthorized = Boolean(hasToken);
 
+    const handleLaunchOnStartupChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const nextValue = event.target.checked;
+        const previousValue = launchOnSystemStartup;
+        setLaunchOnSystemStartup(nextValue);
+        try {
+            await updateConfig({launchOnSystemStartup: nextValue});
+            showToast(
+                nextValue
+                    ? 'Winky will launch automatically after you sign in to your system.'
+                    : 'Auto-start disabled.',
+                'success'
+            );
+        } catch (error) {
+            console.error('[SettingsPage] Failed to update launch on startup', error);
+            setLaunchOnSystemStartup(previousValue);
+            showToast('Failed to update auto-start preference.', 'error');
+        }
+    };
+
+    const handleLocalSpeechAutoStartChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const nextValue = event.target.checked;
+        const previousValue = autoStartLocalSpeech;
+        setAutoStartLocalSpeech(nextValue);
+        try {
+            await updateConfig({autoStartLocalSpeechServer: nextValue});
+            showToast(
+                nextValue
+                    ? 'Local speech server will try to start automatically when you use Local speech mode.'
+                    : 'Local speech auto-start disabled.',
+                'success'
+            );
+        } catch (error) {
+            console.error('[SettingsPage] Failed to update local speech auto start', error);
+            setAutoStartLocalSpeech(previousValue);
+            showToast('Не удалось обновить настройку автозапуска локального сервера.', 'error');
+        }
+    };
+
     if (!isAuthorized) {
         return (
             <div className="fccc mx-auto h-full w-full max-w-md gap-4 px-8 py-12 text-center">
@@ -266,6 +308,56 @@ const SettingsPage: React.FC = () => {
                 saving={saving}
                 requireApiKeys={false}
             />
+
+            <Box
+                component="section"
+                sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                    borderRadius: 4,
+                    border: '1px solid rgba(2,6,23,0.08)',
+                    backgroundColor: '#fff',
+                    p: {xs: 3, md: 4},
+                    boxShadow: '0 20px 40px rgba(2,6,23,0.08)'
+                }}
+            >
+                <div className={'fc'}>
+                    <Typography variant="h6" color="text.primary" fontWeight={600}>
+                        Application
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        Control how Winky behaves together with your operating system.
+                    </Typography>
+                </div>
+
+                <div className={'fc gap-2'}>
+                    <FormControlLabel
+                        control={<Checkbox checked={launchOnSystemStartup} onChange={handleLaunchOnStartupChange}/>}
+                        label="Start Winky when your computer boots"
+                    />
+                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
+                        Enable this to add Winky to system auto-start so it runs as soon as you log in.
+                    </Typography>
+                </div>
+
+                <div className={'fc gap-2'}>
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={autoStartLocalSpeech}
+                                onChange={handleLocalSpeechAutoStartChange}
+                                disabled={config?.speech.mode !== SPEECH_MODES.LOCAL}
+                            />
+                        }
+                        label="Auto-start local Whisper server"
+                    />
+                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
+                        Winky will install (if needed) and launch the bundled fast-fast-whisper server whenever Local
+                        speech mode is active and setup is complete.
+                    </Typography>
+                </div>
+            </Box>
 
             <Box
                 component="section"

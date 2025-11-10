@@ -36,6 +36,8 @@ const DEFAULT_CONFIG: AppConfig = {
     micAutoStartRecording: false,
     micHideOnStopRecording: true,
     micShowOnLaunch: true,
+    launchOnSystemStartup: false,
+    autoStartLocalSpeechServer: false,
     completionSoundVolume: 1.0
 };
 
@@ -112,6 +114,14 @@ const schema: Schema<AppConfig> = {
     micShowOnLaunch: {
         type: 'boolean',
         default: true
+    },
+    launchOnSystemStartup: {
+        type: 'boolean',
+        default: false
+    },
+    autoStartLocalSpeechServer: {
+        type: 'boolean',
+        default: false
     },
     completionSoundVolume: {
         type: 'number',
@@ -245,6 +255,16 @@ const ensureConfigIntegrity = async (): Promise<AppConfig> => {
 
     if (typeof current.micShowOnLaunch !== 'boolean') {
         current.micShowOnLaunch = true;
+        changed = true;
+    }
+
+    if (typeof current.launchOnSystemStartup !== 'boolean') {
+        current.launchOnSystemStartup = false;
+        changed = true;
+    }
+
+    if (typeof current.autoStartLocalSpeechServer !== 'boolean') {
+        current.autoStartLocalSpeechServer = false;
         changed = true;
     }
 

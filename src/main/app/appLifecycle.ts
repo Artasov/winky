@@ -7,6 +7,8 @@ import {extractDeepLinksFromArgv, handleAuthUrl, notifyAuthPayloads} from './oau
 import {fetchActions, fetchCurrentUser} from '../services/api';
 import {setCurrentUserCache, getCurrentUserCache} from '../state/currentUser';
 import {sendLogToRenderer} from '../utils/logger';
+import {ensureLocalSpeechAutoStart} from '../services/localSpeech/autoStart';
+import {syncAutoLaunchSetting} from '../services/autoLaunch';
 
 type AppLifecycleDeps = {
     isDev: boolean;
@@ -35,6 +37,12 @@ export const handleAppReady = async (deps: AppLifecycleDeps): Promise<void> => {
 
     try {
         const config = await getConfig();
+        try {
+            await syncAutoLaunchSetting(Boolean(config.launchOnSystemStartup));
+        } catch (error) {
+            sendLogToRenderer('AUTO_LAUNCH', `⚠️ Failed to sync auto-launch on startup: ${error}`);
+        }
+        void ensureLocalSpeechAutoStart(config);
         const hasToken = config.auth.access || config.auth.accessToken;
         if (hasToken && (typeof hasToken === 'string' && hasToken.trim() !== '')) {
             try {

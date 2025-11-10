@@ -124,6 +124,8 @@ export interface AppConfig {
     micAutoStartRecording?: boolean;
     micHideOnStopRecording?: boolean;
     micShowOnLaunch?: boolean;
+    launchOnSystemStartup?: boolean;
+    autoStartLocalSpeechServer?: boolean;
     completionSoundVolume?: number;
 }
 

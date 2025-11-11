@@ -270,8 +270,7 @@ export function AuthProvider({children}: AuthProviderProps) {
         isBusy:
             status === 'initializing' ||
             status === 'checking' ||
-            status === 'signing-in' ||
-            status === 'oauth',
+            status === 'signing-in',
     }), [status, user, error, signIn, startOAuth, signOut, reloadUser, clearError]);
 
     return (

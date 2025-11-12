@@ -173,7 +173,8 @@ const api = {
             model: string;
             openaiKey?: string;
             googleKey?: string;
-            accessToken?: string
+            accessToken?: string;
+            prompt?: string;
         }): Promise<string> =>
             ipcRenderer.invoke('speech:transcribe', audioData, config)
     },

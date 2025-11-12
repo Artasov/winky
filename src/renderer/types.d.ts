@@ -57,6 +57,7 @@ declare global {
         create(action: {
             name: string;
             prompt: string;
+            prompt_recognizing?: string;
             hotkey?: string;
             icon: string;
             show_results?: boolean;
@@ -67,6 +68,7 @@ declare global {
         update(actionId: string, action: {
             name: string;
             prompt: string;
+            prompt_recognizing?: string;
             hotkey?: string;
             icon: string;
             show_results?: boolean;
@@ -124,7 +126,8 @@ declare global {
             model: string;
             openaiKey?: string;
             googleKey?: string;
-            accessToken?: string
+            accessToken?: string;
+            prompt?: string;
         }): Promise<string>;
     }
 

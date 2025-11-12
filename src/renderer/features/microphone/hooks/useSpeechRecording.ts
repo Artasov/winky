@@ -253,7 +253,8 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 model: config.speech.model,
                 openaiKey: config.apiKeys.openai,
                 googleKey: config.apiKeys.google,
-                accessToken: authToken
+                accessToken: authToken,
+                prompt: action.prompt_recognizing?.trim() || undefined
             });
 
             if (!transcription) {

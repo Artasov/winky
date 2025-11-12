@@ -19,6 +19,7 @@ export type SpeechTranscribeConfig = {
     openaiKey?: string;
     googleKey?: string;
     accessToken?: string;
+    prompt?: string;
 };
 
 export const fetchCurrentUser = async (): Promise<User | null> => {
@@ -111,8 +112,14 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
         return formData;
     };
 
+    const promptValue = config.prompt?.trim();
+
     if (config.mode === SPEECH_MODES.LOCAL) {
-        const formData = buildFormData({response_format: 'json'});
+        const extraFields: Record<string, string> = {response_format: 'json'};
+        if (promptValue) {
+            extraFields.prompt = promptValue;
+        }
+        const formData = buildFormData(extraFields);
         try {
             const {data} = await axios.post(FAST_WHISPER_TRANSCRIBE_ENDPOINT, formData, {
                 headers: {
@@ -138,7 +145,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
         throw new Error('Укажите OpenAI API ключ для транскрибации.');
     }
 
-    const formData = buildFormData();
+    const formData = buildFormData(promptValue ? {prompt: promptValue} : {});
     const headers = {
         ...formData.getHeaders(),
         Authorization: `Bearer ${config.openaiKey}`
@@ -204,6 +211,7 @@ const ensureAuthorized = (config: AppConfig) => {
 export type ActionPayload = {
     name: string;
     prompt: string;
+    prompt_recognizing?: string;
     hotkey?: string;
     icon: string;
     show_results?: boolean;

@@ -103,6 +103,7 @@ const ActionForm: React.FC<Props> = ({
                         fullWidth
                         multiline
                         minRows={3}
+                        sx={{mb: 1}}
                     />
 
                     <TextField

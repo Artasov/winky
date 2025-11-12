@@ -90,7 +90,9 @@ const ActionForm: React.FC<Props> = ({
                         value={values.name}
                         onChange={(event) => setField('name', event.target.value)}
                         placeholder="Send daily standup"
-                        fullWidth sx={{mb: 1}}
+                        fullWidth
+                        required
+                        sx={{mb: 1}}
                     />
 
                     <TextField
@@ -107,7 +109,7 @@ const ActionForm: React.FC<Props> = ({
                         label="Prompt Recognizing"
                         value={values.promptRecognizing}
                         onChange={(event) => setField('promptRecognizing', event.target.value)}
-                        placeholder="Prompt for Recognizing"
+                        placeholder="Optional: mention domain, key terms, language mix (e.g. “Fintech, legal jargon, speech mostly RU with EN words and tenses”)."
                         fullWidth
                         multiline
                         minRows={3}
@@ -126,8 +128,12 @@ const ActionForm: React.FC<Props> = ({
 
                     <Stack spacing={1}>
                         <Typography variant="body2" color="text.primary" fontWeight={600}>
-                            Icon {selectedIconName && <Typography component="span" variant="caption"
-                                                                  color="text.secondary">• {selectedIconName}</Typography>}
+                            Icon <Typography component="span" color="error.main">*</Typography>{' '}
+                            {selectedIconName && (
+                                <Typography component="span" variant="caption" color="text.secondary">
+                                    • {selectedIconName}
+                                </Typography>
+                            )}
                         </Typography>
                         {iconsLoading ? (
                             <Box

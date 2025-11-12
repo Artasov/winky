@@ -74,6 +74,7 @@ export interface ActionConfig {
     profile: string;
     name: string;
     prompt: string;
+    prompt_recognizing?: string | null;
     hotkey?: string;
     icon: string;
     icon_details: ActionIcon;

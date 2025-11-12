@@ -103,6 +103,16 @@ const ActionForm: React.FC<Props> = ({
                         minRows={3}
                     />
 
+                    <TextField
+                        label="Prompt Recognizing"
+                        value={values.promptRecognizing}
+                        onChange={(event) => setField('promptRecognizing', event.target.value)}
+                        placeholder="Prompt for Recognizing"
+                        fullWidth
+                        multiline
+                        minRows={3}
+                    />
+
                     <Stack spacing={1}>
                         <Typography variant="body2" color="text.primary" fontWeight={600}>
                             Hotkey

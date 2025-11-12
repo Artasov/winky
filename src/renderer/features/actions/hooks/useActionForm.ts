@@ -5,6 +5,7 @@ import type {ActionConfig} from '@shared/types';
 const formSchema = z.object({
     name: z.string().min(1, 'Заполните название действия.'),
     prompt: z.string().optional(),
+    promptRecognizing: z.string().optional(),
     hotkey: z.string().optional(),
     iconId: z.string().min(1, 'Выберите иконку.'),
     showResults: z.boolean(),
@@ -40,6 +41,7 @@ export const useActionForm = ({
     const [values, setValues] = useState<ActionFormValues>({
         name: '',
         prompt: '',
+        promptRecognizing: '',
         hotkey: '',
         iconId: '',
         showResults: false,
@@ -51,6 +53,7 @@ export const useActionForm = ({
         setValues({
             name: '',
             prompt: '',
+            promptRecognizing: '',
             hotkey: '',
             iconId: '',
             showResults: false,
@@ -80,6 +83,7 @@ export const useActionForm = ({
         setValues({
             name: action.name,
             prompt: action.prompt,
+            promptRecognizing: action.prompt_recognizing ?? '',
             hotkey: action.hotkey ?? '',
             iconId: action.icon_details?.id ?? action.icon,
             showResults: action.show_results ?? false,
@@ -133,6 +137,7 @@ export const useActionForm = ({
             const payload = {
                 name: validation.data.name.trim(),
                 prompt: validation.data.prompt?.trim() ?? '',
+                prompt_recognizing: validation.data.promptRecognizing?.trim() ?? '',
                 hotkey: validation.data.hotkey?.trim() ?? '',
                 icon: validation.data.iconId,
                 show_results: validation.data.showResults,

@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import TitleBar from '../components/TitleBar';
+import {clipboardBridge, resultBridge} from '../services/winkyBridge';
 
 const ResultWindowPage: React.FC = () => {
     const [transcription, setTranscription] = useState('');
@@ -16,7 +17,7 @@ const ResultWindowPage: React.FC = () => {
 
     useEffect(() => {
         console.log('[ResultWindowPage] Subscribing to result data');
-        const unsubscribe = window.winky?.result.onData((data) => {
+        const unsubscribe = resultBridge.subscribe((data) => {
             console.log('[ResultWindowPage] Received data:', data);
             if (data.transcription !== undefined) {
                 console.log('[ResultWindowPage] Setting transcription:', data.transcription);
@@ -32,18 +33,18 @@ const ResultWindowPage: React.FC = () => {
         });
 
         return () => {
-            unsubscribe?.();
+            unsubscribe();
         };
     }, []);
 
     const handleCopyTranscription = async () => {
-        await window.winky?.clipboard.writeText(transcription);
+        await clipboardBridge.writeText(transcription);
         setCopiedTranscription(true);
         setTimeout(() => setCopiedTranscription(false), 2000);
     };
 
     const handleCopyResponse = async () => {
-        await window.winky?.clipboard.writeText(llmResponse);
+        await clipboardBridge.writeText(llmResponse);
         setCopiedResponse(true);
         setTimeout(() => setCopiedResponse(false), 2000);
     };
@@ -51,7 +52,7 @@ const ResultWindowPage: React.FC = () => {
     const handleClose = async () => {
         console.log('[ResultWindowPage] Close button clicked');
         try {
-            await window.winky?.result.close();
+            await resultBridge.close();
             console.log('[ResultWindowPage] Close request sent');
         } catch (error) {
             console.error('[ResultWindowPage] Error closing window:', error);

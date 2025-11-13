@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef} from 'react';
-import {Route, Routes, useLocation} from 'react-router-dom';
+import {Route, Routes} from 'react-router-dom';
 import {ConfigContext} from './context/ConfigContext';
 import {ToastContext, type ToastType} from './context/ToastContext';
 import {UserProvider, useUser} from './context/UserContext';
@@ -24,15 +24,17 @@ import SettingsPage from './windows/SettingsPage';
 import InfoPage from './windows/InfoPage';
 import ResultWindowPage from './windows/ResultWindowPage';
 import ErrorWindow from './windows/ErrorWindow';
-import TitleBar from './components/TitleBar';
-import Sidebar from './components/Sidebar';
+import DesktopShell from './app/layouts/DesktopShell';
+import MicShell from './app/layouts/MicShell';
+import ResultShell from './app/layouts/ResultShell';
+import ErrorShell from './app/layouts/ErrorShell';
+import StandaloneWindow from './app/layouts/StandaloneWindow';
 
 const AppContent: React.FC = () => {
     const windowIdentity = useWindowIdentity();
     const {config, loading, preloadError, refreshConfig, updateConfig, setConfig} = useConfigController();
     const {user, fetchUser, loading: userLoading} = useUser();
     const userFetchAttempted = useRef(false);
-    const location = useLocation();
     const shouldRenderToasts = windowIdentity.allowsToasts;
 
     const showToast = useCallback(
@@ -124,17 +126,34 @@ const AppContent: React.FC = () => {
 
     const routes = (
         <Routes>
-            <Route path="/" element={<WelcomeWindow/>}/>
-            <Route path="/auth" element={<AuthWindow/>}/>
-            <Route path="/setup" element={<SetupWindow/>}/>
-            <Route path="/main" element={<MainWindow/>}/>
-            <Route path="/mic" element={<MicWindow/>}/>
-            <Route path="/me" element={<MePage/>}/>
-            <Route path="/actions" element={<ActionsPage/>}/>
-            <Route path="/settings" element={<SettingsPage/>}/>
-            <Route path="/info" element={<InfoPage/>}/>
-            <Route path="/result" element={<ResultWindowPage/>}/>
-            <Route path="/error" element={<ErrorWindow/>}/>
+            <Route element={<StandaloneWindow/>}>
+                <Route path="/" element={<WelcomeWindow/>}/>
+                <Route path="/auth" element={<AuthWindow/>}/>
+                <Route path="/setup" element={<SetupWindow/>}/>
+            </Route>
+
+            <Route element={<DesktopShell/>}>
+                <Route path="/main" element={<MainWindow/>}/>
+            </Route>
+
+            <Route element={<DesktopShell allowSidebar/>}>
+                <Route path="/me" element={<MePage/>}/>
+                <Route path="/actions" element={<ActionsPage/>}/>
+                <Route path="/settings" element={<SettingsPage/>}/>
+                <Route path="/info" element={<InfoPage/>}/>
+            </Route>
+
+            <Route element={<MicShell/>}>
+                <Route path="/mic" element={<MicWindow/>}/>
+            </Route>
+
+            <Route element={<ResultShell/>}>
+                <Route path="/result" element={<ResultWindowPage/>}/>
+            </Route>
+
+            <Route element={<ErrorShell/>}>
+                <Route path="/error" element={<ErrorWindow/>}/>
+            </Route>
         </Routes>
     );
 
@@ -159,43 +178,10 @@ const AppContent: React.FC = () => {
         );
     }
 
-    // Определяем, нужен ли Sidebar для текущего маршрута
-    // Показываем sidebar если есть токен и setup завершен (не требуем загрузку пользователя)
-    const hasToken = config?.auth.access || config?.auth.accessToken;
-    const needsSidebar = !loading &&
-        hasToken &&
-        config?.setupCompleted &&
-        ['/me', '/actions', '/settings', '/info'].includes(location.pathname);
-
-    // Эти страницы имеют встроенный TitleBar
-    const hasBuiltInTitleBar = ['/', '/auth', '/setup'].includes(location.pathname);
-
     return (
         <ToastContext.Provider value={toastContextValue}>
             <ConfigContext.Provider value={configContextValue}>
-                {windowIdentity.isMicWindow ? (
-                    // Окно с плавающим микрофоном
-                    <div className="frcc h-full w-full bg-transparent text-white">{routes}</div>
-                ) : windowIdentity.isResultWindow ? (
-                    // Окно результатов - с TitleBar но без sidebar
-                    <div className="fc disable-tap-select h-full w-full bg-bg-base text-text-primary">{routes}</div>
-                ) : windowIdentity.isErrorWindow ? (
-                    // Окно ошибки - полноэкранное без sidebar
-                    <div className="fc disable-tap-select h-full w-full bg-bg-base text-text-primary">{routes}</div>
-                ) : hasBuiltInTitleBar ? (
-                    // Окна Welcome, Auth, Setup уже имеют встроенный TitleBar
-                    <div className="fc disable-tap-select h-full bg-bg-base text-text-primary">{routes}</div>
-                ) : (
-                    <div className="fc disable-tap-select h-full bg-bg-base text-text-primary">
-                        <TitleBar/>
-                        <div className="fr flex-1 overflow-hidden">
-                            {needsSidebar && <Sidebar/>}
-                            <main className="flex-1 overflow-hidden bg-bg-secondary/50">
-                                <div className="h-full overflow-auto">{routes}</div>
-                            </main>
-                        </div>
-                    </div>
-                )}
+                {routes}
                 {shouldRenderToasts ? (
                     <ToastContainer
                         position="top-right"

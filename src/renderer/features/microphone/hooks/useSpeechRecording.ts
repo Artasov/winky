@@ -1,11 +1,18 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {FAST_WHISPER_PORT, SPEECH_MODES} from '@shared/constants';
 import type {ActionConfig, AppConfig} from '@shared/types';
-import type {BaseSpeechService} from '@main/services/speech/BaseSpeechService';
-import type {BaseLLMService} from '@main/services/llm/BaseLLMService';
-import {createSpeechService} from '@main/services/speech/factory';
-import {createLLMService} from '@main/services/llm/factory';
 import {resetInteractive} from '../../../utils/interactive';
+import {createSpeechRecorder, type SpeechRecorder} from '../services/SpeechRecorder';
+import {
+    actionHotkeysBridge,
+    clipboardBridge,
+    llmBridge,
+    micBridge,
+    notificationBridge,
+    resultBridge,
+    speechBridge,
+    windowBridge
+} from '../../../services/winkyBridge';
 
 type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
 
@@ -28,8 +35,7 @@ const isLocalServerUnavailableMessage = (message?: string): boolean => {
 };
 
 export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechRecordingParams) => {
-    const speechServiceRef = useRef<BaseSpeechService | null>(null);
-    const llmServiceRef = useRef<BaseLLMService | null>(null);
+    const recorderRef = useRef<SpeechRecorder | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
     const animationFrameRef = useRef<number | undefined>(undefined);
@@ -76,33 +82,12 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     }, []);
 
     useEffect(() => {
-        if (!config) {
-            return;
-        }
-
-        const accessToken = config.auth.access || config.auth.accessToken || undefined;
-
-        try {
-            speechServiceRef.current = createSpeechService(config.speech.mode, config.speech.model, {
-                openaiKey: config.apiKeys.openai,
-                googleKey: config.apiKeys.google
-            });
-        } catch (error) {
-            console.error('[MicOverlay] Не удалось создать сервис распознавания', error);
-            speechServiceRef.current = null;
-        }
-
-        try {
-            llmServiceRef.current = createLLMService(config.llm.mode, config.llm.model, {
-                openaiKey: config.apiKeys.openai,
-                googleKey: config.apiKeys.google,
-                accessToken
-            });
-        } catch (error) {
-            console.error('[MicOverlay] Не удалось создать LLM сервис', error);
-            llmServiceRef.current = null;
-        }
-    }, [config]);
+        recorderRef.current = createSpeechRecorder();
+        return () => {
+            recorderRef.current?.dispose();
+            recorderRef.current = null;
+        };
+    }, []);
 
     const stopVolumeMonitor = useCallback(() => {
         if (animationFrameRef.current) {
@@ -162,7 +147,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         }
         localServerAlertInFlightRef.current = true;
         const failureMessage = 'Локальный сервер распознавания недоступен. Открываем Settings…';
-        if (typeof window === 'undefined' || !window.winky) {
+        if (typeof window === 'undefined') {
             showToast(failureMessage, 'error', {durationMs: 4000});
             localServerAlertInFlightRef.current = false;
             return true;
@@ -173,33 +158,23 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 return;
             }
             notified = true;
-            void window.winky?.windows.navigate?.('/settings');
+            void windowBridge.navigate('/settings');
             const publishToast = () => {
-                void window.winky?.notifications?.showToast?.(failureMessage, 'error', {durationMs: 1_000_000_000});
+                void notificationBridge.showToast(failureMessage, 'error', {durationMs: 1_000_000_000});
             };
             publishToast();
             setTimeout(publishToast, 800);
             scheduleLocalServerAlertRelease();
         };
-        const attemptOpen = (): Promise<void> | undefined => window.winky?.windows.openSettings?.();
-        const promise = attemptOpen();
-        if (!promise || typeof promise.then !== 'function') {
-            notifyMainWindow();
-            return true;
-        }
-        promise
+        const attemptOpen = () => windowBridge.openSettings();
+        attemptOpen()
             .then(() => {
                 notifyMainWindow();
             })
             .catch((error) => {
                 console.warn('[MicOverlay] Первое открытие Settings не удалось, повторяем попытку…', error);
                 setTimeout(() => {
-                    const retry = attemptOpen();
-                    if (!retry || typeof retry.then !== 'function') {
-                        notifyMainWindow();
-                        return;
-                    }
-                    retry
+                    attemptOpen()
                         .then(() => {
                             notifyMainWindow();
                         })
@@ -213,7 +188,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     }, [config?.speech.mode, showToast, scheduleLocalServerAlertRelease]);
 
     const ensureSpeechService = useCallback(() => {
-        if (!speechServiceRef.current) {
+        if (!recorderRef.current) {
             showToast('Сервис записи недоступен.', 'error');
             return false;
         }
@@ -221,12 +196,12 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     }, [showToast]);
 
     const finishRecording = useCallback(async (resetUI: boolean = true): Promise<Blob | null> => {
-        if (!speechServiceRef.current) {
+        if (!recorderRef.current) {
             return null;
         }
 
         try {
-            const blob = await speechServiceRef.current.stopRecording();
+            const blob = await recorderRef.current.stopRecording();
             return blob;
         } catch (error) {
             console.error(error);
@@ -248,7 +223,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             const arrayBuffer = await blob.arrayBuffer();
             const authToken = config.auth.access || config.auth.accessToken || undefined;
 
-            const transcription = await window.winky?.speech.transcribe(arrayBuffer, {
+            const transcription = await speechBridge.transcribe(arrayBuffer, {
                 mode: config.speech.mode,
                 model: config.speech.model,
                 openaiKey: config.apiKeys.openai,
@@ -263,18 +238,18 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             }
 
             if (action.show_results) {
-                await window.winky?.result.open();
-                await new Promise(resolve => setTimeout(resolve, 200));
-                await window.winky?.result.update({transcription, llmResponse: '', isStreaming: false});
+                await resultBridge.open();
+                await new Promise((resolve) => setTimeout(resolve, 200));
+                await resultBridge.update({transcription, llmResponse: '', isStreaming: false});
             }
 
             if (!action.prompt || action.prompt.trim() === '') {
                 if (action.auto_copy_result) {
-                    await window.winky?.clipboard.writeText(transcription);
+                    await clipboardBridge.writeText(transcription);
                     showToast('Результат скопирован.', 'success');
                 }
                 if (action.show_results) {
-                    await window.winky?.result.update({llmResponse: transcription, isStreaming: false});
+                    await resultBridge.update({llmResponse: transcription, isStreaming: false});
                 }
                 if (action.sound_on_complete && completionSoundRef.current) {
                     const volumePreference = config?.completionSoundVolume ?? 1.0;
@@ -296,14 +271,14 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 accessToken: authToken
             };
 
-            const response = await window.winky?.llm.process(transcription, action.prompt, llmConfig) || '';
+            const response = await llmBridge.process(transcription, action.prompt, llmConfig);
 
             if (action.show_results) {
-                await window.winky?.result.update({llmResponse: response, isStreaming: false});
+                await resultBridge.update({llmResponse: response, isStreaming: false});
             }
 
             if (action.auto_copy_result) {
-                await window.winky?.clipboard.writeText(response);
+                await clipboardBridge.writeText(response);
                 showToast('Ответ скопирован.', 'success');
             }
 
@@ -332,7 +307,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
 
         if (!isRecording) {
             try {
-                const stream = await speechServiceRef.current?.startRecording();
+                const stream = await recorderRef.current?.startRecording();
                 setIsRecording(true);
                 setActiveActionId(null);
                 if (stream) {
@@ -351,7 +326,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             setActiveActionId(null);
             resetInteractive();
             if (isMicOverlay && config?.micHideOnStopRecording !== false) {
-                void window.winky?.mic?.hide({reason: 'action'});
+                void micBridge.hide({reason: 'action'});
             }
         }
     }, [ensureSpeechService, finishRecording, isRecording, showToast, startVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
@@ -375,7 +350,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             setProcessing(false);
             resetInteractive();
             if (isMicOverlay && config?.micHideOnStopRecording !== false) {
-                void window.winky?.mic?.hide({reason: 'action'});
+                void micBridge.hide({reason: 'action'});
             }
         }
     }, [processing, isRecording, ensureSpeechService, finishRecording, processAction, stopVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
@@ -407,12 +382,8 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         if (!isMicOverlay || typeof window === 'undefined') {
             return;
         }
-        const hotkeysApi = window.winky?.actionHotkeys;
-        if (!hotkeysApi) {
-            return;
-        }
         if (!isRecording) {
-            void hotkeysApi.clear();
+            void actionHotkeysBridge.clear();
             return;
         }
         const hotkeys = actions
@@ -423,14 +394,14 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             }));
 
         if (hotkeys.length === 0) {
-            void hotkeysApi.clear();
+            void actionHotkeysBridge.clear();
             return;
         }
 
-        void hotkeysApi.register(hotkeys);
+        void actionHotkeysBridge.register(hotkeys);
 
         return () => {
-            void hotkeysApi.clear();
+            void actionHotkeysBridge.clear();
         };
     }, [actions, isMicOverlay, isRecording]);
 

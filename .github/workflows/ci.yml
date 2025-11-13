@@ -56,12 +56,6 @@ jobs:
           - windows-latest
           - macos-latest
           - ubuntu-latest
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
-      AWS_REGION: ru-1
-      AWS_S3_FORCE_PATH_STYLE: true
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -120,3 +114,49 @@ jobs:
           path: |
             release/*.deb
           if-no-files-found: warn
+
+  upload:
+    name: Upload to S3
+    needs: package
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ru-1
+      AWS_S3_FORCE_PATH_STYLE: true
+      S3_BUCKET: 324718a4-2cc5dd7a-917b-4e82-87c5-b9d5f8de16ba
+      S3_ENDPOINT: https://s3.twcstorage.ru
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Install AWS CLI
+        run: |
+          python3 -m pip install --user awscli
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Configure AWS CLI
+        run: |
+          aws configure set default.region "${AWS_DEFAULT_REGION}"
+          aws configure set default.s3.addressing_style path
+
+      - name: Upload artifacts to S3
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          BASE="s3://${S3_BUCKET}/winky/${VERSION}"
+          upload_dir() {
+            local source="$1"
+            local target="$2"
+            if [ -d "$source" ]; then
+              aws s3 cp "$source" "${BASE}/${target}/" --recursive --endpoint-url "${S3_ENDPOINT}" --acl private
+            fi
+          }
+          upload_dir dist/winky-windows windows
+          upload_dir dist/winky-macos macos
+          upload_dir dist/winky-linux linux

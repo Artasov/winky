@@ -56,6 +56,10 @@ jobs:
           - windows-latest
           - macos-latest
           - ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+      AWS_REGION: ru-1
 
     steps:
       - name: Checkout
@@ -72,8 +76,6 @@ jobs:
 
       - name: Build Windows artifacts
         if: matrix.os == 'windows-latest'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:win -- --x64 --ia32
 
       - name: Remove per-arch installers
@@ -85,14 +87,10 @@ jobs:
 
       - name: Build macOS artifacts
         if: matrix.os == 'macos-latest'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:mac
 
       - name: Build Linux artifacts
         if: matrix.os == 'ubuntu-latest'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:linux
 
       - name: Upload Windows artifacts
@@ -121,57 +119,3 @@ jobs:
           path: |
             release/*.deb
           if-no-files-found: warn
-
-  release:
-    name: Publish Release
-    needs: package
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-
-      - name: Generate release notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ github.ref_name }}"
-          echo "✨ Meet **Winky** — your cute girl assistant" > release-body.md
-          echo "" >> release-body.md
-          echo "## Installation Guide" >> release-body.md
-          echo "" >> release-body.md
-          echo "### Windows" >> release-body.md
-          echo "1. Download \`Winky-Setup-__VERSION__.exe\` from the assets list below." >> release-body.md
-          echo "2. Run the installer and follow the prompts." >> release-body.md
-          echo "3. Launch Winky from the Start Menu after installation." >> release-body.md
-          echo "" >> release-body.md
-          echo "### macOS" >> release-body.md
-          echo "1. Download the DMG that matches your Mac (\`Winky-__VERSION__-x64.dmg\` for Intel, \`Winky-__VERSION__-arm64.dmg\` for Apple Silicon)." >> release-body.md
-          echo "2. Open the DMG and drag \`Winky.app\` into \`Applications\`." >> release-body.md
-          echo "3. On first launch macOS may warn about an unidentified developer – right-click the app, choose **Open**, then confirm." >> release-body.md
-          echo "" >> release-body.md
-          echo "### Linux (Debian/Ubuntu)" >> release-body.md
-          echo "1. Download \`Winky-__VERSION__-amd64.deb\`." >> release-body.md
-          echo "2. Install with \`sudo apt install ./Winky-__VERSION__-amd64.deb\`." >> release-body.md
-          echo "3. Start Winky from your application menu." >> release-body.md
-          echo "" >> release-body.md
-          echo "---" >> release-body.md
-          echo "## Changes" >> release-body.md
-          gh api repos/${{ github.repository }}/releases/generate-notes -F tag_name="$VERSION" -F target_commitish="${{ github.sha }}" --jq '.body' >> release-body.md
-          sed -i "s/__VERSION__/${VERSION}/g" release-body.md
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/**/*.deb
-            dist/**/*.dmg
-            dist/**/*.exe
-          body_path: release-body.md
-          draft: false
-          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

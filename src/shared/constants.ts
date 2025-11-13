@@ -38,7 +38,7 @@ export const LLM_MODES = {
     LOCAL: 'local'
 } as const;
 
-export const LLM_API_MODELS = [
+export const LLM_OPENAI_API_MODELS = [
     'o4-mini',
     'gpt-4.1-mini',
     'gpt-4.1-nano',
@@ -50,7 +50,17 @@ export const LLM_API_MODELS = [
     'gpt-3.5-turbo',
     'gpt-5',
     'gpt-5-nano',
-    'gpt-5-mini'
+] as const;
+
+export const LLM_GEMINI_API_MODELS = [
+    'gemini-1.5-pro',
+    'gemini-1.5-flash',
+    'gemini-1.0-pro'
+] as const;
+
+export const LLM_API_MODELS = [
+    ...LLM_OPENAI_API_MODELS,
+    ...LLM_GEMINI_API_MODELS
 ] as const;
 
 export const LLM_LOCAL_MODELS = [

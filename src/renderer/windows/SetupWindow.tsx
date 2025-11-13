@@ -1,10 +1,23 @@
 import React, {useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {LLM_API_MODELS, LLM_MODES, SPEECH_API_MODELS, SPEECH_MODES} from '@shared/constants';
+import {
+    LLM_API_MODELS,
+    LLM_GEMINI_API_MODELS,
+    LLM_MODES,
+    LLM_OPENAI_API_MODELS,
+    SPEECH_API_MODELS,
+    SPEECH_MODES
+} from '@shared/constants';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
 import TitleBar from '../components/TitleBar';
 import ModelConfigForm, {ModelConfigFormData} from '../components/ModelConfigForm';
+
+const isGeminiApiModel = (model: string): boolean =>
+    (LLM_GEMINI_API_MODELS as readonly string[]).includes(model as string);
+
+const isOpenAiApiModel = (model: string): boolean =>
+    (LLM_OPENAI_API_MODELS as readonly string[]).includes(model as string);
 
 const SetupWindow: React.FC = () => {
     const {config, updateConfig} = useConfig();
@@ -14,6 +27,7 @@ const SetupWindow: React.FC = () => {
     const [formData, setFormData] = useState<ModelConfigFormData>({
         openaiKey: config?.apiKeys.openai ?? '',
         googleKey: config?.apiKeys.google ?? '',
+        geminiKey: config?.apiKeys.gemini ?? '',
         speechMode: config?.speech.mode ?? SPEECH_MODES.API,
         speechModel: config?.speech.model ?? SPEECH_API_MODELS[0],
         llmMode: config?.llm.mode ?? LLM_MODES.API,
@@ -25,21 +39,21 @@ const SetupWindow: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Валидация: если выбран API режим, нужен хотя бы один ключ
-        const requiresOpenAI = formData.llmMode === LLM_MODES.API;
-        const requiresGoogle = formData.speechMode === SPEECH_MODES.API;
+        const requiresSpeechKey = formData.speechMode === SPEECH_MODES.API;
+        const requiresOpenAILlmKey = formData.llmMode === LLM_MODES.API && isOpenAiApiModel(formData.llmModel);
+        const requiresGeminiLlmKey = formData.llmMode === LLM_MODES.API && isGeminiApiModel(formData.llmModel);
 
-        if ((requiresOpenAI || requiresGoogle) && !formData.openaiKey.trim() && !formData.googleKey.trim()) {
-            showToast('Please provide at least one API key (OpenAI or Google) for API mode.', 'error');
+        if (requiresOpenAILlmKey && !formData.openaiKey.trim()) {
+            showToast('OpenAI API Key is required for the selected LLM model.', 'error');
             return;
         }
 
-        if (requiresOpenAI && !requiresGoogle && !formData.openaiKey.trim()) {
-            showToast('OpenAI API Key is required for API-based LLM processing.', 'error');
+        if (requiresGeminiLlmKey && !formData.geminiKey.trim()) {
+            showToast('Gemini API Key is required for the selected LLM model.', 'error');
             return;
         }
 
-        if (requiresGoogle && !requiresOpenAI && !formData.googleKey.trim()) {
+        if (requiresSpeechKey && !formData.googleKey.trim()) {
             showToast('Google API Key is required for API-based speech recognition.', 'error');
             return;
         }
@@ -50,7 +64,11 @@ const SetupWindow: React.FC = () => {
                 setupCompleted: true,
                 speech: {mode: formData.speechMode, model: formData.speechModel},
                 llm: {mode: formData.llmMode, model: formData.llmModel},
-                apiKeys: {openai: formData.openaiKey.trim(), google: formData.googleKey.trim()}
+                apiKeys: {
+                    openai: formData.openaiKey.trim(),
+                    google: formData.googleKey.trim(),
+                    gemini: formData.geminiKey.trim()
+                }
             });
             showToast('Settings saved successfully', 'success');
             // Actions будут загружены автоматически при навигации на /main, если пользователь авторизован

@@ -1,7 +1,9 @@
 import {
     LLM_API_MODELS,
+    LLM_GEMINI_API_MODELS,
     LLM_LOCAL_MODELS,
     LLM_MODES,
+    LLM_OPENAI_API_MODELS,
     SPEECH_API_MODELS,
     SPEECH_LOCAL_MODELS,
     SPEECH_MODES
@@ -9,7 +11,10 @@ import {
 
 export type SpeechMode = (typeof SPEECH_MODES)[keyof typeof SPEECH_MODES];
 export type LLMMode = (typeof LLM_MODES)[keyof typeof LLM_MODES];
-export type LLMModel = (typeof LLM_API_MODELS)[number] | (typeof LLM_LOCAL_MODELS)[number];
+export type LLMModel =
+    | (typeof LLM_OPENAI_API_MODELS)[number]
+    | (typeof LLM_GEMINI_API_MODELS)[number]
+    | (typeof LLM_LOCAL_MODELS)[number];
 export type SpeechModel = (typeof SPEECH_API_MODELS)[number] | (typeof SPEECH_LOCAL_MODELS)[number];
 
 export interface AuthTokens {
@@ -101,6 +106,7 @@ export interface WinkyProfile {
 export interface ApiKeys {
     openai: string;
     google: string;
+    gemini: string;
 }
 
 export interface AppConfig {

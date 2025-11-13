@@ -27,7 +27,8 @@ const DEFAULT_CONFIG: AppConfig = {
     },
     apiKeys: {
         openai: '',
-        google: ''
+        google: '',
+        gemini: ''
     },
     actions: [],
     micWindowPosition: undefined,
@@ -73,9 +74,10 @@ const schema: Schema<AppConfig> = {
         type: 'object',
         properties: {
             openai: {type: 'string'},
-            google: {type: 'string'}
+            google: {type: 'string'},
+            gemini: {type: 'string'}
         },
-        required: ['openai', 'google']
+        required: ['openai', 'google', 'gemini']
     },
     actions: {
         type: 'array',
@@ -233,6 +235,24 @@ const ensureConfigIntegrity = async (): Promise<AppConfig> => {
         }
         if (!current.llm.model) {
             current.llm.model = current.llm.mode === LLM_MODES.API ? LLM_API_MODELS[0] : LLM_LOCAL_MODELS[0];
+            changed = true;
+        }
+    }
+
+    if (!current.apiKeys) {
+        current.apiKeys = {openai: '', google: '', gemini: ''};
+        changed = true;
+    } else {
+        if (typeof current.apiKeys.openai !== 'string') {
+            current.apiKeys.openai = '';
+            changed = true;
+        }
+        if (typeof current.apiKeys.google !== 'string') {
+            current.apiKeys.google = '';
+            changed = true;
+        }
+        if (typeof current.apiKeys.gemini !== 'string') {
+            current.apiKeys.gemini = '';
             changed = true;
         }
     }

@@ -268,6 +268,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 model: config.llm.model,
                 openaiKey: config.apiKeys.openai,
                 googleKey: config.apiKeys.google,
+                geminiKey: config.apiKeys.gemini,
                 accessToken: authToken
             };
 

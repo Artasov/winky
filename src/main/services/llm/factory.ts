@@ -15,6 +15,7 @@ import Gpt35TurboLLMService from './models/api/Gpt35TurboLLMService';
 import Gpt5LLMService from './models/api/Gpt5LLMService';
 import Gpt5NanoLLMService from './models/api/Gpt5NanoLLMService';
 import Gpt5MiniLLMService from './models/api/Gpt5MiniLLMService';
+import GeminiLLMService from './models/api/GeminiLLMService';
 
 // Local models
 import GptOss120bLLMService from './models/local/GptOss120bLLMService';
@@ -32,6 +33,7 @@ import Qwen34bLLMService from './models/local/Qwen34bLLMService';
 interface LLMServiceOptions {
     openaiKey?: string;
     googleKey?: string;
+    geminiKey?: string;
     accessToken?: string;
 }
 
@@ -40,41 +42,52 @@ export const createLLMService = (
     model: LLMModel,
     options: LLMServiceOptions = {}
 ): BaseLLMService => {
-    if (mode === LLM_MODES.API) {
+    const requireOpenAIKey = () => {
         if (!options.openaiKey) {
-            throw new Error('Требуется OpenAI API Key для использования LLM в режиме API.');
+            throw new Error('Требуется OpenAI API Key для использования моделей OpenAI.');
         }
-        switch (model) {
+        return options.openaiKey;
+    };
+
+    if (mode === LLM_MODES.API) {
+        switch (model as string) {
             case 'o4-mini':
-                return new O4MiniLLMService(options.openaiKey);
+                return new O4MiniLLMService(requireOpenAIKey());
             case 'gpt-4.1-mini':
-                return new Gpt41MiniLLMService(options.openaiKey);
+                return new Gpt41MiniLLMService(requireOpenAIKey());
             case 'gpt-4.1-nano':
-                return new Gpt41NanoLLMService(options.openaiKey);
+                return new Gpt41NanoLLMService(requireOpenAIKey());
             case 'o3-mini':
-                return new O3MiniLLMService(options.openaiKey);
+                return new O3MiniLLMService(requireOpenAIKey());
             case 'o1-mini':
-                return new O1MiniLLMService(options.openaiKey);
+                return new O1MiniLLMService(requireOpenAIKey());
             case 'gpt-4o-mini':
-                return new Gpt4oMiniLLMService(options.openaiKey);
+                return new Gpt4oMiniLLMService(requireOpenAIKey());
             case 'gpt-4-turbo':
-                return new Gpt4TurboLLMService(options.openaiKey);
+                return new Gpt4TurboLLMService(requireOpenAIKey());
             case 'chatgpt-4o-latest':
-                return new ChatGpt4oLatestLLMService(options.openaiKey);
+                return new ChatGpt4oLatestLLMService(requireOpenAIKey());
             case 'gpt-3.5-turbo':
-                return new Gpt35TurboLLMService(options.openaiKey);
+                return new Gpt35TurboLLMService(requireOpenAIKey());
             case 'gpt-5':
-                return new Gpt5LLMService(options.openaiKey);
+                return new Gpt5LLMService(requireOpenAIKey());
             case 'gpt-5-nano':
-                return new Gpt5NanoLLMService(options.openaiKey);
+                return new Gpt5NanoLLMService(requireOpenAIKey());
             case 'gpt-5-mini':
-                return new Gpt5MiniLLMService(options.openaiKey);
+                return new Gpt5MiniLLMService(requireOpenAIKey());
+            case 'gemini-1.5-pro':
+            case 'gemini-1.5-flash':
+            case 'gemini-1.0-pro':
+                if (!options.geminiKey) {
+                    throw new Error('Требуется Gemini API Key для использования моделей Google Gemini.');
+                }
+                return new GeminiLLMService(model, options.geminiKey);
             default:
                 throw new Error(`Неизвестная API LLM модель: ${model}`);
         }
     }
 
-    switch (model) {
+    switch (model as string) {
         case 'gpt-oss:120b':
             return new GptOss120bLLMService();
         case 'gpt-oss:20b':

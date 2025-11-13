@@ -2,8 +2,10 @@ import React, {useEffect, useMemo} from 'react';
 import {Box, Button, MenuItem, Stack, TextField, Typography} from '@mui/material';
 import {
     LLM_API_MODELS,
+    LLM_GEMINI_API_MODELS,
     LLM_LOCAL_MODELS,
     LLM_MODES,
+    LLM_OPENAI_API_MODELS,
     SPEECH_API_MODELS,
     SPEECH_LOCAL_MODELS,
     SPEECH_MODES
@@ -14,6 +16,7 @@ import LocalSpeechInstallControl from './LocalSpeechInstallControl';
 export interface ModelConfigFormData {
     openaiKey: string;
     googleKey: string;
+    geminiKey: string;
     speechMode: SpeechMode;
     speechModel: SpeechModel;
     llmMode: LLMMode;
@@ -25,6 +28,12 @@ const getDefaultSpeechModel = (mode: SpeechMode): SpeechModel =>
 
 const getDefaultLLMModel = (mode: LLMMode): LLMModel =>
     (mode === LLM_MODES.API ? LLM_API_MODELS[0] : LLM_LOCAL_MODELS[0]) as LLMModel;
+
+const OPENAI_API_MODEL_SET = new Set<string>([...LLM_OPENAI_API_MODELS]);
+const GEMINI_API_MODEL_SET = new Set<string>([...LLM_GEMINI_API_MODELS]);
+
+const isGeminiApiModel = (model: LLMModel): boolean => GEMINI_API_MODEL_SET.has(model as string);
+const isOpenAiApiModel = (model: LLMModel): boolean => OPENAI_API_MODEL_SET.has(model as string);
 
 interface ModelConfigFormProps {
     values: ModelConfigFormData;
@@ -58,15 +67,32 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
             .join(' ');
 
+    const formatLLMLabel = (value: string) => {
+        const base = formatLabel(value);
+        if (isGeminiApiModel(value as LLMModel)) {
+            return `Gemini ${base}`;
+        }
+        if (isOpenAiApiModel(value as LLMModel)) {
+            return `OpenAI ${base}`;
+        }
+        return base;
+    };
+
     const speechModelOptions = useMemo<SpeechModel[]>(() => {
         const base = values.speechMode === SPEECH_MODES.API ? SPEECH_API_MODELS : SPEECH_LOCAL_MODELS;
         return [...base] as SpeechModel[];
     }, [values.speechMode]);
 
     const llmModelOptions = useMemo<LLMModel[]>(() => {
-        const base = values.llmMode === LLM_MODES.API ? LLM_API_MODELS : LLM_LOCAL_MODELS;
-        return [...base] as LLMModel[];
-    }, [values.llmMode]);
+        if (values.llmMode === LLM_MODES.API) {
+            const apiModels: string[] = [...LLM_OPENAI_API_MODELS];
+            if (values.geminiKey.trim().length > 0) {
+                apiModels.push(...LLM_GEMINI_API_MODELS);
+            }
+            return apiModels as LLMModel[];
+        }
+        return [...LLM_LOCAL_MODELS] as LLMModel[];
+    }, [values.llmMode, values.geminiKey]);
 
     const emitChange = (partial: Partial<ModelConfigFormData>) => {
         const nextValues = {...values, ...partial};
@@ -107,8 +133,10 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         </TextField>
     );
 
-    const requiresOpenAIKey = values.llmMode === LLM_MODES.API;
+    const requiresOpenAIKey = values.llmMode === LLM_MODES.API && isOpenAiApiModel(values.llmModel);
+    const requiresGeminiKey = values.llmMode === LLM_MODES.API && isGeminiApiModel(values.llmModel);
     const requiresGoogleKey = values.speechMode === SPEECH_MODES.API;
+    const needsAnyApiKey = requireApiKeys && (requiresOpenAIKey || requiresGeminiKey || requiresGoogleKey);
 
     return (
         <Box
@@ -182,7 +210,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                     >
                         {llmModelOptions.map((model) => (
                             <MenuItem key={model} value={model}>
-                                {formatLabel(model)}
+                                {formatLLMLabel(model)}
                             </MenuItem>
                         ))}
                     </TextField>
@@ -194,9 +222,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                     API Keys
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                    {requireApiKeys && (requiresOpenAIKey || requiresGoogleKey)
-                        ? 'Please provide at least one API key for the selected mode(s).'
-                        : 'These keys are used for speech recognition (Google) and LLM processing (OpenAI). Leave empty if you plan to work in local mode.'}
+                    {needsAnyApiKey
+                        ? 'Provide the API keys required for the selected providers below.'
+                        : 'These keys are used for speech recognition (Google) and LLM processing (OpenAI or Gemini). Leave empty if you plan to work in local mode.'}
                 </Typography>
 
                 {requiresGoogleKey && (
@@ -211,15 +239,15 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             required={requireApiKeys && requiresGoogleKey && !requiresOpenAIKey}
                             disabled={saving}
                         />
-                        {requireApiKeys && requiresOpenAIKey && (
+                        {requireApiKeys && requiresGoogleKey && (
                             <Typography variant="caption" color="text.secondary">
-                                Required for API-based speech recognition. Can be skipped if OpenAI key is provided.
+                                Required for API-based speech recognition.
                             </Typography>
                         )}
                     </Stack>
                 )}
 
-                {requiresOpenAIKey && (
+                {values.llmMode === LLM_MODES.API && (
                     <Stack spacing={0.5}>
                         <TextField
                             id="openai-key"
@@ -228,12 +256,32 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             value={values.openaiKey}
                             onChange={(e) => emitChange({openaiKey: e.target.value})}
                             placeholder="sk-..."
-                            required={requireApiKeys && requiresOpenAIKey && !requiresGoogleKey}
+                            required={requireApiKeys && requiresOpenAIKey}
                             disabled={saving}
                         />
-                        {requireApiKeys && requiresGoogleKey && (
+                        {requireApiKeys && requiresOpenAIKey && (
                             <Typography variant="caption" color="text.secondary">
-                                Required for API-based LLM processing. Can be skipped if Google key is provided.
+                                Required for OpenAI GPT models in API mode.
+                            </Typography>
+                        )}
+                    </Stack>
+                )}
+
+                {values.llmMode === LLM_MODES.API && (
+                    <Stack spacing={0.5}>
+                        <TextField
+                            id="gemini-key"
+                            type="password"
+                            label="Google Gemini API Key"
+                            value={values.geminiKey}
+                            onChange={(e) => emitChange({geminiKey: e.target.value})}
+                            placeholder="AIza..."
+                            required={requireApiKeys && requiresGeminiKey}
+                            disabled={saving}
+                        />
+                        {requireApiKeys && requiresGeminiKey && (
+                            <Typography variant="caption" color="text.secondary">
+                                Required for Google Gemini models in API mode.
                             </Typography>
                         )}
                     </Stack>

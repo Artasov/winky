@@ -84,6 +84,6 @@ publish:
   bucket: 324718a4-2cc5dd7a-917b-4e82-87c5-b9d5f8de16ba
   endpoint: https://s3.twcstorage.ru
   region: ru-1
-  s3ForcePathStyle: true
+  forcePathStyle: true
   acl: private
   path: winky/${version}/${os}

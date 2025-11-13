@@ -98,9 +98,7 @@ jobs:
 
       - name: Install AWS CLI
         if: success()
-        uses: aws-actions/aws-cli-setup@v2
-        with:
-          version: '2.x'
+        uses: aws-actions/setup-aws-cli@v2
 
       - name: Upload artifacts to S3
         if: success()

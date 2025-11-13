@@ -96,10 +96,6 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: npm run build:linux
 
-      - name: Install AWS CLI
-        if: success()
-        uses: aws-actions/setup-aws-cli@v2
-
       - name: Upload artifacts to S3
         if: success()
         shell: bash

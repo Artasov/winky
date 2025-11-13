@@ -31,8 +31,11 @@ export class MicWindowController implements WindowController {
     private autoShowDisabled = false;
     private interactive = false;
     private createPromise: Promise<BrowserWindow | null> | null = null;
+    private micAutoStartEnabled = false;
 
-    constructor(private readonly deps: MicWindowDeps) {}
+    constructor(private readonly deps: MicWindowDeps) {
+        void this.refreshMicAutoStart();
+    }
 
     getWindow(): BrowserWindow | null {
         return this.window;
@@ -235,6 +238,19 @@ export class MicWindowController implements WindowController {
         this.createPromise = null;
     }
 
+    setMicAutoStart(enabled: boolean): void {
+        this.micAutoStartEnabled = Boolean(enabled);
+    }
+
+    async refreshMicAutoStart(): Promise<void> {
+        try {
+            const config = await this.deps.configRepository.get();
+            this.micAutoStartEnabled = Boolean(config.micAutoStartRecording);
+        } catch (error) {
+            this.deps.sendLog('MIC_WINDOW', `Failed to refresh mic auto-start flag: ${error}`);
+        }
+    }
+
     private async createWindow(): Promise<BrowserWindow | null> {
         if (this.window && !this.window.isDestroyed()) {
             return this.window;
@@ -376,25 +392,13 @@ export class MicWindowController implements WindowController {
         if (reason !== 'shortcut' && reason !== 'taskbar') {
             return;
         }
-        void (async () => {
-            try {
-                const config = await this.deps.configRepository.get();
-                if (!config.micAutoStartRecording) {
-                    return;
-                }
-                if (!this.window || this.window.isDestroyed()) {
-                    return;
-                }
-                setTimeout(() => {
-                    if (!this.window || this.window.isDestroyed()) {
-                        return;
-                    }
-                    this.window.webContents.send('mic:start-recording');
-                }, 50);
-            } catch (error) {
-                this.deps.sendLog('MIC_WINDOW', `Failed to schedule auto start: ${error}`);
-            }
-        })();
+        if (!this.micAutoStartEnabled) {
+            return;
+        }
+        if (!this.window || this.window.isDestroyed()) {
+            return;
+        }
+        this.window.webContents.send('mic:start-recording');
     }
 
     private async resolveTargetDisplay(): Promise<Electron.Display> {

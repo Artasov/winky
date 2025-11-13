@@ -37,6 +37,7 @@ export const handleAppReady = async (deps: AppLifecycleDeps): Promise<void> => {
 
     try {
         const config = await getConfig();
+        deps.micWindowController.setMicAutoStart(Boolean(config.micAutoStartRecording));
         try {
             await syncAutoLaunchSetting(Boolean(config.launchOnSystemStartup));
         } catch (error) {

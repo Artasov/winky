@@ -72,6 +72,7 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
         }
 
         await broadcastConfigUpdate();
+        deps.micWindowController.setMicAutoStart(Boolean(updated.micAutoStartRecording));
         await deps.registerMicShortcut();
         if (typeof partialConfig.micAnchor === 'string') {
             void deps.micWindowController.applyAnchor(partialConfig.micAnchor as MicAnchor, false);
@@ -120,6 +121,7 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
             throw error;
         }
         await broadcastConfigUpdate();
+        deps.micWindowController.setMicAutoStart(Boolean(reset.micAutoStartRecording));
         await deps.registerMicShortcut();
 
         const micInstance = deps.micWindowController.getWindow();

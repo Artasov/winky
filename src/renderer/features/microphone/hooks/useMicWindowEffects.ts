@@ -1,4 +1,4 @@
-import {useEffect} from 'react';
+import {useEffect, useRef} from 'react';
 
 type MicWindowEffectsParams = {
     isMicOverlay: boolean;
@@ -19,8 +19,10 @@ export const useMicWindowEffects = ({
     finishRecording,
     setActiveActionId
 }: MicWindowEffectsParams) => {
+    const autoStartRetryTimeoutRef = useRef<number | null>(null);
+
     useEffect(() => {
-        if (!isMicOverlay) {
+        if (!isMicOverlay || typeof window === 'undefined') {
             return;
         }
 
@@ -29,22 +31,36 @@ export const useMicWindowEffects = ({
             return;
         }
 
+        const clearAutoStartRetry = () => {
+            if (autoStartRetryTimeoutRef.current !== null) {
+                window.clearTimeout(autoStartRetryTimeoutRef.current);
+                autoStartRetryTimeoutRef.current = null;
+            }
+        };
+
+        const attemptAutoStart = () => {
+            const toggle = handleMicrophoneToggleRef.current;
+            if (!toggle) {
+                autoStartRetryTimeoutRef.current = window.setTimeout(attemptAutoStart, 50);
+                return;
+            }
+            Promise.resolve(toggle()).finally(() => {
+                autoStartPendingRef.current = false;
+                clearAutoStartRetry();
+            });
+        };
+
         const startHandler = () => {
             if (autoStartPendingRef.current || isRecordingRef.current || processingRef.current) {
                 return;
             }
-            const toggle = handleMicrophoneToggleRef.current;
-            if (!toggle) {
-                return;
-            }
             autoStartPendingRef.current = true;
-            Promise.resolve(toggle()).finally(() => {
-                autoStartPendingRef.current = false;
-            });
+            attemptAutoStart();
         };
 
         const visibilityHandler = (_event: unknown, payload: { visible: boolean }) => {
             if (!payload?.visible) {
+                clearAutoStartRetry();
                 autoStartPendingRef.current = false;
                 if (isRecordingRef.current) {
                     (async () => {
@@ -61,6 +77,7 @@ export const useMicWindowEffects = ({
         api.on('mic:start-recording', startHandler);
         api.on('mic:visibility-change', visibilityHandler);
         return () => {
+            clearAutoStartRetry();
             api.removeListener?.('mic:start-recording', startHandler);
             api.removeListener?.('mic:visibility-change', visibilityHandler);
         };

@@ -8,7 +8,7 @@ class GeminiLLMService extends ApiLLMBaseService {
 
     protected buildUrl(): string {
         if (!this.accessToken) {
-            throw new Error('Укажите Gemini API Key для использования этой модели.');
+            throw new Error('Укажите Google AI API Key для использования этой модели.');
         }
         return `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.accessToken}`;
     }

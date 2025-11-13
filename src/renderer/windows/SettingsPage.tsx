@@ -17,7 +17,6 @@ const SettingsPage: React.FC = () => {
     const [formData, setFormData] = useState<ModelConfigFormData>({
         openaiKey: '',
         googleKey: '',
-        geminiKey: '',
         speechMode: SPEECH_MODES.API,
         speechModel: SPEECH_API_MODELS[0],
         llmMode: LLM_MODES.API,
@@ -39,7 +38,6 @@ const SettingsPage: React.FC = () => {
             setFormData({
                 openaiKey: config.apiKeys.openai ?? '',
                 googleKey: config.apiKeys.google ?? '',
-                geminiKey: config.apiKeys.gemini ?? '',
                 speechMode: config.speech.mode,
                 speechModel: config.speech.model,
                 llmMode: config.llm.mode,
@@ -108,8 +106,7 @@ const SettingsPage: React.FC = () => {
             await updateConfig({
                 apiKeys: {
                     openai: nextValues.openaiKey.trim(),
-                    google: nextValues.googleKey.trim(),
-                    gemini: nextValues.geminiKey.trim()
+                    google: nextValues.googleKey.trim()
                 },
                 speech: {
                     mode: nextValues.speechMode,

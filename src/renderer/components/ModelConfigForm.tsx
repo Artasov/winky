@@ -16,7 +16,6 @@ import LocalSpeechInstallControl from './LocalSpeechInstallControl';
 export interface ModelConfigFormData {
     openaiKey: string;
     googleKey: string;
-    geminiKey: string;
     speechMode: SpeechMode;
     speechModel: SpeechModel;
     llmMode: LLMMode;
@@ -86,13 +85,13 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const llmModelOptions = useMemo<LLMModel[]>(() => {
         if (values.llmMode === LLM_MODES.API) {
             const apiModels: string[] = [...LLM_OPENAI_API_MODELS];
-            if (values.geminiKey.trim().length > 0) {
+            if (values.googleKey.trim().length > 0) {
                 apiModels.push(...LLM_GEMINI_API_MODELS);
             }
             return apiModels as LLMModel[];
         }
         return [...LLM_LOCAL_MODELS] as LLMModel[];
-    }, [values.llmMode, values.geminiKey]);
+    }, [values.llmMode, values.googleKey]);
 
     const emitChange = (partial: Partial<ModelConfigFormData>) => {
         const nextValues = {...values, ...partial};
@@ -134,9 +133,10 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     );
 
     const requiresOpenAIKey = values.llmMode === LLM_MODES.API && isOpenAiApiModel(values.llmModel);
-    const requiresGeminiKey = values.llmMode === LLM_MODES.API && isGeminiApiModel(values.llmModel);
-    const requiresGoogleKey = values.speechMode === SPEECH_MODES.API;
-    const needsAnyApiKey = requireApiKeys && (requiresOpenAIKey || requiresGeminiKey || requiresGoogleKey);
+    const requiresGoogleKeyForLLM = values.llmMode === LLM_MODES.API && isGeminiApiModel(values.llmModel);
+    const requiresGoogleKeyForSpeech = values.speechMode === SPEECH_MODES.API;
+    const requiresGoogleKey = requiresGoogleKeyForSpeech || requiresGoogleKeyForLLM;
+    const needsAnyApiKey = requireApiKeys && (requiresOpenAIKey || requiresGoogleKey);
 
     return (
         <Box
@@ -224,28 +224,31 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 <Typography variant="body2" color="text.secondary">
                     {needsAnyApiKey
                         ? 'Provide the API keys required for the selected providers below.'
-                        : 'These keys are used for speech recognition (Google) and LLM processing (OpenAI or Gemini). Leave empty if you plan to work in local mode.'}
+                        : 'These keys are used for API-based speech recognition and LLM processing (OpenAI or Google Gemini). Leave empty if you plan to work in local mode.'}
                 </Typography>
 
-                {requiresGoogleKey && (
-                    <Stack spacing={0.5}>
-                        <TextField
-                            id="google-key"
-                            type="password"
-                            label="Google AI Key"
-                            value={values.googleKey}
-                            onChange={(e) => emitChange({googleKey: e.target.value})}
-                            placeholder="AIza..."
-                            required={requireApiKeys && requiresGoogleKey && !requiresOpenAIKey}
-                            disabled={saving}
-                        />
-                        {requireApiKeys && requiresGoogleKey && (
-                            <Typography variant="caption" color="text.secondary">
-                                Required for API-based speech recognition.
-                            </Typography>
-                        )}
-                    </Stack>
-                )}
+                <Stack spacing={0.5}>
+                    <TextField
+                        id="google-key"
+                        type="password"
+                        label="Google AI API Key"
+                        value={values.googleKey}
+                        onChange={(e) => emitChange({googleKey: e.target.value})}
+                        placeholder="AIza..."
+                        required={requireApiKeys && requiresGoogleKey && !requiresOpenAIKey}
+                        disabled={saving}
+                    />
+                    {requireApiKeys && requiresGoogleKey && (
+                        <Typography variant="caption" color="text.secondary">
+                            Required for {[
+                                requiresGoogleKeyForSpeech ? 'API-based speech recognition' : null,
+                                requiresGoogleKeyForLLM ? 'Google Gemini LLM models' : null
+                            ]
+                                .filter(Boolean)
+                                .join(' + ')}.
+                        </Typography>
+                    )}
+                </Stack>
 
                 {values.llmMode === LLM_MODES.API && (
                     <Stack spacing={0.5}>
@@ -262,26 +265,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         {requireApiKeys && requiresOpenAIKey && (
                             <Typography variant="caption" color="text.secondary">
                                 Required for OpenAI GPT models in API mode.
-                            </Typography>
-                        )}
-                    </Stack>
-                )}
-
-                {values.llmMode === LLM_MODES.API && (
-                    <Stack spacing={0.5}>
-                        <TextField
-                            id="gemini-key"
-                            type="password"
-                            label="Google Gemini API Key"
-                            value={values.geminiKey}
-                            onChange={(e) => emitChange({geminiKey: e.target.value})}
-                            placeholder="AIza..."
-                            required={requireApiKeys && requiresGeminiKey}
-                            disabled={saving}
-                        />
-                        {requireApiKeys && requiresGeminiKey && (
-                            <Typography variant="caption" color="text.secondary">
-                                Required for Google Gemini models in API mode.
                             </Typography>
                         )}
                     </Stack>

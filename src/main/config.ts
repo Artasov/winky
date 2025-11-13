@@ -27,8 +27,7 @@ const DEFAULT_CONFIG: AppConfig = {
     },
     apiKeys: {
         openai: '',
-        google: '',
-        gemini: ''
+        google: ''
     },
     actions: [],
     micWindowPosition: undefined,
@@ -74,10 +73,9 @@ const schema: Schema<AppConfig> = {
         type: 'object',
         properties: {
             openai: {type: 'string'},
-            google: {type: 'string'},
-            gemini: {type: 'string'}
+            google: {type: 'string'}
         },
-        required: ['openai', 'google', 'gemini']
+        required: ['openai', 'google']
     },
     actions: {
         type: 'array',
@@ -240,7 +238,7 @@ const ensureConfigIntegrity = async (): Promise<AppConfig> => {
     }
 
     if (!current.apiKeys) {
-        current.apiKeys = {openai: '', google: '', gemini: ''};
+        current.apiKeys = {openai: '', google: ''};
         changed = true;
     } else {
         if (typeof current.apiKeys.openai !== 'string') {
@@ -251,8 +249,15 @@ const ensureConfigIntegrity = async (): Promise<AppConfig> => {
             current.apiKeys.google = '';
             changed = true;
         }
-        if (typeof current.apiKeys.gemini !== 'string') {
-            current.apiKeys.gemini = '';
+
+        const legacyApiKeys = current.apiKeys as unknown as Record<string, unknown>;
+        const legacyGemini = typeof legacyApiKeys.gemini === 'string' ? (legacyApiKeys.gemini as string) : '';
+        if (legacyGemini && !current.apiKeys.google) {
+            current.apiKeys.google = legacyGemini;
+            changed = true;
+        }
+        if ('gemini' in legacyApiKeys) {
+            delete legacyApiKeys.gemini;
             changed = true;
         }
     }

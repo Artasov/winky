@@ -33,7 +33,6 @@ import Qwen34bLLMService from './models/local/Qwen34bLLMService';
 interface LLMServiceOptions {
     openaiKey?: string;
     googleKey?: string;
-    geminiKey?: string;
     accessToken?: string;
 }
 
@@ -78,10 +77,10 @@ export const createLLMService = (
             case 'gemini-1.5-pro':
             case 'gemini-1.5-flash':
             case 'gemini-1.0-pro':
-                if (!options.geminiKey) {
-                    throw new Error('Требуется Gemini API Key для использования моделей Google Gemini.');
+                if (!options.googleKey) {
+                    throw new Error('Требуется Google AI API Key для использования моделей Google Gemini.');
                 }
-                return new GeminiLLMService(model, options.geminiKey);
+                return new GeminiLLMService(model, options.googleKey);
             default:
                 throw new Error(`Неизвестная API LLM модель: ${model}`);
         }

@@ -43,7 +43,6 @@ type LlmProcessConfig = {
     model: string;
     openaiKey?: string;
     googleKey?: string;
-    geminiKey?: string;
     accessToken?: string;
 };
 

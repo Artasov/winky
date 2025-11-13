@@ -172,13 +172,11 @@ export const processLLM = async (text: string, prompt: string, config: {
     model: string;
     openaiKey?: string;
     googleKey?: string;
-    geminiKey?: string;
     accessToken?: string
 }): Promise<string> => {
     const service = createLLMService(config.mode as any, config.model as any, {
         openaiKey: config.openaiKey,
         googleKey: config.googleKey,
-        geminiKey: config.geminiKey,
         accessToken: config.accessToken
     });
 
@@ -190,13 +188,11 @@ export const processLLMStream = async (text: string, prompt: string, config: {
     model: string;
     openaiKey?: string;
     googleKey?: string;
-    geminiKey?: string;
     accessToken?: string
 }): Promise<string> => {
     const service = createLLMService(config.mode as any, config.model as any, {
         openaiKey: config.openaiKey,
         googleKey: config.googleKey,
-        geminiKey: config.geminiKey,
         accessToken: config.accessToken
     });
     return await service.process(text, prompt);

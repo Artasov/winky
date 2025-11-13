@@ -106,7 +106,6 @@ export interface WinkyProfile {
 export interface ApiKeys {
     openai: string;
     google: string;
-    gemini: string;
 }
 
 export interface AppConfig {

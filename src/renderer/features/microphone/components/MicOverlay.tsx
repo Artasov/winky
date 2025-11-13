@@ -57,49 +57,6 @@ const MicOverlay: React.FC = () => {
         setActiveActionId
     });
 
-    useEffect(() => {
-        if (!config) {
-            return;
-        }
-
-        const handler = (event: KeyboardEvent) => {
-            if (!isRecording || displayedActions.length === 0) {
-                return;
-            }
-            const action = config.actions.find((a) => {
-                if (!a.hotkey) {
-                    return false;
-                }
-                const normalizedActionHotkey = a.hotkey.trim().replace(/\s+/g, '');
-                const parts: string[] = [];
-                if (event.ctrlKey || event.metaKey) {
-                    parts.push('Ctrl');
-                }
-                if (event.altKey) {
-                    parts.push('Alt');
-                }
-                if (event.shiftKey) {
-                    parts.push('Shift');
-                }
-                if (event.key) {
-                    parts.push(event.key.toUpperCase());
-                }
-                const normalizedEventHotkey = parts.join('');
-                return normalizedActionHotkey.toLowerCase() === normalizedEventHotkey.toLowerCase();
-            });
-            if (action) {
-                event.preventDefault();
-                event.stopPropagation();
-                void handleActionClick(action);
-            }
-        };
-
-        window.addEventListener('keydown', handler);
-        return () => {
-            window.removeEventListener('keydown', handler);
-        };
-    }, [config, displayedActions, handleActionClick, isRecording]);
-
     if (!config) {
         return (
             <div className="pointer-events-none relative flex h-full w-full items-center justify-center">

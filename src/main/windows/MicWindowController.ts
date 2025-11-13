@@ -30,6 +30,7 @@ export class MicWindowController implements WindowController {
     private visible = false;
     private autoShowDisabled = false;
     private interactive = false;
+    private createPromise: Promise<BrowserWindow | null> | null = null;
 
     constructor(private readonly deps: MicWindowDeps) {}
 
@@ -39,10 +40,20 @@ export class MicWindowController implements WindowController {
 
     async ensureWindow(): Promise<BrowserWindow | null> {
         if (this.window && !this.window.isDestroyed()) {
+            if (this.createPromise) {
+                await this.createPromise;
+            }
             return this.window;
         }
-        await this.createWindow();
-        return this.window;
+
+        if (!this.createPromise) {
+            this.createPromise = this.createWindow().finally(() => {
+                this.createPromise = null;
+            });
+        }
+
+        const instance = await this.createPromise;
+        return instance;
     }
 
     async toggle(reason: MicVisibilityReason = 'manual'): Promise<void> {
@@ -221,6 +232,7 @@ export class MicWindowController implements WindowController {
         this.window = null;
         this.visible = false;
         this.interactive = false;
+        this.createPromise = null;
     }
 
     private async createWindow(): Promise<BrowserWindow | null> {
@@ -259,31 +271,39 @@ export class MicWindowController implements WindowController {
             }
         };
 
-        this.window = new BrowserWindow(windowOptions);
-        this.window.setMenuBarVisibility(false);
-        this.window.setHasShadow(false);
-        this.window.setSkipTaskbar(true);
-        this.window.setBackgroundColor('#00000000');
+        const window = new BrowserWindow(windowOptions);
+        this.window = window;
+
+        window.setMenuBarVisibility(false);
+        window.setHasShadow(false);
+        window.setSkipTaskbar(true);
+        window.setBackgroundColor('#00000000');
 
         if (isMac) {
-            this.window.setAlwaysOnTop(true, 'floating', 1);
-            this.window.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
-            this.window.setFocusable(false);
+            window.setAlwaysOnTop(true, 'floating', 1);
+            window.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
+            window.setFocusable(false);
         } else {
-            this.window.setAlwaysOnTop(true, 'screen-saver', 1);
-            this.window.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
-            this.window.setFocusable(true);
+            window.setAlwaysOnTop(true, 'screen-saver', 1);
+            window.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
+            window.setFocusable(true);
         }
 
-        this.window.setIgnoreMouseEvents(true, {forward: true});
+        window.setIgnoreMouseEvents(true, {forward: true});
         if (safePosition) {
-            this.window.setPosition(Math.round(safePosition.x), Math.round(safePosition.y));
+            window.setPosition(Math.round(safePosition.x), Math.round(safePosition.y));
         }
 
-        if (this.deps.isDev) {
-            void this.window.loadURL('http://localhost:5173/?window=mic#/mic');
-        } else {
-            void this.window.loadFile(this.deps.rendererPath, {hash: '/mic', query: {window: 'mic'}});
+        try {
+            if (this.deps.isDev) {
+                await window.loadURL('http://localhost:5173/?window=mic#/mic');
+            } else {
+                await window.loadFile(this.deps.rendererPath, {hash: '/mic', query: {window: 'mic'}});
+            }
+        } catch (error) {
+            window.destroy();
+            this.window = null;
+            throw error;
         }
 
         this.window.on('show', () => {
@@ -301,6 +321,7 @@ export class MicWindowController implements WindowController {
         this.window.on('closed', () => {
             this.visible = false;
             this.window = null;
+            this.createPromise = null;
         });
 
         this.window.on('move', async () => {

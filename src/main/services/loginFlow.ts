@@ -74,7 +74,8 @@ export const performLogin = async (
 
     if (!micWindow || micWindow.isDestroyed()) {
         sendLogToRenderer('LOGIN', '🎤 Creating mic window after login...');
-        void deps.createMicWindow().then(() => {
+        try {
+            await deps.createMicWindow();
             const created = deps.micWindowController.getWindow();
             if (deps.isDev && created) {
                 created.webContents.openDevTools({mode: 'detach'});
@@ -87,7 +88,9 @@ export const performLogin = async (
                 sendLogToRenderer('LOGIN', '🔒 Closing main window after mic window created');
                 mainWin.close();
             }
-        }).catch((error) => sendLogToRenderer('LOGIN', `❌ Failed to create mic window: ${error}`));
+        } catch (error) {
+            sendLogToRenderer('LOGIN', `❌ Failed to create mic window: ${error}`);
+        }
     } else {
         sendLogToRenderer('LOGIN', '⏭️ Mic window already exists, skipping creation');
         if (shouldAutoShowMic && micWindow && !micWindow.isDestroyed()) {

@@ -58,7 +58,8 @@ export const handleAppReady = async (deps: AppLifecycleDeps): Promise<void> => {
             const shouldAutoShowMic = config.setupCompleted && wantsMicOnLaunch;
             const micWindowInstance = deps.micWindowController.getWindow();
             if (!micWindowInstance || micWindowInstance.isDestroyed()) {
-                void deps.createMicWindow().then(() => {
+                try {
+                    await deps.createMicWindow();
                     const win = deps.micWindowController.getWindow();
                     if (deps.isDev && win) {
                         win.webContents.openDevTools({mode: 'detach'});
@@ -66,9 +67,9 @@ export const handleAppReady = async (deps: AppLifecycleDeps): Promise<void> => {
                     if (shouldAutoShowMic && win && !win.isDestroyed()) {
                         deps.showMicWindowInstance('auto');
                     }
-                }).catch((error) => {
+                } catch (error) {
                     sendLogToRenderer('APP_READY', `❌ Failed to create mic window: ${error}`);
-                });
+                }
             } else if (shouldAutoShowMic) {
                 deps.showMicWindowInstance('auto');
             }

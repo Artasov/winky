@@ -84,7 +84,8 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
         if (shouldAutoShowMic) {
             const existingMicWindow = deps.micWindowController.getWindow();
             if (!existingMicWindow) {
-                void deps.createMicWindow().then(() => {
+                try {
+                    await deps.createMicWindow();
                     const win = deps.micWindowController.getWindow();
                     if (deps.isDev && win) {
                         win.webContents.openDevTools({mode: 'detach'});
@@ -92,9 +93,9 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
                     if (win) {
                         deps.showMicWindowInstance('auto');
                     }
-                }).catch((error) => {
+                } catch (error) {
                     sendLogToRenderer('MIC_WINDOW', `❌ Failed to auto-show mic after config update: ${error}`);
-                });
+                }
             } else if (partialConfig.setupCompleted === true) {
                 deps.showMicWindowInstance('auto');
             }

@@ -42,6 +42,8 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     const autoStartPendingRef = useRef(false);
     const isRecordingRef = useRef(false);
     const processingRef = useRef(false);
+    const lastDomActionHotkeyTsRef = useRef(0);
+    const lastGlobalActionHotkeyTsRef = useRef(0);
     const handleMicrophoneToggleRef = useRef<(() => Promise<void> | void) | null>(null);
     const completionSoundRef = useRef<HTMLAudioElement | null>(null);
     const localServerAlertInFlightRef = useRef(false);
@@ -332,10 +334,11 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     }, [ensureSpeechService, finishRecording, isRecording, showToast, startVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 
     const handleActionClick = useCallback(async (action: ActionConfig) => {
-        if (processing || !isRecording || !ensureSpeechService()) {
+        if (processingRef.current || processing || !isRecordingRef.current || !isRecording || !ensureSpeechService()) {
             return;
         }
 
+        processingRef.current = true;
         setActiveActionId(action.id);
         setProcessing(true);
         try {
@@ -347,6 +350,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             setIsRecording(false);
             stopVolumeMonitor();
             setActiveActionId(null);
+            processingRef.current = false;
             setProcessing(false);
             resetInteractive();
             if (isMicOverlay && config?.micHideOnStopRecording !== false) {
@@ -377,6 +381,53 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     useEffect(() => {
         handleMicrophoneToggleRef.current = handleMicrophoneToggle;
     }, [handleMicrophoneToggle]);
+
+    useEffect(() => {
+        if (!isMicOverlay || typeof window === 'undefined') {
+            return;
+        }
+        const handler = (event: KeyboardEvent) => {
+            if (!isRecordingRef.current || actions.length === 0 || event.repeat) {
+                return;
+            }
+            const action = actions.find((a) => {
+                if (!a.hotkey) {
+                    return false;
+                }
+                const normalizedActionHotkey = a.hotkey.trim().replace(/\s+/g, '');
+                const parts: string[] = [];
+                if (event.ctrlKey || event.metaKey) {
+                    parts.push('Ctrl');
+                }
+                if (event.altKey) {
+                    parts.push('Alt');
+                }
+                if (event.shiftKey) {
+                    parts.push('Shift');
+                }
+                if (event.key) {
+                    parts.push(event.key.toUpperCase());
+                }
+                const normalizedEventHotkey = parts.join('');
+                return normalizedActionHotkey.toLowerCase() === normalizedEventHotkey.toLowerCase();
+            });
+            if (!action) {
+                return;
+            }
+            const now = Date.now();
+            lastDomActionHotkeyTsRef.current = now;
+            if (now - lastGlobalActionHotkeyTsRef.current < 150) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            void handleActionClick(action);
+        };
+        window.addEventListener('keydown', handler);
+        return () => {
+            window.removeEventListener('keydown', handler);
+        };
+    }, [actions, handleActionClick, isMicOverlay]);
 
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
@@ -417,6 +468,11 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             if (!action) {
                 return;
             }
+            const now = Date.now();
+            if (now - lastDomActionHotkeyTsRef.current < 150) {
+                return;
+            }
+            lastGlobalActionHotkeyTsRef.current = now;
             void handleActionClick(action);
         };
         window.electron?.on?.('hotkey:action-triggered', handler);

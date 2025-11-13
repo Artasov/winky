@@ -77,35 +77,48 @@ export class MainWindowController implements WindowController {
         const targetRoute = await this.resolveRoute(route);
         const win = this.ensureWindow();
 
-        const sendRoute = () => {
-            if (targetRoute) {
-                win.webContents.send('navigate-to', targetRoute);
+        const applyRoute = () => {
+            if (!targetRoute || win.isDestroyed()) {
+                return;
             }
+            win.webContents.send('navigate-to', targetRoute);
+        };
+
+        const showAndFocus = () => {
+            if (win.isDestroyed()) {
+                return;
+            }
+            win.show();
+            win.focus();
+        };
+
+        const applyRouteThenShow = () => {
+            if (targetRoute) {
+                applyRoute();
+            }
+            showAndFocus();
         };
 
         if (win.isVisible()) {
-            win.show();
-            win.focus();
-            sendRoute();
+            applyRouteThenShow();
             return;
         }
 
-        if (!win.webContents.isLoading()) {
-            win.show();
-            win.focus();
-            if (targetRoute) {
-                setTimeout(sendRoute, 100);
-            }
+        if (win.webContents.isLoading()) {
+            let handled = false;
+            const handleLoadComplete = () => {
+                if (handled) {
+                    return;
+                }
+                handled = true;
+                applyRouteThenShow();
+            };
+            win.webContents.once('did-finish-load', handleLoadComplete);
+            win.webContents.once('did-fail-load', handleLoadComplete);
             return;
         }
 
-        win.once('ready-to-show', () => {
-            win.show();
-            win.focus();
-            if (targetRoute) {
-                setTimeout(sendRoute, 100);
-            }
-        });
+        applyRouteThenShow();
     }
 
     private openDevToolsIfNeeded(): void {

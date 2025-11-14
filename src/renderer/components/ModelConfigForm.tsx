@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo} from 'react';
-import {Box, Button, MenuItem, Stack, TextField, Typography} from '@mui/material';
+import {Box, Button, Collapse, MenuItem, Stack, TextField, Typography} from '@mui/material';
 import {
     LLM_API_MODELS,
     LLM_GEMINI_API_MODELS,
@@ -56,6 +56,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                                              submitButtonText = 'Save'
                                                          }) => {
     const shouldAutoSave = autoSave && typeof onAutoSave === 'function';
+    const disableInputs = saving && !shouldAutoSave;
 
     const formatLabel = (value: string) =>
         value
@@ -123,7 +124,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 const speechModel = getDefaultSpeechModel(speechMode);
                 emitChange({speechMode, speechModel});
             }}
-            disabled={saving}
+            disabled={disableInputs}
             fullWidth
             sx={sx}
         >
@@ -164,20 +165,18 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         gridTemplateColumns: {xs: 'repeat(1, minmax(0, 1fr))', md: 'repeat(2, minmax(0, 1fr))'}
                     }}
                 >
-                    {values.speechMode === SPEECH_MODES.LOCAL ? (
-                        <div className={'fc gap-2'}>
-                            {renderSpeechModeSelector({flex: 1})}
-                            <LocalSpeechInstallControl disabled={saving}/>
-                        </div>
-                    ) : (
-                        renderSpeechModeSelector()
-                    )}
+                    <div className={'fc gap-2'}>
+                        {renderSpeechModeSelector({flex: 1})}
+                        <Collapse in={values.speechMode === SPEECH_MODES.LOCAL} unmountOnExit>
+                            <LocalSpeechInstallControl disabled={disableInputs}/>
+                        </Collapse>
+                    </div>
                     <TextField
                         select
                         label="Speech Model"
                         value={values.speechModel}
                         onChange={(e) => emitChange({speechModel: e.target.value as SpeechModel})}
-                        disabled={saving}
+                        disabled={disableInputs}
                     >
                         {speechModelOptions.map((model) => (
                             <MenuItem key={model} value={model}>
@@ -195,7 +194,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             const llmModel = getDefaultLLMModel(llmMode);
                             emitChange({llmMode, llmModel});
                         }}
-                        disabled={saving}
+                        disabled={disableInputs}
                     >
                         <MenuItem value={LLM_MODES.API}>API</MenuItem>
                         <MenuItem value={LLM_MODES.LOCAL}>Local</MenuItem>
@@ -206,7 +205,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         label="LLM Model"
                         value={values.llmModel}
                         onChange={(e) => emitChange({llmModel: e.target.value as LLMModel})}
-                        disabled={saving}
+                        disabled={disableInputs}
                     >
                         {llmModelOptions.map((model) => (
                             <MenuItem key={model} value={model}>
@@ -236,7 +235,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         onChange={(e) => emitChange({googleKey: e.target.value})}
                         placeholder="AIza..."
                         required={requireApiKeys && requiresGoogleKey && !requiresOpenAIKey}
-                        disabled={saving}
+                        disabled={disableInputs}
                     />
                     {requireApiKeys && requiresGoogleKey && (
                         <Typography variant="caption" color="text.secondary">
@@ -260,7 +259,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             onChange={(e) => emitChange({openaiKey: e.target.value})}
                             placeholder="sk-..."
                             required={requireApiKeys && requiresOpenAIKey}
-                            disabled={saving}
+                            disabled={disableInputs}
                         />
                         {requireApiKeys && requiresOpenAIKey && (
                             <Typography variant="caption" color="text.secondary">

@@ -135,7 +135,38 @@ jobs:
             exit 1
           fi
 
-          aws s3 cp "${SRC}" "s3://${S3_BUCKET}/winky/${VERSION}/${TARGET}/" \
+          UPLOAD_DIR="$(pwd)/release-filtered"
+          rm -rf "${UPLOAD_DIR}"
+          mkdir -p "${UPLOAD_DIR}"
+
+          case "${MATRIX_OS}" in
+            windows-latest)
+              FIND_EXPR=(-maxdepth 1 -type f -name "*.exe" ! -name "*.exe.blockmap")
+              ;;
+            macos-latest)
+              FIND_EXPR=(-maxdepth 1 -type f -name "*.dmg")
+              ;;
+            ubuntu-latest)
+              FIND_EXPR=(-maxdepth 1 -type f -name "*.deb")
+              ;;
+            *)
+              echo "Unknown OS matrix value during filtering: ${MATRIX_OS}"
+              exit 1
+              ;;
+          esac
+
+          FOUND=0
+          while IFS= read -r -d '' artifact; do
+            cp "${artifact}" "${UPLOAD_DIR}/"
+            FOUND=1
+          done < <(find "${SRC}" "${FIND_EXPR[@]}" -print0)
+
+          if [ "${FOUND}" -eq 0 ]; then
+            echo "No artifacts matching the upload criteria were found in ${SRC}"
+            exit 1
+          fi
+
+          aws s3 cp "${UPLOAD_DIR}" "s3://${S3_BUCKET}/winky/${VERSION}/${TARGET}/" \
             --recursive \
             --endpoint-url "${S3_ENDPOINT}" \
             --acl private

@@ -13,7 +13,7 @@ type Props = {
 const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete}) => {
     const promptText = action.prompt && action.prompt.trim().length > 0
         ? action.prompt
-        : 'Речь будет дословно преобразована в текст и отправлена без дополнительной LLM‑обработки.';
+        : 'Speech will be transcribed verbatim into text and sent without any additional LLM processing.';
 
     return (
         <Box

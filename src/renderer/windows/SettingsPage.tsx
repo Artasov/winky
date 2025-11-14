@@ -178,7 +178,10 @@ const SettingsPage: React.FC = () => {
             if (resolvedValue === 0) {
                 showToast('Completion sound disabled.', 'success');
             } else {
-                showToast(`Completion sound volume set to ${Math.round(resolvedValue * 100)}%.`, 'success');
+                showToast(
+                    `Completion sound volume set to ${Math.round(resolvedValue * 100)}%.`,
+                    'success', //{durationMs: 3333333}
+                );
             }
         } catch (error) {
             console.error('[SettingsPage] Failed to update completion sound volume', error);
@@ -336,7 +339,7 @@ const SettingsPage: React.FC = () => {
                         control={<Checkbox checked={launchOnSystemStartup} onChange={handleLaunchOnStartupChange}/>}
                         label="Start Winky when your computer boots"
                     />
-                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
                         Enable this to add Winky to system auto-start so it runs as soon as you log in.
                     </Typography>
                 </div>
@@ -352,7 +355,7 @@ const SettingsPage: React.FC = () => {
                         }
                         label="Auto-start local Whisper server"
                     />
-                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
                         Winky will install (if needed) and launch the bundled fast-fast-whisper server whenever Local
                         speech mode is active and setup is complete.
                     </Typography>
@@ -391,7 +394,7 @@ const SettingsPage: React.FC = () => {
                         onInvalid={handleHotkeyInvalid}
                         placeholder="Press keys to set shortcut"
                     />
-                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
                         Press the desired key combination. Press Escape or use Clear to remove the shortcut.
                     </Typography>
                 </div>
@@ -438,7 +441,7 @@ const SettingsPage: React.FC = () => {
                         control={<Checkbox checked={micAutoStart} onChange={handleAutoStartChange}/>}
                         label="Start recording automatically"
                     />
-                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
                         When enabled, showing the mic via hotkey or taskbar menu immediately begins recording.
                     </Typography>
                 </div>
@@ -448,7 +451,7 @@ const SettingsPage: React.FC = () => {
                         control={<Checkbox checked={micHideOnStop} onChange={handleHideOnStopChange}/>}
                         label="Hide mic overlay when recording stops"
                     />
-                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
                         When enabled, the mic overlay automatically hides after you stop recording. When disabled, it
                         stays visible.
                     </Typography>
@@ -459,7 +462,7 @@ const SettingsPage: React.FC = () => {
                         control={<Checkbox checked={micShowOnLaunch} onChange={handleShowOnLaunchChange}/>}
                         label="Show mic overlay when Winky starts"
                     />
-                    <Typography sx={{mt:-1}} variant="caption" color="text.secondary">
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
                         Controls whether the floating microphone opens automatically right after the app launches.
                     </Typography>
                 </div>

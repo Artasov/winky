@@ -90,6 +90,7 @@ export class MicWindowController implements WindowController {
             if (!this.window || this.window.isDestroyed()) {
                 return;
             }
+            this.window.webContents.send('mic:prepare-recording');
             if (process.platform === 'darwin') {
                 this.window.showInactive();
             } else {

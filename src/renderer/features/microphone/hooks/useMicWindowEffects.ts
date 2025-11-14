@@ -8,6 +8,7 @@ type MicWindowEffectsParams = {
     handleMicrophoneToggleRef: React.MutableRefObject<(() => Promise<void> | void) | null>;
     finishRecording: (resetUI?: boolean) => Promise<Blob | null>;
     setActiveActionId: (value: string | null) => void;
+    warmUpRecorder: () => Promise<void>;
 };
 
 export const useMicWindowEffects = ({
@@ -17,7 +18,8 @@ export const useMicWindowEffects = ({
     processingRef,
     handleMicrophoneToggleRef,
     finishRecording,
-    setActiveActionId
+    setActiveActionId,
+    warmUpRecorder
 }: MicWindowEffectsParams) => {
     const autoStartRetryTimeoutRef = useRef<number | null>(null);
 
@@ -59,34 +61,48 @@ export const useMicWindowEffects = ({
         };
 
         const visibilityHandler = (_event: unknown, payload: { visible: boolean }) => {
-            if (!payload?.visible) {
-                clearAutoStartRetry();
-                autoStartPendingRef.current = false;
-                if (isRecordingRef.current) {
-                    (async () => {
-                        try {
-                            await finishRecording();
-                        } finally {
-                            setActiveActionId(null);
-                        }
-                    })();
-                }
+            if (payload?.visible) {
+                void warmUpRecorder();
+                return;
+            }
+            clearAutoStartRetry();
+            autoStartPendingRef.current = false;
+            if (isRecordingRef.current) {
+                (async () => {
+                    try {
+                        await finishRecording();
+                    } finally {
+                        setActiveActionId(null);
+                    }
+                })();
             }
         };
 
+        const prepareHandler = () => {
+            void warmUpRecorder();
+        };
+
+        api.on('mic:prepare-recording', prepareHandler);
         api.on('mic:start-recording', startHandler);
         api.on('mic:visibility-change', visibilityHandler);
         return () => {
             clearAutoStartRetry();
+            api.removeListener?.('mic:prepare-recording', prepareHandler);
             api.removeListener?.('mic:start-recording', startHandler);
             api.removeListener?.('mic:visibility-change', visibilityHandler);
         };
-    }, [isMicOverlay, autoStartPendingRef, isRecordingRef, processingRef, handleMicrophoneToggleRef, finishRecording, setActiveActionId]);
+    }, [isMicOverlay, autoStartPendingRef, isRecordingRef, processingRef, handleMicrophoneToggleRef, finishRecording, setActiveActionId, warmUpRecorder]);
 
     useEffect(() => {
-        if (!isMicOverlay) {
+        if (!isMicOverlay || typeof window === 'undefined') {
             return;
         }
+
+        const api = window.winky;
+        if (!api?.on) {
+            return;
+        }
+
         const handleFadeIn = () => {
             document.body.classList.remove('fade-out');
             document.body.classList.add('fade-in');
@@ -96,11 +112,6 @@ export const useMicWindowEffects = ({
             document.body.classList.remove('fade-in');
             document.body.classList.add('fade-out');
         };
-
-        const api = window.winky;
-        if (!api?.on) {
-            return;
-        }
 
         api.on('mic:start-fade-in', handleFadeIn);
         api.on('mic:start-fade-out', handleFadeOut);

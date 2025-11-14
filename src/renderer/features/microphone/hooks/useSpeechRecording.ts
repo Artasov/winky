@@ -83,6 +83,14 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         }, 4000);
     }, []);
 
+    const warmUpRecorder = useCallback(async () => {
+        try {
+            await recorderRef.current?.warmUp();
+        } catch (error) {
+            console.warn('[MicOverlay] Recorder warm-up failed', error);
+        }
+    }, []);
+
     useEffect(() => {
         recorderRef.current = createSpeechRecorder();
         return () => {
@@ -90,6 +98,13 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             recorderRef.current = null;
         };
     }, []);
+
+    useEffect(() => {
+        if (!isMicOverlay) {
+            return;
+        }
+        void warmUpRecorder();
+    }, [isMicOverlay, warmUpRecorder]);
 
     const stopVolumeMonitor = useCallback(() => {
         if (animationFrameRef.current) {
@@ -501,7 +516,8 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             handleMicrophoneToggle,
             handleActionClick,
             finishRecording,
-            setActiveActionId
+            setActiveActionId,
+            warmUpRecorder
         }
     };
 };

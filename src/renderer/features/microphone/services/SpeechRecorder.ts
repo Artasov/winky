@@ -1,6 +1,7 @@
 export interface SpeechRecorder {
     startRecording(): Promise<MediaStream>;
     stopRecording(): Promise<Blob>;
+    warmUp(): Promise<void>;
     dispose(): void;
 }
 
@@ -29,6 +30,9 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
     private mediaRecorder: MediaRecorder | null = null;
     private chunks: Blob[] = [];
     private readonly mimeType = resolveMimeType();
+    private streamPromise: Promise<MediaStream> | null = null;
+    private releaseTimer: number | null = null;
+    private readonly STREAM_KEEP_ALIVE_MS = 5 * 60 * 1000;
 
     async startRecording(): Promise<MediaStream> {
         if (!navigator.mediaDevices?.getUserMedia) {
@@ -41,8 +45,9 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
             });
         }
 
-        this.mediaStream = await navigator.mediaDevices.getUserMedia({audio: true});
-        this.mediaRecorder = new MediaRecorder(this.mediaStream, this.mimeType ? {mimeType: this.mimeType} : undefined);
+        this.clearReleaseTimer();
+        const stream = await this.ensureMediaStream();
+        this.mediaRecorder = new MediaRecorder(stream, this.mimeType ? {mimeType: this.mimeType} : undefined);
         this.chunks = [];
 
         this.mediaRecorder.addEventListener('dataavailable', (event) => {
@@ -52,7 +57,7 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
         });
 
         this.mediaRecorder.start();
-        return this.mediaStream;
+        return stream;
     }
 
     stopRecording(): Promise<Blob> {
@@ -66,14 +71,16 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
                 recorder.removeEventListener('stop', handleStop);
                 recorder.removeEventListener('error', handleError);
                 const blob = new Blob(this.chunks, {type: recorder.mimeType || this.mimeType || 'audio/webm'});
-                this.cleanup(true);
+                this.cleanup(false);
+                this.scheduleStreamRelease();
                 resolve(blob);
             };
 
             const handleError = (event: Event) => {
                 recorder.removeEventListener('stop', handleStop);
                 recorder.removeEventListener('error', handleError);
-                this.cleanup(true);
+                this.cleanup(false);
+                this.scheduleStreamRelease();
                 reject(event);
             };
 
@@ -83,8 +90,58 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
         });
     }
 
+    async warmUp(): Promise<void> {
+        try {
+            await this.ensureMediaStream();
+        } catch (error) {
+            console.warn('[SpeechRecorder] Warm-up failed', error);
+        }
+    }
+
     dispose(): void {
+        this.clearReleaseTimer();
         this.cleanup(true);
+    }
+
+    private async ensureMediaStream(): Promise<MediaStream> {
+        if (this.mediaStream && this.isStreamActive(this.mediaStream)) {
+            return this.mediaStream;
+        }
+        if (this.streamPromise) {
+            return this.streamPromise;
+        }
+
+        this.streamPromise = navigator.mediaDevices.getUserMedia({audio: true}).then((stream) => {
+            this.mediaStream = stream;
+            this.streamPromise = null;
+            return stream;
+        }).catch((error) => {
+            this.streamPromise = null;
+            throw error;
+        });
+
+        return this.streamPromise;
+    }
+
+    private isStreamActive(stream: MediaStream): boolean {
+        return stream.getTracks().some((track) => track.readyState === 'live');
+    }
+
+    private scheduleStreamRelease(): void {
+        this.clearReleaseTimer();
+        this.releaseTimer = window.setTimeout(() => {
+            if (this.mediaStream) {
+                this.mediaStream.getTracks().forEach((track) => track.stop());
+                this.mediaStream = null;
+            }
+        }, this.STREAM_KEEP_ALIVE_MS);
+    }
+
+    private clearReleaseTimer(): void {
+        if (this.releaseTimer !== null) {
+            clearTimeout(this.releaseTimer);
+            this.releaseTimer = null;
+        }
     }
 
     private cleanup(stopTracks = false): void {
@@ -93,10 +150,8 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
             this.mediaRecorder = null;
         }
 
-        if (this.mediaStream) {
-            if (stopTracks) {
-                this.mediaStream.getTracks().forEach((track) => track.stop());
-            }
+        if (this.mediaStream && stopTracks) {
+            this.mediaStream.getTracks().forEach((track) => track.stop());
             this.mediaStream = null;
         }
 

@@ -12,8 +12,15 @@ type Props = {
 };
 
 const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disabled = false}) => {
+    const truncate = (value: string, limit = 170) => {
+        if (!value) {
+            return '';
+        }
+        return value.length > limit ? `${value.slice(0, limit).trim()}…` : value;
+    };
+
     const promptText = action.prompt && action.prompt.trim().length > 0
-        ? action.prompt
+        ? truncate(action.prompt.trim())
         : 'Speech will be transcribed verbatim into text and sent without any additional LLM processing.';
 
     const handleEdit = () => {

@@ -19,7 +19,7 @@ const DesktopShell: React.FC<DesktopShellProps> = ({allowSidebar = false}) => {
             <div className="fr flex-1 overflow-hidden">
                 {showSidebar ? <Sidebar/> : null}
                 <main className="flex-1 overflow-hidden bg-bg-secondary/50">
-                    <div className="h-full overflow-auto">
+                    <div className="h-full overflow-y-auto">
                         <Outlet/>
                     </div>
                 </main>

@@ -32,8 +32,10 @@ const MicActionOrbitComponent: React.FC<MicActionOrbitProps> = ({
         transition: 'opacity 220ms ease, transform 240ms ease'
     }), [actionsVisible]);
 
+    const orderedActions = useMemo(() => [...actions].reverse(), [actions]);
+
     const positions = useMemo(() => {
-        const total = actions.length;
+        const total = orderedActions.length;
         if (total === 0) {
             return [];
         }
@@ -75,14 +77,14 @@ const MicActionOrbitComponent: React.FC<MicActionOrbitProps> = ({
         const endAngle = 90 + totalSpan;
         const step = total > 1 ? (endAngle - startAngle) / (total - 1) : 0;
 
-        return actions.map((action, index) => {
+        return orderedActions.map((action, index) => {
             const angleDeg = startAngle + index * step;
             const angleRad = (angleDeg * Math.PI) / 180;
             const offsetX = Math.cos(angleRad) * radius;
             const offsetY = Math.sin(angleRad) * radius;
             return {action, offsetX, offsetY};
         });
-    }, [actions]);
+    }, [orderedActions]);
 
     return (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

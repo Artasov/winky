@@ -11,12 +11,12 @@ interface MicActionOrbitProps {
 }
 
 const MicActionOrbitComponent: React.FC<MicActionOrbitProps> = ({
-    actions,
-    actionsVisible,
-    processing,
-    activeActionId,
-    onActionClick
-}) => {
+                                                                    actions,
+                                                                    actionsVisible,
+                                                                    processing,
+                                                                    activeActionId,
+                                                                    onActionClick
+                                                                }) => {
     const actionsWrapperStyle = useMemo<React.CSSProperties>(() => ({
         width: 0,
         height: 0,
@@ -42,8 +42,37 @@ const MicActionOrbitComponent: React.FC<MicActionOrbitProps> = ({
             return [{action: actions[0], offsetX: 0, offsetY: 56}];
         }
 
-        const radius = 44;
-        const maxSpanPerSide = 110;
+        let radius;
+        let maxSpanPerSide;
+        switch (total) {
+            case 1:
+                radius = 0;
+                maxSpanPerSide = 0;
+                break;
+            case 2:
+                radius = 44;
+                maxSpanPerSide = 25;
+                break;
+            case 3:
+                radius = 44;
+                maxSpanPerSide = 45;
+                break;
+            case 4:
+                radius = 44;
+                maxSpanPerSide = 70;
+                break;
+            case 5:
+                radius = 44;
+                maxSpanPerSide = 90;
+                break;
+            case 6:
+                radius = 44;
+                maxSpanPerSide = 110;
+                break;
+            default:
+                radius = 44;
+                maxSpanPerSide = 90;
+        }
         const stepDegrees = 36;
         const totalSpan = Math.min(maxSpanPerSide, stepDegrees * (total - 1));
         const startAngle = 90 - totalSpan;

@@ -22,13 +22,14 @@ export type SpeechTranscribeConfig = {
     prompt?: string;
 };
 
-export const fetchCurrentUser = async (): Promise<User | null> => {
+export const fetchCurrentUser = async (options: {includeTiersAndFeatures?: boolean} = {}): Promise<User | null> => {
     const config = await getConfig();
     if (!config.auth.accessToken) {
         return null;
     }
     const client = createApiClient(config.auth.accessToken, sendLogToRenderer);
-    const {data} = await client.get<User>(ME_ENDPOINT);
+    const url = options.includeTiersAndFeatures ? `${ME_ENDPOINT}?tiers_and_features=1` : ME_ENDPOINT;
+    const {data} = await client.get<User>(url);
     return data;
 };
 

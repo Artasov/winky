@@ -325,7 +325,7 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
 
     ipcMain.handle('user:fetch', async () => {
         try {
-            const user = await fetchCurrentUser();
+            const user = await fetchCurrentUser({includeTiersAndFeatures: true});
             setCurrentUserCache(user);
             return user;
         } catch (error: any) {

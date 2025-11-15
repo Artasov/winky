@@ -50,7 +50,7 @@ export const performLogin = async (
     await broadcastConfigUpdate();
 
     try {
-        const user = await fetchCurrentUser();
+        const user = await fetchCurrentUser({includeTiersAndFeatures: true});
         setCurrentUserCache(user);
         sendLogToRenderer('LOGIN', `✅ User fetched successfully: ${user?.email || 'null'}`);
     } catch (error) {

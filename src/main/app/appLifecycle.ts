@@ -47,7 +47,7 @@ export const handleAppReady = async (deps: AppLifecycleDeps): Promise<void> => {
         const hasToken = config.auth.access || config.auth.accessToken;
         if (hasToken && (typeof hasToken === 'string' && hasToken.trim() !== '')) {
             try {
-                const user = await fetchCurrentUser();
+                const user = await fetchCurrentUser({includeTiersAndFeatures: true});
                 setCurrentUserCache(user);
                 sendLogToRenderer('APP_READY', `✅ User loaded: ${user?.email}`);
             } catch (error) {

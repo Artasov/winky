@@ -99,7 +99,7 @@ const ActionForm: React.FC<Props> = ({
                         label="Prompt"
                         value={values.prompt}
                         onChange={(event) => setField('prompt', event.target.value)}
-                        placeholder="Summarize last 5 Jira updates..."
+                        placeholder="For example: Just translate into English everything I say. Write nothing else. Keep the translation logical."
                         fullWidth
                         multiline
                         minRows={3}

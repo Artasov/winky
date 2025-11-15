@@ -38,15 +38,11 @@ const MicActionOrbitComponent: React.FC<MicActionOrbitProps> = ({
             return [];
         }
 
-        if (total === 1) {
-            return [{action: actions[0], offsetX: 0, offsetY: 56}];
-        }
-
         let radius;
         let maxSpanPerSide;
         switch (total) {
             case 1:
-                radius = 0;
+                radius = 42;
                 maxSpanPerSide = 0;
                 break;
             case 2:

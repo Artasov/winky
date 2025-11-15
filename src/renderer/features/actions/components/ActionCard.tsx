@@ -36,21 +36,21 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
             onClick={handleEdit}
             sx={{
                 borderRadius: 2.5,
-                border: '1px solid rgba(2,6,23,0.08)',
+                border: '2px solid ' + 'rgba(255,196,205,0.41)',
                 background: '#fff',
                 color: '#0f172a',
                 p: 2.4,
                 position: 'relative',
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 opacity: disabled ? 0.65 : 1,
-                boxShadow: '0 12px 32px rgba(15, 23, 42, 0.08)',
+                boxShadow: '0 12px 32px ' + 'rgba(255,247,248,0.08)',
                 transition: 'transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease',
                 '&:hover': disabled
                     ? undefined
                     : {
                         transform: 'translateY(-2px)',
                         boxShadow: '0 20px 40px rgba(244, 63, 94, 0.15)',
-                        borderColor: 'rgba(244,63,94,0.6)'
+                        border: '2px solid ' + 'rgba(255,82,106,0.91)' 
                     },
                 '&:hover .action-card__delete, &:focus-within .action-card__delete': disabled ? undefined : {
                     opacity: 1,
@@ -80,7 +80,7 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                     </Box>
                 </div>
             )}
-            <div className={'action-card'} style={{filter: action.is_active ? 'none' :'blur(2px)'}}>
+            <div className={'action-card'} style={{filter: action.is_active ? 'none' : 'blur(2px)'}}>
                 <IconButton
                     className="action-card__delete"
                     size="small"

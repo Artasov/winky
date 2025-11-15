@@ -18,7 +18,9 @@ const DesktopShell: React.FC<DesktopShellProps> = ({allowSidebar = false}) => {
             <TitleBar/>
             <div className="fr flex-1 overflow-hidden">
                 {showSidebar ? <Sidebar/> : null}
-                <main className="flex-1 overflow-hidden bg-bg-secondary/50">
+                <main className="flex-1 overflow-hidden" style={{
+                    backgroundColor: '#fffafb'
+                }}>
                     <div className="h-full overflow-y-auto">
                         <Outlet/>
                     </div>

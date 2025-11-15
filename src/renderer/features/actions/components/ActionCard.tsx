@@ -50,7 +50,7 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                     : {
                         transform: 'translateY(-2px)',
                         boxShadow: '0 20px 40px rgba(244, 63, 94, 0.15)',
-                        border: '2px solid ' + 'rgba(255,82,106,0.91)' 
+                        border: '2px solid ' + 'rgba(255,82,106,0.91)'
                     },
                 '&:hover .action-card__delete, &:focus-within .action-card__delete': disabled ? undefined : {
                     opacity: 1,

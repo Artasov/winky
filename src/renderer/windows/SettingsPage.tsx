@@ -319,10 +319,10 @@ const SettingsPage: React.FC = () => {
                     flexDirection: 'column',
                     gap: 2,
                     borderRadius: 4,
-                    border: '1px solid rgba(2,6,23,0.08)',
+                    border: '1px solid rgba(244,63,94,0.15)',
                     backgroundColor: '#fff',
                     p: {xs: 3, md: 4},
-                    boxShadow: '0 20px 40px rgba(2,6,23,0.08)'
+                    boxShadow: '0 30px 60px rgba(255, 255, 255, 0.03)'
                 }}
             >
                 <div className={'fc'}>
@@ -372,7 +372,7 @@ const SettingsPage: React.FC = () => {
                     border: '1px solid rgba(244,63,94,0.15)',
                     backgroundColor: '#fff',
                     p: {xs: 3, md: 4},
-                    boxShadow: '0 30px 60px rgba(2,6,23,0.12)'
+                    boxShadow: '0 30px 60px rgba(255, 255, 255, 0.03)'
                 }}
             >
                 <div className={'fc'}>

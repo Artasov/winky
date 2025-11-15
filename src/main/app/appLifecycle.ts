@@ -1,14 +1,14 @@
 import {app, Menu} from 'electron';
 import {APP_NAME} from '@shared/constants';
-import {getConfig} from '../config';
+import {getConfig, setAuthTokens} from '../config';
 import {createTray} from '../tray';
 import type {MicVisibilityReason} from '../windows/MicWindowController';
 import {extractDeepLinksFromArgv, handleAuthUrl, notifyAuthPayloads} from './oauth';
 import {fetchActions, fetchCurrentUser} from '../services/api';
-import {setCurrentUserCache, getCurrentUserCache} from '../state/currentUser';
 import {sendLogToRenderer} from '../utils/logger';
 import {ensureLocalSpeechAutoStart} from '../services/localSpeech/autoStart';
 import {syncAutoLaunchSetting} from '../services/autoLaunch';
+import {broadcastConfigUpdate} from '../services/configSync';
 
 type AppLifecycleDeps = {
     isDev: boolean;
@@ -34,6 +34,7 @@ export const handleAppReady = async (deps: AppLifecycleDeps): Promise<void> => {
     deps.mainWindowController.ensureWindow();
 
     let shouldShowMainWindow = true;
+    let userLoaded = false;
 
     try {
         const config = await getConfig();
@@ -48,11 +49,12 @@ export const handleAppReady = async (deps: AppLifecycleDeps): Promise<void> => {
         if (hasToken && (typeof hasToken === 'string' && hasToken.trim() !== '')) {
             try {
                 const user = await fetchCurrentUser({includeTiersAndFeatures: true});
-                setCurrentUserCache(user);
+                userLoaded = true;
                 sendLogToRenderer('APP_READY', `✅ User loaded: ${user?.email}`);
             } catch (error) {
-                setCurrentUserCache(null);
                 sendLogToRenderer('APP_READY', `⚠️ Failed to load user on startup: ${error}`);
+                await setAuthTokens({access: '', refresh: null, accessToken: '', refreshToken: ''});
+                await broadcastConfigUpdate();
             }
 
             const wantsMicOnLaunch = config.micShowOnLaunch !== false;
@@ -75,7 +77,7 @@ export const handleAppReady = async (deps: AppLifecycleDeps): Promise<void> => {
                 deps.showMicWindowInstance('auto');
             }
 
-            if (config.setupCompleted) {
+            if (config.setupCompleted && userLoaded) {
                 shouldShowMainWindow = false;
             }
         }
@@ -133,8 +135,7 @@ export const handleAppReady = async (deps: AppLifecycleDeps): Promise<void> => {
         mainWindow.webContents.openDevTools({mode: 'detach'});
     }
 
-    const cachedUser = getCurrentUserCache();
-    if (cachedUser) {
+    if (userLoaded) {
         try {
             await fetchActions();
         } catch (error) {

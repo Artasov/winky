@@ -25,6 +25,7 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
 
     return (
         <Box
+            className={'action-card-wrap'}
             onClick={handleEdit}
             sx={{
                 borderRadius: 2.5,
@@ -52,104 +53,105 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
             }}
         >
             {action.is_active === false && (
-                <Box
-                    component="span"
+                <div className={'w-full h-full absolute top-0 left-0 frcc'}>
+                    <Box
+                        component="span"
+                        sx={{
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 999,
+                            fontSize: 22,
+                            backdropFilter: 'blur(20px)',
+                            fontWeight: 700,
+                            letterSpacing: 0.6,
+                            textTransform: 'uppercase',
+                            background: 'rgba(15,23,42,0.08)',
+                            color: '#0f172a'
+                        }}
+                    >
+                        Inactive
+                    </Box>
+                </div>
+            )}
+            <div className={'action-card'} style={{filter: action.is_active ? 'none' :'blur(2px)'}}>
+                <IconButton
+                    className="action-card__delete"
+                    size="small"
+                    color="error"
+                    disabled={isDeleting}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(action.id, action.name);
+                    }}
                     sx={{
                         position: 'absolute',
                         top: 12,
-                        left: 16,
-                        px: 1.5,
-                        py: 0.5,
-                        borderRadius: 999,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: 0.6,
-                        textTransform: 'uppercase',
-                        background: 'rgba(15,23,42,0.08)',
-                        color: '#0f172a'
+                        right: 12,
+                        bgcolor: 'rgba(244,63,94,0.06)',
+                        '&:hover': {bgcolor: 'rgba(244,63,94,0.15)'},
+                        transition: 'opacity 260ms ease, transform 260ms ease, background-color 260ms ease',
+                        opacity: disabled ? 0.6 : 0,
+                        pointerEvents: disabled ? 'auto' : 'none',
+                        transform: disabled ? 'translateY(0)' : 'translateY(-4px)'
                     }}
+                    aria-label="Delete action"
                 >
-                    Inactive
-                </Box>
-            )}
+                    <DeleteOutlineIcon fontSize="small"/>
+                </IconButton>
 
-            <IconButton
-                className="action-card__delete"
-                size="small"
-                color="error"
-                disabled={isDeleting}
-                onClick={(event) => {
-                    event.stopPropagation();
-                    onDelete(action.id, action.name);
-                }}
-                sx={{
-                    position: 'absolute',
-                    top: 12,
-                    right: 12,
-                    bgcolor: 'rgba(244,63,94,0.06)',
-                    '&:hover': {bgcolor: 'rgba(244,63,94,0.15)'},
-                    transition: 'opacity 260ms ease, transform 260ms ease, background-color 260ms ease',
-                    opacity: disabled ? 0.6 : 0,
-                    pointerEvents: disabled ? 'auto' : 'none',
-                    transform: disabled ? 'translateY(0)' : 'translateY(-4px)'
-                }}
-                aria-label="Delete action"
-            >
-                <DeleteOutlineIcon fontSize="small"/>
-            </IconButton>
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <Box
+                        sx={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 2.5,
+                            background: 'linear-gradient(135deg, #ffe4e6, #fff5f7)',
+                            border: '1px solid rgba(244,63,94,0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    >
+                        {action.icon_details?.svg ? (
+                            <Box
+                                component="img"
+                                src={action.icon_details.svg}
+                                alt={action.icon_details.name || ''}
+                                sx={{width: 30, height: 30}}
+                            />
+                        ) : (
+                            <Typography variant="h4">⚡</Typography>
+                        )}
+                    </Box>
 
-            <Stack direction="row" spacing={2} alignItems="center">
-                <Box
-                    sx={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 2.5,
-                        background: 'linear-gradient(135deg, #ffe4e6, #fff5f7)',
-                        border: '1px solid rgba(244,63,94,0.2)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}
-                >
-                    {action.icon_details?.svg ? (
-                        <Box
-                            component="img"
-                            src={action.icon_details.svg}
-                            alt={action.icon_details.name || ''}
-                            sx={{width: 30, height: 30}}
-                        />
-                    ) : (
-                        <Typography variant="h4">⚡</Typography>
-                    )}
-                </Box>
-
-                <Box flexGrow={1} minWidth={0}>
-                    <Typography variant="subtitle1" fontWeight={600} noWrap>
-                        {action.name}
-                    </Typography>
-                    {action.hotkey && (
-                        <Typography variant="caption" color="text.secondary">
-                            Hotkey: {action.hotkey}
+                    <Box flexGrow={1} minWidth={0}>
+                        <Typography variant="subtitle1" fontWeight={600} noWrap>
+                            {action.name}
                         </Typography>
+                        {action.hotkey && (
+                            <Typography variant="caption" color="text.secondary">
+                                Hotkey: {action.hotkey}
+                            </Typography>
+                        )}
+                    </Box>
+                </Stack>
+
+                <Typography variant="body2" color="text.secondary" sx={{mt: 2}}>
+                    {promptText}
+                </Typography>
+
+                <Stack direction="row" spacing={1} flexWrap="wrap" mt={2}>
+                    {action.show_results && (
+                        <Chip size="small" label="Result window" color="primary" variant="outlined"/>
                     )}
-                </Box>
-            </Stack>
-
-            <Typography variant="body2" color="text.secondary" sx={{mt: 2}}>
-                {promptText}
-            </Typography>
-
-            <Stack direction="row" spacing={1} flexWrap="wrap" mt={2}>
-                {action.show_results && (
-                    <Chip size="small" label="Result window" color="primary" variant="outlined"/>
-                )}
-                {action.sound_on_complete && (
-                    <Chip size="small" label="Sound" color="secondary" variant="outlined"/>
-                )}
-                {action.auto_copy_result && (
-                    <Chip size="small" label="Clipboard" color="success" variant="outlined"/>
-                )}
-            </Stack>
+                    {action.sound_on_complete && (
+                        <Chip size="small" label="Sound" color="secondary" variant="outlined"/>
+                    )}
+                    {action.auto_copy_result && (
+                        <Chip size="small" label="Clipboard" color="success" variant="outlined"/>
+                    )}
+                </Stack>
+            </div>
         </Box>
     );
 };

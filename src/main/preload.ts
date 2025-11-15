@@ -7,7 +7,6 @@ import type {
     AuthProvider,
     AuthTokens,
     FastWhisperStatus,
-    User,
     WinkyProfile
 } from '@shared/types';
 import {IPC_CHANNELS} from '@shared/constants';
@@ -162,10 +161,6 @@ const api = {
     },
     profile: {
         fetch: (): Promise<WinkyProfile> => ipcRenderer.invoke('profile:fetch')
-    },
-    user: {
-        fetch: (): Promise<User | null> => ipcRenderer.invoke('user:fetch'),
-        getCached: (): Promise<User | null> => ipcRenderer.invoke('user:get-cached')
     },
     speech: {
         transcribe: (audioData: ArrayBuffer, config: {

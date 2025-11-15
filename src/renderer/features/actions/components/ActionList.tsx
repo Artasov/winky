@@ -12,6 +12,7 @@ type Props = {
 
 const ActionList: React.FC<Props> = ({actions, deletingIds, onEdit, onDelete}) => (
     <Box
+        className={'actions-page-list'}
         sx={{
             display: 'grid',
             gap: 2,

@@ -10,7 +10,6 @@ import {
     fetchActions,
     fetchIcons,
     fetchProfile,
-    fetchCurrentUser,
     processLLM,
     processLLMStream,
     transcribeAudio,
@@ -21,7 +20,6 @@ import type {MicWindowController, MicVisibilityReason} from '../windows/MicWindo
 import type {MainWindowController} from '../windows/MainWindowController';
 import type {ResultWindowController} from '../windows/ResultWindowController';
 import {performLogin} from '../services/loginFlow';
-import {setCurrentUserCache, getCurrentUserCache} from '../state/currentUser';
 import {sendLogToRenderer} from '../utils/logger';
 import {fastWhisperManager} from '../services/localSpeech/FastWhisperManager';
 import {emitToAllWindows} from '../windows/emitToAllWindows';
@@ -235,7 +233,6 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
 
     ipcMain.handle('auth:logout', async () => {
         await setAuthTokens({access: '', refresh: null, accessToken: '', refreshToken: ''});
-        setCurrentUserCache(null);
         const micInstance = deps.micWindowController.getWindow();
         if (micInstance && !micInstance.isDestroyed()) {
             micInstance.close();
@@ -345,38 +342,6 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
 
     ipcMain.handle('icons:fetch', async () => fetchIcons());
     ipcMain.handle('profile:fetch', async () => fetchProfile());
-
-    ipcMain.handle('user:fetch', async () => {
-        try {
-            const user = await fetchCurrentUser({includeTiersAndFeatures: true});
-            setCurrentUserCache(user);
-            return user;
-        } catch (error: any) {
-            const status = error?.response?.status;
-            if (status === 401 || status === 403) {
-                sendLogToRenderer('USER', '🔒 Auth required (401/403), clearing tokens');
-                await setAuthTokens({access: '', refresh: null, accessToken: '', refreshToken: ''});
-                setCurrentUserCache(null);
-                await broadcastConfigUpdate();
-                return null;
-            }
-            if (status >= 500) {
-                sendLogToRenderer('USER', `⚠️ Server error (${status}), user data not available`);
-                setCurrentUserCache(null);
-                return null;
-            }
-            sendLogToRenderer('USER', `❌ User fetch failed with status ${status || 'unknown'}`);
-            deps.createOrShowErrorWindow({
-                title: 'Failed to Load User',
-                message: error?.response?.data?.detail || error?.message || 'Could not load user data. Please check your connection and try again.',
-                details: JSON.stringify(error?.response?.data || error, null, 2)
-            });
-            setCurrentUserCache(null);
-            return null;
-        }
-    });
-
-    ipcMain.handle('user:get-cached', async () => getCurrentUserCache());
 
     ipcMain.handle('speech:transcribe', async (_event, audioData: ArrayBuffer, config) =>
         transcribeAudio(audioData, config)

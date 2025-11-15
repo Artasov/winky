@@ -9,6 +9,7 @@ type Props = {
 
 const ActionToolbar: React.FC<Props> = ({actionsCount, onCreate}) => (
     <Stack
+        className={'actions-page-toolbar'}
         direction={{xs: 'column', sm: 'row'}}
         alignItems={{xs: 'flex-start', sm: 'center'}}
         justifyContent="space-between"

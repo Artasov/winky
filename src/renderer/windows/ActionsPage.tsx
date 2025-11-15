@@ -55,8 +55,8 @@ const ActionsPage: React.FC = () => {
     );
 
     return (
-        <Container maxWidth="lg" sx={{py: 4}}>
-            <Stack spacing={4}>
+        <Container className={'actions-page-wrao'} maxWidth="lg" sx={{py: 4}}>
+            <Stack className={'actions-page'} spacing={4}>
                 <ActionToolbar actionsCount={actions.length} onCreate={handleCreateAction}/>
                 {content}
             </Stack>

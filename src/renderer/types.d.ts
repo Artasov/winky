@@ -6,7 +6,6 @@ import type {
     AuthProvider,
     AuthTokens,
     FastWhisperStatus,
-    User,
     WinkyProfile
 } from '@shared/types';
 
@@ -43,12 +42,6 @@ declare global {
         onOAuthPayload(cb: (payload: AuthDeepLinkPayload) => void): () => void;
 
         consumePendingOAuthPayloads(): Promise<AuthDeepLinkPayload[]>;
-    }
-
-    interface WinkyUserAPI {
-        fetch(): Promise<User | null>;
-
-        getCached(): Promise<User | null>;
     }
 
     interface WinkyActionsAPI {
@@ -188,7 +181,6 @@ declare global {
         config: WinkyConfigAPI;
         clipboard: WinkyClipboardAPI;
         auth: WinkyAuthAPI;
-        user: WinkyUserAPI;
         actions: WinkyActionsAPI;
         icons: WinkyIconsAPI;
         profile: WinkyProfileAPI;

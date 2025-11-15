@@ -8,7 +8,6 @@ import {broadcastConfigUpdate} from './configSync';
 import {sendLogToRenderer} from '../utils/logger';
 import type {MicVisibilityReason, MicWindowController} from '../windows/MicWindowController';
 import type {MainWindowController} from '../windows/MainWindowController';
-import {setCurrentUserCache} from '../state/currentUser';
 
 type LoginFlowDeps = {
     micWindowController: MicWindowController;
@@ -51,10 +50,8 @@ export const performLogin = async (
 
     try {
         const user = await fetchCurrentUser({includeTiersAndFeatures: true});
-        setCurrentUserCache(user);
         sendLogToRenderer('LOGIN', `✅ User fetched successfully: ${user?.email || 'null'}`);
     } catch (error) {
-        setCurrentUserCache(null);
         sendLogToRenderer('LOGIN', `⚠️ Failed to fetch user (will retry later): ${error}`);
     }
 

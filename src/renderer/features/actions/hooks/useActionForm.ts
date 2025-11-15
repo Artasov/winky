@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {z} from 'zod';
 import type {ActionConfig} from '@shared/types';
+import {getErrorMessage} from '../../../utils/errorMessage';
 
 const formSchema = z.object({
     name: z.string().min(1, 'Заполните название действия.'),
@@ -78,6 +79,10 @@ export const useActionForm = ({
     }, [resetForm]);
 
     const openEditModal = useCallback((action: ActionConfig) => {
+        if (action.is_active === false) {
+            showToast('This action is inactive and cannot be edited.', 'info');
+            return;
+        }
         setMode('edit');
         setEditingActionId(action.id);
         setValues({
@@ -91,7 +96,7 @@ export const useActionForm = ({
             autoCopyResult: action.auto_copy_result ?? false
         });
         setIsModalVisible(true);
-    }, []);
+    }, [showToast]);
 
     const setField = useCallback(<K extends keyof ActionFormValues>(key: K, value: ActionFormValues[K]) => {
         setValues((prev) => ({
@@ -156,7 +161,7 @@ export const useActionForm = ({
             closeModal();
         } catch (error: any) {
             console.error('[ActionsPage] Ошибка сохранения действия', error);
-            const message = error?.response?.data?.detail || error?.message || 'Не удалось сохранить действие.';
+            const message = getErrorMessage(error, 'Не удалось сохранить действие.');
             showToast(message, 'error');
         } finally {
             setSaving(false);
@@ -177,9 +182,10 @@ export const useActionForm = ({
             await window.winky?.actions.delete(actionId);
             await refreshConfig();
             showToast('Действие удалено.', 'success');
-        } catch (error) {
+        } catch (error: any) {
             console.error('[ActionsPage] Ошибка удаления действия', error);
-            showToast('Не удалось удалить действие.', 'error');
+            const message = getErrorMessage(error, 'Не удалось удалить действие.');
+            showToast(message, 'error');
         } finally {
             setDeletingIds((prev) => {
                 const next = new Set(prev);

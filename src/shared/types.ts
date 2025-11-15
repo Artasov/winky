@@ -88,6 +88,7 @@ export interface ActionConfig {
     show_results?: boolean;
     sound_on_complete?: boolean;
     auto_copy_result?: boolean;
+    is_active?: boolean;
 }
 
 export interface ActionPreferences {

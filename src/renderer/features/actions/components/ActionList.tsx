@@ -25,6 +25,7 @@ const ActionList: React.FC<Props> = ({actions, deletingIds, onEdit, onDelete}) =
                 isDeleting={deletingIds.has(action.id)}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                disabled={action.is_active === false}
             />
         ))}
     </Box>

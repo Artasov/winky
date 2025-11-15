@@ -375,13 +375,14 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     }, [processing, isRecording, ensureSpeechService, finishRecording, processAction, stopVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 
     const actions = useMemo<ActionConfig[]>(() => config?.actions ?? [], [config?.actions]);
+    const activeActions = useMemo<ActionConfig[]>(() => actions.filter((action) => action.is_active !== false), [actions]);
     const displayedActions = useMemo<ActionConfig[]>(() => {
-        if (!isRecording || actions.length === 0) {
+        if (!isRecording || activeActions.length === 0) {
             return [];
         }
         const MAX_FLOATING_ACTIONS = 6;
-        return actions.slice(0, MAX_FLOATING_ACTIONS);
-    }, [actions, isRecording]);
+        return activeActions.slice(0, MAX_FLOATING_ACTIONS);
+    }, [activeActions, isRecording]);
 
     const normalizedVolume = Math.min(volume * 2.5, 1);
 
@@ -402,10 +403,10 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             return;
         }
         const handler = (event: KeyboardEvent) => {
-            if (!isRecordingRef.current || actions.length === 0 || event.repeat) {
+            if (!isRecordingRef.current || activeActions.length === 0 || event.repeat) {
                 return;
             }
-            const action = actions.find((a) => {
+            const action = activeActions.find((a) => {
                 if (!a.hotkey) {
                     return false;
                 }
@@ -442,7 +443,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         return () => {
             window.removeEventListener('keydown', handler);
         };
-    }, [actions, handleActionClick, isMicOverlay]);
+    }, [activeActions, handleActionClick, isMicOverlay]);
 
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
@@ -452,7 +453,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             void actionHotkeysBridge.clear();
             return;
         }
-        const hotkeys = actions
+        const hotkeys = activeActions
             .filter((action) => typeof action.hotkey === 'string' && action.hotkey.trim().length > 0)
             .map((action) => ({
                 id: action.id,
@@ -469,7 +470,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         return () => {
             void actionHotkeysBridge.clear();
         };
-    }, [actions, isMicOverlay, isRecording]);
+    }, [activeActions, isMicOverlay, isRecording]);
 
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
@@ -479,7 +480,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             if (!payload?.actionId || !isRecording) {
                 return;
             }
-            const action = actions.find((item) => item.id === payload.actionId);
+            const action = activeActions.find((item) => item.id === payload.actionId);
             if (!action) {
                 return;
             }
@@ -494,7 +495,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         return () => {
             window.electron?.removeListener?.('hotkey:action-triggered', handler);
         };
-    }, [actions, handleActionClick, isMicOverlay, isRecording]);
+    }, [activeActions, handleActionClick, isMicOverlay, isRecording]);
 
     return {
         view: {

@@ -47,6 +47,17 @@ type IpcDependencies = {
     resultWindowController: ResultWindowController;
 };
 
+const shouldShowErrorWindow = (error: any): boolean => {
+    const status = error?.response?.status;
+    if (typeof status === 'number' && status >= 400 && status < 500) {
+        return false;
+    }
+    return true;
+};
+
+const extractErrorMessage = (error: any, fallback: string): string =>
+    error?.response?.data?.detail || error?.message || fallback;
+
 export const registerIpcHandlers = (deps: IpcDependencies): void => {
     ipcMain.handle('config:get', async () => getConfig());
 
@@ -272,12 +283,15 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
         try {
             return await fetchActions();
         } catch (error: any) {
-            deps.createOrShowErrorWindow({
-                title: 'Failed to Load Actions',
-                message: error?.response?.data?.detail || error?.message || 'Could not load actions. Please check your connection and try again.',
-                details: JSON.stringify(error?.response?.data || error, null, 2)
-            });
-            throw error;
+            const message = extractErrorMessage(error, 'Could not load actions. Please check your connection and try again.');
+            if (shouldShowErrorWindow(error)) {
+                deps.createOrShowErrorWindow({
+                    title: 'Failed to Load Actions',
+                    message,
+                    details: JSON.stringify(error?.response?.data || error, null, 2)
+                });
+            }
+            throw new Error(message);
         }
     });
 
@@ -285,12 +299,15 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
         try {
             return await createAction(action);
         } catch (error: any) {
-            deps.createOrShowErrorWindow({
-                title: 'Failed to Create Action',
-                message: error?.response?.data?.detail || error?.message || 'Could not create action. Please try again.',
-                details: JSON.stringify(error?.response?.data || error, null, 2)
-            });
-            throw error;
+            const message = extractErrorMessage(error, 'Could not create action. Please try again.');
+            if (shouldShowErrorWindow(error)) {
+                deps.createOrShowErrorWindow({
+                    title: 'Failed to Create Action',
+                    message,
+                    details: JSON.stringify(error?.response?.data || error, null, 2)
+                });
+            }
+            throw new Error(message);
         }
     });
 
@@ -298,12 +315,15 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
         try {
             return await updateAction(actionId, action);
         } catch (error: any) {
-            deps.createOrShowErrorWindow({
-                title: 'Failed to Update Action',
-                message: error?.response?.data?.detail || error?.message || 'Could not update action. Please try again.',
-                details: JSON.stringify(error?.response?.data || error, null, 2)
-            });
-            throw error;
+            const message = extractErrorMessage(error, 'Could not update action. Please try again.');
+            if (shouldShowErrorWindow(error)) {
+                deps.createOrShowErrorWindow({
+                    title: 'Failed to Update Action',
+                    message,
+                    details: JSON.stringify(error?.response?.data || error, null, 2)
+                });
+            }
+            throw new Error(message);
         }
     });
 
@@ -311,12 +331,15 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
         try {
             return await deleteAction(actionId);
         } catch (error: any) {
-            deps.createOrShowErrorWindow({
-                title: 'Failed to Delete Action',
-                message: error?.response?.data?.detail || error?.message || 'Could not delete action. Please try again.',
-                details: JSON.stringify(error?.response?.data || error, null, 2)
-            });
-            throw error;
+            const message = extractErrorMessage(error, 'Could not delete action. Please try again.');
+            if (shouldShowErrorWindow(error)) {
+                deps.createOrShowErrorWindow({
+                    title: 'Failed to Delete Action',
+                    message,
+                    details: JSON.stringify(error?.response?.data || error, null, 2)
+                });
+            }
+            throw new Error(message);
         }
     });
 

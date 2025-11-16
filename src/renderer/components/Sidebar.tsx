@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useCallback, useEffect, useRef} from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import classNames from 'classnames';
 
@@ -19,10 +19,77 @@ const navItems: NavItem[] = [
 const Sidebar: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const videoRef = useRef<HTMLVideoElement | null>(null);
 
     const handleNavigation = (path: string) => {
         navigate(path);
     };
+
+    const ensurePlayback = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) {
+            return;
+        }
+        if (video.paused || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+            video.currentTime = video.currentTime >= video.duration ? 0 : video.currentTime;
+            const playPromise = video.play();
+            if (playPromise) {
+                playPromise.catch(() => {
+                    /* autoplay can fail silently; ignore */
+                });
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) {
+            return;
+        }
+        video.playbackRate = 1;
+        video.playsInline = true;
+        video.muted = true;
+
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                ensurePlayback();
+            }
+        };
+
+        const handleCanPlay = () => ensurePlayback();
+
+        const handlePlaybackIssue = () => {
+            if (!video) {
+                return;
+            }
+            if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+                video.pause();
+                video.currentTime = 0;
+            }
+            ensurePlayback();
+        };
+
+        const monitoredEvents: Array<keyof HTMLMediaElementEventMap> = [
+            'pause',
+            'ended',
+            'stalled',
+            'suspend',
+            'waiting',
+            'error'
+        ];
+
+        video.addEventListener('canplay', handleCanPlay);
+        monitoredEvents.forEach((event) => video.addEventListener(event, handlePlaybackIssue));
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        ensurePlayback();
+
+        return () => {
+            video.removeEventListener('canplay', handleCanPlay);
+            monitoredEvents.forEach((event) => video.removeEventListener(event, handlePlaybackIssue));
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [ensurePlayback]);
 
     return (
         <aside className="flex h-full w-64 flex-col border-r border-primary-200/60 bg-white/95 backdrop-blur shadow-sm">
@@ -49,13 +116,17 @@ const Sidebar: React.FC = () => {
                     );
                 })}
             </nav>
-            <div className={'p-4 overflow-hidden'}>
+            <div className="p-4 overflow-hidden">
                 <video
+                    ref={videoRef}
                     autoPlay
                     loop
                     muted
+                    playsInline
+                    preload="auto"
+                    disablePictureInPicture
+                    className="w-full h-auto pointer-events-none select-none"
                     src="./resources/avatar.mp4"
-                    className="w-full h-auto"
                     style={{
                         imageRendering: '-webkit-optimize-contrast',
                         filter: 'blur(0.3px) contrast(1.05)',
@@ -67,7 +138,7 @@ const Sidebar: React.FC = () => {
                         perspective: 1000,
                         willChange: 'transform'
                     }}
-                ></video>
+                />
             </div>
         </aside>
     );

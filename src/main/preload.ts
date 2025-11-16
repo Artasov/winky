@@ -50,6 +50,9 @@ ipcRenderer.on('api-log', (_event, {type, data}) => {
             );
             console.error('  ❌ Error:', data.error);
             break;
+        default:
+            console.log(`[${type}]`, data);
+            break;
     }
 });
 
@@ -254,7 +257,8 @@ const api = {
         hide: (options?: {
             reason?: string;
             disableAutoShow?: boolean
-        }): Promise<void> => ipcRenderer.invoke('mic:hide', options)
+        }): Promise<void> => ipcRenderer.invoke('mic:hide', options),
+        beginDrag: (): Promise<void> => ipcRenderer.invoke('mic:begin-drag')
     },
     on: (channel: string, callback: (...args: any[]) => void) => {
         ipcRenderer.on(channel, (_event, ...args) => callback(...args));

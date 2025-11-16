@@ -1,5 +1,5 @@
-import {useCallback, useEffect, useRef} from 'react';
-import {interactiveEnter, interactiveLeave} from '../../../utils/interactive';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {interactiveEnter, interactiveLeave, setDragInteractive} from '../../../utils/interactive';
 
 type UseMicOverlayInteractionsParams = {
     isMicOverlay: boolean;
@@ -11,7 +11,9 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
     const suppressedHandleLeaveRef = useRef(false);
     const dragHandleRef = useRef<HTMLDivElement | null>(null);
     const handleHoveringRef = useRef(false);
-
+    const windowVisibleRef = useRef(true);
+    const [dragging, setDragging] = useState(false);
+    const dragResetTimeoutRef = useRef<number | null>(null);
     const handleHandleMouseEnter = useCallback(() => {
         if (handleHoveringRef.current) {
             return;
@@ -21,6 +23,7 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
             suppressedHandleLeaveRef.current = false;
             return;
         }
+        console.log('[mic-overlay] handle hover enter');
         interactiveEnter();
     }, []);
 
@@ -33,6 +36,7 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
             return;
         }
         handleHoveringRef.current = false;
+        console.log('[mic-overlay] handle hover leave');
         interactiveLeave();
     }, []);
 
@@ -41,13 +45,32 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
             return;
         }
 
+        console.log('[mic-overlay] pointer down', {pointerType: event.pointerType, button: event.button});
         dragPointerCleanupRef.current?.();
 
         const pointerId = event.pointerId;
         dragPointerIdRef.current = pointerId;
+        
+        // КРИТИЧНО: Устанавливаем состояние перетаскивания и интерактивности ПЕРЕД началом перетаскивания
+        // Это особенно важно при автоматическом старте записи, когда окно может быть еще не готово
+        // Устанавливаем dragActive ПЕРВЫМ - это вызовет applyState() и сделает окно интерактивным
+        setDragInteractive(true);
+        interactiveEnter();
         handleHandleMouseEnter();
+        setDragging(true);
+
+        const micApi = window.winky?.mic;
+
+        function handlePointerEnd(pointerEvent: PointerEvent) {
+            if (pointerEvent.pointerId !== pointerId) {
+                return;
+            }
+            console.log('[mic-overlay] pointer end', {pointerId});
+            cleanupPointerListeners();
+        }
 
         function cleanupPointerListeners() {
+            console.log('[mic-overlay] cleanup pointer listeners');
             window.removeEventListener('pointerup', handlePointerEnd, true);
             window.removeEventListener('pointercancel', handlePointerEnd, true);
             if (dragPointerIdRef.current === pointerId) {
@@ -60,23 +83,39 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
                 interactiveLeave();
             }
             dragPointerCleanupRef.current = null;
-        }
-
-        function handlePointerEnd(pointerEvent: PointerEvent) {
-            if (pointerEvent.pointerId !== pointerId) {
-                return;
+            setDragInteractive(false);
+            if (dragResetTimeoutRef.current !== null) {
+                window.clearTimeout(dragResetTimeoutRef.current);
             }
-            cleanupPointerListeners();
+            dragResetTimeoutRef.current = window.setTimeout(() => {
+                setDragging(false);
+                dragResetTimeoutRef.current = null;
+            }, 80);
         }
 
         dragPointerCleanupRef.current = cleanupPointerListeners;
 
         window.addEventListener('pointerup', handlePointerEnd, true);
         window.addEventListener('pointercancel', handlePointerEnd, true);
+
+        // Используем requestAnimationFrame для гарантии, что окно стало интерактивным перед beginDrag
+        // Это особенно важно при автоматическом старте записи
+        requestAnimationFrame(() => {
+            if (dragPointerIdRef.current !== pointerId || !micApi?.beginDrag) {
+                return;
+            }
+            // Вызываем beginDrag для нативного перетаскивания окна
+            void micApi.beginDrag();
+        });
     }, [handleHandleMouseEnter]);
 
     useEffect(() => () => {
+        console.log('[mic-overlay] effect cleanup');
         dragPointerCleanupRef.current?.();
+        if (dragResetTimeoutRef.current !== null) {
+            window.clearTimeout(dragResetTimeoutRef.current);
+            dragResetTimeoutRef.current = null;
+        }
     }, []);
 
     useEffect(() => {
@@ -95,16 +134,29 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
                 ? (first as { visible?: boolean })
                 : second;
             if (payload?.visible) {
+                windowVisibleRef.current = true;
+                console.log('[mic-overlay] window visible');
                 return;
             }
+            windowVisibleRef.current = false;
+            console.log('[mic-overlay] window hidden');
             dragPointerCleanupRef.current?.();
             handleHoveringRef.current = false;
             suppressedHandleLeaveRef.current = false;
             interactiveLeave();
+            setDragging(false);
+            if (dragResetTimeoutRef.current !== null) {
+                window.clearTimeout(dragResetTimeoutRef.current);
+                dragResetTimeoutRef.current = null;
+            }
         };
         api.on('mic:visibility-change', handleVisibilityChange);
         return () => {
             api.removeListener?.('mic:visibility-change', handleVisibilityChange);
+            if (dragResetTimeoutRef.current !== null) {
+                window.clearTimeout(dragResetTimeoutRef.current);
+                dragResetTimeoutRef.current = null;
+            }
         };
     }, [isMicOverlay]);
 
@@ -123,6 +175,10 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
                 timeoutId = setTimeout(pollCursor, 120);
                 return;
             }
+            if (!windowVisibleRef.current) {
+                timeoutId = setTimeout(pollCursor, 350);
+                return;
+            }
             const handleElement = dragHandleRef.current;
             const micApi = window.winky?.mic;
             if (!handleElement || !micApi?.getCursorPosition) {
@@ -139,8 +195,10 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
                 const bottom = (window.screenY || 0) + rect.bottom + padding;
                 const inside = cursor.x >= left && cursor.x <= right && cursor.y >= top && cursor.y <= bottom;
                 if (inside) {
+                    console.log('[mic-overlay] cursor near handle', {cursor});
                     handleHandleMouseEnter();
                 } else if (handleHoveringRef.current && dragPointerIdRef.current === null) {
+                    console.log('[mic-overlay] cursor left handle', {cursor});
                     handleHandleMouseLeave();
                 }
             } catch {
@@ -162,6 +220,7 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
 
     return {
         dragHandleRef,
+        dragging,
         handleHandleMouseEnter,
         handleHandleMouseLeave,
         handleHandlePointerDown,

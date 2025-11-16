@@ -198,6 +198,21 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
         return position;
     });
 
+    ipcMain.handle('mic:begin-drag', () => {
+        const win = deps.micWindowController.getWindow();
+        if (!win || win.isDestroyed()) {
+            return;
+        }
+        try {
+            const anyWin = win as BrowserWindow & {beginMoveDrag?: () => void};
+            if (typeof anyWin.beginMoveDrag === 'function') {
+                anyWin.beginMoveDrag();
+            }
+        } catch (error) {
+            sendLogToRenderer('MIC_WINDOW', {message: '[begin-drag] failed', error: String(error)});
+        }
+    });
+
     ipcMain.handle('mic:show', async (_event, reason?: MicVisibilityReason) => {
         await deps.ensureMicWindowReady();
         deps.showMicWindowInstance(reason ?? 'renderer');

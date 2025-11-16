@@ -111,6 +111,8 @@ declare global {
         show(reason?: string): Promise<void>;
 
         hide(options?: { reason?: string; disableAutoShow?: boolean }): Promise<void>;
+
+        beginDrag(): Promise<void>;
     }
 
     interface WinkySpeechAPI {

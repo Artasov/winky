@@ -9,6 +9,7 @@ import {useMicWindowEffects} from '../hooks/useMicWindowEffects';
 import MicDragHandle from './MicDragHandle';
 import MicVolumeRings from './MicVolumeRings';
 import MicActionOrbit from './MicActionOrbit';
+import {interactiveEnter, interactiveLeave} from '../../../utils/interactive';
 
 const MicOverlay: React.FC = () => {
     const {config} = useConfig();

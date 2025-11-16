@@ -34,6 +34,7 @@ export class MicWindowController implements WindowController {
     private micAutoStartEnabled = false;
     private positionPersistTimeout: NodeJS.Timeout | null = null;
     private pendingPosition: MicAnchorPosition | null = null;
+    private temporaryInteractiveTimer: NodeJS.Timeout | null = null;
 
     constructor(private readonly deps: MicWindowDeps) {
         void this.refreshMicAutoStart();
@@ -92,6 +93,7 @@ export class MicWindowController implements WindowController {
             if (!this.window || this.window.isDestroyed()) {
                 return;
             }
+            this.deps.sendLog('MIC_WINDOW', {message: '[MicWindowController] performShow', reason});
             this.window.webContents.send('mic:prepare-recording');
             if (process.platform === 'darwin') {
                 this.window.showInactive();
@@ -101,8 +103,9 @@ export class MicWindowController implements WindowController {
             this.window.setSkipTaskbar(true);
             this.visible = true;
             this.ensureOnTop();
-            this.setInteractive(false);
+            this.setInteractive(true);
             this.window.webContents.send('mic:start-fade-in');
+            this.enableTemporaryInteraction();
             setTimeout(() => {
                 if (!this.window || this.window.isDestroyed() || !this.visible) {
                     return;
@@ -130,7 +133,6 @@ export class MicWindowController implements WindowController {
         if (disableAutoShow) {
             this.autoShowDisabled = true;
         }
-        this.setInteractive(false);
         this.window.webContents.send('mic:start-fade-out');
         this.window.setOpacity(0);
         this.window.hide();
@@ -140,18 +142,25 @@ export class MicWindowController implements WindowController {
     setInteractive(interactive: boolean): void {
         if (!this.window || this.window.isDestroyed()) {
             this.interactive = false;
+            this.deps.sendLog('MIC_WINDOW', {message: '[setInteractive] no window, force false'});
             return;
         }
         if (interactive && (!this.visible || this.autoShowDisabled)) {
+            this.deps.sendLog('MIC_WINDOW', {
+                message: '[setInteractive] skip enable because not visible',
+                visible: this.visible,
+                autoShowDisabled: this.autoShowDisabled
+            });
             return;
         }
-
         const platform = process.platform;
         if (interactive) {
             if (this.interactive) {
+                this.deps.sendLog('MIC_WINDOW', {message: '[setInteractive] already interactive'});
                 return;
             }
             this.interactive = true;
+            this.deps.sendLog('MIC_WINDOW', {message: '[setInteractive] enabling', platform});
             this.window.setIgnoreMouseEvents(false);
             if (platform === 'darwin') {
                 this.window.setFocusable(true);
@@ -162,11 +171,13 @@ export class MicWindowController implements WindowController {
         }
 
         this.interactive = false;
+        this.deps.sendLog('MIC_WINDOW', {message: '[setInteractive] disabling', platform});
         this.window.setIgnoreMouseEvents(true, {forward: true});
         if (platform === 'darwin') {
             this.window.setFocusable(false);
             this.window.blur();
         }
+        this.clearTemporaryInteraction();
     }
 
     moveTo(x: number, y: number): void {
@@ -343,6 +354,7 @@ export class MicWindowController implements WindowController {
             this.window = null;
             this.createPromise = null;
             void this.flushPendingPositionSave();
+            this.clearTemporaryInteraction();
         });
 
         this.window.on('move', () => {
@@ -403,7 +415,13 @@ export class MicWindowController implements WindowController {
         if (!this.window || this.window.isDestroyed()) {
             return;
         }
-        this.window.webContents.send('mic:start-recording');
+        // Небольшая задержка перед автоматическим стартом, чтобы дать время на обработку событий перетаскивания
+        setTimeout(() => {
+            if (!this.window || this.window.isDestroyed()) {
+                return;
+            }
+            this.window.webContents.send('mic:start-recording');
+        }, 100);
     }
 
     private async resolveTargetDisplay(): Promise<Electron.Display> {
@@ -519,5 +537,28 @@ export class MicWindowController implements WindowController {
             this.positionPersistTimeout = null;
         }
         await this.persistPendingPosition();
+    }
+
+    private enableTemporaryInteraction(duration = 1200): void {
+        if (!this.window || this.window.isDestroyed()) {
+            return;
+        }
+        this.window.setIgnoreMouseEvents(false);
+        if (this.temporaryInteractiveTimer) {
+            clearTimeout(this.temporaryInteractiveTimer);
+        }
+        this.temporaryInteractiveTimer = setTimeout(() => {
+            this.temporaryInteractiveTimer = null;
+            if (!this.interactive && this.window && !this.window.isDestroyed()) {
+                this.window.setIgnoreMouseEvents(true, {forward: true});
+            }
+        }, duration);
+    }
+
+    private clearTemporaryInteraction(): void {
+        if (this.temporaryInteractiveTimer) {
+            clearTimeout(this.temporaryInteractiveTimer);
+            this.temporaryInteractiveTimer = null;
+        }
     }
 }

@@ -15,14 +15,29 @@ const MicDragHandleComponent: React.FC<MicDragHandleProps> = ({interactions, isR
         transition: 'top 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease'
     };
 
+    const handleMouseEnter = () => {
+        console.log('[mic-drag] mouse enter handle');
+        interactions.handleHandleMouseEnter();
+    };
+
+    const handleMouseLeave = () => {
+        console.log('[mic-drag] mouse leave handle');
+        interactions.handleHandleMouseLeave();
+    };
+
+    const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        console.log('[mic-drag] pointer down', {pointerType: event.pointerType, button: event.button});
+        interactions.handleHandlePointerDown(event);
+    };
+
     return (
         <div
             className="absolute left-1/2 -translate-x-1/2 z-50 cursor-move select-none app-region-drag flex items-center justify-center"
             style={style}
             ref={interactions.dragHandleRef}
-            onMouseEnter={interactions.handleHandleMouseEnter}
-            onMouseLeave={interactions.handleHandleMouseLeave}
-            onPointerDown={interactions.handleHandlePointerDown}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+            onPointerDown={handlePointerDown}
             title="Перетащить микрофон"
             role="presentation"
             aria-hidden="true"

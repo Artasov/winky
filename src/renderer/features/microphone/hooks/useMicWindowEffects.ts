@@ -1,4 +1,5 @@
 import {useEffect, useRef} from 'react';
+import {requestTransientInteractive, resetInteractive} from '../../../utils/interactive';
 
 type MicWindowEffectsParams = {
     isMicOverlay: boolean;
@@ -56,17 +57,23 @@ export const useMicWindowEffects = ({
             if (autoStartPendingRef.current || isRecordingRef.current || processingRef.current) {
                 return;
             }
+            requestTransientInteractive();
             autoStartPendingRef.current = true;
             attemptAutoStart();
         };
 
-        const visibilityHandler = (_event: unknown, payload: { visible: boolean }) => {
-            if (payload?.visible) {
+        const visibilityHandler = (first?: { visible?: boolean } | unknown, second?: { visible?: boolean }) => {
+            const data = (first && typeof (first as any)?.visible === 'boolean')
+                ? (first as { visible?: boolean })
+                : second;
+            if (data?.visible) {
+                requestTransientInteractive();
                 void warmUpRecorder();
                 return;
             }
             clearAutoStartRetry();
             autoStartPendingRef.current = false;
+            resetInteractive();
             if (isRecordingRef.current) {
                 (async () => {
                     try {

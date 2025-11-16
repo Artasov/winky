@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {FAST_WHISPER_PORT, SPEECH_MODES} from '@shared/constants';
 import type {ActionConfig, AppConfig} from '@shared/types';
-import {resetInteractive} from '../../../utils/interactive';
+import {requestTransientInteractive, resetInteractive} from '../../../utils/interactive';
 import {createSpeechRecorder, type SpeechRecorder} from '../services/SpeechRecorder';
 import {
     actionHotkeysBridge,
@@ -388,6 +388,12 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
 
     useEffect(() => {
         isRecordingRef.current = isRecording;
+    }, [isRecording]);
+
+    useEffect(() => {
+        if (isRecording) {
+            requestTransientInteractive(1_200);
+        }
     }, [isRecording]);
 
     useEffect(() => {

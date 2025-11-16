@@ -25,9 +25,11 @@ const Sidebar: React.FC = () => {
         navigate(path);
     };
 
+    const shouldPlay = () => typeof document !== 'undefined' && !document.hidden;
+
     const ensurePlayback = useCallback(() => {
         const video = videoRef.current;
-        if (!video) {
+        if (!video || !shouldPlay()) {
             return;
         }
         if (video.paused || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
@@ -51,15 +53,17 @@ const Sidebar: React.FC = () => {
         video.muted = true;
 
         const handleVisibilityChange = () => {
-            if (!document.hidden) {
-                ensurePlayback();
+            if (document.hidden) {
+                video.pause();
+                return;
             }
+            ensurePlayback();
         };
 
         const handleCanPlay = () => ensurePlayback();
 
         const handlePlaybackIssue = () => {
-            if (!video) {
+            if (!video || !shouldPlay()) {
                 return;
             }
             if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
@@ -88,6 +92,7 @@ const Sidebar: React.FC = () => {
             video.removeEventListener('canplay', handleCanPlay);
             monitoredEvents.forEach((event) => video.removeEventListener(event, handlePlaybackIssue));
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            video.pause();
         };
     }, [ensurePlayback]);
 

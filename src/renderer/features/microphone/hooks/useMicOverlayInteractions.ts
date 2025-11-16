@@ -80,6 +80,35 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
     }, []);
 
     useEffect(() => {
+        if (!isMicOverlay || typeof window === 'undefined') {
+            return;
+        }
+        const api = window.winky;
+        if (!api?.on) {
+            return;
+        }
+        const handleVisibilityChange = (
+            first?: { visible?: boolean } | unknown,
+            second?: { visible?: boolean }
+        ) => {
+            const payload = (first && typeof (first as any)?.visible === 'boolean')
+                ? (first as { visible?: boolean })
+                : second;
+            if (payload?.visible) {
+                return;
+            }
+            dragPointerCleanupRef.current?.();
+            handleHoveringRef.current = false;
+            suppressedHandleLeaveRef.current = false;
+            interactiveLeave();
+        };
+        api.on('mic:visibility-change', handleVisibilityChange);
+        return () => {
+            api.removeListener?.('mic:visibility-change', handleVisibilityChange);
+        };
+    }, [isMicOverlay]);
+
+    useEffect(() => {
         if (!isMicOverlay) {
             return;
         }
@@ -117,7 +146,7 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
             } catch {
                 // ignore polling errors
             } finally {
-                timeoutId = setTimeout(pollCursor, 40);
+                timeoutId = setTimeout(pollCursor, 60);
             }
         };
 

@@ -1,5 +1,4 @@
 import React, {useEffect, useMemo} from 'react';
-import type {AppConfig} from '@shared/types';
 import MicrophoneButton from '../../../components/MicrophoneButton';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import {useConfig} from '../../../context/ConfigContext';
@@ -67,43 +66,6 @@ const MicOverlay: React.FC = () => {
         const volumePreference = typeof config?.completionSoundVolume === 'number' ? config.completionSoundVolume : 1;
         completionSoundRef.current.volume = volumePreference;
     }, [config?.completionSoundVolume]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') {
-            return;
-        }
-        const applyVolume = (volume?: number) => {
-            if (!completionSoundRef.current) {
-                return;
-            }
-            const normalized = typeof volume === 'number' ? volume : 1;
-            completionSoundRef.current.volume = normalized;
-        };
-
-        const loadInitial = async () => {
-            try {
-                const currentConfig: AppConfig | undefined = await window.winky?.config?.get?.();
-                applyVolume(currentConfig?.completionSoundVolume);
-            } catch {
-                applyVolume();
-            }
-        };
-
-        void loadInitial();
-
-        const subscribe = window.winky?.config?.subscribe;
-        if (!subscribe) {
-            return;
-        }
-        const unsubscribe = subscribe((nextConfig: AppConfig) => {
-            applyVolume(nextConfig?.completionSoundVolume);
-        });
-        return () => {
-            if (typeof unsubscribe === 'function') {
-                unsubscribe();
-            }
-        };
-    }, []);
 
     if (!config) {
         return (

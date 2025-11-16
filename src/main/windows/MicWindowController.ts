@@ -32,6 +32,8 @@ export class MicWindowController implements WindowController {
     private interactive = false;
     private createPromise: Promise<BrowserWindow | null> | null = null;
     private micAutoStartEnabled = false;
+    private positionPersistTimeout: NodeJS.Timeout | null = null;
+    private pendingPosition: MicAnchorPosition | null = null;
 
     constructor(private readonly deps: MicWindowDeps) {
         void this.refreshMicAutoStart();
@@ -237,6 +239,7 @@ export class MicWindowController implements WindowController {
         this.visible = false;
         this.interactive = false;
         this.createPromise = null;
+        void this.flushPendingPositionSave();
     }
 
     setMicAutoStart(enabled: boolean): void {
@@ -339,12 +342,13 @@ export class MicWindowController implements WindowController {
             this.visible = false;
             this.window = null;
             this.createPromise = null;
+            void this.flushPendingPositionSave();
         });
 
-        this.window.on('move', async () => {
+        this.window.on('move', () => {
             if (this.window && !this.window.isDestroyed()) {
                 const [x, y] = this.window.getPosition();
-                await this.deps.configRepository.setMicWindowPosition({x, y});
+                this.schedulePositionSave({x, y});
             }
         });
 
@@ -483,5 +487,37 @@ export class MicWindowController implements WindowController {
         }
 
         return {x: correctedX, y: correctedY};
+    }
+
+    private schedulePositionSave(position: MicAnchorPosition): void {
+        this.pendingPosition = position;
+        if (this.positionPersistTimeout) {
+            return;
+        }
+        this.positionPersistTimeout = setTimeout(() => {
+            this.positionPersistTimeout = null;
+            void this.persistPendingPosition();
+        }, 150);
+    }
+
+    private async persistPendingPosition(): Promise<void> {
+        const next = this.pendingPosition;
+        this.pendingPosition = null;
+        if (!next) {
+            return;
+        }
+        try {
+            await this.deps.configRepository.setMicWindowPosition(next);
+        } catch (error) {
+            this.deps.sendLog('MIC_WINDOW', `Failed to persist mic window position: ${error}`);
+        }
+    }
+
+    private async flushPendingPositionSave(): Promise<void> {
+        if (this.positionPersistTimeout) {
+            clearTimeout(this.positionPersistTimeout);
+            this.positionPersistTimeout = null;
+        }
+        await this.persistPendingPosition();
     }
 }

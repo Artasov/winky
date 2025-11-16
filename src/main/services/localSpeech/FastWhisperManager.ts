@@ -39,6 +39,8 @@ const initialStatus: FastWhisperStatus = {
 export class FastWhisperManager {
     private status: FastWhisperStatus = initialStatus;
     private locked = false;
+    private statusBroadcastTimeout: NodeJS.Timeout | null = null;
+    private lastStatusBroadcastAt = 0;
 
     async getStatus(): Promise<FastWhisperStatus> {
         await this.refreshEnvironmentState();
@@ -471,7 +473,7 @@ export class FastWhisperManager {
             updatedAt: Date.now()
         };
         this.status = merged;
-        emitToAllWindows('local-speech:status', merged);
+        this.scheduleStatusBroadcast();
     }
 
     private publishLogLine(rawLine: string | Buffer, label?: string): void {
@@ -494,6 +496,27 @@ export class FastWhisperManager {
             env.FAST_FAST_WHISPER_PORT = String(FAST_WHISPER_PORT);
         }
         return env;
+    }
+
+    private scheduleStatusBroadcast(): void {
+        if (this.statusBroadcastTimeout) {
+            return;
+        }
+        const now = Date.now();
+        const elapsed = now - this.lastStatusBroadcastAt;
+        if (elapsed >= 200) {
+            this.broadcastStatus();
+            return;
+        }
+        this.statusBroadcastTimeout = setTimeout(() => {
+            this.statusBroadcastTimeout = null;
+            this.broadcastStatus();
+        }, 200 - elapsed);
+    }
+
+    private broadcastStatus(): void {
+        this.lastStatusBroadcastAt = Date.now();
+        emitToAllWindows('local-speech:status', this.status);
     }
 }
 

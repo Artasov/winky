@@ -51,6 +51,7 @@ export class MainWindowController implements WindowController {
 
         Menu.setApplicationMenu(null);
         this.window.setMenuBarVisibility(false);
+        this.window.webContents.setBackgroundThrottling(true);
 
         if (this.deps.isDev) {
             void this.window.loadURL('http://localhost:5173');
@@ -60,6 +61,18 @@ export class MainWindowController implements WindowController {
 
         this.window.on('closed', () => {
             this.window = null;
+        });
+
+        this.window.on('hide', () => {
+            if (this.window && !this.window.isDestroyed()) {
+                this.window.webContents.setBackgroundThrottling(true);
+            }
+        });
+
+        this.window.on('show', () => {
+            if (this.window && !this.window.isDestroyed()) {
+                this.window.webContents.setBackgroundThrottling(false);
+            }
         });
 
         if (this.deps.isDev) {
@@ -133,6 +146,8 @@ export class MainWindowController implements WindowController {
 
     destroy(): void {
         if (this.window && !this.window.isDestroyed()) {
+            this.window.webContents.setBackgroundThrottling(true);
+            this.window.webContents.executeJavaScript('window.stop()').catch(() => {});
             this.window.close();
         }
         this.window = null;

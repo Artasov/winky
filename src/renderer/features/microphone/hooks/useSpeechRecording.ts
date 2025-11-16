@@ -49,6 +49,8 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     const localServerAlertInFlightRef = useRef(false);
     const localServerAlertReleaseRef = useRef<number | null>(null);
     const lastCommittedVolumeRef = useRef<{ value: number; timestamp: number }>({value: 0, timestamp: 0});
+    const windowVisibleRef = useRef(true);
+    const currentStreamRef = useRef<MediaStream | null>(null);
 
     const [isRecording, setIsRecording] = useState(false);
     const [activeActionId, setActiveActionId] = useState<string | null>(null);
@@ -120,10 +122,15 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         }
         lastCommittedVolumeRef.current = {value: 0, timestamp: 0};
         setVolume(0);
+        currentStreamRef.current = null;
     }, []);
 
     const startVolumeMonitor = useCallback((stream: MediaStream) => {
         stopVolumeMonitor();
+        currentStreamRef.current = stream;
+        if (!windowVisibleRef.current) {
+            return;
+        }
         try {
             const audioContext = new AudioContext();
             const analyser = audioContext.createAnalyser();
@@ -133,6 +140,10 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             const buffer = new Uint8Array(analyser.fftSize);
 
             const update = () => {
+                if (!windowVisibleRef.current) {
+                    animationFrameRef.current = undefined;
+                    return;
+                }
                 analyser.getByteTimeDomainData(buffer);
                 let sumSquares = 0;
                 for (let i = 0; i < buffer.length; i += 1) {
@@ -151,6 +162,35 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             console.error('[MicOverlay] Не удалось инициализировать визуализацию микрофона', error);
         }
     }, [commitVolumeSample, stopVolumeMonitor]);
+
+    useEffect(() => {
+        if (!isMicOverlay || typeof window === 'undefined') {
+            return;
+        }
+        const api = window.winky;
+        if (!api?.on) {
+            return;
+        }
+        const handleVisibilityChange = (
+            first?: { visible?: boolean } | unknown,
+            second?: { visible?: boolean }
+        ) => {
+            const payload = (first && typeof (first as any)?.visible === 'boolean')
+                ? (first as { visible?: boolean })
+                : second;
+            const isVisible = payload?.visible === true;
+            windowVisibleRef.current = isVisible;
+            if (!isVisible) {
+                stopVolumeMonitor();
+            } else if (isRecordingRef.current && currentStreamRef.current) {
+                startVolumeMonitor(currentStreamRef.current);
+            }
+        };
+        api.on('mic:visibility-change', handleVisibilityChange);
+        return () => {
+            api.removeListener?.('mic:visibility-change', handleVisibilityChange);
+        };
+    }, [isMicOverlay, stopVolumeMonitor, startVolumeMonitor]);
 
     const handleLocalSpeechServerFailure = useCallback((message?: string): boolean => {
         if (config?.speech.mode !== SPEECH_MODES.LOCAL) {

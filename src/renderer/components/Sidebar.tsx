@@ -60,10 +60,14 @@ const Sidebar: React.FC = () => {
             ensurePlayback();
         };
 
-        const handleCanPlay = () => ensurePlayback();
+        const handleCanPlay = () => {
+            if (!document.hidden) {
+                ensurePlayback();
+            }
+        };
 
         const handlePlaybackIssue = () => {
-            if (!video || !shouldPlay()) {
+            if (!video || !shouldPlay() || document.hidden) {
                 return;
             }
             if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
@@ -86,7 +90,9 @@ const Sidebar: React.FC = () => {
         monitoredEvents.forEach((event) => video.addEventListener(event, handlePlaybackIssue));
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
-        ensurePlayback();
+        if (!document.hidden) {
+            ensurePlayback();
+        }
 
         return () => {
             video.removeEventListener('canplay', handleCanPlay);

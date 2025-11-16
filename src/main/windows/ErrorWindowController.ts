@@ -52,6 +52,8 @@ export class ErrorWindowController implements WindowController {
             }
         });
 
+        this.window.webContents.setBackgroundThrottling(true);
+
         if (this.deps.isDev) {
             void this.window.loadURL('http://localhost:5173/?window=error#/error');
         } else {
@@ -59,8 +61,23 @@ export class ErrorWindowController implements WindowController {
         }
 
         this.window.once('ready-to-show', () => {
+            if (this.window && !this.window.isDestroyed()) {
+                this.window.webContents.setBackgroundThrottling(false);
+            }
             this.window?.show();
             this.window?.webContents.send('error:data', payload);
+        });
+
+        this.window.on('hide', () => {
+            if (this.window && !this.window.isDestroyed()) {
+                this.window.webContents.setBackgroundThrottling(true);
+            }
+        });
+
+        this.window.on('show', () => {
+            if (this.window && !this.window.isDestroyed()) {
+                this.window.webContents.setBackgroundThrottling(false);
+            }
         });
 
         this.window.on('closed', () => {
@@ -72,6 +89,8 @@ export class ErrorWindowController implements WindowController {
 
     destroy(): void {
         if (this.window && !this.window.isDestroyed()) {
+            this.window.webContents.setBackgroundThrottling(true);
+            this.window.webContents.executeJavaScript('window.stop()').catch(() => {});
             this.window.close();
         }
         this.window = null;

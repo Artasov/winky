@@ -104,6 +104,7 @@ export class MicWindowController implements WindowController {
             this.visible = true;
             this.ensureOnTop();
             this.setInteractive(true);
+            this.window.webContents.setBackgroundThrottling(false);
             this.window.webContents.send('mic:start-fade-in');
             this.enableTemporaryInteraction();
             setTimeout(() => {
@@ -135,6 +136,7 @@ export class MicWindowController implements WindowController {
         }
         this.window.webContents.send('mic:start-fade-out');
         this.window.setOpacity(0);
+        this.window.webContents.setBackgroundThrottling(true);
         this.window.hide();
         this.sendVisibilityChange(false, reason);
     }
@@ -244,6 +246,8 @@ export class MicWindowController implements WindowController {
 
     destroy(): void {
         if (this.window && !this.window.isDestroyed()) {
+            this.window.webContents.setBackgroundThrottling(true);
+            this.window.webContents.executeJavaScript('window.stop()').catch(() => {});
             this.window.close();
         }
         this.window = null;
@@ -309,6 +313,7 @@ export class MicWindowController implements WindowController {
         window.setHasShadow(false);
         window.setSkipTaskbar(true);
         window.setBackgroundColor('#00000000');
+        window.webContents.setBackgroundThrottling(true);
 
         if (isMac) {
             window.setAlwaysOnTop(true, 'floating', 1);
@@ -346,6 +351,7 @@ export class MicWindowController implements WindowController {
             this.setInteractive(false);
             if (this.window && !this.window.isDestroyed()) {
                 this.window.setOpacity(0);
+                this.window.webContents.setBackgroundThrottling(true);
             }
         });
 

@@ -174,6 +174,9 @@ app.on('second-instance', (_event, argv) => {
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         destroyTray();
+        windowRegistry.get('mic')?.destroy();
+        windowRegistry.get('result')?.destroy();
+        windowRegistry.get('error')?.destroy();
         app.quit();
     }
 });

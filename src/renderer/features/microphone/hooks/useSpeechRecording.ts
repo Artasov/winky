@@ -186,9 +186,28 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 startVolumeMonitor(currentStreamRef.current);
             }
         };
+        
+        const handleDocumentVisibilityChange = () => {
+            const isVisible = !document.hidden;
+            windowVisibleRef.current = isVisible;
+            if (!isVisible) {
+                stopVolumeMonitor();
+            } else if (isRecordingRef.current && currentStreamRef.current) {
+                startVolumeMonitor(currentStreamRef.current);
+            }
+        };
+        
         api.on('mic:visibility-change', handleVisibilityChange);
+        document.addEventListener('visibilitychange', handleDocumentVisibilityChange);
+        
+        if (document.hidden) {
+            windowVisibleRef.current = false;
+            stopVolumeMonitor();
+        }
+        
         return () => {
             api.removeListener?.('mic:visibility-change', handleVisibilityChange);
+            document.removeEventListener('visibilitychange', handleDocumentVisibilityChange);
         };
     }, [isMicOverlay, stopVolumeMonitor, startVolumeMonitor]);
 

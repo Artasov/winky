@@ -14,6 +14,7 @@ import {HotkeyManager} from './hotkeys/HotkeyManager';
 import {ConfigRepository} from './services/config/ConfigRepository';
 import {getConfig} from './config';
 import {sendLogToRenderer} from './utils/logger';
+import {fastWhisperManager} from './services/localSpeech/FastWhisperManager';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -172,12 +173,51 @@ app.on('second-instance', (_event, argv) => {
 });
 
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        destroyTray();
+    const allWindows = BrowserWindow.getAllWindows();
+    const visibleWindows = allWindows.filter(win => win.isVisible() && !win.isDestroyed());
+    
+    if (visibleWindows.length === 0) {
+        // Уничтожаем все окна, даже скрытые
+        const allExistingWindows = BrowserWindow.getAllWindows();
+        allExistingWindows.forEach(win => {
+            if (!win.isDestroyed()) {
+                try {
+                    win.webContents.setFrameRate(0);
+                    win.webContents.setBackgroundThrottling(true);
+                    win.webContents.executeJavaScript('window.stop()').catch(() => {});
+                    win.webContents.destroy();
+                } catch {
+                    // Игнорируем ошибки при уничтожении
+                }
+                try {
+                    win.destroy();
+                } catch {
+                    // Игнорируем ошибки при уничтожении
+                }
+            }
+        });
+        
+        // Уничтожаем все контроллеры окон
         windowRegistry.get('mic')?.destroy();
         windowRegistry.get('result')?.destroy();
         windowRegistry.get('error')?.destroy();
-        app.quit();
+        windowRegistry.get('main')?.destroy();
+        
+        // Очищаем все хоткеи
+        hotkeyManager.unregisterAll();
+        
+        // Останавливаем все фоновые процессы
+        fastWhisperManager.stopBroadcasting();
+        
+        // На Windows и Linux полностью закрываем приложение
+        // На macOS оставляем работать в фоне (стандартное поведение)
+        if (process.platform !== 'darwin') {
+            destroyTray();
+            // Даем время на полное уничтожение всех ресурсов
+            setTimeout(() => {
+                app.exit(0);
+            }, 100);
+        }
     }
 });
 

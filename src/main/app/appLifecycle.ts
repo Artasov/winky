@@ -31,8 +31,6 @@ export const handleAppReady = async (deps: AppLifecycleDeps): Promise<void> => {
         handleAuthUrl(link);
     }
 
-    deps.mainWindowController.ensureWindow();
-
     let shouldShowMainWindow = true;
     let userLoaded = false;
 

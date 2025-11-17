@@ -52,6 +52,7 @@ export class MainWindowController implements WindowController {
         Menu.setApplicationMenu(null);
         this.window.setMenuBarVisibility(false);
         this.window.webContents.setBackgroundThrottling(true);
+        this.window.webContents.setFrameRate(0);
 
         if (this.deps.isDev) {
             void this.window.loadURL('http://localhost:5173');
@@ -59,19 +60,41 @@ export class MainWindowController implements WindowController {
             void this.window.loadFile(this.deps.rendererPath);
         }
 
+        this.window.on('close', (event) => {
+            if (this.window && !this.window.isDestroyed()) {
+                this.window.webContents.setFrameRate(0);
+                this.window.webContents.setBackgroundThrottling(true);
+                this.window.webContents.executeJavaScript('window.stop()').catch(() => {});
+            }
+        });
+
         this.window.on('closed', () => {
+            if (this.window && !this.window.isDestroyed()) {
+                try {
+                    this.window.webContents.destroy();
+                } catch {
+                    // Игнорируем ошибки при уничтожении
+                }
+            }
             this.window = null;
         });
 
         this.window.on('hide', () => {
             if (this.window && !this.window.isDestroyed()) {
                 this.window.webContents.setBackgroundThrottling(true);
+                this.window.webContents.setFrameRate(0);
+                this.window.webContents.executeJavaScript(`
+                    if (typeof document !== 'undefined') {
+                        document.dispatchEvent(new Event('visibilitychange'));
+                    }
+                `).catch(() => {});
             }
         });
 
         this.window.on('show', () => {
             if (this.window && !this.window.isDestroyed()) {
                 this.window.webContents.setBackgroundThrottling(false);
+                this.window.webContents.setFrameRate(60);
             }
         });
 
@@ -147,8 +170,14 @@ export class MainWindowController implements WindowController {
     destroy(): void {
         if (this.window && !this.window.isDestroyed()) {
             this.window.webContents.setBackgroundThrottling(true);
+            this.window.webContents.setFrameRate(0);
             this.window.webContents.executeJavaScript('window.stop()').catch(() => {});
-            this.window.close();
+            try {
+                this.window.webContents.destroy();
+            } catch {
+                // Игнорируем ошибки при уничтожении
+            }
+            this.window.destroy();
         }
         this.window = null;
     }

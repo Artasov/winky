@@ -1,4 +1,4 @@
-import {app} from 'electron';
+import {app, BrowserWindow} from 'electron';
 import path from 'path';
 import fs from 'fs';
 import fsPromises from 'fs/promises';
@@ -499,6 +499,16 @@ export class FastWhisperManager {
     }
 
     private scheduleStatusBroadcast(): void {
+        const visibleWindows = BrowserWindow.getAllWindows().filter(win => !win.isDestroyed() && win.isVisible());
+        if (visibleWindows.length === 0) {
+            // Останавливаем broadcast если нет видимых окон
+            if (this.statusBroadcastTimeout) {
+                clearTimeout(this.statusBroadcastTimeout);
+                this.statusBroadcastTimeout = null;
+            }
+            return;
+        }
+        
         if (this.statusBroadcastTimeout) {
             return;
         }
@@ -513,8 +523,19 @@ export class FastWhisperManager {
             this.broadcastStatus();
         }, 200 - elapsed);
     }
+    
+    stopBroadcasting(): void {
+        if (this.statusBroadcastTimeout) {
+            clearTimeout(this.statusBroadcastTimeout);
+            this.statusBroadcastTimeout = null;
+        }
+    }
 
     private broadcastStatus(): void {
+        const visibleWindows = BrowserWindow.getAllWindows().filter(win => !win.isDestroyed() && win.isVisible());
+        if (visibleWindows.length === 0) {
+            return;
+        }
         this.lastStatusBroadcastAt = Date.now();
         emitToAllWindows('local-speech:status', this.status);
     }

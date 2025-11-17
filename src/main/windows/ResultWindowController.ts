@@ -47,7 +47,15 @@ export class ResultWindowController implements WindowController {
 
     close(): void {
         if (this.window && !this.window.isDestroyed()) {
-            this.window.close();
+            try {
+                this.window.webContents.setFrameRate(0);
+                this.window.webContents.setBackgroundThrottling(true);
+                this.window.webContents.executeJavaScript('window.stop()').catch(() => {});
+                this.window.webContents.destroy();
+            } catch {
+                // Игнорируем ошибки при уничтожении
+            }
+            this.window.destroy();
         }
         this.window = null;
     }
@@ -61,9 +69,16 @@ export class ResultWindowController implements WindowController {
     destroy(): void {
         if (this.window && !this.window.isDestroyed()) {
             this.window.webContents.setBackgroundThrottling(true);
+            this.window.webContents.setFrameRate(0);
             this.window.webContents.executeJavaScript('window.stop()').catch(() => {});
+            try {
+                this.window.webContents.destroy();
+            } catch {
+                // Игнорируем ошибки при уничтожении
+            }
+            this.window.destroy();
         }
-        this.close();
+        this.window = null;
     }
 
     ensureWindow(): BrowserWindow {
@@ -95,6 +110,7 @@ export class ResultWindowController implements WindowController {
 
         this.window.setMenuBarVisibility(false);
         this.window.webContents.setBackgroundThrottling(true);
+        this.window.webContents.setFrameRate(0);
 
         if (this.deps.isDev) {
             void this.window.loadURL('http://localhost:5173/?window=result#/result');
@@ -102,19 +118,41 @@ export class ResultWindowController implements WindowController {
             void this.window.loadFile(this.deps.rendererPath, {hash: '/result', query: {window: 'result'}});
         }
 
+        this.window.on('close', () => {
+            if (this.window && !this.window.isDestroyed()) {
+                this.window.webContents.setFrameRate(0);
+                this.window.webContents.setBackgroundThrottling(true);
+                this.window.webContents.executeJavaScript('window.stop()').catch(() => {});
+            }
+        });
+
         this.window.on('closed', () => {
+            if (this.window && !this.window.isDestroyed()) {
+                try {
+                    this.window.webContents.destroy();
+                } catch {
+                    // Игнорируем ошибки при уничтожении
+                }
+            }
             this.window = null;
         });
 
         this.window.on('hide', () => {
             if (this.window && !this.window.isDestroyed()) {
                 this.window.webContents.setBackgroundThrottling(true);
+                this.window.webContents.setFrameRate(0);
+                this.window.webContents.executeJavaScript(`
+                    if (typeof document !== 'undefined') {
+                        document.dispatchEvent(new Event('visibilitychange'));
+                    }
+                `).catch(() => {});
             }
         });
 
         this.window.on('show', () => {
             if (this.window && !this.window.isDestroyed()) {
                 this.window.webContents.setBackgroundThrottling(false);
+                this.window.webContents.setFrameRate(60);
             }
         });
 

@@ -30,6 +30,9 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         let mounted = true;
 
         const fetchStatus = async () => {
+            if (!mounted || typeof document === 'undefined' || document.hidden) {
+                return;
+            }
             try {
                 const nextStatus = await window.winky?.localSpeech?.getStatus();
                 if (mounted && nextStatus) {
@@ -51,9 +54,18 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
             void fetchStatus();
         };
 
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                void fetchStatus();
+            }
+        };
+
         window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
         const pollInterval = setInterval(() => {
-            void fetchStatus();
+            if (!document.hidden) {
+                void fetchStatus();
+            }
         }, 15_000);
 
         const unsubscribe = window.winky?.localSpeech?.onStatus?.((nextStatus) => {
@@ -68,6 +80,7 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         return () => {
             mounted = false;
             window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
             clearInterval(pollInterval);
             unsubscribe?.();
         };

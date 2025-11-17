@@ -247,8 +247,14 @@ export class MicWindowController implements WindowController {
     destroy(): void {
         if (this.window && !this.window.isDestroyed()) {
             this.window.webContents.setBackgroundThrottling(true);
+            this.window.webContents.setFrameRate(0);
             this.window.webContents.executeJavaScript('window.stop()').catch(() => {});
-            this.window.close();
+            try {
+                this.window.webContents.destroy();
+            } catch {
+                // Игнорируем ошибки при уничтожении
+            }
+            this.window.destroy();
         }
         this.window = null;
         this.visible = false;
@@ -314,6 +320,7 @@ export class MicWindowController implements WindowController {
         window.setSkipTaskbar(true);
         window.setBackgroundColor('#00000000');
         window.webContents.setBackgroundThrottling(true);
+        window.webContents.setFrameRate(0);
 
         if (isMac) {
             window.setAlwaysOnTop(true, 'floating', 1);
@@ -344,6 +351,9 @@ export class MicWindowController implements WindowController {
 
         this.window.on('show', () => {
             this.visible = true;
+            if (this.window && !this.window.isDestroyed()) {
+                this.window.webContents.setFrameRate(60);
+            }
         });
 
         this.window.on('hide', () => {
@@ -352,10 +362,31 @@ export class MicWindowController implements WindowController {
             if (this.window && !this.window.isDestroyed()) {
                 this.window.setOpacity(0);
                 this.window.webContents.setBackgroundThrottling(true);
+                this.window.webContents.setFrameRate(0);
+                this.window.webContents.executeJavaScript(`
+                    if (typeof document !== 'undefined') {
+                        document.dispatchEvent(new Event('visibilitychange'));
+                    }
+                `).catch(() => {});
+            }
+        });
+
+        this.window.on('close', () => {
+            if (this.window && !this.window.isDestroyed()) {
+                this.window.webContents.setFrameRate(0);
+                this.window.webContents.setBackgroundThrottling(true);
+                this.window.webContents.executeJavaScript('window.stop()').catch(() => {});
             }
         });
 
         this.window.on('closed', () => {
+            if (this.window && !this.window.isDestroyed()) {
+                try {
+                    this.window.webContents.destroy();
+                } catch {
+                    // Игнорируем ошибки при уничтожении
+                }
+            }
             this.visible = false;
             this.window = null;
             this.createPromise = null;

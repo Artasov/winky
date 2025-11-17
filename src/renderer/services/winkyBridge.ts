@@ -100,3 +100,9 @@ export const actionHotkeysBridge = {
         return window.winky?.actionHotkeys?.clear?.() ?? Promise.resolve();
     }
 };
+
+export const resourcesBridge = {
+    getSoundPath(soundName: string): Promise<string> {
+        return window.winky?.resources?.getSoundPath?.(soundName) ?? Promise.resolve('');
+    }
+};

@@ -1,4 +1,5 @@
 import {BrowserWindow, clipboard, ipcMain, screen} from 'electron';
+import path from 'path';
 import type {AppConfig, AuthTokens, MicAnchor} from '@shared/types';
 import {getConfig, getConfigFilePath, resetConfig, setAuthTokens, updateConfig} from '../config';
 import {broadcastConfigUpdate} from '../services/configSync';
@@ -142,6 +143,17 @@ export const registerIpcHandlers = (deps: IpcDependencies): void => {
     });
 
     ipcMain.handle('config:path', async () => getConfigFilePath());
+
+    ipcMain.handle('resources:sound-path', async (_event, soundName: string) => {
+        const isDev = deps.isDev;
+        if (isDev) {
+            // В dev режиме файл обслуживается через Vite, используем относительный путь
+            return `/sounds/${soundName}`;
+        }
+        // В production используем file:// протокол для файлов из extraResources
+        const filePath = path.join(process.resourcesPath, 'sounds', soundName);
+        return `file://${filePath.replace(/\\/g, '/')}`;
+    });
 
     ipcMain.handle('clipboard:write', (_event, text: string) => {
         clipboard.writeText(text ?? '');

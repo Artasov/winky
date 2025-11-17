@@ -73,6 +73,9 @@ const api = {
             };
         }
     },
+    resources: {
+        getSoundPath: (soundName: string): Promise<string> => ipcRenderer.invoke('resources:sound-path', soundName),
+    },
     clipboard: {
         writeText: (text: string): Promise<boolean> => ipcRenderer.invoke('clipboard:write', text)
     },

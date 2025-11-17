@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import MicrophoneButton from '../../../components/MicrophoneButton';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import {useConfig} from '../../../context/ConfigContext';
@@ -10,6 +10,7 @@ import MicDragHandle from './MicDragHandle';
 import MicVolumeRings from './MicVolumeRings';
 import MicActionOrbit from './MicActionOrbit';
 import {interactiveEnter, interactiveLeave} from '../../../utils/interactive';
+import {resourcesBridge} from '../../../services/winkyBridge';
 
 const MicOverlay: React.FC = () => {
     const {config} = useConfig();
@@ -49,6 +50,18 @@ const MicOverlay: React.FC = () => {
         warmUpRecorder
     } = handlers;
 
+    const [soundPath, setSoundPath] = useState<string>('/sounds/completion.wav');
+
+    useEffect(() => {
+        void resourcesBridge.getSoundPath('completion.wav').then((path) => {
+            if (path) {
+                setSoundPath(path);
+            }
+        }).catch((error) => {
+            console.warn('[MicOverlay] Failed to get sound path, using default:', error);
+        });
+    }, []);
+
     useMicWindowEffects({
         isMicOverlay,
         autoStartPendingRef,
@@ -82,7 +95,7 @@ const MicOverlay: React.FC = () => {
 
     return (
         <>
-            <audio ref={completionSoundRef} src='/sounds/completion.wav' preload='auto'/>
+            <audio ref={completionSoundRef} src={soundPath} preload='auto'/>
             <MicDragHandle interactions={interactions} isRecording={isRecording} disabled={processing}/>
             <div className="pointer-events-none relative flex h-full w-full items-center justify-center">
                 <MicVolumeRings isRecording={isRecording} normalizedVolume={normalizedVolume}/>

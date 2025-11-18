@@ -46,15 +46,20 @@ const currentWindowKind = resolveWindowKind();
 const currentWindow = getCurrentWindow();
 
 const openDevtools = async () => {
-    try {
-        await currentWindow.openDevtools();
-    } catch {
-        // Если прямой вызов не работает, пробуем через команду
+    const maybeWindow = currentWindow as unknown as {openDevtools?: () => Promise<void>};
+    if (maybeWindow?.openDevtools) {
         try {
-            await invoke('window_open_devtools');
+            await maybeWindow.openDevtools();
+            return;
         } catch {
-            // Игнорируем ошибки
+            // ignore and fallback
         }
+    }
+
+    try {
+        await invoke('window_open_devtools');
+    } catch {
+        // Игнорируем ошибки
     }
 };
 

@@ -4,8 +4,8 @@ import {setProximityInteractive} from '../../../utils/interactive';
 
 type MicInteractiveProximityParams = {
     isMicOverlay: boolean;
-    micButtonRef: RefObject<HTMLElement>;
-    actionsContainerRef: RefObject<HTMLElement>;
+    micButtonRef: RefObject<HTMLElement | null>;
+    actionsContainerRef: RefObject<HTMLElement | null>;
     actionsEnabled: boolean;
 };
 

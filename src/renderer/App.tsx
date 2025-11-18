@@ -231,6 +231,20 @@ const AppContent: React.FC = () => {
         );
     }
 
+    // Если есть токен и идет загрузка пользователя, показываем CircularProgress вместо Welcome
+    const hasToken = config?.auth.access || config?.auth.accessToken;
+    const isLoadingUser = userLoading && hasToken && !isAuthenticated;
+    
+    if (isLoadingUser && !windowIdentity.isAuxWindow) {
+        return (
+            <div className="flex h-full items-center justify-center bg-bg-base text-text-primary">
+                <div className="fccc gap-4">
+                    <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                </div>
+            </div>
+        );
+    }
+
     if (preloadError || !window.winky) {
         return (
             <div

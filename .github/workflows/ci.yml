@@ -38,8 +38,8 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-  package:
-    name: Package ${{ matrix.os }}
+  package-tauri:
+    name: Package Tauri (${{ matrix.os }})
     needs: quality
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ matrix.os }}
@@ -71,12 +71,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build renderer bundle
+        run: npm run build:renderer
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build with Tauri
+      - name: Build desktop apps with Tauri
         uses: tauri-apps/tauri-action@v0
         with:
+          tauriScript: npm run build
           args: --verbose
 
       - name: Upload artifacts to S3

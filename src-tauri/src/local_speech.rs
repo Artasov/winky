@@ -121,12 +121,17 @@ impl FastWhisperManager {
     }
 
     async fn ensure_repository(&self, app: &AppHandle, force: bool) -> Result<()> {
+        let repo_dir = self.repo_path(app);
+        println!(
+            "[fast-fast-whisper] repository directory: {}",
+            repo_dir.display()
+        );
         if force {
-            if self.repo_path(app).exists() {
-                tokio::fs::remove_dir_all(self.repo_path(app)).await?;
+            if repo_dir.exists() {
+                tokio::fs::remove_dir_all(&repo_dir).await?;
             }
         }
-        if self.repo_path(app).exists() {
+        if repo_dir.exists() {
             return Ok(());
         }
         tokio::fs::create_dir_all(self.install_root(app)).await?;

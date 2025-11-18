@@ -555,9 +555,9 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             lastGlobalActionHotkeyTsRef.current = now;
             void handleActionClick(action);
         };
-        window.electron?.on?.('hotkey:action-triggered', handler);
+        const unsubscribe = window.winky?.on?.('hotkey:action-triggered', handler as any);
         return () => {
-            window.electron?.removeListener?.('hotkey:action-triggered', handler);
+            unsubscribe?.();
         };
     }, [activeActions, handleActionClick, isMicOverlay, isRecording]);
 

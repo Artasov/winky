@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef} from 'react';
-import {Route, Routes} from 'react-router-dom';
+import {Route, Routes, useNavigate} from 'react-router-dom';
 import {ConfigContext} from './context/ConfigContext';
 import {ToastContext, type ToastType} from './context/ToastContext';
 import {UserProvider, useUser} from './context/UserContext';
@@ -35,7 +35,10 @@ const AppContent: React.FC = () => {
     const {config, loading, preloadError, refreshConfig, updateConfig, setConfig} = useConfigController();
     const {user, fetchUser, loading: userLoading} = useUser();
     const userFetchAttempted = useRef(false);
+    const actionsFetched = useRef(false);
     const shouldRenderToasts = windowIdentity.allowsToasts;
+    const isAuthenticated = Boolean(user);
+    const navigate = useNavigate();
 
     const showToast = useCallback(
         (message: string, type: ToastType = 'info', options?: { durationMs?: number }) => {
@@ -68,51 +71,110 @@ const AppContent: React.FC = () => {
 
     useToastBridge({enabled: shouldRenderToasts, showToast});
     useWindowChrome(windowIdentity);
-    useNavigationSync({config, loading, windowIdentity});
+    useNavigationSync({config, loading, windowIdentity, isAuthenticated});
 
-    // Загружаем пользователя только если его нет в кеше и есть токен
     useEffect(() => {
-        // Ждем пока UserContext загрузит кешированного пользователя
+        const hasToken = config?.auth.access || config?.auth.accessToken;
+        if (!hasToken) {
+            console.log('[App] Config updated: no tokens found, resetting userFetchAttempted');
+            userFetchAttempted.current = false;
+        } else {
+            console.log('[App] Config updated: tokens found', {
+                hasAccess: !!config?.auth.access,
+                hasAccessToken: !!config?.auth.accessToken
+            });
+        }
+    }, [config?.auth.access, config?.auth.accessToken]);
+
+    useEffect(() => {
         if (userLoading) {
             return;
         }
-
-        // Уже пытались загрузить пользователя - не делаем повторно
         if (userFetchAttempted.current) {
             return;
         }
-
-        const loadUser = async () => {
-            const hasToken = config?.auth.access || config?.auth.accessToken;
-            if (!hasToken || (typeof hasToken === 'string' && hasToken.trim() === '')) {
-                console.log('[App] No token found, skipping user fetch');
-                userFetchAttempted.current = true;
-                return;
-            }
-
-            // Если пользователь уже загружен из кеша - не делаем повторный запрос
-            if (user) {
-                console.log('[App] User already loaded from cache:', user.email);
-                userFetchAttempted.current = true;
-                return;
-            }
-
-            // Пользователя нет в кеше, загружаем с сервера
-            console.log('[App] Token found but no cached user, fetching from server...');
+        const hasToken = config?.auth.access || config?.auth.accessToken;
+        if (!hasToken || (typeof hasToken === 'string' && hasToken.trim() === '')) {
+            console.log('[App] No token found, requiring authentication');
             userFetchAttempted.current = true;
-            try {
-                const userData = await fetchUser();
-
-                if (!userData) {
-                    console.warn('[App] Failed to fetch user, token might be invalid');
-                }
-            } catch (error) {
-                console.error('[App] Failed to fetch user', error);
+            if (!windowIdentity.isAuxWindow) {
+                navigate('/auth', {replace: true});
             }
-        };
+            return;
+        }
+        console.log('[App] Token found, fetching user from server...');
+        userFetchAttempted.current = true;
+        void fetchUser()
+            .then((userData) => {
+                if (!userData && !windowIdentity.isAuxWindow) {
+                    console.warn('[App] Failed to fetch user, redirecting to auth');
+                    navigate('/auth', {replace: true});
+                }
+            })
+            .catch((error) => {
+                console.error('[App] Failed to fetch user', error);
+                userFetchAttempted.current = false;
+                if (!windowIdentity.isAuxWindow) {
+                    navigate('/auth', {replace: true});
+                }
+            });
+    }, [config?.auth.access, config?.auth.accessToken, userLoading, fetchUser, navigate, windowIdentity.isAuxWindow]);
 
-        void loadUser();
-    }, [config?.auth.access, config?.auth.accessToken, user, userLoading, fetchUser]);
+    useEffect(() => {
+        if (windowIdentity.isAuxWindow) {
+            return;
+        }
+        // Не перенаправляем на /auth, если есть токены в конфигурации (возможно идет процесс OAuth)
+        const hasToken = config?.auth.access || config?.auth.accessToken;
+        if (userFetchAttempted.current && !isAuthenticated && !userLoading && !hasToken) {
+            navigate('/auth', {replace: true});
+        }
+    }, [isAuthenticated, userLoading, windowIdentity.isAuxWindow, navigate, config?.auth.access, config?.auth.accessToken]);
+
+    useEffect(() => {
+        if (windowIdentity.isAuxWindow) {
+            return;
+        }
+        // НЕ запрашиваем actions пока пользователь не авторизован
+        if (!isAuthenticated) {
+            actionsFetched.current = false;
+            return;
+        }
+        const hasToken = config?.auth.access || config?.auth.accessToken;
+        if (!hasToken || (typeof hasToken === 'string' && hasToken.trim() === '')) {
+            actionsFetched.current = false;
+            return;
+        }
+        if (actionsFetched.current) {
+            return;
+        }
+        console.log('[App] Fetching actions...');
+        actionsFetched.current = true;
+        window.winky?.actions?.fetch?.().catch((error) => {
+            console.error('[App] Failed to fetch actions', error);
+            actionsFetched.current = false;
+        });
+    }, [config?.auth.access, config?.auth.accessToken, windowIdentity.isAuxWindow, isAuthenticated]);
+
+    const autoShowMicRef = useRef(false);
+
+    useEffect(() => {
+        if (!windowIdentity.isAuxWindow && config?.micShowOnLaunch === false) {
+            autoShowMicRef.current = false;
+        }
+    }, [config?.micShowOnLaunch, windowIdentity.isAuxWindow]);
+
+    useEffect(() => {
+        if (
+            !windowIdentity.isAuxWindow &&
+            config?.setupCompleted &&
+            config.micShowOnLaunch !== false &&
+            !autoShowMicRef.current
+        ) {
+            autoShowMicRef.current = true;
+            window.winky?.mic?.show?.('auto');
+        }
+    }, [config?.setupCompleted, config?.micShowOnLaunch, windowIdentity.isAuxWindow]);
 
     const configContextValue = useMemo(
         () => ({config, setConfig, refreshConfig, updateConfig}),
@@ -132,16 +194,20 @@ const AppContent: React.FC = () => {
                 <Route path="/setup" element={<SetupWindow/>}/>
             </Route>
 
-            <Route element={<DesktopShell/>}>
-                <Route path="/main" element={<MainWindow/>}/>
-            </Route>
+            {isAuthenticated ? (
+                <>
+                    <Route element={<DesktopShell/>}>
+                        <Route path="/main" element={<MainWindow/>}/>
+                    </Route>
 
-            <Route element={<DesktopShell allowSidebar/>}>
-                <Route path="/me" element={<MePage/>}/>
-                <Route path="/actions" element={<ActionsPage/>}/>
-                <Route path="/settings" element={<SettingsPage/>}/>
-                <Route path="/info" element={<InfoPage/>}/>
-            </Route>
+                    <Route element={<DesktopShell allowSidebar/>}>
+                        <Route path="/me" element={<MePage/>}/>
+                        <Route path="/actions" element={<ActionsPage/>}/>
+                        <Route path="/settings" element={<SettingsPage/>}/>
+                        <Route path="/info" element={<InfoPage/>}/>
+                    </Route>
+                </>
+            ) : null}
 
             <Route element={<MicShell/>}>
                 <Route path="/mic" element={<MicWindow/>}/>

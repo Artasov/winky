@@ -7,13 +7,14 @@ interface NavigationSyncParams {
     config: AppConfig | null;
     loading: boolean;
     windowIdentity: WindowIdentity;
+    isAuthenticated: boolean;
 }
 
 const authRoutes = ['/', '/auth'];
 const setupRoutes = ['/setup'];
 const appRoutes = ['/me', '/actions', '/settings', '/info'];
 
-export const useNavigationSync = ({config, loading, windowIdentity}: NavigationSyncParams): void => {
+export const useNavigationSync = ({config, loading, windowIdentity, isAuthenticated}: NavigationSyncParams): void => {
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -33,17 +34,25 @@ export const useNavigationSync = ({config, loading, windowIdentity}: NavigationS
             return;
         }
 
+        // Если есть токены но пользователь еще не авторизован, ждем
+        if (!isAuthenticated) {
+            console.log('[useNavigationSync] Has tokens but not authenticated yet, waiting...');
+            return;
+        }
+
         if (!config.setupCompleted) {
             if (!setupRoutes.includes(currentPath)) {
+                console.log('[useNavigationSync] Navigating to /setup');
                 navigate('/setup');
             }
             return;
         }
 
         if (!appRoutes.includes(currentPath)) {
+            console.log('[useNavigationSync] Navigating to /actions');
             navigate('/actions');
         }
-    }, [config, loading, navigate, windowIdentity.isErrorWindow, windowIdentity.isMicWindow, windowIdentity.isResultWindow]);
+    }, [config, loading, navigate, windowIdentity.isErrorWindow, windowIdentity.isMicWindow, windowIdentity.isResultWindow, isAuthenticated]);
 
     useEffect(() => {
         guardNavigation(location.pathname);

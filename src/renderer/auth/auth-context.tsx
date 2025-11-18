@@ -109,29 +109,50 @@ export function AuthProvider({children}: AuthProviderProps) {
                 setStatus('checking');
                 setError(null);
 
-                // Сохраняем токены в config (electron-store) для совместимости с legacy кодом
-                if (window.winky?.config?.setAuth) {
-                    window.winky.config.setAuth({
-                        access: payload.tokens.access,
-                        refresh: payload.tokens.refresh ?? null,
-                        accessToken: payload.tokens.access,
-                        refreshToken: payload.tokens.refresh ?? ''
-                    }).catch((err) => {
-                        console.warn('[auth] Failed to save tokens to config', err);
+                // СНАЧАЛА сохраняем токены в config, чтобы App.tsx мог их увидеть
+                console.log('[auth] Saving OAuth tokens to config...', {
+                    hasAccess: !!payload.tokens.access,
+                    hasRefresh: !!payload.tokens.refresh
+                });
+                
+                const saveTokensPromise = window.winky?.config?.setAuth ? window.winky.config.setAuth({
+                    access: payload.tokens.access,
+                    refresh: payload.tokens.refresh ?? null,
+                    accessToken: payload.tokens.access,
+                    refreshToken: payload.tokens.refresh ?? ''
+                }).then((updatedConfig) => {
+                    console.log('[auth] Tokens saved to config successfully', {
+                        hasAccess: !!(updatedConfig.auth.access || updatedConfig.auth.accessToken),
+                        setupCompleted: updatedConfig.setupCompleted
                     });
-                }
+                    return updatedConfig;
+                }) : Promise.resolve(null);
 
-                authClient.getCurrentUser(true)
-                    .then((profile: User) => {
+                // Ждем сохранения токенов в config перед получением пользователя
+                saveTokensPromise
+                    .then(async (savedConfig) => {
                         if (cancelled) return;
+                        
+                        console.log('[auth] OAuth tokens saved to config, fetching user profile...');
+                        // Теперь получаем профиль пользователя
+                        const profile = await authClient.getCurrentUser(true);
+                        if (cancelled) return;
+
+                        console.log('[auth] User profile fetched successfully', {userId: profile.id, email: profile.email});
+                        
+                        // Устанавливаем пользователя и статус
                         setUser(profile);
                         setStatus('authenticated');
                         setError(null);
+
+                        // НЕ навигируем здесь - пусть App.tsx сам обработает навигацию через useNavigationSync
+                        // когда увидит что isAuthenticated === true и токены есть в config
+                        console.log('[auth] User authenticated, waiting for App.tsx to handle navigation...');
                     })
                     .catch((err: unknown) => {
                         if (cancelled) return;
                         const normalized = normalizeAuthError(err);
-                        console.warn('[auth] OAuth profile fetch failed', {error: normalized.message});
+                        console.error('[auth] OAuth flow failed', {error: normalized.message, step: 'save_tokens_or_fetch_user'});
                         authClient.clearTokens();
                         setUser(null);
                         setStatus('unauthenticated');
@@ -147,8 +168,16 @@ export function AuthProvider({children}: AuthProviderProps) {
         };
 
         const unsubscribe = window.winky.auth.onOAuthPayload(handleOAuthPayload);
-        window.winky.auth.consumePendingOAuthPayloads().catch(() => {
-        });
+        window.winky.auth
+            .consumePendingOAuthPayloads()
+            .then((payloads) => {
+                if (Array.isArray(payloads)) {
+                    payloads.forEach((payload) => handleOAuthPayload(payload));
+                }
+            })
+            .catch((err) => {
+                console.warn('[auth] Failed to consume pending OAuth payloads', err);
+            });
 
         return () => {
             cancelled = true;
@@ -230,16 +259,20 @@ export function AuthProvider({children}: AuthProviderProps) {
     }, []);
 
     const reloadUser = useCallback(async () => {
+        console.log('[auth] reloadUser called');
         if (!authClient.hasTokens()) {
+            console.log('[auth] No tokens found in authClient, clearing user');
             authClient.clearTokens();
             setUser(null);
             setStatus('unauthenticated');
             return null;
         }
 
+        console.log('[auth] Tokens found, fetching user profile...');
         setStatus('checking');
         try {
             const profile = await authClient.getCurrentUser(true);
+            console.log('[auth] User profile reloaded successfully', {userId: profile.id, email: profile.email});
             setUser(profile);
             setStatus('authenticated');
             setError(null);

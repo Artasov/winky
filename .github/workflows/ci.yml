@@ -16,9 +16,6 @@ on:
 permissions:
   contents: write
 
-env:
-  NODE_VERSION: 20
-
 jobs:
   quality:
     name: Quality Checks
@@ -29,20 +26,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 20
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
       - name: Type check
-        run: npm run lint
-
-      - name: Build renderer and main bundles
-        run: npm run build:assets
+        run: npm run typecheck
 
   package:
     name: Package ${{ matrix.os }}
@@ -68,33 +62,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 20
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Windows artifacts
-        if: matrix.os == 'windows-latest'
-        run: npm run build:win -- --x64 --ia32
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Remove per-arch installers
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          Get-ChildItem -Path "release" -Filter "*-ia32.exe" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force
-          Get-ChildItem -Path "release" -Filter "*-x64.exe" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force
-
-      - name: Build macOS artifacts
-        if: matrix.os == 'macos-latest'
-        run: npm run build:mac
-
-      - name: Build Linux artifacts
-        if: matrix.os == 'ubuntu-latest'
-        run: npm run build:linux
+      - name: Build with Tauri
+        uses: tauri-apps/tauri-action@v0
+        with:
+          args: --verbose
 
       - name: Upload artifacts to S3
         if: success()
@@ -111,24 +94,7 @@ jobs:
 
           aws configure set default.s3.addressing_style path
 
-          case "${MATRIX_OS}" in
-            windows-latest)
-              SRC="release"
-              TARGET="windows"
-              ;;
-            macos-latest)
-              SRC="release"
-              TARGET="macos"
-              ;;
-            ubuntu-latest)
-              SRC="release"
-              TARGET="linux"
-              ;;
-            *)
-              echo "Unknown OS matrix value: ${MATRIX_OS}"
-              exit 1
-              ;;
-          esac
+          SRC="src-tauri/target/release/bundle"
 
           if [ ! -d "${SRC}" ]; then
             echo "Source directory ${SRC} not found, nothing to upload."
@@ -141,13 +107,16 @@ jobs:
 
           case "${MATRIX_OS}" in
             windows-latest)
-              FIND_EXPR=(-maxdepth 1 -type f -name "*.exe" ! -name "*.exe.blockmap")
+              TARGET="windows"
+              FIND_EXPR=(-type f \( -name "*.exe" -o -name "*.msi" \))
               ;;
             macos-latest)
-              FIND_EXPR=(-maxdepth 1 -type f -name "*.dmg")
+              TARGET="macos"
+              FIND_EXPR=(-type f -name "*.dmg")
               ;;
             ubuntu-latest)
-              FIND_EXPR=(-maxdepth 1 -type f -name "*.deb")
+              TARGET="linux"
+              FIND_EXPR=(-type f \( -name "*.AppImage" -o -name "*.deb" \))
               ;;
             *)
               echo "Unknown OS matrix value during filtering: ${MATRIX_OS}"

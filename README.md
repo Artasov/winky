@@ -1,68 +1,45 @@
 # Winky
 
-Кроссплатформенное десктопное приложение на базе Electron + React для голосового ассистента.
+Кроссплатформенное десктопное приложение на базе **Tauri + React + Vite** для голосового ассистента.
 
 ## Стек и версии
 
 - Node.js 20 (LTS)
-- Electron 26
-- React 18
-- Tailwind CSS 3.3
+- Rust 1.80+ (для сборки Tauri)
+- Tauri 2
+- React 18 / Vite 7 / Tailwind CSS 4
 - TypeScript 5
 
 ## Скрипты
 
-### Разработка
-- `npm run dev` — запуск режима разработки (рендерер через Vite, основной процесс через tsup, автостарт Electron).
-- `npm start` — сборка бандлов и запуск Electron в production-режиме.
-- `npm run build:assets` — сборка основных бандлов (main + renderer).
-
-### Сборка установщиков
-- `npm run build` — упаковка приложения для текущей платформы.
-- `npm run build:win` — сборка установщика для Windows (x64 + ia32).
-- `npm run build:mac` — сборка установщика для macOS (Intel + Apple Silicon).
-- `npm run build:linux` — сборка установщиков для Linux (AppImage, DEB, RPM, Snap).
-- `npm run build:all` — сборка для всех платформ сразу.
-- `npm run build:ci` — упаковка и публикация (используется в CI).
-
-### Проверка кода
-- `npm run lint` / `npm run typecheck` — проверка типов.
+- `npm run dev` — дев-сервер Vite + tauri dev (автоматический запуск нативной части).
+- `npm run build` — полноценная упаковка через `tauri build`.
+- `npm run typecheck` / `npm run lint` — проверка типов (tsc).
+- `npm run preview` — предпросмотр собранного фронтенда (без запуска Tauri).
 
 ## Конфигурация
 
-Все настройки хранятся в `Electron Store` в файле `config.json` в стандартной директории `userData`. Структура конфигурации соответствует ТЗ: токены аутентификации, режимы работы сервисов, API ключи и пользовательские действия.
+Tauri хранит настройки в `src-tauri` (JSON-файл `config.json` в `AppData`/`~/.config`). Структура соответствует прежнему `Electron Store`: токены auth, ключи API, параметры микрофона, хоткеи и т.д. В рантайме с конфигом работает `ConfigState` (Rust) + `window.winky.config` в renderer.
 
 ## CI/CD
 
-Workflow `.github/workflows/build.yml` собирает приложение под Windows, macOS и Linux, загружает артефакты и формирует черновик релиза при публикации тега `v*`.
+Workflow `.github/workflows/build.yml` требует обновления под Tauri. Для локальной сборки всех артефактов используйте `npm run build` (см. документацию Tauri по подписи и CI).
 
 ## Первый запуск
 
-1. Установите зависимости: `npm install`.
-2. Запустите `npm run dev` для режима разработки.
-3. Для production-сборки: `npm start` (выполняет предварительную сборку) или `npm run build` для полноценного инсталлятора.
+1. Установите зависимости ноды и cargo: `npm install`.
+2. Убедитесь, что установлен Rust toolchain + необходимые системные библиотеки (см. [Tauri prerequisites](https://tauri.app/v1/guides/getting-started/prerequisites)).
+3. Запустите `npm run dev` — откроется основное окно и мост с нативной частью.
+4. Production-сборка: `npm run build` (артефакты появятся в `src-tauri/target/<platform>/release`).
+
+## Горячие клавиши и окна
+
+Нативная часть регистрирует глобальные хоткеи (микрофон и действия) и управляет фоновыми сервисами (fast-fast-whisper, автозапуск, OAuth deep links, системный трей). Renderer работает через мост `window.winky.*`:
+
+- `window.winky.mic.*` — управление микрофонным оверлеем (show/hide/toggle, позиционирование, drag).
+- `window.winky.localSpeech` — управление fast-whisper (установка, рестарт, onStatus).
+- `window.winky.actionHotkeys` — регистрация горячих клавиш действий.
 
 ## Сборка установщиков
 
-```bash
-npm run build:win     # Windows (x64 + ia32)
-npm run build:mac     # macOS (Intel + Apple Silicon)
-npm run build:linux   # Linux (AppImage, DEB)
-npm run build:all     # Все платформы
-```
-
-Результат в папке `release/`
-
-## Релизы
-
-Для создания нового релиза:
-
-```bash
-npm version patch     # 1.0.0 → 1.0.1
-npm version minor     # 1.0.0 → 1.1.0
-npm version major     # 1.0.0 → 2.0.0
-
-git push origin main --tags
-```
-
-GitHub Actions автоматически соберёт установщики для всех платформ и создаст релиз.
+После `npm run build` Tauri создаёт готовые пакеты в `src-tauri/target/release`. Для подписи и публикации используйте инструкции Tauri для вашей ОС.

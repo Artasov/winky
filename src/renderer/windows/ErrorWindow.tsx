@@ -11,24 +11,19 @@ const ErrorWindow: React.FC = () => {
     const [errorData, setErrorData] = useState<ErrorData | null>(null);
 
     useEffect(() => {
-        // Подписываемся на события ошибок
         const handleError = (_event: any, data: ErrorData) => {
             console.log('[ErrorWindow] Received error:', data);
             setErrorData(data);
         };
 
-        // @ts-ignore - window.electron определен в preload
-        window.electron?.on?.('error:show', handleError);
-
+        const unsubscribe = window.winky?.on?.('error:show', (_data: any) => handleError(null, _data));
         return () => {
-            // @ts-ignore
-            window.electron?.removeListener?.('error:show', handleError);
+            unsubscribe?.();
         };
     }, []);
 
     const handleClose = () => {
-        // @ts-ignore
-        window.electron?.windowControls?.close();
+        window.winky?.windowControls?.close();
     };
 
     if (!errorData) {

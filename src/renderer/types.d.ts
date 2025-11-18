@@ -6,6 +6,7 @@ import type {
     AuthProvider,
     AuthTokens,
     FastWhisperStatus,
+    User,
     WinkyProfile
 } from '@shared/types';
 
@@ -29,14 +30,6 @@ declare global {
     }
 
     interface WinkyAuthAPI {
-        login(email: string, password: string): Promise<{
-            tokens: AuthTokens;
-            user?: Record<string, unknown>;
-            config: AppConfig;
-        }>;
-
-        logout(): Promise<boolean>;
-
         startOAuth(provider: AuthProvider): Promise<void>;
 
         onOAuthPayload(cb: (payload: AuthDeepLinkPayload) => void): () => void;
@@ -76,8 +69,13 @@ declare global {
         fetch(): Promise<ActionIcon[]>;
     }
 
+    interface WinkyResourcesAPI {
+        getSoundPath(soundName: string): Promise<string>;
+    }
+
     interface WinkyProfileAPI {
         fetch(): Promise<WinkyProfile>;
+        currentUser?(options?: { includeTiersAndFeatures?: boolean }): Promise<User | null>;
     }
 
     interface WinkyWindowsAPI {
@@ -111,6 +109,8 @@ declare global {
         show(reason?: string): Promise<void>;
 
         hide(options?: { reason?: string; disableAutoShow?: boolean }): Promise<void>;
+
+        toggle?(reason?: string): Promise<void>;
 
         beginDrag(): Promise<void>;
     }
@@ -185,6 +185,7 @@ declare global {
         auth: WinkyAuthAPI;
         actions: WinkyActionsAPI;
         icons: WinkyIconsAPI;
+        resources: WinkyResourcesAPI;
         profile: WinkyProfileAPI;
         speech: WinkySpeechAPI;
         localSpeech: WinkyLocalSpeechAPI;
@@ -196,22 +197,13 @@ declare global {
         mic: WinkyMicAPI;
         actionHotkeys: WinkyActionHotkeysAPI;
 
-        on(channel: string, callback: (...args: any[]) => void): void;
+        on(channel: string, callback: (...args: any[]) => void): () => void;
 
         removeListener(channel: string, callback: (...args: any[]) => void): void;
-    }
-
-    interface ElectronAPI {
-        on(channel: string, callback: (...args: any[]) => void): void;
-
-        removeListener(channel: string, callback: (...args: any[]) => void): void;
-
-        windowControls: WinkyWindowControlsAPI;
     }
 
     interface Window {
         winky?: WinkyPreload;
-        electron?: ElectronAPI;
     }
 }
 

@@ -149,7 +149,16 @@ export class AuthService {
 
     async getCurrentUser(includeExtras: boolean = false): Promise<User> {
         const url = includeExtras ? `${ME_ENDPOINT}?tiers_and_features=1` : ME_ENDPOINT;
-        return this.authenticatedRequest<User>({url, method: 'GET'});
+        console.log('[AuthService] → [GET]', url);
+        try {
+            const result = await this.authenticatedRequest<User>({url, method: 'GET'});
+            console.log('[AuthService] ← [GET]', url, '[200]');
+            console.log('  📥 Response data:', result);
+            return result;
+        } catch (error) {
+            console.error('[AuthService] ← [GET]', url, '[ERROR]', error);
+            throw error;
+        }
     }
 
     async authenticatedRequest<T>(config: AxiosRequestConfig): Promise<T> {

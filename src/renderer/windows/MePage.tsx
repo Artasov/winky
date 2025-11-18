@@ -2,23 +2,19 @@ import React from 'react';
 import {useUser} from '../context/UserContext';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
+import {useAuth} from '../auth';
 
 const MePage: React.FC = () => {
     const {user, loading, clearUser} = useUser();
     const {config} = useConfig();
     const {showToast} = useToast();
+    const auth = useAuth();
     const hasToken = config?.auth.access || config?.auth.accessToken;
     const isAuthorized = Boolean(hasToken);
 
     const handleLogout = async () => {
-        if (!window.winky?.auth?.logout) {
-            console.error('[MePage] Logout API is unavailable');
-            showToast('Logout is not available in this environment.', 'error');
-            return;
-        }
-
         try {
-            await window.winky.auth.logout();
+            await auth.signOut();
             clearUser();
             showToast('Logged out successfully.', 'success');
         } catch (error) {

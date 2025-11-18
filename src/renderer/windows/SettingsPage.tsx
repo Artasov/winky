@@ -55,11 +55,11 @@ const SettingsPage: React.FC = () => {
     }, [config]);
 
     useEffect(() => {
-        const handleHotkeyError = (_event: unknown, payload: {
+        const handleHotkeyError = (payload: {
             source?: string;
             accelerator?: string;
             message?: string;
-            reason?: string
+            reason?: string;
         }) => {
             if (!payload || payload.source !== 'mic') {
                 return;
@@ -81,7 +81,7 @@ const SettingsPage: React.FC = () => {
             showToast(message, 'error');
         };
 
-        const handleHotkeySuccess = (_event: unknown, payload: { source?: string; accelerator?: string }) => {
+        const handleHotkeySuccess = (payload: { source?: string; accelerator?: string }) => {
             if (!payload || payload.source !== 'mic') {
                 return;
             }
@@ -90,13 +90,12 @@ const SettingsPage: React.FC = () => {
             }
         };
 
-        const electronApi = (window as any).electron;
-        electronApi?.on?.('hotkey:register-error', handleHotkeyError);
-        electronApi?.on?.('hotkey:register-success', handleHotkeySuccess);
+        const unsubscribeError = window.winky?.on?.('hotkey:register-error', handleHotkeyError as any);
+        const unsubscribeSuccess = window.winky?.on?.('hotkey:register-success', handleHotkeySuccess as any);
 
         return () => {
-            electronApi?.removeListener?.('hotkey:register-error', handleHotkeyError);
-            electronApi?.removeListener?.('hotkey:register-success', handleHotkeySuccess);
+            unsubscribeError?.();
+            unsubscribeSuccess?.();
         };
     }, [showToast]);
 

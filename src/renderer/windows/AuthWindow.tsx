@@ -26,32 +26,19 @@ const AuthWindow: React.FC = () => {
 
         setLoading(true);
         try {
-            if (!window.winky?.auth) {
-                throw new Error('Preload API недоступен');
-            }
-            console.log('[AuthWindow] login submit', {email});
-            const {config: updated} = await window.winky.auth.login(email, password);
-
-            // Обновляем конфиг
+            const user = await auth.signIn(email, password);
             await refreshConfig();
-
-            // Пытаемся загрузить пользователя, но не блокируем если не удалось
             try {
                 await fetchUser();
             } catch (userError) {
                 console.warn('[AuthWindow] Failed to fetch user, but continuing:', userError);
-                // Не блокируем авторизацию если не удалось загрузить пользователя
             }
-
             showToast('Авторизация успешна', 'success');
-
-            if (!updated.setupCompleted) {
-                // Если настройка не завершена, идем на страницу setup
+            const config = await refreshConfig();
+            if (!config.setupCompleted) {
                 navigate('/setup');
             } else {
-                // Если настройка завершена, главное окно будет закрыто,
-                // а микрофон уже создан в main process
-                // Ничего не делаем, окно закроется автоматически
+                navigate('/actions');
             }
         } catch (error) {
             console.error('[AuthWindow] login failed', error);

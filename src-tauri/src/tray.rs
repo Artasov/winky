@@ -2,7 +2,7 @@ use serde_json::json;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager,
+    AppHandle, Emitter,
 };
 use crate::window_open_main;
 

@@ -225,6 +225,73 @@ async fn window_open_devtools(app: tauri::AppHandle) -> Result<(), String> {
     }
 }
 
+#[cfg(target_os = "windows")]
+unsafe fn update_window_ex_style(hwnd: winapi::shared::windef::HWND, ignore: bool) {
+    use winapi::um::winuser::{
+        GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOP, SWP_FRAMECHANGED,
+        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_TRANSPARENT,
+    };
+
+    let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+    let new_ex_style = if ignore {
+        ex_style | WS_EX_TRANSPARENT
+    } else {
+        ex_style & !WS_EX_TRANSPARENT
+    };
+
+    if new_ex_style != ex_style {
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex_style as isize);
+        SetWindowPos(
+            hwnd,
+            HWND_TOP,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
+        );
+    }
+}
+
+#[tauri::command]
+async fn window_set_ignore_cursor_events(
+    app: tauri::AppHandle,
+    label: String,
+    ignore: bool,
+    skip_native: Option<bool>,
+) -> Result<(), String> {
+    // Пробуем найти окно с небольшой задержкой, если оно только что создано
+    let mut window = app.get_webview_window(&label);
+    if window.is_none() {
+        // Ждем немного и пробуем снова
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        window = app.get_webview_window(&label);
+    }
+    
+    if let Some(window) = window {
+        let skip_native_call = skip_native.unwrap_or(false);
+        if !skip_native_call {
+            window
+                .set_ignore_cursor_events(ignore)
+                .map_err(|e| format!("Failed to set ignore cursor events: {}", e))?;
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            let hwnd = window.hwnd().map_err(|e| format!("Failed to get HWND: {}", e))?;
+            unsafe {
+                let hwnd_ptr: winapi::shared::windef::HWND = std::mem::transmute(hwnd.0);
+                update_window_ex_style(hwnd_ptr, ignore);
+            }
+        }
+        Ok(())
+    } else {
+        // Если окно не найдено, просто возвращаем Ok - это не критичная ошибка
+        // Окно может быть еще не создано или уже закрыто
+        Ok(())
+    }
+}
+
 #[tauri::command]
 async fn window_open_main(app: tauri::AppHandle) -> Result<(), String> {
     // Пробуем получить существующее окно
@@ -320,7 +387,8 @@ fn main() {
             action_hotkeys_register,
             action_hotkeys_clear,
             window_open_devtools,
-            window_open_main
+            window_open_main,
+            window_set_ignore_cursor_events
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

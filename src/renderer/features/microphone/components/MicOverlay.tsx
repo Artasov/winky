@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import MicrophoneButton from '../../../components/MicrophoneButton';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import {useConfig} from '../../../context/ConfigContext';
@@ -6,10 +6,11 @@ import {useToast} from '../../../context/ToastContext';
 import {useSpeechRecording} from '../hooks/useSpeechRecording';
 import {useMicOverlayInteractions} from '../hooks/useMicOverlayInteractions';
 import {useMicWindowEffects} from '../hooks/useMicWindowEffects';
+import {useMicInteractiveProximity} from '../hooks/useMicInteractiveProximity';
 import MicDragHandle from './MicDragHandle';
 import MicVolumeRings from './MicVolumeRings';
 import MicActionOrbit from './MicActionOrbit';
-import {interactiveEnter, interactiveLeave} from '../../../utils/interactive';
+import {interactiveEnter, interactiveLeave, resetInteractive} from '../../../utils/interactive';
 import {resourcesBridge} from '../../../services/winkyBridge';
 
 const MicOverlay: React.FC = () => {
@@ -50,6 +51,9 @@ const MicOverlay: React.FC = () => {
         warmUpRecorder
     } = handlers;
 
+    const micButtonRef = useRef<HTMLDivElement | null>(null);
+    const actionsContainerRef = useRef<HTMLDivElement | null>(null);
+
     const [soundPath, setSoundPath] = useState<string>('/sounds/completion.wav');
 
     useEffect(() => {
@@ -72,6 +76,20 @@ const MicOverlay: React.FC = () => {
         setActiveActionId,
         warmUpRecorder
     });
+
+    useMicInteractiveProximity({
+        isMicOverlay,
+        micButtonRef,
+        actionsContainerRef,
+        actionsEnabled: actionsVisible && displayedActions.length > 0 && !processing
+    });
+
+    // Сбрасываем состояние интерактивности при монтировании компонента
+    useEffect(() => {
+        if (isMicOverlay) {
+            resetInteractive();
+        }
+    }, [isMicOverlay]);
 
     useEffect(() => {
         if (!completionSoundRef.current) {
@@ -102,6 +120,7 @@ const MicOverlay: React.FC = () => {
                 <div
                     className="relative"
                     style={{pointerEvents: processing ? 'none' : 'auto'}}
+                    ref={micButtonRef}
                 >
                     <MicrophoneButton
                         isRecording={isRecording}
@@ -110,13 +129,18 @@ const MicOverlay: React.FC = () => {
                         size={isRecording ? 'compact' : 'default'}
                     />
                 </div>
-                <MicActionOrbit
-                    actions={displayedActions}
-                    actionsVisible={actionsVisible}
-                    processing={processing}
-                    activeActionId={activeActionId}
-                    onActionClick={handleActionClick}
-                />
+                <div
+                    ref={actionsContainerRef}
+                    className="pointer-events-none absolute inset-0"
+                >
+                    <MicActionOrbit
+                        actions={displayedActions}
+                        actionsVisible={actionsVisible}
+                        processing={processing}
+                        activeActionId={activeActionId}
+                        onActionClick={handleActionClick}
+                    />
+                </div>
             </div>
         </>
     );

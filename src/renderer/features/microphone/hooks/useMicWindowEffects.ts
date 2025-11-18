@@ -95,14 +95,20 @@ export const useMicWindowEffects = ({
             void warmUpRecorder();
         };
 
+        const resetInteractiveHandler = () => {
+            resetInteractive();
+        };
+
         api.on('mic:prepare-recording', prepareHandler);
         api.on('mic:start-recording', startHandler);
         api.on('mic:visibility-change', visibilityHandler);
+        api.on('mic:reset-interactive', resetInteractiveHandler);
         return () => {
             clearAutoStartRetry();
             api.removeListener?.('mic:prepare-recording', prepareHandler);
             api.removeListener?.('mic:start-recording', startHandler);
             api.removeListener?.('mic:visibility-change', visibilityHandler);
+            api.removeListener?.('mic:reset-interactive', resetInteractiveHandler);
         };
     }, [isMicOverlay, autoStartPendingRef, isRecordingRef, processingRef, handleMicrophoneToggleRef, finishRecording, setActiveActionId, warmUpRecorder]);
 

@@ -42,7 +42,6 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.9.4",
-    "@tauri-apps/cli-win32-x64-msvc": "^2.9.4",
     "@types/node": "24.9.1",
     "vite": "7.1.12",
     "@types/react": "19.2.2",
@@ -54,5 +53,8 @@
     "sass": "1.93.2",
     "tslib": "2.8.1",
     "typescript": "5.9.3"
+  },
+  "optionalDependencies": {
+    "@tauri-apps/cli-win32-x64-msvc": "2.9.4"
   }
 }

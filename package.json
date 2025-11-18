@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
+    "tauri": "tauri",
     "dev:renderer": "vite --config vite.config.mts",
     "build:renderer": "vite build --config vite.config.mts",
     "lint": "tsc --noEmit",

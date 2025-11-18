@@ -80,7 +80,7 @@ jobs:
       - name: Build desktop apps with Tauri
         uses: tauri-apps/tauri-action@v0
         with:
-          tauriScript: npm run build
+          tauriScript: npm run tauri
           args: --verbose
 
       - name: Upload artifacts to S3

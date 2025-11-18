@@ -18,7 +18,7 @@ use hotkeys::{ActionHotkeyInput, HotkeyState};
 use local_speech::FastWhisperManager;
 use once_cell::sync::Lazy;
 use serde_json::json;
-use tauri::{Emitter, Manager, State, WebviewWindow};
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_shell::ShellExt;
 use types::{AppConfig, AuthDeepLinkPayload, AuthTokens, FastWhisperStatus};
@@ -225,6 +225,34 @@ async fn window_open_devtools(app: tauri::AppHandle) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+async fn window_open_main(app: tauri::AppHandle) -> Result<(), String> {
+    // Пробуем получить существующее окно
+    if let Some(main) = app.get_webview_window("main") {
+        main.show().map_err(|e| format!("Failed to show main window: {}", e))?;
+        main.set_focus().map_err(|e| format!("Failed to focus main window: {}", e))?;
+        Ok(())
+    } else {
+        // Если окно не найдено, создаем его заново
+        // В Tauri 2.x используем WebviewWindowBuilder с правильным URL
+        use tauri::WebviewUrl;
+        let url = WebviewUrl::App("index.html".into());
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", url)
+            .title("Winky")
+            .inner_size(960.0, 640.0)
+            .min_inner_size(960.0, 640.0)
+            .resizable(true)
+            .decorations(false)
+            .build()
+            .map_err(|e| format!("Failed to create main window: {}", e))?;
+        
+        window.show().map_err(|e| format!("Failed to show main window: {}", e))?;
+        window.set_focus().map_err(|e| format!("Failed to focus main window: {}", e))?;
+        Ok(())
+    }
+}
+
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -257,6 +285,21 @@ fn main() {
             setup_deep_link_listener(&app_handle, auth_queue);
             tray::setup(&app_handle)?;
             handle_config_effects(&app_handle, &initial_config, hotkeys, fast_whisper);
+            
+            // Обрабатываем закрытие главного окна - скрываем его вместо закрытия приложения
+            if let Some(main_window) = app.get_webview_window("main") {
+                let app_handle_clone = app_handle.clone();
+                main_window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        // Скрываем окно вместо закрытия, чтобы приложение продолжало работать в фоне
+                        api.prevent_close();
+                        let _ = app_handle_clone.get_webview_window("main").and_then(|w| {
+                            w.hide().ok()
+                        });
+                    }
+                });
+            }
+            
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -276,7 +319,8 @@ fn main() {
             local_speech_stop,
             action_hotkeys_register,
             action_hotkeys_clear,
-            window_open_devtools
+            window_open_devtools,
+            window_open_main
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

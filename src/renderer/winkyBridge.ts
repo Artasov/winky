@@ -277,6 +277,7 @@ class MicWindowController {
     private moveUnlisten: UnlistenFn | null = null;
     private positionLoaded = false;
     private visible = false;
+    private toggleInProgress = false;
 
     private buildUrl(): string {
         const base = window.location.href.split('#')[0].split('?')[0];
@@ -293,6 +294,15 @@ class MicWindowController {
         if (existing) {
             this.window = existing;
             await this.attachMoveListener(existing);
+            
+            // Синхронизируем состояние видимости с реальным состоянием окна
+            try {
+                const isVisible = await existing.isVisible().catch(() => false);
+                this.visible = isVisible;
+            } catch {
+                // Игнорируем ошибки
+            }
+            
             return existing;
         }
         const win = new WebviewWindow('mic', {
@@ -305,7 +315,8 @@ class MicWindowController {
             visible: false,
             transparent: true,
             decorations: false,
-            skipTaskbar: true
+            skipTaskbar: true,
+            shadow: false
         } as any);
         void win.once('tauri://destroyed', () => {
             this.window = null;
@@ -317,11 +328,27 @@ class MicWindowController {
         });
         this.window = win;
         await this.attachMoveListener(win);
+        
+        // Отключаем тень на Windows после создания окна
+        try {
+            // @ts-ignore - может быть доступно в некоторых версиях Tauri
+            if (win.setShadow) {
+                await win.setShadow(false);
+            }
+        } catch {
+            // Игнорируем если метод недоступен
+        }
+        
         return win;
     }
 
     async moveWindow(x: number, y: number): Promise<void> {
         const win = await this.ensure();
+        // Обновляем позицию только если она действительно изменилась
+        const currentPos = await win.position().catch(() => null);
+        if (currentPos && currentPos.x === x && currentPos.y === y) {
+            return;
+        }
         this.position = {x, y};
         await win.setPosition(new LogicalPosition(x, y));
         await configApi.update({micWindowPosition: {x, y}});
@@ -369,14 +396,22 @@ class MicWindowController {
     }
 
     async show(reason: string = 'system'): Promise<void> {
-        if (this.visible) {
-            const win = await this.ensure();
-            await win.show();
+        const win = await this.ensure();
+        // Проверяем реальное состояние окна
+        const isCurrentlyVisible = await win.isVisible().catch(() => false);
+        if (isCurrentlyVisible && this.visible) {
             await win.setFocus();
             return;
         }
-        const win = await this.ensure();
-        await this.moveWindow(this.position.x, this.position.y);
+        // Получаем текущую позицию окна перед показом
+        const currentPos = await win.position().catch(() => null);
+        if (currentPos) {
+            // Сохраняем текущую позицию если окно уже было видимо
+            this.position = {x: currentPos.x, y: currentPos.y};
+        } else {
+            // Устанавливаем позицию только если окно еще не было видимо
+            await this.moveWindow(this.position.x, this.position.y);
+        }
         await emit('mic:prepare-recording', {reason});
         await win.show();
         await win.setFocus();
@@ -387,26 +422,54 @@ class MicWindowController {
     }
 
     async hide(reason: string = 'system'): Promise<void> {
-        if (!this.visible) {
+        const win = this.window ?? (await WebviewWindow.getByLabel('mic'));
+        if (!win) {
+            this.visible = false;
+            return;
+        }
+        // Проверяем реальное состояние окна
+        const isCurrentlyVisible = await win.isVisible().catch(() => false);
+        if (!isCurrentlyVisible && !this.visible) {
             return;
         }
         this.visible = false;
         await emit('mic:start-fade-out', {reason});
-        if (this.window) {
-            try {
-                await this.window.hide();
-            } catch {
-                this.window = null;
-            }
+        try {
+            await win.hide();
+        } catch {
+            this.window = null;
         }
         await emit('mic:visibility-change', {visible: false, reason});
     }
 
     async toggle(reason: string = 'manual'): Promise<void> {
-        if (this.visible) {
-            await this.hide(reason);
-        } else {
-            await this.show(reason);
+        // Защита от множественных вызовов
+        if (this.toggleInProgress) {
+            return;
+        }
+        this.toggleInProgress = true;
+        
+        try {
+            // Проверяем реальное состояние окна, а не только this.visible
+            const win = this.window ?? (await WebviewWindow.getByLabel('mic'));
+            if (!win) {
+                // Окно не существует, создаем и показываем
+                await this.show(reason);
+                return;
+            }
+            
+            // Проверяем реальное состояние видимости окна
+            const isVisible = await win.isVisible().catch(() => false);
+            if (isVisible) {
+                await this.hide(reason);
+            } else {
+                await this.show(reason);
+            }
+        } finally {
+            // Сбрасываем флаг после небольшой задержки, чтобы предотвратить повторные вызовы
+            setTimeout(() => {
+                this.toggleInProgress = false;
+            }, 100);
         }
     }
 
@@ -575,8 +638,19 @@ void listen('mic:toggle-request', (event) => {
     void micController.toggle(reason);
 });
 
+let micShortcutHandling = false;
 void listen('mic:shortcut', () => {
-    void micController.toggle('shortcut');
+    // Защита от множественных вызовов события
+    if (micShortcutHandling) {
+        return;
+    }
+    micShortcutHandling = true;
+    void micController.toggle('shortcut').finally(() => {
+        // Сбрасываем флаг после небольшой задержки
+        setTimeout(() => {
+            micShortcutHandling = false;
+        }, 200);
+    });
 });
 
 void listen('tray:open-main', async () => {

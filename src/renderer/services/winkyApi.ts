@@ -148,9 +148,26 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
         throw new Error('Укажите OpenAI API ключ для транскрибации.');
     }
 
-    const formData = buildFormData(promptValue ? {prompt: promptValue} : {});
-    const headers = {
-        Authorization: `Bearer ${config.openaiKey}`
+    // Санитизируем prompt если он есть - убираем недопустимые символы
+    let sanitizedPrompt: string | undefined;
+    if (promptValue) {
+        // Удаляем символы которые не являются допустимыми для HTTP заголовков/FormData
+        // ISO-8859-1 это Latin-1, но для FormData можно использовать UTF-8
+        // Однако для безопасности убираем только действительно проблемные символы
+        sanitizedPrompt = promptValue.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+    }
+    
+    const formData = buildFormData(sanitizedPrompt ? {prompt: sanitizedPrompt} : {});
+    
+    // Проверяем что токен содержит только допустимые символы для HTTP заголовков (ISO-8859-1)
+    // ISO-8859-1 это символы от \x20 до \x7E (printable ASCII) и \xA0-\xFF (extended Latin-1)
+    const sanitizedToken = config.openaiKey.replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+    if (sanitizedToken !== config.openaiKey) {
+        console.warn('[winkyApi] OpenAI key contains invalid characters for HTTP headers, sanitizing...');
+    }
+    
+    const headers: Record<string, string> = {
+        Authorization: `Bearer ${sanitizedToken}`
     };
 
     const {data} = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {

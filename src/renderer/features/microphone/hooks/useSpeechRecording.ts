@@ -369,9 +369,77 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             }
         } catch (error: any) {
             console.error(error);
-            const message = error?.message || 'Ошибка при обработке действия.';
-            if (!handleLocalSpeechServerFailure(message)) {
-                showToast(message, 'error');
+            
+            // Формируем понятное сообщение об ошибке
+            let errorMessage = 'Ошибка при обработке действия.';
+            
+            if (error?.response?.status === 401) {
+                // Ошибка авторизации OpenAI
+                const errorData = error?.response?.data?.error;
+                if (errorData?.message) {
+                    if (errorData.message.includes('API key')) {
+                        errorMessage = 'Не указан или неверный OpenAI API ключ. Проверьте настройки.';
+                    } else {
+                        errorMessage = `Ошибка авторизации: ${errorData.message}`;
+                    }
+                } else {
+                    errorMessage = 'Ошибка авторизации OpenAI. Проверьте API ключ в настройках.';
+                }
+            } else if (error?.response?.status) {
+                // Другие HTTP ошибки
+                const errorData = error?.response?.data?.error;
+                if (errorData?.message) {
+                    errorMessage = `Ошибка API: ${errorData.message}`;
+                } else {
+                    errorMessage = `Ошибка запроса (код ${error.response.status})`;
+                }
+            } else if (error?.message) {
+                errorMessage = error.message;
+            }
+            
+            // Проверяем не связана ли ошибка с локальным сервером речи
+            if (!handleLocalSpeechServerFailure(errorMessage)) {
+                // Открываем главное окно и показываем Toast там
+                try {
+                    const {invoke} = await import('@tauri-apps/api/core');
+                    const {emit} = await import('@tauri-apps/api/event');
+                    
+                    console.log('[useSpeechRecording] Opening main window for error:', errorMessage);
+                    
+                    // Открываем главное окно через Rust команду (создает окно заново если его нет)
+                    try {
+                        await invoke('window_open_main');
+                        console.log('[useSpeechRecording] Main window opened successfully');
+                    } catch (invokeError) {
+                        console.error('[useSpeechRecording] Failed to open main window via command:', invokeError);
+                        // Пробуем альтернативный способ
+                        const {WebviewWindow} = await import('@tauri-apps/api/webviewWindow');
+                        const mainWindow = await WebviewWindow.getByLabel('main').catch(() => null);
+                        if (mainWindow) {
+                            await mainWindow.show().catch(() => {});
+                            await mainWindow.setFocus().catch(() => {});
+                            console.log('[useSpeechRecording] Main window opened via WebviewWindow API');
+                        } else {
+                            throw new Error('Could not open main window');
+                        }
+                    }
+                    
+                    // Увеличиваем задержку чтобы окно успело полностью загрузиться перед показом Toast
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Показываем Toast в главном окне через событие
+                    console.log('[useSpeechRecording] Showing toast in main window:', errorMessage);
+                    await emit('app:toast', {
+                        message: errorMessage,
+                        type: 'error',
+                        options: {durationMs: 6000}
+                    });
+                } catch (windowError) {
+                    console.error('[useSpeechRecording] Failed to open main window:', windowError);
+                    // Fallback - показываем Toast в текущем окне
+                    console.log('[useSpeechRecording] Showing toast in current window as fallback');
+                    showToast(errorMessage, 'error', {durationMs: 6000});
+                }
             }
         }
     }, [config, showToast, handleLocalSpeechServerFailure]);

@@ -4,6 +4,7 @@ use tauri::{
     tray::TrayIconBuilder,
     AppHandle, Emitter, Manager,
 };
+use crate::window_open_main;
 
 const MIC_MENU_ID: &str = "mic";
 const OPEN_MENU_ID: &str = "open";
@@ -23,11 +24,13 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                 let _ = app.emit("mic:show-request", json!({ "reason": "taskbar" }));
             }
             OPEN_MENU_ID => {
-                if let Some(main) = app.get_webview_window("main") {
-                    let _ = main.show();
-                    let _ = main.set_focus();
-                }
-                let _ = app.emit("tray:open-main", ());
+                // Используем команду для открытия главного окна (создает окно заново если его нет)
+                let app_handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = window_open_main(app_handle).await {
+                        eprintln!("Failed to open main window from tray: {}", e);
+                    }
+                });
             }
             QUIT_MENU_ID => {
                 app.exit(0);

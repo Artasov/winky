@@ -4,6 +4,7 @@
   "description": "Winky - cute girl assistant.",
   "main": "dist/main/main.js",
   "scripts": {
+    "pretauri": "node ./scripts/sync-tauri-version.mjs",
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri",

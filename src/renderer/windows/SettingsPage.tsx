@@ -31,6 +31,7 @@ const SettingsPage: React.FC = () => {
     const [micShowOnLaunch, setMicShowOnLaunch] = useState(true);
     const [launchOnSystemStartup, setLaunchOnSystemStartup] = useState(false);
     const [autoStartLocalSpeech, setAutoStartLocalSpeech] = useState(false);
+    const [completionSoundEnabled, setCompletionSoundEnabled] = useState(true);
     const [completionSoundVolume, setCompletionSoundVolume] = useState(1.0);
 
     useEffect(() => {
@@ -48,6 +49,7 @@ const SettingsPage: React.FC = () => {
             setMicAutoStart(Boolean(config.micAutoStartRecording));
             setMicHideOnStop(config.micHideOnStopRecording ?? true);
             setMicShowOnLaunch(config.micShowOnLaunch !== false);
+            setCompletionSoundEnabled(config.completionSoundEnabled !== false);
             setCompletionSoundVolume(config.completionSoundVolume ?? 1.0);
             setLaunchOnSystemStartup(Boolean(config.launchOnSystemStartup));
             setAutoStartLocalSpeech(Boolean(config.autoStartLocalSpeechServer));
@@ -165,6 +167,23 @@ const SettingsPage: React.FC = () => {
     const handleVolumeChange = (_event: Event, value: number | number[]) => {
         const nextValue = Array.isArray(value) ? value[0] : value;
         setCompletionSoundVolume(nextValue);
+    };
+
+    const handleCompletionSoundToggle = async (event: ChangeEvent<HTMLInputElement>) => {
+        const nextValue = event.target.checked;
+        const previousValue = completionSoundEnabled;
+        setCompletionSoundEnabled(nextValue);
+        try {
+            await updateConfig({completionSoundEnabled: nextValue});
+            showToast(
+                nextValue ? 'Completion sound enabled.' : 'Completion sound disabled.',
+                'success'
+            );
+        } catch (error) {
+            console.error('[SettingsPage] Failed to toggle completion sound', error);
+            setCompletionSoundEnabled(previousValue);
+            showToast('Failed to update completion sound settings.', 'error');
+        }
     };
 
     const handleVolumeSave = async (_event?: Event | React.SyntheticEvent, value?: number | number[]) => {
@@ -463,6 +482,16 @@ const SettingsPage: React.FC = () => {
                     />
                     <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
                         Controls whether the floating microphone opens automatically right after the app launches.
+                    </Typography>
+                </div>
+
+                <div className={'fc gap-2 -mt-[12px]'}>
+                    <FormControlLabel
+                        control={<Checkbox checked={completionSoundEnabled} onChange={handleCompletionSoundToggle}/>}
+                        label="Play sound when an action completes"
+                    />
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
+                        Uncheck to disable the completion sound entirely, regardless of volume.
                     </Typography>
                 </div>
 

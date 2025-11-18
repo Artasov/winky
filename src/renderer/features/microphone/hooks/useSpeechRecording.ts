@@ -327,10 +327,19 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 if (action.show_results) {
                     await resultBridge.update({llmResponse: transcription, isStreaming: false});
                 }
-                if (action.sound_on_complete && completionSoundRef.current) {
+                if (
+                    action.sound_on_complete &&
+                    completionSoundRef.current &&
+                    config?.completionSoundEnabled !== false
+                ) {
                     const volumePreference = config?.completionSoundVolume ?? 1.0;
                     if (volumePreference > 0) {
                         completionSoundRef.current.volume = volumePreference;
+                        try {
+                            completionSoundRef.current.currentTime = 0;
+                        } catch {
+                            /* ignore */
+                        }
                         completionSoundRef.current.play().catch((error) => {
                             console.error('[MicOverlay] Error playing sound:', error);
                         });
@@ -358,10 +367,19 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 showToast('Ответ скопирован.', 'success');
             }
 
-            if (action.sound_on_complete && completionSoundRef.current) {
+            if (
+                action.sound_on_complete &&
+                completionSoundRef.current &&
+                config?.completionSoundEnabled !== false
+            ) {
                 const volumePreference = config?.completionSoundVolume ?? 1.0;
                 if (volumePreference > 0) {
                     completionSoundRef.current.volume = volumePreference;
+                    try {
+                        completionSoundRef.current.currentTime = 0;
+                    } catch {
+                        /* ignore */
+                    }
                     completionSoundRef.current.play().catch((error) => {
                         console.error('[MicOverlay] Error playing sound:', error);
                     });

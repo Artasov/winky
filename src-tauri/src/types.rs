@@ -116,6 +116,8 @@ pub struct AppConfig {
     pub auto_start_local_speech_server: bool,
     #[serde(default = "default_completion_volume")]
     pub completion_sound_volume: f32,
+    #[serde(default = "default_true")]
+    pub completion_sound_enabled: bool,
 }
 
 fn default_true() -> bool {

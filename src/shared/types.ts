@@ -134,6 +134,7 @@ export interface AppConfig {
     launchOnSystemStartup?: boolean;
     autoStartLocalSpeechServer?: boolean;
     completionSoundVolume?: number;
+    completionSoundEnabled?: boolean;
 }
 
 export interface LLMProcessResponse {

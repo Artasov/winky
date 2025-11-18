@@ -1,4 +1,5 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {convertFileSrc} from '@tauri-apps/api/core';
 import MicrophoneButton from '../../../components/MicrophoneButton';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import {useConfig} from '../../../context/ConfigContext';
@@ -54,17 +55,53 @@ const MicOverlay: React.FC = () => {
     const micButtonRef = useRef<HTMLDivElement | null>(null);
     const actionsContainerRef = useRef<HTMLDivElement | null>(null);
 
+    const [completionEnabled, setCompletionEnabled] = useState<boolean>(true);
     const [soundPath, setSoundPath] = useState<string>('/sounds/completion.wav');
 
     useEffect(() => {
-        void resourcesBridge.getSoundPath('completion.wav').then((path) => {
-            if (path) {
-                setSoundPath(path);
-            }
-        }).catch((error) => {
-            console.warn('[MicOverlay] Failed to get sound path, using default:', error);
-        });
-    }, []);
+        setCompletionEnabled(config?.completionSoundEnabled !== false);
+    }, [config?.completionSoundEnabled]);
+
+    useEffect(() => {
+        if (!completionEnabled) {
+            setSoundPath('');
+            return;
+        }
+
+        if (import.meta.env?.DEV) {
+            setSoundPath('/sounds/completion.wav');
+            return;
+        }
+
+        let cancelled = false;
+        resourcesBridge
+            .getSoundPath('completion.wav')
+            .then((path) => {
+                if (cancelled) {
+                    return;
+                }
+                if (path) {
+                    try {
+                        const fileUrl = convertFileSrc(path);
+                        setSoundPath(fileUrl);
+                        return;
+                    } catch (error) {
+                        console.warn('[MicOverlay] Failed to convert sound path, using default:', error);
+                    }
+                }
+                setSoundPath('/sounds/completion.wav');
+            })
+            .catch((error) => {
+                console.warn('[MicOverlay] Failed to get sound path, using default:', error);
+                if (!cancelled) {
+                    setSoundPath('/sounds/completion.wav');
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [completionEnabled]);
 
     useMicWindowEffects({
         isMicOverlay,
@@ -113,7 +150,11 @@ const MicOverlay: React.FC = () => {
 
     return (
         <>
-            <audio ref={completionSoundRef} src={soundPath} preload='auto'/>
+            {completionEnabled && soundPath ? (
+                <audio ref={completionSoundRef} src={soundPath} preload='auto'/>
+            ) : (
+                <audio ref={completionSoundRef} />
+            )}
             <MicDragHandle interactions={interactions} isRecording={isRecording} disabled={processing}/>
             <div className="pointer-events-none relative flex h-full w-full items-center justify-center">
                 <MicVolumeRings isRecording={isRecording} normalizedVolume={normalizedVolume}/>

@@ -52,8 +52,8 @@ const MicOverlay: React.FC = () => {
         warmUpRecorder
     } = handlers;
 
-    const micButtonRef = useRef<HTMLElement | null>(null);
-    const actionsContainerRef = useRef<HTMLElement | null>(null);
+    const micButtonRef = useRef<HTMLDivElement | null>(null);
+    const actionsContainerRef = useRef<HTMLDivElement | null>(null);
 
     const [completionEnabled, setCompletionEnabled] = useState<boolean>(true);
     const [soundPath, setSoundPath] = useState<string>('/sounds/completion.wav');

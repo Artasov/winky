@@ -34,6 +34,7 @@
     "@mui/icons-material": "^7.3.5",
     "@mui/material": "^7.3.5",
     "@tauri-apps/api": "2.9.0",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
     "axios": "1.12.2",
     "classnames": "2.5.1",
     "form-data": "4.0.4",
@@ -44,18 +45,18 @@
     "zod": "3.23.8"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "4.1.16",
     "@tauri-apps/cli": "2.9.4",
     "@types/node": "24.9.1",
-    "vite": "7.1.12",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "@vitejs/plugin-react": "5.1.0",
-    "tailwindcss": "4.1.16",
-    "@tailwindcss/postcss": "4.1.16",
     "autoprefixer": "10.4.21",
     "sass": "1.93.2",
+    "tailwindcss": "4.1.16",
     "tslib": "2.8.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite": "7.1.12"
   },
   "optionalDependencies": {
     "@tauri-apps/cli-win32-x64-msvc": "2.9.4"

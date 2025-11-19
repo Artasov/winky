@@ -2,6 +2,7 @@ import {invoke} from '@tauri-apps/api/core';
 import {cursorPosition, getCurrentWindow, LogicalPosition} from '@tauri-apps/api/window';
 import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
 import {listen, emit, EventCallback, UnlistenFn} from '@tauri-apps/api/event';
+import {writeText as writeClipboardText} from '@tauri-apps/plugin-clipboard-manager';
 import type {
     ActionConfig,
     ActionIcon,
@@ -105,12 +106,22 @@ const resourcesApi = {
 
 const clipboardApi = {
     writeText: async (text: string) => {
+        const payload = text ?? '';
         try {
-            await navigator.clipboard.writeText(text ?? '');
+            await writeClipboardText(payload);
             return true;
         } catch {
-            return false;
+            // ignore and fallback to navigator api
         }
+        try {
+            if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(payload);
+                return true;
+            }
+        } catch {
+            // ignore
+        }
+        return false;
     }
 };
 

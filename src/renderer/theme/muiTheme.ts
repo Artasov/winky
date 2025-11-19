@@ -11,7 +11,7 @@ import {createTextFieldOverrides} from './components/textField';
 import {createIconButtonOverrides} from './components/iconButton';
 import {createCheckboxOverrides} from './components/checkbox';
 import {createFormControlLabelOverrides} from './components/formControlLabel';
-import {createMenuOverrides} from './components/menu';
+import {createMenuOverrides, createMenuListOverrides} from './components/menu';
 
 const baseOptions: ThemeOptions = {
     palette: {
@@ -68,6 +68,36 @@ theme = createTheme(theme, {
         MuiCheckbox: createCheckboxOverrides(theme),
         MuiFormControlLabel: createFormControlLabelOverrides(theme),
         MuiMenu: createMenuOverrides(theme),
+        MuiMenuList: createMenuListOverrides(),
+        MuiPaper: {
+            styleOverrides: {
+                root: {
+                    '&.MuiMenu-paper, &.MuiPopover-paper': {
+                        scrollbarWidth: 'thin',
+                        scrollbarColor: '#fb7185 rgba(244, 63, 94, 0.12)',
+                        '&::-webkit-scrollbar': {
+                            width: '10px'
+                        },
+                        '&::-webkit-scrollbar-track': {
+                            background: 'linear-gradient(180deg, rgba(255, 241, 242, 0.95), rgba(254, 226, 226, 0.65))',
+                            borderRadius: '9999px',
+                            boxShadow: 'inset 0 0 0 1px rgba(244, 63, 94, 0.08)'
+                        },
+                        '&::-webkit-scrollbar-thumb': {
+                            background: 'linear-gradient(180deg, #f43f5e, #fb7185) !important',
+                            borderRadius: '9999px',
+                            border: '2px solid rgba(255, 241, 242, 0.9) !important',
+                            boxShadow: 'inset 0 1px 2px rgba(255, 255, 255, 0.4) !important',
+                            transition: 'background 250ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1)'
+                        },
+                        '&::-webkit-scrollbar-thumb:hover': {
+                            background: 'linear-gradient(180deg, #f43f5e, #fb7185) !important',
+                            boxShadow: 'inset 0 1px 2px rgba(255, 255, 255, 0.5), 0 0 6px rgba(244, 63, 94, 0.15) !important'
+                        }
+                    }
+                }
+            }
+        },
         ...createTextFieldOverrides(theme)
     }
 });

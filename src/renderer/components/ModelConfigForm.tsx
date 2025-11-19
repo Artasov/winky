@@ -12,33 +12,33 @@ import {
     SPEECH_MODES,
     SPEECH_OPENAI_API_MODELS
 } from '@shared/constants';
-import type {LLMMode, LLMModel, SpeechMode, SpeechModel} from '@shared/types';
+import type {LLMMode, LLMModel, TranscribeMode, TranscribeModel} from '@shared/types';
 import LocalSpeechInstallControl from './LocalSpeechInstallControl';
 
 export interface ModelConfigFormData {
     openaiKey: string;
     googleKey: string;
-    speechMode: SpeechMode;
-    speechModel: SpeechModel;
+    transcribeMode: TranscribeMode;
+    transcribeModel: TranscribeModel;
     llmMode: LLMMode;
     llmModel: LLMModel;
 }
 
-const getDefaultSpeechModel = (mode: SpeechMode): SpeechModel =>
-    (mode === SPEECH_MODES.API ? SPEECH_API_MODELS[0] : SPEECH_LOCAL_MODELS[0]) as SpeechModel;
+const getDefaultTranscribeModel = (mode: TranscribeMode): TranscribeModel =>
+    (mode === SPEECH_MODES.API ? SPEECH_API_MODELS[0] : SPEECH_LOCAL_MODELS[0]) as TranscribeModel;
 
 const getDefaultLLMModel = (mode: LLMMode): LLMModel =>
     (mode === LLM_MODES.API ? LLM_API_MODELS[0] : LLM_LOCAL_MODELS[0]) as LLMModel;
 
 const OPENAI_API_MODEL_SET = new Set<string>([...LLM_OPENAI_API_MODELS]);
 const GEMINI_API_MODEL_SET = new Set<string>([...LLM_GEMINI_API_MODELS]);
-const OPENAI_SPEECH_MODEL_SET = new Set<string>([...SPEECH_OPENAI_API_MODELS]);
-const GOOGLE_SPEECH_MODEL_SET = new Set<string>([...SPEECH_GOOGLE_API_MODELS]);
+const OPENAI_TRANSCRIBE_MODEL_SET = new Set<string>([...SPEECH_OPENAI_API_MODELS]);
+const GOOGLE_TRANSCRIBE_MODEL_SET = new Set<string>([...SPEECH_GOOGLE_API_MODELS]);
 
 const isGeminiApiModel = (model: LLMModel): boolean => GEMINI_API_MODEL_SET.has(model as string);
 const isOpenAiApiModel = (model: LLMModel): boolean => OPENAI_API_MODEL_SET.has(model as string);
-const isOpenAiSpeechModel = (model: SpeechModel): boolean => OPENAI_SPEECH_MODEL_SET.has(model as string);
-const isGoogleSpeechModel = (model: SpeechModel): boolean => GOOGLE_SPEECH_MODEL_SET.has(model as string);
+const isOpenAiTranscribeModel = (model: TranscribeModel): boolean => OPENAI_TRANSCRIBE_MODEL_SET.has(model as string);
+const isGoogleTranscribeModel = (model: TranscribeModel): boolean => GOOGLE_TRANSCRIBE_MODEL_SET.has(model as string);
 
 interface ModelConfigFormProps {
     values: ModelConfigFormData;
@@ -84,27 +84,27 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         return base;
     };
 
-    const formatSpeechLabel = (value: string) => {
+    const formatTranscribeLabel = (value: string) => {
         const base = formatLabel(value);
-        if (isGoogleSpeechModel(value as SpeechModel)) {
+        if (isGoogleTranscribeModel(value as TranscribeModel)) {
             return `Google ${base}`;
         }
-        if (isOpenAiSpeechModel(value as SpeechModel)) {
+        if (isOpenAiTranscribeModel(value as TranscribeModel)) {
             return `OpenAI ${base}`;
         }
         return base;
     };
 
-    const speechModelOptions = useMemo<SpeechModel[]>(() => {
-        if (values.speechMode === SPEECH_MODES.API) {
+    const transcribeModelOptions = useMemo<TranscribeModel[]>(() => {
+        if (values.transcribeMode === SPEECH_MODES.API) {
             const models: string[] = [...SPEECH_OPENAI_API_MODELS];
             if (values.googleKey.trim().length > 0) {
                 models.push(...SPEECH_GOOGLE_API_MODELS);
             }
-            return models as SpeechModel[];
+            return models as TranscribeModel[];
         }
-        return [...SPEECH_LOCAL_MODELS] as SpeechModel[];
-    }, [values.speechMode, values.googleKey]);
+        return [...SPEECH_LOCAL_MODELS] as TranscribeModel[];
+    }, [values.transcribeMode, values.googleKey]);
 
     const llmModelOptions = useMemo<LLMModel[]>(() => {
         if (values.llmMode === LLM_MODES.API) {
@@ -126,10 +126,10 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     };
 
     useEffect(() => {
-        if (!speechModelOptions.includes(values.speechModel)) {
-            emitChange({speechModel: speechModelOptions[0] as SpeechModel});
+        if (!transcribeModelOptions.includes(values.transcribeModel)) {
+            emitChange({transcribeModel: transcribeModelOptions[0] as TranscribeModel});
         }
-    }, [speechModelOptions, values.speechModel]);
+    }, [transcribeModelOptions, values.transcribeModel]);
 
     useEffect(() => {
         if (!llmModelOptions.includes(values.llmModel)) {
@@ -137,15 +137,15 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         }
     }, [llmModelOptions, values.llmModel]);
 
-    const renderSpeechModeSelector = (sx?: any) => (
+    const renderTranscribeModeSelector = (sx?: any) => (
         <TextField
             select
-            label="Speech Recognition"
-            value={values.speechMode}
+            label="Transcribe Mode"
+            value={values.transcribeMode}
             onChange={(e) => {
-                const speechMode = e.target.value as SpeechMode;
-                const speechModel = getDefaultSpeechModel(speechMode);
-                emitChange({speechMode, speechModel});
+                const transcribeMode = e.target.value as TranscribeMode;
+                const transcribeModel = getDefaultTranscribeModel(transcribeMode);
+                emitChange({transcribeMode, transcribeModel});
             }}
             disabled={disableInputs}
             fullWidth
@@ -158,21 +158,21 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
 
     const requiresOpenAIKeyForLLM = values.llmMode === LLM_MODES.API && isOpenAiApiModel(values.llmModel);
     const requiresGoogleKeyForLLM = values.llmMode === LLM_MODES.API && isGeminiApiModel(values.llmModel);
-    const requiresOpenAIKeyForSpeech =
-        values.speechMode === SPEECH_MODES.API && isOpenAiSpeechModel(values.speechModel);
-    const requiresGoogleKeyForSpeech =
-        values.speechMode === SPEECH_MODES.API && isGoogleSpeechModel(values.speechModel);
-    const requiresOpenAIKey = requiresOpenAIKeyForLLM || requiresOpenAIKeyForSpeech;
-    const requiresGoogleKey = requiresGoogleKeyForLLM || requiresGoogleKeyForSpeech;
+    const requiresOpenAIKeyForTranscribe =
+        values.transcribeMode === SPEECH_MODES.API && isOpenAiTranscribeModel(values.transcribeModel);
+    const requiresGoogleKeyForTranscribe =
+        values.transcribeMode === SPEECH_MODES.API && isGoogleTranscribeModel(values.transcribeModel);
+    const requiresOpenAIKey = requiresOpenAIKeyForLLM || requiresOpenAIKeyForTranscribe;
+    const requiresGoogleKey = requiresGoogleKeyForLLM || requiresGoogleKeyForTranscribe;
     const googleKeyReasons: string[] = [];
-    if (requiresGoogleKeyForSpeech) {
+    if (requiresGoogleKeyForTranscribe) {
         googleKeyReasons.push('Google Gemini speech transcription');
     }
     if (requiresGoogleKeyForLLM) {
         googleKeyReasons.push('Google Gemini LLM models');
     }
     const openaiKeyReasons: string[] = [];
-    if (requiresOpenAIKeyForSpeech) {
+    if (requiresOpenAIKeyForTranscribe) {
         openaiKeyReasons.push('OpenAI speech recognition');
     }
     if (requiresOpenAIKeyForLLM) {
@@ -181,7 +181,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const needsAnyApiKey = requireApiKeys && (requiresOpenAIKey || requiresGoogleKey);
     const shouldShowOpenAIField =
         values.llmMode === LLM_MODES.API ||
-        values.speechMode === SPEECH_MODES.API ||
+        values.transcribeMode === SPEECH_MODES.API ||
         values.openaiKey.trim().length > 0;
 
     return (
@@ -211,21 +211,21 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                     }}
                 >
                     <div className={'fc gap-2'}>
-                        {renderSpeechModeSelector({flex: 1})}
-                        <Collapse in={values.speechMode === SPEECH_MODES.LOCAL} unmountOnExit>
+                        {renderTranscribeModeSelector({flex: 1})}
+                        <Collapse in={values.transcribeMode === SPEECH_MODES.LOCAL} unmountOnExit>
                             <LocalSpeechInstallControl disabled={disableInputs}/>
                         </Collapse>
                     </div>
                     <TextField
                         select
-                        label="Speech Model"
-                        value={values.speechModel}
-                        onChange={(e) => emitChange({speechModel: e.target.value as SpeechModel})}
+                        label="Transcribe Model"
+                        value={values.transcribeModel}
+                        onChange={(e) => emitChange({transcribeModel: e.target.value as TranscribeModel})}
                         disabled={disableInputs}
                     >
-                        {speechModelOptions.map((model) => (
+                        {transcribeModelOptions.map((model) => (
                             <MenuItem key={model} value={model}>
-                                {formatSpeechLabel(model)}
+                                {formatTranscribeLabel(model)}
                             </MenuItem>
                         ))}
                     </TextField>

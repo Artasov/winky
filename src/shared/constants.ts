@@ -92,9 +92,7 @@ export const SPEECH_OPENAI_API_MODELS = [
 // Максимальная длина аудио в одном запросе: 9.5 часов
 export const SPEECH_GOOGLE_API_MODELS = [
     'gemini-2.5-flash',  // Последняя версия Flash, поддерживает аудио
-    'gemini-2.0-flash',  // Flash модель, поддерживает аудио
-    'gemini-1.5-flash',  // Flash модель (может не поддерживать аудио через API)
-    'gemini-1.5-pro'     // Pro модель (может не поддерживать аудио через API)
+    'gemini-2.0-flash'   // Flash модель, поддерживает аудио
 ] as const;
 
 export const SPEECH_API_MODELS = [

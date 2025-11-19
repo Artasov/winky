@@ -21,10 +21,10 @@ const isGoogleAiApiModel = (model: string): boolean =>
 const isOpenAiApiModel = (model: string): boolean =>
     (LLM_OPENAI_API_MODELS as readonly string[]).includes(model as string);
 
-const isGoogleSpeechModel = (model: string): boolean =>
+const isGoogleTranscribeModel = (model: string): boolean =>
     (SPEECH_GOOGLE_API_MODELS as readonly string[]).includes(model as string);
 
-const isOpenAiSpeechModel = (model: string): boolean =>
+const isOpenAiTranscribeModel = (model: string): boolean =>
     (SPEECH_OPENAI_API_MODELS as readonly string[]).includes(model as string);
 
 const SetupWindow: React.FC = () => {
@@ -35,8 +35,8 @@ const SetupWindow: React.FC = () => {
     const [formData, setFormData] = useState<ModelConfigFormData>({
         openaiKey: config?.apiKeys.openai ?? '',
         googleKey: config?.apiKeys.google ?? '',
-        speechMode: config?.speech.mode ?? SPEECH_MODES.API,
-        speechModel: config?.speech.model ?? SPEECH_API_MODELS[0],
+        transcribeMode: config?.speech.mode ?? SPEECH_MODES.API,
+        transcribeModel: config?.speech.model ?? SPEECH_API_MODELS[0],
         llmMode: config?.llm.mode ?? LLM_MODES.API,
         llmModel: config?.llm.model ?? LLM_API_MODELS[0]
     });
@@ -46,17 +46,17 @@ const SetupWindow: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const speechIsApi = formData.speechMode === SPEECH_MODES.API;
-        const requiresOpenAiSpeechKey = speechIsApi && isOpenAiSpeechModel(formData.speechModel);
-        const requiresGoogleSpeechKey = speechIsApi && isGoogleSpeechModel(formData.speechModel);
+        const transcribeIsApi = formData.transcribeMode === SPEECH_MODES.API;
+        const requiresOpenAiTranscribeKey = transcribeIsApi && isOpenAiTranscribeModel(formData.transcribeModel);
+        const requiresGoogleTranscribeKey = transcribeIsApi && isGoogleTranscribeModel(formData.transcribeModel);
         const requiresOpenAiLlmKey = formData.llmMode === LLM_MODES.API && isOpenAiApiModel(formData.llmModel);
         const requiresGoogleAiLlmKey = formData.llmMode === LLM_MODES.API && isGoogleAiApiModel(formData.llmModel);
-        const needsOpenAiKey = requiresOpenAiSpeechKey || requiresOpenAiLlmKey;
-        const needsGoogleKey = requiresGoogleSpeechKey || requiresGoogleAiLlmKey;
+        const needsOpenAiKey = requiresOpenAiTranscribeKey || requiresOpenAiLlmKey;
+        const needsGoogleKey = requiresGoogleTranscribeKey || requiresGoogleAiLlmKey;
 
         if (needsOpenAiKey && !formData.openaiKey.trim()) {
             const reason = [
-                requiresOpenAiSpeechKey ? 'API-based speech recognition' : null,
+                requiresOpenAiTranscribeKey ? 'API-based speech recognition' : null,
                 requiresOpenAiLlmKey ? 'the selected OpenAI LLM model' : null
             ]
                 .filter(Boolean)
@@ -67,7 +67,7 @@ const SetupWindow: React.FC = () => {
 
         if (needsGoogleKey && !formData.googleKey.trim()) {
             const reason = [
-                requiresGoogleSpeechKey ? 'the selected Google Gemini speech model' : null,
+                requiresGoogleTranscribeKey ? 'the selected Google Gemini speech model' : null,
                 requiresGoogleAiLlmKey ? 'the selected Google Gemini LLM model' : null
             ]
                 .filter(Boolean)
@@ -80,7 +80,7 @@ const SetupWindow: React.FC = () => {
         try {
             const updated = await updateConfig({
                 setupCompleted: true,
-                speech: {mode: formData.speechMode, model: formData.speechModel},
+                speech: {mode: formData.transcribeMode, model: formData.transcribeModel},
                 llm: {mode: formData.llmMode, model: formData.llmModel},
                 apiKeys: {
                     openai: formData.openaiKey.trim(),

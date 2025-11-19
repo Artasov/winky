@@ -9,13 +9,17 @@ import {
     SPEECH_MODES
 } from './constants';
 
-export type SpeechMode = (typeof SPEECH_MODES)[keyof typeof SPEECH_MODES];
+export type TranscribeMode = (typeof SPEECH_MODES)[keyof typeof SPEECH_MODES];
 export type LLMMode = (typeof LLM_MODES)[keyof typeof LLM_MODES];
 export type LLMModel =
     | (typeof LLM_OPENAI_API_MODELS)[number]
     | (typeof LLM_GEMINI_API_MODELS)[number]
     | (typeof LLM_LOCAL_MODELS)[number];
-export type SpeechModel = (typeof SPEECH_API_MODELS)[number] | (typeof SPEECH_LOCAL_MODELS)[number];
+export type TranscribeModel = (typeof SPEECH_API_MODELS)[number] | (typeof SPEECH_LOCAL_MODELS)[number];
+
+// Обратная совместимость - старые названия
+export type SpeechMode = TranscribeMode;
+export type SpeechModel = TranscribeModel;
 
 export interface AuthTokens {
     access: string;
@@ -113,8 +117,8 @@ export interface AppConfig {
     auth: AuthTokens;
     setupCompleted: boolean;
     speech: {
-        mode: SpeechMode;
-        model: SpeechModel;
+        mode: TranscribeMode;
+        model: TranscribeModel;
     };
     llm: {
         mode: LLMMode;

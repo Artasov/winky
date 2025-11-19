@@ -1,4 +1,4 @@
-import React, {ChangeEvent, useEffect, useState} from 'react';
+import React, {ChangeEvent, useEffect, useRef, useState} from 'react';
 import {Box, Button, Checkbox, FormControlLabel, Slider, Typography} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
@@ -17,8 +17,8 @@ const SettingsPage: React.FC = () => {
     const [formData, setFormData] = useState<ModelConfigFormData>({
         openaiKey: '',
         googleKey: '',
-        speechMode: SPEECH_MODES.API,
-        speechModel: SPEECH_API_MODELS[0],
+        transcribeMode: SPEECH_MODES.API,
+        transcribeModel: SPEECH_API_MODELS[0],
         llmMode: LLM_MODES.API,
         llmModel: LLM_API_MODELS[0]
     });
@@ -39,8 +39,8 @@ const SettingsPage: React.FC = () => {
             setFormData({
                 openaiKey: config.apiKeys.openai ?? '',
                 googleKey: config.apiKeys.google ?? '',
-                speechMode: config.speech.mode,
-                speechModel: config.speech.model,
+                transcribeMode: config.speech.mode,
+                transcribeModel: config.speech.model,
                 llmMode: config.llm.mode,
                 llmModel: config.llm.model
             });
@@ -55,6 +55,20 @@ const SettingsPage: React.FC = () => {
             setAutoStartLocalSpeech(Boolean(config.autoStartLocalSpeechServer));
         }
     }, [config]);
+
+    const previousHotkeyRef = useRef<string | null>(null);
+    const isInitialMountRef = useRef(true);
+
+    useEffect(() => {
+        // Игнорируем первое событие при монтировании компонента
+        if (isInitialMountRef.current) {
+            isInitialMountRef.current = false;
+            // Сохраняем текущий хоткей при первом монтировании
+            if (config?.mic_hotkey) {
+                previousHotkeyRef.current = config.mic_hotkey.trim();
+            }
+        }
+    }, [config?.mic_hotkey]);
 
     useEffect(() => {
         const handleHotkeyError = (payload: {
@@ -88,7 +102,14 @@ const SettingsPage: React.FC = () => {
                 return;
             }
             if (payload.accelerator) {
-                showToast(`Hotkey ready: ${payload.accelerator}`, 'success');
+                const currentHotkey = payload.accelerator.trim();
+                const previousHotkey = previousHotkeyRef.current;
+                
+                // Показываем уведомление только если хоткей действительно изменился
+                if (previousHotkey !== currentHotkey) {
+                    previousHotkeyRef.current = currentHotkey;
+                    showToast(`Hotkey ready: ${currentHotkey}`, 'success');
+                }
             }
         };
 
@@ -110,8 +131,8 @@ const SettingsPage: React.FC = () => {
                     google: nextValues.googleKey.trim()
                 },
                 speech: {
-                    mode: nextValues.speechMode,
-                    model: nextValues.speechModel
+                    mode: nextValues.transcribeMode,
+                    model: nextValues.transcribeModel
                 },
                 llm: {
                     mode: nextValues.llmMode,

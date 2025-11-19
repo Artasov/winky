@@ -86,15 +86,18 @@ const MicOverlay: React.FC = () => {
                         setSoundPath(fileUrl);
                         return;
                     } catch (error) {
-                        console.warn('[MicOverlay] Failed to convert sound path, using default:', error);
+                        console.warn('[MicOverlay] Failed to convert sound path:', error);
                     }
                 }
-                setSoundPath('/sounds/completion.wav');
+                // В продакшене не используем HTTP fallback, так как это вызывает ошибки
+                console.warn('[MicOverlay] Sound path not available, disabling sound');
+                setSoundPath('');
             })
             .catch((error) => {
-                console.warn('[MicOverlay] Failed to get sound path, using default:', error);
+                console.warn('[MicOverlay] Failed to get sound path:', error);
                 if (!cancelled) {
-                    setSoundPath('/sounds/completion.wav');
+                    // В продакшене не используем HTTP fallback, так как это вызывает ошибки
+                    setSoundPath('');
                 }
             });
 

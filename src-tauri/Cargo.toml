@@ -27,6 +27,10 @@ url = "2.5"
 urlencoding = "2.1"
 uuid = { version = "1.8", features = ["serde", "v4"] }
 winapi = { version = "0.3", features = ["winuser"] }
+zip = "0.6"
+flate2 = "1.0"
+futures-util = "0.3"
+image = "0.25"
 
 [features]
 default = ["custom-protocol"]

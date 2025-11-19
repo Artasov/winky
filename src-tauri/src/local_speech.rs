@@ -3,6 +3,8 @@ use std::fs::File;
 use std::future::Future;
 use std::io::Cursor;
 #[cfg(windows)]
+use std::os::windows::process::CommandExt;
+#[cfg(windows)]
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -28,6 +30,8 @@ use crate::types::FastWhisperStatus;
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(120);
 const HEALTH_INTERVAL: Duration = Duration::from_secs(2);
 const STOP_TIMEOUT: Duration = Duration::from_secs(30);
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Default)]
 pub struct FastWhisperManager {
@@ -378,6 +382,10 @@ impl FastWhisperManager {
         process.envs(self.script_env());
         process.stdout(Stdio::piped());
         process.stderr(Stdio::piped());
+        #[cfg(windows)]
+        {
+            process.creation_flags(CREATE_NO_WINDOW);
+        }
 
         let mut child = process.spawn()?;
         let (tx, mut rx) = mpsc::unbounded_channel::<String>();

@@ -19,3 +19,4 @@ fast-fast-whisper
 src-tauri/target
 src-tauri/gen
 src-tauri/.cargo
+nsis.lnk

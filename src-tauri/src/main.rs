@@ -20,7 +20,7 @@ use once_cell::sync::Lazy;
 use serde_json::json;
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_shell::ShellExt;
+use tauri_plugin_opener::OpenerExt;
 use types::{AppConfig, AuthDeepLinkPayload, AuthTokens, FastWhisperStatus};
 
 static PENDING_DEEP_LINKS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
@@ -122,8 +122,8 @@ async fn auth_consume_pending(
 #[tauri::command]
 async fn auth_start_oauth(app: tauri::AppHandle, provider: String) -> Result<(), String> {
     let url = oauth::build_oauth_start_url(&provider).map_err(|error| error.to_string())?;
-    app.shell()
-        .open(url, None)
+    app.opener()
+        .open_url(url, None::<String>)
         .map_err(|error| error.to_string())
 }
 
@@ -217,10 +217,10 @@ fn action_hotkeys_clear(
 }
 
 #[tauri::command]
-async fn window_open_devtools(app: tauri::AppHandle) -> Result<(), String> {
+async fn window_open_devtools(_app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(feature = "devtools")]
     {
-        if let Some(window) = app.get_webview_window("main") {
+        if let Some(window) = _app.get_webview_window("main") {
             window.open_devtools();
             Ok(())
         } else {
@@ -330,6 +330,7 @@ async fn window_open_main(app: tauri::AppHandle) -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())

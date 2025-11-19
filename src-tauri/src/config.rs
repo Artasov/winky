@@ -53,6 +53,7 @@ impl ConfigState {
         self.path.clone()
     }
 
+    #[allow(dead_code)]
     pub async fn set(&self, next: AppConfig) -> Result<AppConfig> {
         let mut normalized = next;
         normalized.normalize();
@@ -88,20 +89,24 @@ impl ConfigState {
         Ok(guard.clone())
     }
 
+    #[allow(dead_code)]
     pub async fn mic_window_position(&self) -> Option<WindowPosition> {
         self.inner.read().await.mic_window_position.clone()
     }
 
+    #[allow(dead_code)]
     pub async fn set_mic_window_position(&self, position: Option<WindowPosition>) -> Result<()> {
         let mut guard = self.inner.write().await;
         guard.mic_window_position = position;
         self.persist(&guard).await
     }
 
+    #[allow(dead_code)]
     pub async fn mic_anchor(&self) -> String {
         self.inner.read().await.mic_anchor.clone()
     }
 
+    #[allow(dead_code)]
     pub async fn set_mic_anchor(&self, anchor: String) -> Result<()> {
         let mut guard = self.inner.write().await;
         guard.mic_anchor = anchor;

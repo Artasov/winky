@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import {fileURLToPath} from 'url';
+import {execSync} from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +15,7 @@ const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 const tauriConfig = JSON.parse(fs.readFileSync(tauriConfigPath, 'utf8'));
 
 let updated = false;
+let cargoTomlUpdated = false;
 
 // Update tauri.conf.json
 if (tauriConfig.version !== pkg.version) {
@@ -35,8 +37,24 @@ if (match && match[1] !== pkg.version) {
     fs.writeFileSync(cargoTomlPath, updatedCargoToml);
     console.log(`[sync-tauri-version] Updated Cargo.toml version -> ${pkg.version}`);
     updated = true;
+    cargoTomlUpdated = true;
 } else if (match && match[1] === pkg.version) {
     console.log('[sync-tauri-version] Cargo.toml version already up to date.');
 } else {
     console.warn('[sync-tauri-version] Could not find version in Cargo.toml');
+}
+
+// Update Cargo.lock if Cargo.toml was updated
+if (cargoTomlUpdated) {
+    try {
+        console.log('[sync-tauri-version] Updating Cargo.lock...');
+        execSync('cargo check', {
+            cwd: path.join(root, 'src-tauri'),
+            stdio: 'inherit'
+        });
+        console.log('[sync-tauri-version] Cargo.lock updated successfully.');
+    } catch (error) {
+        console.warn('[sync-tauri-version] Failed to update Cargo.lock:', error.message);
+        console.warn('[sync-tauri-version] Cargo.lock will be updated on next cargo build.');
+    }
 }

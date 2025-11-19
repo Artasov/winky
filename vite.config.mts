@@ -27,7 +27,34 @@ export default defineConfig(() => ({
     },
     build: {
         outDir: path.resolve(__dirname, 'dist/renderer'),
-        emptyOutDir: true
+        emptyOutDir: true,
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (!id.includes('node_modules')) {
+                        return;
+                    }
+
+                    if (id.includes('@mui') || id.includes('@emotion')) {
+                        return 'mui';
+                    }
+
+                    if (id.includes('react-router-dom')) {
+                        return 'router';
+                    }
+
+                    if (id.includes('react-toastify')) {
+                        return 'toastify';
+                    }
+
+                    if (id.includes('@tauri-apps')) {
+                        return 'tauri-api';
+                    }
+
+                    return 'vendor';
+                }
+            }
+        }
     },
     resolve: {
         alias: {

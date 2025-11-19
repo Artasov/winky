@@ -2,7 +2,9 @@ use std::fs;
 use std::fs::File;
 use std::future::Future;
 use std::io::Cursor;
-use std::path::{Path, PathBuf};
+#[cfg(windows)]
+use std::path::Path;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

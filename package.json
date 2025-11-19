@@ -5,7 +5,7 @@
   "main": "dist/main/main.js",
   "scripts": {
     "pretauri": "node ./scripts/sync-tauri-version.mjs",
-    "version": "node ./scripts/sync-tauri-version.mjs && git add src-tauri/tauri.conf.json",
+    "version": "node ./scripts/sync-tauri-version.mjs && git add src-tauri/tauri.conf.json src-tauri/Cargo.toml",
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri",

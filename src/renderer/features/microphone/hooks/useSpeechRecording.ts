@@ -1,4 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {invoke} from '@tauri-apps/api/core';
+import {emit} from '@tauri-apps/api/event';
+import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
 import {FAST_WHISPER_PORT, SPEECH_MODES} from '@shared/constants';
 import type {ActionConfig, AppConfig} from '@shared/types';
 import {resetInteractive, setRecordingInteractive} from '../../../utils/interactive';
@@ -424,9 +427,6 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             if (!handleLocalSpeechServerFailure(errorMessage)) {
                 // Открываем главное окно и показываем Toast там
                 try {
-                    const {invoke} = await import('@tauri-apps/api/core');
-                    const {emit} = await import('@tauri-apps/api/event');
-                    
                     console.log('[useSpeechRecording] Opening main window for error:', errorMessage);
                     
                     // Открываем главное окно через Rust команду (создает окно заново если его нет)
@@ -436,7 +436,6 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                     } catch (invokeError) {
                         console.error('[useSpeechRecording] Failed to open main window via command:', invokeError);
                         // Пробуем альтернативный способ
-                        const {WebviewWindow} = await import('@tauri-apps/api/webviewWindow');
                         const mainWindow = await WebviewWindow.getByLabel('main').catch(() => null);
                         if (mainWindow) {
                             await mainWindow.show().catch(() => {});

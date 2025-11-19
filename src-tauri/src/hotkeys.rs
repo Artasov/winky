@@ -24,7 +24,44 @@ impl HotkeyState {
 
     pub fn register_mic(&self, app: &AppHandle, accelerator: Option<String>) {
         let manager = app.global_shortcut();
-        if let Some(existing) = self.mic.lock().unwrap().take() {
+        
+        // Получаем новый хоткей
+        let new_accelerator = accelerator.and_then(|value| {
+            let trimmed = value.trim().to_string();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        });
+
+        // Проверяем текущий зарегистрированный хоткей
+        let mut current = self.mic.lock().unwrap();
+        
+        // Если новый хоткей такой же, как текущий, ничего не делаем
+        if let Some(ref existing) = *current {
+            if let Some(ref new_accel) = new_accelerator {
+                if existing == new_accel {
+                    // Хоткей не изменился, не нужно перерегистрировать
+                    return;
+                }
+            }
+        }
+        
+        // Если новый хоткей None, но текущий есть - очищаем
+        if new_accelerator.is_none() {
+            if let Some(existing) = current.take() {
+                let _ = manager.unregister(existing.as_str());
+                let _ = app.emit(
+                    "hotkey:register-cleared",
+                    &serde_json::json!({"source": "mic"}),
+                );
+            }
+            return;
+        }
+
+        // Удаляем старый хоткей, если он есть
+        if let Some(existing) = current.take() {
             let _ = manager.unregister(existing.as_str());
             let _ = app.emit(
                 "hotkey:register-cleared",
@@ -32,28 +69,19 @@ impl HotkeyState {
             );
         }
 
-        let Some(raw) = accelerator.and_then(|value| {
-            let trimmed = value.trim().to_string();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed)
-            }
-        }) else {
-            return;
-        };
-
-        let accelerator = raw.clone();
+        // Регистрируем новый хоткей
+        let accelerator = new_accelerator.unwrap();
+        let accelerator_clone = accelerator.clone();
         match manager.on_shortcut(accelerator.as_str(), move |app_handle, _, _| {
             let _ = app_handle.emit("mic:shortcut", serde_json::json!({"reason": "shortcut"}));
         }) {
             Ok(_) => {
-                *self.mic.lock().unwrap() = Some(accelerator.clone());
+                *current = Some(accelerator_clone.clone());
                 let _ = app.emit(
                     "hotkey:register-success",
                     &serde_json::json!({
                         "source": "mic",
-                        "accelerator": accelerator
+                        "accelerator": accelerator_clone
                     }),
                 );
             }
@@ -62,7 +90,7 @@ impl HotkeyState {
                     "hotkey:register-error",
                     &serde_json::json!({
                         "source": "mic",
-                        "accelerator": accelerator,
+                        "accelerator": accelerator_clone,
                         "reason": "register-failed",
                         "message": error.to_string()
                     }),

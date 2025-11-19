@@ -71,7 +71,8 @@ export abstract class ApiLLMBaseService implements BaseLLMService {
         const headers = this.buildHeaders();
 
         const {data} = await this.client.post(url, body, {headers});
-        return this.extractResult(data);
+        const result = this.extractResult(data);
+        return result;
     }
 
     async processStream(text: string, prompt: string, onChunk: (chunk: string) => void): Promise<string> {

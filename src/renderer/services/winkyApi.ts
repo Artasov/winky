@@ -133,19 +133,52 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
     };
 
     const promptValue = config.prompt?.trim();
+    const audioSizeKB = (audioData.byteLength / 1024).toFixed(2);
 
     if (config.mode === SPEECH_MODES.LOCAL) {
+        console.log(`%cTranscribe → %c[LOCAL] %c${config.model}`, 
+            'color: #10b981; font-weight: bold',
+            'color: #3b82f6; font-weight: bold',
+            'color: #8b5cf6'
+        );
+        console.log('  📤 Request:', {
+            model: config.model,
+            audioSize: `${audioSizeKB} KB`,
+            prompt: promptValue || '(none)'
+        });
         const extraFields: Record<string, string> = {response_format: 'json'};
         if (promptValue) {
             extraFields.prompt = promptValue;
         }
         const formData = buildFormData(extraFields);
-        const {data} = await axios.post(FAST_WHISPER_TRANSCRIBE_ENDPOINT, formData, {
-            headers: {'Content-Type': 'multipart/form-data'},
-            timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT
-        });
-        const text = extractSpeechText(data);
-        return typeof text === 'string' ? text : '';
+        try {
+            const {data} = await axios.post(FAST_WHISPER_TRANSCRIBE_ENDPOINT, formData, {
+                headers: {'Content-Type': 'multipart/form-data'},
+                timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT
+            });
+            const text = extractSpeechText(data);
+            const result = typeof text === 'string' ? text : '';
+            console.log(`%cTranscribe ← %c[LOCAL] %c${config.model} %c[200]`, 
+                'color: #10b981; font-weight: bold',
+                'color: #3b82f6; font-weight: bold',
+                'color: #8b5cf6',
+                'color: #22c55e; font-weight: bold'
+            );
+            console.log('  📥 Response:', {
+                transcription: result.substring(0, 100) + (result.length > 100 ? '...' : ''),
+                length: result.length
+            });
+            return result;
+        } catch (error: any) {
+            console.error(`%cTranscribe ← %c[LOCAL] %c${config.model} %c[ERROR]`, 
+                'color: #ef4444; font-weight: bold',
+                'color: #3b82f6; font-weight: bold',
+                'color: #8b5cf6',
+                'color: #ef4444; font-weight: bold'
+            );
+            console.error('  ❌ Error:', error.message);
+            throw error;
+        }
     }
 
     // Google Gemini API для транскрибации (бесплатные квоты)
@@ -153,6 +186,13 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
         if (!config.googleKey?.trim()) {
             throw new Error('Укажите Google AI API Key для использования моделей Gemini для транскрибации.');
         }
+        
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent`;
+        console.log(`%cTranscribe → %c[Google Gemini] %c${config.model}`, 
+            'color: #10b981; font-weight: bold',
+            'color: #3b82f6; font-weight: bold',
+            'color: #8b5cf6'
+        );
         
         const base64Audio = await blobToBase64(blob);
         
@@ -230,49 +270,91 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
         };
         
         const googleKey = config.googleKey.trim();
+        const fullUrl = `${url}?key=${googleKey.substring(0, 10)}...`;
+        
+        console.log('  📤 Request:', {
+            url: fullUrl,
+            model: config.model,
+            audioSize: `${audioSizeKB} KB`,
+            mimeType: mimeType,
+            prompt: promptValue ? promptValue.substring(0, 100) + (promptValue.length > 100 ? '...' : '') : '(transcription only)',
+            systemInstruction: payload.systemInstruction?.parts?.[0]?.text?.substring(0, 50) + '...'
+        });
+        
         // Используем v1beta (стабильная версия для мультимодальных запросов)
         // Если модель не поддерживает аудио, получим понятную ошибку
-        const {data} = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${googleKey}`,
-            payload,
-            {
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT
+        try {
+            const {data} = await axios.post(
+                `${url}?key=${googleKey}`,
+                payload,
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT
+                }
+            );
+            
+            // Извлекаем текст из ответа Gemini
+            const candidates = data?.candidates;
+            if (Array.isArray(candidates) && candidates.length > 0) {
+                const parts = candidates[0]?.content?.parts;
+                if (Array.isArray(parts)) {
+                    const text = parts
+                        .map((part) => part?.text ?? '')
+                        .filter(Boolean)
+                        .join('\n')
+                        .trim();
+                    if (text) {
+                        console.log(`%cTranscribe ← %c[Google Gemini] %c${config.model} %c[200]`, 
+                            'color: #10b981; font-weight: bold',
+                            'color: #3b82f6; font-weight: bold',
+                            'color: #8b5cf6',
+                            'color: #22c55e; font-weight: bold'
+                        );
+                        console.log('  📥 Response:', {
+                            transcription: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+                            length: text.length
+                        });
+                        return text;
+                    }
+                }
             }
-        ).catch((error: any) => {
+            
+            throw new Error('Gemini вернул пустой ответ.');
+        } catch (error: any) {
+            const status = error?.response?.status || 'ERROR';
+            console.error(`%cTranscribe ← %c[Google Gemini] %c${config.model} %c[${status}]`, 
+                'color: #ef4444; font-weight: bold',
+                'color: #3b82f6; font-weight: bold',
+                'color: #8b5cf6',
+                'color: #ef4444; font-weight: bold'
+            );
+            if (error?.response?.data) {
+                console.error('  ❌ Error data:', error.response.data);
+            } else {
+                console.error('  ❌ Error:', error.message);
+            }
             // Улучшаем сообщение об ошибке
             if (error?.response?.status === 404) {
                 const errorMessage = error?.response?.data?.error?.message || 'Модель не найдена или не поддерживает аудио';
                 throw new Error(`Gemini API: ${errorMessage}. Убедитесь, что модель ${config.model} поддерживает обработку аудио через generateContent API.`);
             }
             throw error;
-        });
-        
-        // Извлекаем текст из ответа Gemini
-        const candidates = data?.candidates;
-        if (Array.isArray(candidates) && candidates.length > 0) {
-            const parts = candidates[0]?.content?.parts;
-            if (Array.isArray(parts)) {
-                const text = parts
-                    .map((part) => part?.text ?? '')
-                    .filter(Boolean)
-                    .join('\n')
-                    .trim();
-                if (text) {
-                    return text;
-                }
-            }
         }
-        
-        throw new Error('Gemini вернул пустой ответ.');
     }
 
     // OpenAI Whisper для транскрибации
     if (!config.openaiKey) {
         throw new Error('Укажите OpenAI API ключ для транскрибации.');
     }
+
+    const url = 'https://api.openai.com/v1/audio/transcriptions';
+    console.log(`%cTranscribe → %c[OpenAI Whisper] %c${config.model}`, 
+        'color: #10b981; font-weight: bold',
+        'color: #3b82f6; font-weight: bold',
+        'color: #8b5cf6'
+    );
 
     // Санитизируем prompt если он есть - убираем недопустимые символы
     let sanitizedPrompt: string | undefined;
@@ -293,18 +375,53 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
     }
     
     const headers: Record<string, string> = {
-        Authorization: `Bearer ${sanitizedToken}`
+        Authorization: `Bearer ${sanitizedToken.substring(0, 10)}...`
     };
 
-    const {data} = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
-        headers,
-        timeout: 120_000
+    console.log('  📤 Request:', {
+        url: url,
+        model: config.model,
+        audioSize: `${audioSizeKB} KB`,
+        prompt: sanitizedPrompt ? sanitizedPrompt.substring(0, 100) + (sanitizedPrompt.length > 100 ? '...' : '') : '(none)'
     });
-    const text = extractSpeechText(data);
-    if (!text) {
-        throw new Error('OpenAI вернул пустой ответ.');
+
+    try {
+        const {data} = await axios.post(url, formData, {
+            headers: {
+                Authorization: `Bearer ${sanitizedToken}`
+            },
+            timeout: 120_000
+        });
+        const text = extractSpeechText(data);
+        if (!text) {
+            throw new Error('OpenAI вернул пустой ответ.');
+        }
+        console.log(`%cTranscribe ← %c[OpenAI Whisper] %c${config.model} %c[200]`, 
+            'color: #10b981; font-weight: bold',
+            'color: #3b82f6; font-weight: bold',
+            'color: #8b5cf6',
+            'color: #22c55e; font-weight: bold'
+        );
+        console.log('  📥 Response:', {
+            transcription: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+            length: text.length
+        });
+        return text;
+    } catch (error: any) {
+        const status = error?.response?.status || 'ERROR';
+        console.error(`%cTranscribe ← %c[OpenAI Whisper] %c${config.model} %c[${status}]`, 
+            'color: #ef4444; font-weight: bold',
+            'color: #3b82f6; font-weight: bold',
+            'color: #8b5cf6',
+            'color: #ef4444; font-weight: bold'
+        );
+        if (error?.response?.data) {
+            console.error('  ❌ Error data:', error.response.data);
+        } else {
+            console.error('  ❌ Error:', error.message);
+        }
+        throw error;
     }
-    return text;
 };
 
 export const processLLM = async (text: string, prompt: string, config: {
@@ -314,12 +431,57 @@ export const processLLM = async (text: string, prompt: string, config: {
     googleKey?: string;
     accessToken?: string;
 }): Promise<string> => {
-    const service = createLLMService(config.mode as any, config.model as any, {
-        openaiKey: config.openaiKey,
-        googleKey: config.googleKey,
-        accessToken: config.accessToken
+    const provider = config.mode === 'api' 
+        ? (config.googleKey ? 'Google Gemini' : 'OpenAI')
+        : 'Local';
+    
+    console.log(`%cLLM → %c[${provider}] %c${config.model}`, 
+        'color: #10b981; font-weight: bold',
+        'color: #3b82f6; font-weight: bold',
+        'color: #8b5cf6'
+    );
+    console.log('  📤 Request:', {
+        model: config.model,
+        mode: config.mode,
+        textLength: text.length,
+        promptLength: prompt.length,
+        textPreview: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+        promptPreview: prompt.substring(0, 100) + (prompt.length > 100 ? '...' : '')
     });
-    return service.process(text, prompt);
+    
+    try {
+        const service = createLLMService(config.mode as any, config.model as any, {
+            openaiKey: config.openaiKey,
+            googleKey: config.googleKey,
+            accessToken: config.accessToken
+        });
+        const result = await service.process(text, prompt);
+        
+        console.log(`%cLLM ← %c[${provider}] %c${config.model} %c[200]`, 
+            'color: #10b981; font-weight: bold',
+            'color: #3b82f6; font-weight: bold',
+            'color: #8b5cf6',
+            'color: #22c55e; font-weight: bold'
+        );
+        console.log('  📥 Response:', {
+            resultLength: result.length,
+            resultPreview: result.substring(0, 100) + (result.length > 100 ? '...' : '')
+        });
+        
+        return result;
+    } catch (error: any) {
+        console.error(`%cLLM ← %c[${provider}] %c${config.model} %c[ERROR]`, 
+            'color: #ef4444; font-weight: bold',
+            'color: #3b82f6; font-weight: bold',
+            'color: #8b5cf6',
+            'color: #ef4444; font-weight: bold'
+        );
+        console.error('  ❌ Error:', error.message);
+        if (error?.response?.data) {
+            console.error('  ❌ Error data:', error.response.data);
+        }
+        throw error;
+    }
 };
 
 export const processLLMStream = async (text: string, prompt: string, config: {

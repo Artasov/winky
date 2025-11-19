@@ -58,15 +58,28 @@ const SettingsPage: React.FC = () => {
 
     const previousHotkeyRef = useRef<string | null>(null);
     const isInitialMountRef = useRef(true);
+    const isUserChangingHotkeyRef = useRef(false);
 
+    // Отслеживаем изменения хоткея из конфига
     useEffect(() => {
-        // Игнорируем первое событие при монтировании компонента
-        if (isInitialMountRef.current) {
-            isInitialMountRef.current = false;
-            // Сохраняем текущий хоткей при первом монтировании
-            if (config?.mic_hotkey) {
-                previousHotkeyRef.current = config.mic_hotkey.trim();
+        if (config?.mic_hotkey) {
+            const currentHotkey = config.mic_hotkey.trim();
+            const previousHotkey = previousHotkeyRef.current;
+            
+            // Если это первое монтирование, просто сохраняем
+            if (isInitialMountRef.current) {
+                isInitialMountRef.current = false;
+                previousHotkeyRef.current = currentHotkey;
+                return;
             }
+            
+            // Если хоткей изменился не из-за пользователя (например, при изменении модели),
+            // обновляем ref, но не показываем уведомление
+            if (previousHotkey !== currentHotkey && !isUserChangingHotkeyRef.current) {
+                previousHotkeyRef.current = currentHotkey;
+            }
+        } else {
+            previousHotkeyRef.current = null;
         }
     }, [config?.mic_hotkey]);
 
@@ -105,10 +118,15 @@ const SettingsPage: React.FC = () => {
                 const currentHotkey = payload.accelerator.trim();
                 const previousHotkey = previousHotkeyRef.current;
                 
-                // Показываем уведомление только если хоткей действительно изменился
-                if (previousHotkey !== currentHotkey) {
+                // Показываем уведомление только если:
+                // 1. Хоткей действительно изменился
+                // 2. Это изменение было инициировано пользователем (не автоматическое обновление конфига)
+                if (previousHotkey !== currentHotkey && isUserChangingHotkeyRef.current) {
                     previousHotkeyRef.current = currentHotkey;
                     showToast(`Hotkey ready: ${currentHotkey}`, 'success');
+                } else if (previousHotkey !== currentHotkey) {
+                    // Хоткей изменился, но не из-за пользователя - просто обновляем ref
+                    previousHotkeyRef.current = currentHotkey;
                 }
             }
         };
@@ -168,9 +186,14 @@ const SettingsPage: React.FC = () => {
     ];
 
     const handleHotkeyChange = async (nextValue: string) => {
+        isUserChangingHotkeyRef.current = true;
         setMicHotkey(nextValue);
         try {
             await updateConfig({micHotkey: nextValue.trim()});
+            // Сбрасываем флаг после небольшой задержки, чтобы событие успело обработаться
+            setTimeout(() => {
+                isUserChangingHotkeyRef.current = false;
+            }, 100);
             showToast(nextValue ? `Hotkey set to ${nextValue}` : 'Hotkey cleared.', 'success');
         } catch (error) {
             console.error('[SettingsPage] Failed to update hotkey', error);

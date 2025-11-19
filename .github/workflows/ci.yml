@@ -101,6 +101,19 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cleanup macOS disk images
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for volume in /Volumes/Winky /Volumes/Winky* /Volumes/dmg.*; do
+            if [ -d "$volume" ]; then
+              hdiutil detach "$volume" || hdiutil detach -force "$volume" || true
+            fi
+          done
+          rm -rf src-tauri/target/release/bundle/dmg
+
       - name: Build desktop apps with Tauri
         uses: tauri-apps/tauri-action@v0
         with:

@@ -1,7 +1,8 @@
 import {alpha, Components, Theme} from '@mui/material/styles';
+import type {CSSObject} from '@mui/system';
 
-const scrollbarStyles = {
-    scrollbarWidth: 'thin',
+const scrollbarStyles: CSSObject = {
+    scrollbarWidth: 'thin' as any,
     scrollbarColor: '#fb7185 rgba(244, 63, 94, 0.12)',
     '&::-webkit-scrollbar': {
         width: '10px'
@@ -36,12 +37,12 @@ export const createMenuOverrides = (theme: Theme): Components['MuiMenu'] => ({
             backgroundColor: '#ffffff',
             color: '#0f172a',
             boxShadow: '0 18px 40px rgba(15,23,42,0.18)',
-            ...scrollbarStyles
+            ...(scrollbarStyles as any)
         },
         list: {
             paddingTop: theme.spacing(1),
             paddingBottom: theme.spacing(1),
-            ...scrollbarStyles,
+            ...(scrollbarStyles as any),
             '& .MuiMenuItem-root': {
                 borderRadius: theme.spacing(1.2),
                 margin: theme.spacing(0.25, 1),
@@ -58,12 +59,12 @@ export const createMenuOverrides = (theme: Theme): Components['MuiMenu'] => ({
                     }
                 }
             }
-        }
+        } as any
     }
 });
 
 export const createMenuListOverrides = (): Components['MuiMenuList'] => ({
     styleOverrides: {
-        root: scrollbarStyles
+        root: scrollbarStyles as any
     }
 });

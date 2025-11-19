@@ -62,8 +62,8 @@ const SettingsPage: React.FC = () => {
 
     // Отслеживаем изменения хоткея из конфига
     useEffect(() => {
-        if (config?.mic_hotkey) {
-            const currentHotkey = config.mic_hotkey.trim();
+        if (config?.micHotkey) {
+            const currentHotkey = config.micHotkey.trim();
             const previousHotkey = previousHotkeyRef.current;
             
             // Если это первое монтирование, просто сохраняем
@@ -81,7 +81,7 @@ const SettingsPage: React.FC = () => {
         } else {
             previousHotkeyRef.current = null;
         }
-    }, [config?.mic_hotkey]);
+    }, [config?.micHotkey]);
 
     useEffect(() => {
         const handleHotkeyError = (payload: {

@@ -129,6 +129,8 @@ declare global {
     interface WinkyLocalSpeechAPI {
         getStatus(): Promise<FastWhisperStatus>;
 
+        checkHealth(): Promise<FastWhisperStatus>;
+
         install(): Promise<FastWhisperStatus>;
 
         start(): Promise<FastWhisperStatus>;

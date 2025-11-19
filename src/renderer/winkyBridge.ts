@@ -672,6 +672,7 @@ const actionHotkeysApi = {
 
 const localSpeechApi = {
     getStatus: (): Promise<FastWhisperStatus> => invoke('local_speech_get_status'),
+    checkHealth: (): Promise<FastWhisperStatus> => invoke('local_speech_check_health'),
     install: (): Promise<FastWhisperStatus> => invoke('local_speech_install'),
     start: (): Promise<FastWhisperStatus> => invoke('local_speech_start'),
     restart: (): Promise<FastWhisperStatus> => invoke('local_speech_restart'),

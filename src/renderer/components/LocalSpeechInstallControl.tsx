@@ -29,12 +29,14 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
     useEffect(() => {
         let mounted = true;
 
-        const fetchStatus = async () => {
+        const fetchStatus = async (checkHealth: boolean = false) => {
             if (!mounted || typeof document === 'undefined' || document.hidden) {
                 return;
             }
             try {
-                const nextStatus = await window.winky?.localSpeech?.getStatus();
+                const nextStatus = checkHealth
+                    ? await window.winky?.localSpeech?.checkHealth()
+                    : await window.winky?.localSpeech?.getStatus();
                 if (mounted && nextStatus) {
                     console.info('[LocalSpeechInstallControl] fetchStatus ->', nextStatus.phase, nextStatus);
                     setStatus(nextStatus);
@@ -48,7 +50,8 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
             }
         };
 
-        void fetchStatus();
+        // При первом монтировании проверяем реальное состояние сервера через /health
+        void fetchStatus(true);
 
         const handleFocus = () => {
             void fetchStatus();

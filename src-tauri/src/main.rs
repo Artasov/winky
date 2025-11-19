@@ -135,6 +135,14 @@ async fn local_speech_get_status(
 }
 
 #[tauri::command]
+async fn local_speech_check_health(
+    app: tauri::AppHandle,
+    manager: State<'_, Arc<FastWhisperManager>>,
+) -> Result<FastWhisperStatus, String> {
+    Ok(manager.check_health(&app).await)
+}
+
+#[tauri::command]
 async fn local_speech_install(
     app: tauri::AppHandle,
     manager: State<'_, Arc<FastWhisperManager>>,
@@ -379,6 +387,7 @@ fn main() {
             auth_consume_pending,
             auth_start_oauth,
             local_speech_get_status,
+            local_speech_check_health,
             local_speech_install,
             local_speech_start,
             local_speech_restart,

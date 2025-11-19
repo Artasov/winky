@@ -45,6 +45,51 @@ impl FastWhisperManager {
         self.status.lock().await.clone()
     }
 
+    pub async fn check_health(self: &Arc<Self>, app: &AppHandle) -> FastWhisperStatus {
+        let repo_exists = self.repo_path(app).exists();
+        let health_url = self.health_endpoint();
+        
+        // Быстрая проверка здоровья сервера
+        let is_healthy = {
+            let client = reqwest::Client::builder()
+                .timeout(Duration::from_secs(2))
+                .build();
+            
+            if let Ok(client) = client {
+                client
+                    .get(&health_url)
+                    .send()
+                    .await
+                    .map(|response| response.status() == StatusCode::OK)
+                    .unwrap_or(false)
+            } else {
+                false
+            }
+        };
+
+        self.update_status(app, |status| {
+            status.installed = repo_exists;
+            if is_healthy {
+                status.running = true;
+                status.phase = "running".into();
+                status.message = "Server is running.".into();
+                status.error = None;
+            } else {
+                status.running = false;
+                if repo_exists {
+                    status.phase = "idle".into();
+                    status.message = "Server is stopped.".into();
+                } else {
+                    status.phase = "not-installed".into();
+                    status.message = "Local server is not installed.".into();
+                }
+            }
+        })
+        .await;
+
+        self.get_status().await
+    }
+
     pub async fn install_and_start(self: &Arc<Self>, app: &AppHandle) -> Result<FastWhisperStatus> {
         self.execute(app, |manager, handle| async move {
             manager.ensure_repository(&handle, false).await?;
@@ -321,6 +366,10 @@ impl FastWhisperManager {
     }
 
     async fn run_script(self: &Arc<Self>, app: &AppHandle, command: &str, args: &[String], label: &str) -> Result<()> {
+        #[cfg(windows)]
+        {
+            Self::ensure_windows_batch_scripts(&self.repo_path(app))?;
+        }
         let mut process = Command::new(command);
         process.args(args);
         process.current_dir(self.repo_path(app));

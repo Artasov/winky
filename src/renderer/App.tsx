@@ -186,10 +186,16 @@ const AppContent: React.FC = () => {
         [showToast]
     );
 
+    // Не показываем WelcomeWindow если есть токен (даже если пользователь еще не загружен)
+    const hasToken = config?.auth.access || config?.auth.accessToken;
+    const shouldShowWelcome = !hasToken && !isAuthenticated && !userLoading;
+
     const routes = (
         <Routes>
             <Route element={<StandaloneWindow/>}>
-                <Route path="/" element={<WelcomeWindow/>}/>
+                {shouldShowWelcome ? (
+                    <Route path="/" element={<WelcomeWindow/>}/>
+                ) : null}
                 <Route path="/auth" element={<AuthWindow/>}/>
                 <Route path="/setup" element={<SetupWindow/>}/>
             </Route>
@@ -232,7 +238,6 @@ const AppContent: React.FC = () => {
     }
 
     // Если есть токен и идет загрузка пользователя, показываем CircularProgress вместо Welcome
-    const hasToken = config?.auth.access || config?.auth.accessToken;
     const isLoadingUser = userLoading && hasToken && !isAuthenticated;
     
     if (isLoadingUser && !windowIdentity.isAuxWindow) {

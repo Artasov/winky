@@ -1,7 +1,19 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
+import {getVersion} from '@tauri-apps/api/app';
 import {APP_NAME} from '@shared/constants';
 
 const InfoPage: React.FC = () => {
+    const [version, setVersion] = useState<string>('...');
+
+    useEffect(() => {
+        getVersion()
+            .then(setVersion)
+            .catch(() => {
+                // Fallback если Tauri API недоступен
+                setVersion('0.0.0');
+            });
+    }, []);
+
     return (
         <div className="fc mx-auto h-full w-full max-w-4xl gap-8 px-8 py-6">
             <div className="fc gap-1">
@@ -16,11 +28,11 @@ const InfoPage: React.FC = () => {
                     <dl className="fc text-sm">
                         <div className="frbc border-b border-primary-100 py-2">
                             <dt className="text-text-secondary">Version</dt>
-                            <dd className="font-mono text-text-primary">1.0.0</dd>
+                            <dd className="font-mono text-text-primary">{version}</dd>
                         </div>
                         <div className="frbc border-b border-primary-100 py-2">
                             <dt className="text-text-secondary">Platform</dt>
-                            <dd className="text-text-primary">Electron + React</dd>
+                            <dd className="text-text-primary">Tauri + React</dd>
                         </div>
                         <div className="frbc py-2">
                             <dt className="text-text-secondary">Status</dt>

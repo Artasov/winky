@@ -74,6 +74,12 @@ export const createLLMService = (
                 return new Gpt5NanoLLMService(requireOpenAIKey());
             case 'gpt-5-mini':
                 return new Gpt5MiniLLMService(requireOpenAIKey());
+            case 'gemini-3.0-pro':
+            case 'gemini-3.0-flash':
+            case 'gemini-2.5-pro':
+            case 'gemini-2.5-flash':
+            case 'gemini-2.0-pro':
+            case 'gemini-2.0-flash':
             case 'gemini-1.5-pro':
             case 'gemini-1.5-flash':
             case 'gemini-1.0-pro':

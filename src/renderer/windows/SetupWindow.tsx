@@ -6,7 +6,9 @@ import {
     LLM_MODES,
     LLM_OPENAI_API_MODELS,
     SPEECH_API_MODELS,
-    SPEECH_MODES
+    SPEECH_GOOGLE_API_MODELS,
+    SPEECH_MODES,
+    SPEECH_OPENAI_API_MODELS
 } from '@shared/constants';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
@@ -18,6 +20,12 @@ const isGoogleAiApiModel = (model: string): boolean =>
 
 const isOpenAiApiModel = (model: string): boolean =>
     (LLM_OPENAI_API_MODELS as readonly string[]).includes(model as string);
+
+const isGoogleSpeechModel = (model: string): boolean =>
+    (SPEECH_GOOGLE_API_MODELS as readonly string[]).includes(model as string);
+
+const isOpenAiSpeechModel = (model: string): boolean =>
+    (SPEECH_OPENAI_API_MODELS as readonly string[]).includes(model as string);
 
 const SetupWindow: React.FC = () => {
     const {config, updateConfig} = useConfig();
@@ -38,21 +46,33 @@ const SetupWindow: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const requiresSpeechKey = formData.speechMode === SPEECH_MODES.API;
-        const requiresOpenAILlmKey = formData.llmMode === LLM_MODES.API && isOpenAiApiModel(formData.llmModel);
+        const speechIsApi = formData.speechMode === SPEECH_MODES.API;
+        const requiresOpenAiSpeechKey = speechIsApi && isOpenAiSpeechModel(formData.speechModel);
+        const requiresGoogleSpeechKey = speechIsApi && isGoogleSpeechModel(formData.speechModel);
+        const requiresOpenAiLlmKey = formData.llmMode === LLM_MODES.API && isOpenAiApiModel(formData.llmModel);
         const requiresGoogleAiLlmKey = formData.llmMode === LLM_MODES.API && isGoogleAiApiModel(formData.llmModel);
-        const needsGoogleKey = requiresSpeechKey || requiresGoogleAiLlmKey;
+        const needsOpenAiKey = requiresOpenAiSpeechKey || requiresOpenAiLlmKey;
+        const needsGoogleKey = requiresGoogleSpeechKey || requiresGoogleAiLlmKey;
 
-        if (requiresOpenAILlmKey && !formData.openaiKey.trim()) {
-            showToast('OpenAI API Key is required for the selected LLM model.', 'error');
+        if (needsOpenAiKey && !formData.openaiKey.trim()) {
+            const reason = [
+                requiresOpenAiSpeechKey ? 'API-based speech recognition' : null,
+                requiresOpenAiLlmKey ? 'the selected OpenAI LLM model' : null
+            ]
+                .filter(Boolean)
+                .join(' and ');
+            showToast(`OpenAI API Key is required for ${reason}.`, 'error');
             return;
         }
 
         if (needsGoogleKey && !formData.googleKey.trim()) {
-            const reason = requiresGoogleAiLlmKey
-                ? 'the selected Google AI LLM model.'
-                : 'API-based speech recognition.';
-            showToast(`Google AI API Key is required for ${reason}`, 'error');
+            const reason = [
+                requiresGoogleSpeechKey ? 'the selected Google Gemini speech model' : null,
+                requiresGoogleAiLlmKey ? 'the selected Google Gemini LLM model' : null
+            ]
+                .filter(Boolean)
+                .join(' and ');
+            showToast(`Google AI API Key is required for ${reason}.`, 'error');
             return;
         }
 

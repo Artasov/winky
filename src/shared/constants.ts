@@ -49,6 +49,12 @@ export const LLM_OPENAI_API_MODELS = [
 ] as const;
 
 export const LLM_GEMINI_API_MODELS = [
+    'gemini-3.0-pro',
+    'gemini-3.0-flash',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    'gemini-2.0-pro',
+    'gemini-2.0-flash',
     'gemini-1.5-pro',
     'gemini-1.5-flash',
     'gemini-1.0-pro'
@@ -73,10 +79,27 @@ export const LLM_LOCAL_MODELS = [
     'qwen3:4b'
 ] as const;
 
-export const SPEECH_API_MODELS = [
+export const SPEECH_OPENAI_API_MODELS = [
     'gpt-4o-mini-transcribe',
     'gpt-4o-transcribe',
     'whisper-1'
+] as const;
+
+// Google Gemini API модели для транскрибации (бесплатные квоты)
+// Gemini может обрабатывать аудио через generateContent API с inlineData
+// Бесплатные квоты: до 10 минут аудио, до 5 запросов в день
+// Поддерживаемые форматы: WAV, MP3, AIFF, AAC, OGG Vorbis, FLAC
+// Максимальная длина аудио в одном запросе: 9.5 часов
+export const SPEECH_GOOGLE_API_MODELS = [
+    'gemini-2.5-flash',  // Последняя версия Flash, поддерживает аудио
+    'gemini-2.0-flash',  // Flash модель, поддерживает аудио
+    'gemini-1.5-flash',  // Flash модель (может не поддерживать аудио через API)
+    'gemini-1.5-pro'     // Pro модель (может не поддерживать аудио через API)
+] as const;
+
+export const SPEECH_API_MODELS = [
+    ...SPEECH_OPENAI_API_MODELS,
+    ...SPEECH_GOOGLE_API_MODELS
 ] as const;
 
 export const SPEECH_LOCAL_MODELS = [

@@ -4,8 +4,10 @@ import {createApiClient} from '@shared/api';
 import {
     FAST_WHISPER_TRANSCRIBE_ENDPOINT,
     FAST_WHISPER_TRANSCRIBE_TIMEOUT,
+    LLM_GEMINI_API_MODELS,
     ME_ENDPOINT,
-    SPEECH_MODES
+    SPEECH_MODES,
+    SPEECH_OPENAI_API_MODELS
 } from '@shared/constants';
 import type {
     ActionConfig,
@@ -39,6 +41,8 @@ export type SpeechTranscribeConfig = {
 const ACTIONS_API_PATH = 'winky/actions/';
 const ICONS_API_PATH = 'winky/icons/';
 const PROFILE_API_PATH = 'winky/profile/';
+
+const GEMINI_MODEL_SET = new Set<string>([...LLM_GEMINI_API_MODELS]);
 
 const getConfig = async (): Promise<AppConfig> => invoke('config_get');
 
@@ -144,6 +148,128 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
         return typeof text === 'string' ? text : '';
     }
 
+    // Google Gemini API для транскрибации (бесплатные квоты)
+    if (config.mode === SPEECH_MODES.API && GEMINI_MODEL_SET.has(config.model)) {
+        if (!config.googleKey?.trim()) {
+            throw new Error('Укажите Google AI API Key для использования моделей Gemini для транскрибации.');
+        }
+        
+        const base64Audio = await blobToBase64(blob);
+        
+        // Определяем mimeType на основе типа файла
+        // Gemini поддерживает: audio/wav, audio/mp3, audio/aiff, audio/aac, audio/ogg, audio/flac
+        // WebM может не поддерживаться, пробуем использовать audio/webm или конвертируем
+        let mimeType = 'audio/webm'; // Пробуем WebM напрямую
+        if (blob.type) {
+            const normalizedType = blob.type.toLowerCase();
+            // Маппинг типов для Gemini
+            if (normalizedType.includes('webm')) {
+                // WebM не упоминается в документации, но пробуем использовать
+                // Если не работает, нужно будет конвертировать в WAV или OGG
+                mimeType = 'audio/webm';
+            } else if (normalizedType.includes('wav')) {
+                mimeType = 'audio/wav';
+            } else if (normalizedType.includes('mp3')) {
+                mimeType = 'audio/mp3';
+            } else if (normalizedType.includes('aiff')) {
+                mimeType = 'audio/aiff';
+            } else if (normalizedType.includes('aac')) {
+                mimeType = 'audio/aac';
+            } else if (normalizedType.includes('ogg')) {
+                mimeType = 'audio/ogg';
+            } else if (normalizedType.includes('flac')) {
+                mimeType = 'audio/flac';
+            } else {
+                mimeType = blob.type; // Используем оригинальный тип
+            }
+        }
+        
+        // Формируем payload для Gemini API
+        // Gemini требует, чтобы аудио было в parts вместе с текстовым промптом
+        const parts: any[] = [];
+        
+        // Добавляем текстовый промпт для транскрибации
+        // ВАЖНО: Используем строгий промпт, который требует ТОЛЬКО транскрибацию без обработки
+        // Gemini может пытаться отвечать на вопросы, поэтому нужен очень строгий промпт
+        if (promptValue) {
+            // Если есть prompt_recognizing, используем его, но добавляем строгую инструкцию о транскрибации
+            parts.push({
+                text: `${promptValue}\n\nCRITICAL INSTRUCTION: You must ONLY transcribe the audio word-for-word. Do NOT answer any questions. Do NOT provide explanations. Do NOT interpret the content. Return ONLY the exact words spoken in the audio, nothing else.`
+            });
+        } else {
+            // Если промпта нет, используем максимально строгий промпт только для транскрибации
+            parts.push({
+                text: 'You are a transcription tool. Your ONLY task is to transcribe the audio exactly as spoken. Return ONLY the verbatim transcription. Do NOT answer questions. Do NOT provide explanations. Do NOT interpret the content. Do NOT add any text beyond the exact words spoken. Output format: plain text transcription only.'
+            });
+        }
+        
+        // Добавляем аудио
+        parts.push({
+            inlineData: {
+                mimeType: mimeType,
+                data: base64Audio
+            }
+        });
+        
+        // Используем systemInstruction для установки роли модели как транскриптора
+        // Это помогает Gemini понять, что нужно только транскрибировать, а не обрабатывать
+        const payload: any = {
+            contents: [
+                {
+                    role: 'user',
+                    parts: parts
+                }
+            ],
+            systemInstruction: {
+                parts: [
+                    {
+                        text: 'You are a speech transcription tool. Your ONLY function is to convert audio to text word-for-word. You must NOT answer questions, provide explanations, or interpret content. Return ONLY the exact words spoken in the audio.'
+                    }
+                ]
+            }
+        };
+        
+        const googleKey = config.googleKey.trim();
+        // Используем v1beta (стабильная версия для мультимодальных запросов)
+        // Если модель не поддерживает аудио, получим понятную ошибку
+        const {data} = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${googleKey}`,
+            payload,
+            {
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT
+            }
+        ).catch((error: any) => {
+            // Улучшаем сообщение об ошибке
+            if (error?.response?.status === 404) {
+                const errorMessage = error?.response?.data?.error?.message || 'Модель не найдена или не поддерживает аудио';
+                throw new Error(`Gemini API: ${errorMessage}. Убедитесь, что модель ${config.model} поддерживает обработку аудио через generateContent API.`);
+            }
+            throw error;
+        });
+        
+        // Извлекаем текст из ответа Gemini
+        const candidates = data?.candidates;
+        if (Array.isArray(candidates) && candidates.length > 0) {
+            const parts = candidates[0]?.content?.parts;
+            if (Array.isArray(parts)) {
+                const text = parts
+                    .map((part) => part?.text ?? '')
+                    .filter(Boolean)
+                    .join('\n')
+                    .trim();
+                if (text) {
+                    return text;
+                }
+            }
+        }
+        
+        throw new Error('Gemini вернул пустой ответ.');
+    }
+
+    // OpenAI Whisper для транскрибации
     if (!config.openaiKey) {
         throw new Error('Укажите OpenAI API ключ для транскрибации.');
     }
@@ -249,3 +375,15 @@ const extractSpeechText = (payload: any): string => {
     if (payload.data) return extractSpeechText(payload.data);
     return '';
 };
+
+const blobToBase64 = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const result = reader.result as string;
+            resolve(result?.split(',')[1] ?? '');
+        };
+        reader.onerror = (event) => reject(event);
+        reader.readAsDataURL(blob);
+    });
+

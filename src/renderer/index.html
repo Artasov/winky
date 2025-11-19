@@ -4,9 +4,84 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Winky</title>
+    <style>
+        /* Критически важные стили для окна микрофона - применяются до загрузки CSS */
+        html[data-mic-window="true"],
+        html[data-mic-window="true"] body,
+        html[data-mic-window="true"] #root {
+            background: transparent !important;
+            background-color: transparent !important;
+        }
+        body.body-transparent,
+        body.body-transparent #root {
+            background: transparent !important;
+            background-color: transparent !important;
+        }
+    </style>
+    <script>
+        // Устанавливаем прозрачный фон СРАЗУ для окна микрофона до загрузки CSS и React
+        (function() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const isMicWindow = params.get('window') === 'mic';
+                if (isMicWindow) {
+                    // Устанавливаем data-атрибут для применения стилей из head
+                    document.documentElement.setAttribute('data-mic-window', 'true');
+                    
+                    // Устанавливаем inline стили с !important через setProperty
+                    document.documentElement.style.setProperty('background-color', 'transparent', 'important');
+                    document.documentElement.style.setProperty('background', 'transparent', 'important');
+                    
+                    // Устанавливаем стили для body сразу, если он уже существует
+                    if (document.body) {
+                        document.body.style.setProperty('background-color', 'transparent', 'important');
+                        document.body.style.setProperty('background', 'transparent', 'important');
+                        document.body.style.setProperty('margin', '0', 'important');
+                        document.body.style.setProperty('padding', '0', 'important');
+                        document.body.classList.add('body-transparent');
+                    }
+                    
+                    // Устанавливаем стили для root сразу, если он уже существует
+                    const root = document.getElementById('root');
+                    if (root) {
+                        root.style.setProperty('background-color', 'transparent', 'important');
+                        root.style.setProperty('background', 'transparent', 'important');
+                    }
+                }
+            } catch (e) {
+                console.error('Error setting transparent background:', e);
+            }
+        })();
+    </script>
 </head>
 <body>
 <div id="root"></div>
+<script>
+    // Дополнительная установка стилей после создания DOM
+    (function() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const isMicWindow = params.get('window') === 'mic';
+            if (isMicWindow) {
+                document.documentElement.setAttribute('data-mic-window', 'true');
+                document.documentElement.style.setProperty('background-color', 'transparent', 'important');
+                document.documentElement.style.setProperty('background', 'transparent', 'important');
+                document.body.style.setProperty('background-color', 'transparent', 'important');
+                document.body.style.setProperty('background', 'transparent', 'important');
+                document.body.style.setProperty('margin', '0', 'important');
+                document.body.style.setProperty('padding', '0', 'important');
+                document.body.classList.add('body-transparent');
+                const root = document.getElementById('root');
+                if (root) {
+                    root.style.setProperty('background-color', 'transparent', 'important');
+                    root.style.setProperty('background', 'transparent', 'important');
+                }
+            }
+        } catch (e) {
+            console.error('Error setting transparent background in body script:', e);
+        }
+    })();
+</script>
 <script type="module" src="/main.tsx"></script>
 </body>
 </html>

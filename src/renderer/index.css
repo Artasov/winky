@@ -61,11 +61,19 @@ body {
 }
 
 body.body-transparent {
-    background: transparent;
+    background: transparent !important;
+    background-color: transparent !important;
 }
 
 body.body-transparent #root {
-    background: transparent;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+html[data-mic-window="true"] body,
+html[data-mic-window="true"] body #root {
+    background: transparent !important;
+    background-color: transparent !important;
 }
 
 .overflow-y-auto {

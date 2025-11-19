@@ -374,7 +374,7 @@ class MicWindowController {
             shadow: false
         } as any);
         
-        // Ждем небольшую задержку чтобы окно зарегистрировалось в Tauri backend
+        // Ждем чтобы окно зарегистрировалось в Tauri backend и контент начал загружаться
         await new Promise(resolve => setTimeout(resolve, 200));
         
         console.log('[MicWindowController] window created, skipping ready check');
@@ -509,6 +509,13 @@ class MicWindowController {
             }
         }
         await emit('mic:prepare-recording', {reason});
+        
+        // Если окно показывается впервые, добавляем небольшую задержку для загрузки контента
+        const isFirstShow = !this.visible;
+        if (isFirstShow) {
+            console.log('[MicWindowController] First show, waiting for content to load...');
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
         
         try {
             console.log('[MicWindowController] calling win.show()...');

@@ -329,8 +329,32 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
 
             if (!action.prompt || action.prompt.trim() === '') {
                 if (action.auto_copy_result) {
-                    await clipboardBridge.writeText(transcription);
-                    showToast('Результат скопирован.', 'success');
+                    const textToCopy = transcription?.trim() || '';
+                    if (textToCopy) {
+                        const copied = await clipboardBridge.writeText(textToCopy);
+                        if (copied) {
+                            showToast('Результат скопирован.', 'success');
+                        } else {
+                            // Повторная попытка с небольшой задержкой
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            const retryCopied = await clipboardBridge.writeText(textToCopy);
+                            if (retryCopied) {
+                                showToast('Результат скопирован.', 'success');
+                            } else {
+                                // Еще одна попытка с большей задержкой
+                                await new Promise(resolve => setTimeout(resolve, 200));
+                                const finalRetryCopied = await clipboardBridge.writeText(textToCopy);
+                                if (finalRetryCopied) {
+                                    showToast('Результат скопирован.', 'success');
+                                } else {
+                                    console.error('[useSpeechRecording] Failed to copy transcription to clipboard after retries');
+                                    showToast('Не удалось скопировать результат в буфер обмена.', 'error');
+                                }
+                            }
+                        }
+                    } else {
+                        console.warn('[useSpeechRecording] Transcription is empty, skipping clipboard copy');
+                    }
                 }
                 if (action.show_results) {
                     await resultBridge.update({llmResponse: transcription, isStreaming: false});
@@ -371,8 +395,33 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             }
 
             if (action.auto_copy_result) {
-                await clipboardBridge.writeText(response);
-                showToast('Ответ скопирован.', 'success');
+                // Убеждаемся, что ответ не пустой
+                const textToCopy = response?.trim() || '';
+                if (textToCopy) {
+                    const copied = await clipboardBridge.writeText(textToCopy);
+                    if (copied) {
+                        showToast('Ответ скопирован.', 'success');
+                    } else {
+                        // Повторная попытка с небольшой задержкой
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        const retryCopied = await clipboardBridge.writeText(textToCopy);
+                        if (retryCopied) {
+                            showToast('Ответ скопирован.', 'success');
+                        } else {
+                            // Еще одна попытка с большей задержкой
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                            const finalRetryCopied = await clipboardBridge.writeText(textToCopy);
+                            if (finalRetryCopied) {
+                                showToast('Ответ скопирован.', 'success');
+                            } else {
+                                console.error('[useSpeechRecording] Failed to copy response to clipboard after retries');
+                                showToast('Не удалось скопировать ответ в буфер обмена.', 'error');
+                            }
+                        }
+                    }
+                } else {
+                    console.warn('[useSpeechRecording] Response is empty, skipping clipboard copy');
+                }
             }
 
             if (

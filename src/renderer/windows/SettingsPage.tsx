@@ -131,12 +131,28 @@ const SettingsPage: React.FC = () => {
             }
         };
 
+        const handleHotkeyCleared = (payload: { source?: string }) => {
+            if (!payload || payload.source !== 'mic') {
+                return;
+            }
+            // Показываем уведомление только если очистка была инициирована пользователем
+            if (isUserChangingHotkeyRef.current && previousHotkeyRef.current !== null) {
+                previousHotkeyRef.current = null;
+                showToast('Hotkey cleared.', 'success');
+            } else if (previousHotkeyRef.current !== null) {
+                // Хоткей очищен, но не из-за пользователя - просто обновляем ref
+                previousHotkeyRef.current = null;
+            }
+        };
+
         const unsubscribeError = window.winky?.on?.('hotkey:register-error', handleHotkeyError as any);
         const unsubscribeSuccess = window.winky?.on?.('hotkey:register-success', handleHotkeySuccess as any);
+        const unsubscribeCleared = window.winky?.on?.('hotkey:register-cleared', handleHotkeyCleared as any);
 
         return () => {
             unsubscribeError?.();
             unsubscribeSuccess?.();
+            unsubscribeCleared?.();
         };
     }, [showToast]);
 
@@ -194,7 +210,7 @@ const SettingsPage: React.FC = () => {
             setTimeout(() => {
                 isUserChangingHotkeyRef.current = false;
             }, 100);
-            showToast(nextValue ? `Hotkey set to ${nextValue}` : 'Hotkey cleared.', 'success');
+            // Уведомление показывается в handleHotkeySuccess после успешной регистрации хоткея
         } catch (error) {
             console.error('[SettingsPage] Failed to update hotkey', error);
             showToast('Failed to update hotkey.', 'error');

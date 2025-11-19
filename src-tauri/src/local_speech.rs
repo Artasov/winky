@@ -1,5 +1,8 @@
+use std::fs;
+use std::fs::File;
 use std::future::Future;
-use std::path::PathBuf;
+use std::io::Cursor;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -7,13 +10,16 @@ use std::time::{Duration, Instant};
 use anyhow::{anyhow, Result};
 use reqwest::StatusCode;
 use tauri::{AppHandle, Emitter, Manager};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::{mpsc, Mutex};
+use tokio::task::spawn_blocking;
 use tokio::time::sleep;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use zip::ZipArchive;
 
 use crate::constants::{
-    FAST_WHISPER_HEALTH_ENDPOINT, FAST_WHISPER_PORT, FAST_WHISPER_REPO_NAME, FAST_WHISPER_REPO_URL,
+    FAST_WHISPER_HEALTH_ENDPOINT, FAST_WHISPER_PORT, FAST_WHISPER_REPO_ARCHIVE_URL,
+    FAST_WHISPER_REPO_NAME, FAST_WHISPER_REPO_URL,
 };
 use crate::types::FastWhisperStatus;
 
@@ -138,16 +144,28 @@ impl FastWhisperManager {
         self.update_status(app, |state| {
             state.phase = "installing".into();
             state.installed = false;
-            state.message = "Cloning repository…".into();
+            state.message = format!("Downloading repository from {FAST_WHISPER_REPO_URL}…");
         })
         .await;
-        let mut command = Command::new("git");
-        command.arg("clone").arg(FAST_WHISPER_REPO_URL).arg(FAST_WHISPER_REPO_NAME);
-        command.current_dir(self.install_root(app));
-        command.envs(std::env::vars());
-        let status = command.status().await?;
-        if !status.success() {
-            return Err(anyhow!("git clone exited with status {status}"));
+        let archive = self.download_repository_archive().await?;
+        self.update_status(app, |state| {
+            state.message = "Extracting repository…".into();
+        })
+        .await;
+        tokio::fs::create_dir_all(&repo_dir).await?;
+        let repo_dir_for_extract = repo_dir.clone();
+        let extraction_result =
+            spawn_blocking(move || Self::extract_repository_archive(archive, repo_dir_for_extract)).await;
+        let extraction_result = match extraction_result {
+            Ok(result) => result,
+            Err(join_error) => {
+                let _ = tokio::fs::remove_dir_all(&repo_dir).await;
+                return Err(anyhow!(join_error));
+            }
+        };
+        if let Err(error) = extraction_result {
+            let _ = tokio::fs::remove_dir_all(&repo_dir).await;
+            return Err(error);
         }
         #[cfg(unix)]
         {
@@ -161,11 +179,79 @@ impl FastWhisperManager {
                 }
             }
         }
+        #[cfg(windows)]
+        {
+            Self::ensure_windows_batch_scripts(&repo_dir)?;
+        }
         self.update_status(app, |state| {
             state.installed = true;
             state.message = "Repository ready.".into();
         })
         .await;
+        Ok(())
+    }
+
+    async fn download_repository_archive(&self) -> Result<Vec<u8>> {
+        let response = reqwest::get(FAST_WHISPER_REPO_ARCHIVE_URL).await?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(anyhow!(
+                "Failed to download repository archive: HTTP {status}"
+            ));
+        }
+        Ok(response.bytes().await?.to_vec())
+    }
+
+    fn extract_repository_archive(archive: Vec<u8>, target_dir: PathBuf) -> Result<()> {
+        let reader = Cursor::new(archive);
+        let mut archive = ZipArchive::new(reader)?;
+        for index in 0..archive.len() {
+            let mut file = archive.by_index(index)?;
+            let entry_path = match file.enclosed_name() {
+                Some(path) => path.to_owned(),
+                None => continue,
+            };
+            let component_count = entry_path.components().count();
+            if component_count == 0 {
+                continue;
+            }
+            if component_count == 1 && file.name().ends_with('/') {
+                continue;
+            }
+            let relative_path: PathBuf = if component_count > 1 {
+                entry_path.components().skip(1).collect()
+            } else {
+                entry_path.clone()
+            };
+            if relative_path.as_os_str().is_empty() {
+                continue;
+            }
+            let out_path = target_dir.join(relative_path);
+            if file.name().ends_with('/') {
+                fs::create_dir_all(&out_path)?;
+            } else {
+                if let Some(parent) = out_path.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                let mut outfile = File::create(&out_path)?;
+                std::io::copy(&mut file, &mut outfile)?;
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    fn ensure_windows_batch_scripts(repo_dir: &Path) -> Result<()> {
+        for script in ["start.bat", "stop.bat"] {
+            let path = repo_dir.join(script);
+            if !path.exists() {
+                continue;
+            }
+            let contents = fs::read_to_string(&path)?;
+            let normalized = contents.replace("\r\n", "\n").replace('\r', "");
+            let converted = normalized.replace('\n', "\r\n");
+            fs::write(&path, converted)?;
+        }
         Ok(())
     }
 

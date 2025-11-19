@@ -299,12 +299,10 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             const arrayBuffer = await blob.arrayBuffer();
             const authToken = config.auth.access || config.auth.accessToken || undefined;
 
-            // Для транскрибации передаем prompt_recognizing только если есть промпт действия
-            // Если промпт действия пустой, транскрибируем без дополнительных инструкций
-            // Это важно, чтобы Gemini не пытался отвечать на вопросы вместо транскрибации
-            const transcriptionPrompt = (action.prompt && action.prompt.trim() !== '') 
-                ? (action.prompt_recognizing?.trim() || undefined)
-                : undefined;
+            // prompt_recognizing используется для улучшения качества распознавания речи
+            // Он должен передаваться всегда, когда указан, независимо от наличия action.prompt
+            // Это помогает моделям лучше распознавать специфические термины, имена, акронимы и т.д.
+            const transcriptionPrompt = action.prompt_recognizing?.trim() || undefined;
             
             const transcription = await speechBridge.transcribe(arrayBuffer, {
                 mode: config.speech.mode,

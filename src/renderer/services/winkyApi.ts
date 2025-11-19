@@ -165,7 +165,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
                 'color: #22c55e; font-weight: bold'
             );
             console.log('  📥 Response:', {
-                transcription: result.substring(0, 100) + (result.length > 100 ? '...' : ''),
+                transcription: result,
                 length: result.length
             });
             return result;
@@ -277,8 +277,9 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             model: config.model,
             audioSize: `${audioSizeKB} KB`,
             mimeType: mimeType,
-            prompt: promptValue ? promptValue.substring(0, 100) + (promptValue.length > 100 ? '...' : '') : '(transcription only)',
-            systemInstruction: payload.systemInstruction?.parts?.[0]?.text?.substring(0, 50) + '...'
+            prompt: promptValue || '(transcription only)',
+            systemInstruction: payload.systemInstruction?.parts?.[0]?.text || '(none)',
+            payload: payload
         });
         
         // Используем v1beta (стабильная версия для мультимодальных запросов)
@@ -313,8 +314,9 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
                             'color: #22c55e; font-weight: bold'
                         );
                         console.log('  📥 Response:', {
-                            transcription: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-                            length: text.length
+                            transcription: text,
+                            length: text.length,
+                            fullResponse: data
                         });
                         return text;
                     }
@@ -382,7 +384,8 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
         url: url,
         model: config.model,
         audioSize: `${audioSizeKB} KB`,
-        prompt: sanitizedPrompt ? sanitizedPrompt.substring(0, 100) + (sanitizedPrompt.length > 100 ? '...' : '') : '(none)'
+        prompt: sanitizedPrompt || '(none)',
+        formDataFields: sanitizedPrompt ? {prompt: sanitizedPrompt, model: config.model, file: `Blob(${audioSizeKB} KB)`} : {model: config.model, file: `Blob(${audioSizeKB} KB)`}
     });
 
     try {
@@ -403,8 +406,9 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             'color: #22c55e; font-weight: bold'
         );
         console.log('  📥 Response:', {
-            transcription: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-            length: text.length
+            transcription: text,
+            length: text.length,
+            fullResponse: data
         });
         return text;
     } catch (error: any) {
@@ -443,10 +447,10 @@ export const processLLM = async (text: string, prompt: string, config: {
     console.log('  📤 Request:', {
         model: config.model,
         mode: config.mode,
+        text: text,
+        prompt: prompt,
         textLength: text.length,
-        promptLength: prompt.length,
-        textPreview: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-        promptPreview: prompt.substring(0, 100) + (prompt.length > 100 ? '...' : '')
+        promptLength: prompt.length
     });
     
     try {
@@ -464,8 +468,8 @@ export const processLLM = async (text: string, prompt: string, config: {
             'color: #22c55e; font-weight: bold'
         );
         console.log('  📥 Response:', {
-            resultLength: result.length,
-            resultPreview: result.substring(0, 100) + (result.length > 100 ? '...' : '')
+            result: result,
+            resultLength: result.length
         });
         
         return result;

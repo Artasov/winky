@@ -89,8 +89,30 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     }, []);
 
     const warmUpRecorder = useCallback(async () => {
+        if (!recorderRef.current) {
+            return;
+        }
+        if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
+            return;
+        }
+        const canCheckPermissions = typeof navigator.permissions?.query === 'function';
+        if (canCheckPermissions) {
+            try {
+                const status = await navigator.permissions.query({name: 'microphone' as PermissionName});
+                if (status.state !== 'granted') {
+                    return;
+                }
+            } catch (error) {
+                console.warn('[MicOverlay] Failed to read microphone permission state', error);
+                return;
+            }
+        } else if (!import.meta.env?.DEV) {
+            // В продакшене не прогреваем запись, если не можем проверить разрешение
+            return;
+        }
+
         try {
-            await recorderRef.current?.warmUp();
+            await recorderRef.current.warmUp();
         } catch (error) {
             console.warn('[MicOverlay] Recorder warm-up failed', error);
         }
@@ -528,9 +550,27 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 if (stream) {
                     startVolumeMonitor(stream);
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error(error);
-                showToast('Не удалось начать запись. Проверьте доступ к микрофону.', 'error');
+                
+                // Проверяем тип ошибки доступа к микрофону
+                const errorName = error?.name || '';
+                const errorMessage = error?.message || '';
+                
+                if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError' || 
+                    errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
+                    showToast(
+                        'Доступ к микрофону запрещён. Нажмите на микрофон ещё раз и подтвердите системный запрос. Если окно не появляется, включите доступ в Windows: Параметры → Конфиденциальность → Микрофон.',
+                        'error',
+                        {durationMs: 9000}
+                    );
+                } else if (errorName === 'NotFoundError' || errorMessage.includes('No microphone')) {
+                    showToast('Микрофон не найден. Подключите микрофон и попробуйте снова.', 'error');
+                } else if (errorName === 'NotReadableError' || errorMessage.includes('could not be read')) {
+                    showToast('Микрофон используется другим приложением. Закройте другие приложения и попробуйте снова.', 'error');
+                } else {
+                    showToast('Не удалось начать запись. Проверьте доступ к микрофону в настройках Windows.', 'error');
+                }
             }
             return;
         }

@@ -20,7 +20,6 @@ use once_cell::sync::Lazy;
 use serde_json::json;
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_opener::OpenerExt;
 use types::{AppConfig, AuthDeepLinkPayload, AuthTokens, FastWhisperStatus};
 
 static PENDING_DEEP_LINKS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
@@ -121,6 +120,7 @@ async fn auth_consume_pending(
 
 #[tauri::command]
 async fn auth_start_oauth(app: tauri::AppHandle, provider: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
     let url = oauth::build_oauth_start_url(&provider).map_err(|error| error.to_string())?;
     app.opener()
         .open_url(url, None::<String>)

@@ -157,6 +157,36 @@ const AppContent: React.FC = () => {
     }, [config?.auth.access, config?.auth.accessToken, windowIdentity.isAuxWindow, isAuthenticated]);
 
     const autoShowMicRef = useRef(false);
+    const micPermissionRequestRef = useRef<Promise<void> | null>(null);
+
+    const ensureMicrophonePermission = useCallback(async () => {
+        if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+            return;
+        }
+        if (micPermissionRequestRef.current) {
+            return micPermissionRequestRef.current;
+        }
+        const request = navigator.mediaDevices
+            .getUserMedia({audio: true})
+            .then((stream) => {
+                stream.getTracks().forEach((track) => {
+                    try {
+                        track.stop();
+                    } catch {
+                        /* ignore */
+                    }
+                });
+            })
+            .catch((error) => {
+                console.warn('[App] Microphone permission request failed', error);
+                throw error;
+            })
+            .finally(() => {
+                micPermissionRequestRef.current = null;
+            });
+        micPermissionRequestRef.current = request;
+        return request;
+    }, []);
 
     useEffect(() => {
         if (!windowIdentity.isAuxWindow && config?.micShowOnLaunch === false) {
@@ -175,6 +205,33 @@ const AppContent: React.FC = () => {
             window.winky?.mic?.show?.('auto');
         }
     }, [config?.setupCompleted, config?.micShowOnLaunch, windowIdentity.isAuxWindow]);
+
+    useEffect(() => {
+        if (windowIdentity.isAuxWindow) {
+            return;
+        }
+        if (!config?.setupCompleted) {
+            return;
+        }
+        void ensureMicrophonePermission();
+    }, [windowIdentity.isAuxWindow, config?.setupCompleted, ensureMicrophonePermission]);
+
+    useEffect(() => {
+        if (windowIdentity.isAuxWindow) {
+            return;
+        }
+        const api = window.winky;
+        if (!api?.on) {
+            return;
+        }
+        const handler = () => {
+            void ensureMicrophonePermission();
+        };
+        const unsubscribe = api.on('mic:prepare-recording', handler as any);
+        return () => {
+            unsubscribe?.();
+        };
+    }, [windowIdentity.isAuxWindow, ensureMicrophonePermission]);
 
     const configContextValue = useMemo(
         () => ({config, setConfig, refreshConfig, updateConfig}),

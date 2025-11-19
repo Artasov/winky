@@ -111,14 +111,27 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
             return this.streamPromise;
         }
 
-        this.streamPromise = navigator.mediaDevices.getUserMedia({audio: true}).then((stream) => {
-            this.mediaStream = stream;
-            this.streamPromise = null;
-            return stream;
-        }).catch((error) => {
-            this.streamPromise = null;
-            throw error;
-        });
+        this.streamPromise = navigator.mediaDevices.getUserMedia({audio: true})
+            .then((stream) => {
+                this.mediaStream = stream;
+                this.streamPromise = null;
+                return stream;
+            })
+            .catch((error) => {
+                this.streamPromise = null;
+                // Если это ошибка разрешения, очищаем состояние чтобы можно было попробовать снова
+                const errorName = error?.name || '';
+                const errorMessage = error?.message || '';
+                if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError' || 
+                    errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
+                    // Очищаем mediaStream чтобы при следующем вызове getUserMedia попытался запросить доступ снова
+                    // getUserMedia покажет диалог запроса разрешения при следующем вызове
+                    // если разрешение еще не было окончательно заблокировано в настройках
+                    this.mediaStream = null;
+                    console.warn('[SpeechRecorder] Microphone permission denied, will retry on next attempt');
+                }
+                throw error;
+            });
 
         return this.streamPromise;
     }

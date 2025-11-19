@@ -1,6 +1,6 @@
 [package]
 name = "winky"
-version = "0.7.3"
+version = "0.7.11"
 edition = "2021"
 
 [build-dependencies]

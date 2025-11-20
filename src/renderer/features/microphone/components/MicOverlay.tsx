@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {convertFileSrc} from '@tauri-apps/api/core';
 import MicrophoneButton from '../../../components/MicrophoneButton';
 import LoadingSpinner from '../../../components/LoadingSpinner';
@@ -13,6 +13,8 @@ import MicVolumeRings from './MicVolumeRings';
 import MicActionOrbit from './MicActionOrbit';
 import {interactiveEnter, interactiveLeave, resetInteractive} from '../../../utils/interactive';
 import {resourcesBridge} from '../../../services/winkyBridge';
+
+const FALLBACK_SOUND_PATH = '/sounds/completion.wav';
 
 const MicOverlay: React.FC = () => {
     const {config} = useConfig();
@@ -56,7 +58,7 @@ const MicOverlay: React.FC = () => {
     const actionsContainerRef = useRef<HTMLDivElement | null>(null);
 
     const [completionEnabled, setCompletionEnabled] = useState<boolean>(true);
-    const [soundPath, setSoundPath] = useState<string>('/sounds/completion.wav');
+    const [soundPath, setSoundPath] = useState<string>(FALLBACK_SOUND_PATH);
 
     useEffect(() => {
         setCompletionEnabled(config?.completionSoundEnabled !== false);
@@ -69,14 +71,14 @@ const MicOverlay: React.FC = () => {
         }
 
         if (import.meta.env?.DEV) {
-            setSoundPath('/sounds/completion.wav');
+            setSoundPath(FALLBACK_SOUND_PATH);
             return;
         }
 
         let cancelled = false;
-        resourcesBridge
-            .getSoundPath('completion.wav')
-            .then((path) => {
+        const resolveSoundPath = async () => {
+            try {
+                const path = await resourcesBridge.getSoundPath('completion.wav');
                 if (cancelled) {
                     return;
                 }
@@ -88,18 +90,18 @@ const MicOverlay: React.FC = () => {
                     } catch (error) {
                         console.warn('[MicOverlay] Failed to convert sound path:', error);
                     }
+                } else {
+                    console.warn('[MicOverlay] Sound path not available, using bundled fallback');
                 }
-                // В продакшене не используем HTTP fallback, так как это вызывает ошибки
-                console.warn('[MicOverlay] Sound path not available, disabling sound');
-                setSoundPath('');
-            })
-            .catch((error) => {
-                console.warn('[MicOverlay] Failed to get sound path:', error);
-                if (!cancelled) {
-                    // В продакшене не используем HTTP fallback, так как это вызывает ошибки
-                    setSoundPath('');
-                }
-            });
+            } catch (error) {
+                console.warn('[MicOverlay] Failed to get sound path, using fallback asset:', error);
+            }
+            if (!cancelled) {
+                setSoundPath(FALLBACK_SOUND_PATH);
+            }
+        };
+
+        void resolveSoundPath();
 
         return () => {
             cancelled = true;
@@ -151,10 +153,28 @@ const MicOverlay: React.FC = () => {
         );
     }
 
+    const handleAudioError = useCallback(() => {
+        if (!completionEnabled) {
+            return;
+        }
+        setSoundPath((current) => {
+            if (!current) {
+                console.warn('[MicOverlay] Completion sound missing, using bundled fallback asset');
+                return FALLBACK_SOUND_PATH;
+            }
+            if (current === FALLBACK_SOUND_PATH) {
+                console.warn('[MicOverlay] Bundled completion sound is unavailable or unsupported.');
+                return current;
+            }
+            console.warn('[MicOverlay] Failed to load resource sound, falling back to bundled asset');
+            return FALLBACK_SOUND_PATH;
+        });
+    }, [completionEnabled]);
+
     return (
         <>
             {completionEnabled && soundPath ? (
-                <audio ref={completionSoundRef} src={soundPath} preload='auto'/>
+                <audio ref={completionSoundRef} src={soundPath} preload="auto" onError={handleAudioError}/>
             ) : (
                 <audio ref={completionSoundRef} />
             )}

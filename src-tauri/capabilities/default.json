@@ -19,6 +19,8 @@
     "core:webview:allow-create-webview",
     "core:webview:allow-create-webview-window",
     "core:webview:allow-internal-toggle-devtools",
+    "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-read-text",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     "global-shortcut:allow-is-registered",

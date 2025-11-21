@@ -102,7 +102,8 @@ export const actionHotkeysBridge = {
 };
 
 export const resourcesBridge = {
-    getSoundPath(soundName: string): Promise<string> {
-        return window.winky?.resources?.getSoundPath?.(soundName) ?? Promise.resolve('');
+    async getSoundPath(soundName: string): Promise<string> {
+        const result = await window.winky?.resources?.getSoundPath?.(soundName);
+        return result ?? '';
     }
 };

@@ -141,6 +141,8 @@ declare global {
 
         stop(): Promise<FastWhisperStatus>;
 
+        isModelDownloaded(model: string): Promise<boolean>;
+
         onStatus(callback: (status: FastWhisperStatus) => void): () => void;
     }
 

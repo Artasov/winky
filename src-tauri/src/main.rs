@@ -198,6 +198,19 @@ async fn local_speech_stop(
 }
 
 #[tauri::command]
+async fn local_speech_check_model_downloaded(
+    app: tauri::AppHandle,
+    manager: State<'_, Arc<FastWhisperManager>>,
+    model: String,
+) -> Result<bool, String> {
+    let normalized = model.trim().to_string();
+    manager
+        .is_model_downloaded(&app, &normalized)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn action_hotkeys_register(
     app: tauri::AppHandle,
     hotkeys_state: State<'_, Arc<HotkeyState>>,
@@ -395,6 +408,7 @@ fn main() {
             local_speech_restart,
             local_speech_reinstall,
             local_speech_stop,
+            local_speech_check_model_downloaded,
             action_hotkeys_register,
             action_hotkeys_clear,
             window_open_devtools,

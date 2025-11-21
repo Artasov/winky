@@ -144,6 +144,53 @@ impl FastWhisperManager {
         .await
     }
 
+    pub async fn is_model_downloaded(
+        &self,
+        app: &AppHandle,
+        model: &str,
+    ) -> Result<bool> {
+        let trimmed = model.trim();
+        if trimmed.is_empty() {
+            return Ok(false);
+        }
+
+        let repo_dir = self.repo_path(app);
+        if !repo_dir.exists() {
+            return Ok(false);
+        }
+
+        let models_dir = self.models_root(app);
+        if tokio::fs::metadata(&models_dir).await.is_err() {
+            return Ok(false);
+        }
+
+        let candidates = Self::model_dir_candidates(trimmed);
+        if candidates.is_empty() {
+            return Err(anyhow!("Unsupported model: {trimmed}"));
+        }
+
+        for candidate in &candidates {
+            let path = models_dir.join(candidate);
+            if tokio::fs::metadata(&path).await.is_ok() {
+                return Ok(true);
+            }
+        }
+
+        if let Ok(mut reader) = tokio::fs::read_dir(&models_dir).await {
+            while let Some(entry) = reader.next_entry().await? {
+                let name = entry.file_name().to_string_lossy().to_lowercase();
+                if candidates
+                    .iter()
+                    .any(|candidate| candidate.to_lowercase() == name)
+                {
+                    return Ok(true);
+                }
+            }
+        }
+
+        Ok(false)
+    }
+
     async fn execute<F, Fut>(self: &Arc<Self>, app: &AppHandle, op: F) -> Result<FastWhisperStatus>
     where
         F: FnOnce(Arc<Self>, AppHandle) -> Fut + Send + 'static,
@@ -514,6 +561,52 @@ impl FastWhisperManager {
         env.push(("FAST_FAST_WHISPER_PORT".into(), Self::resolve_port().to_string()));
         env.push(("FAST_FAST_WHISPER_HOST".into(), Self::resolve_host()));
         env
+    }
+
+    fn models_root(&self, app: &AppHandle) -> PathBuf {
+        self.repo_path(app).join("models")
+    }
+
+    fn model_dir_candidates(model: &str) -> Vec<String> {
+        let normalized = model.trim().to_lowercase();
+        if normalized.is_empty() {
+            return Vec::new();
+        }
+
+        let mut base_names = vec![normalized.clone()];
+        if normalized.contains('.') {
+            base_names.push(normalized.replace('.', "-"));
+        } else if normalized.contains('-') {
+            base_names.push(normalized.replace('-', "."));
+        }
+        if normalized == "large" {
+            base_names.push("large-v3".into());
+        }
+
+        base_names.sort();
+        base_names.dedup();
+
+        let mut candidates: Vec<String> = Vec::new();
+        let mut push_candidate = |value: String| {
+            if value.is_empty() {
+                return;
+            }
+            if candidates
+                .iter()
+                .any(|existing| existing.eq_ignore_ascii_case(&value))
+            {
+                return;
+            }
+            candidates.push(value);
+        };
+
+        for base in base_names {
+            push_candidate(base.clone());
+            let hf_name = format!("models--Systran--faster-whisper-{base}");
+            push_candidate(hf_name);
+        }
+
+        candidates
     }
 
     fn resolve_port() -> u16 {

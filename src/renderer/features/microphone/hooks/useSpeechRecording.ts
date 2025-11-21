@@ -6,6 +6,7 @@ import {FAST_WHISPER_PORT, SPEECH_MODES} from '@shared/constants';
 import type {ActionConfig, AppConfig} from '@shared/types';
 import {resetInteractive, setRecordingInteractive} from '../../../utils/interactive';
 import {createSpeechRecorder, type SpeechRecorder} from '../services/SpeechRecorder';
+import {checkLocalModelDownloaded} from '../../../services/localSpeechModels';
 import {
     actionHotkeysBridge,
     clipboardBridge,
@@ -87,6 +88,36 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             localServerAlertReleaseRef.current = null;
         }, 4000);
     }, []);
+
+    const openMainWindowWithToast = useCallback(async (message: string) => {
+        try {
+            console.log('[useSpeechRecording] Opening main window for toast:', message);
+            try {
+                await invoke('window_open_main');
+                console.log('[useSpeechRecording] Main window opened via command');
+            } catch (invokeError) {
+                console.error('[useSpeechRecording] Failed to open main window via command:', invokeError);
+                const mainWindow = await WebviewWindow.getByLabel('main').catch(() => null);
+                if (mainWindow) {
+                    await mainWindow.show().catch(() => {});
+                    await mainWindow.setFocus().catch(() => {});
+                    console.log('[useSpeechRecording] Main window opened using WebviewWindow API');
+                } else {
+                    throw new Error('Main window is unavailable');
+                }
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            await emit('app:toast', {
+                message,
+                type: 'error',
+                options: {durationMs: 6000}
+            });
+        } catch (error) {
+            console.error('[useSpeechRecording] Failed to show toast in main window:', error);
+            showToast(message, 'error', {durationMs: 6000});
+        }
+    }, [showToast]);
 
     const warmUpRecorder = useCallback(async () => {
         if (!recorderRef.current) {
@@ -288,13 +319,24 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         return true;
     }, [config?.speech.mode, showToast, scheduleLocalServerAlertRelease]);
 
-    const ensureSpeechService = useCallback(() => {
+    const ensureSpeechService = useCallback(async () => {
         if (!recorderRef.current) {
             showToast('Сервис записи недоступен.', 'error');
             return false;
         }
+
+        if (config?.speech.mode === SPEECH_MODES.LOCAL) {
+            const model = config.speech.model;
+            const isDownloaded = await checkLocalModelDownloaded(model, {force: true});
+            if (!isDownloaded) {
+                const message = `Скачайте модель ${model} перед использованием микрофона.`;
+                await openMainWindowWithToast(message);
+                return false;
+            }
+        }
+
         return true;
-    }, [showToast]);
+    }, [config?.speech.mode, config?.speech.model, openMainWindowWithToast, showToast]);
 
     const finishRecording = useCallback(async (resetUI: boolean = true): Promise<Blob | null> => {
         if (!recorderRef.current) {
@@ -387,16 +429,26 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                     config?.completionSoundEnabled !== false
                 ) {
                     const volumePreference = config?.completionSoundVolume ?? 1.0;
-                    if (volumePreference > 0) {
-                        completionSoundRef.current.volume = volumePreference;
+                    const audio = completionSoundRef.current;
+                    if (volumePreference > 0 && audio && audio.src) {
+                        audio.volume = volumePreference;
                         try {
-                            completionSoundRef.current.currentTime = 0;
+                            audio.currentTime = 0;
                         } catch {
                             /* ignore */
                         }
-                        completionSoundRef.current.play().catch((error) => {
-                            console.error('[MicOverlay] Error playing sound:', error);
-                        });
+                        if (audio.readyState >= 2) {
+                            audio.play().catch((error) => {
+                                console.error('[MicOverlay] Error playing sound:', error);
+                            });
+                        } else {
+                            audio.load();
+                            audio.addEventListener('canplay', () => {
+                                audio.play().catch((error) => {
+                                    console.error('[MicOverlay] Error playing sound after load:', error);
+                                });
+                            }, {once: true});
+                        }
                     }
                 }
                 return;
@@ -446,23 +498,63 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 }
             }
 
+            console.log('[useSpeechRecording] Checking sound playback:', {
+                sound_on_complete: action.sound_on_complete,
+                hasCompletionSoundRef: !!completionSoundRef.current,
+                completionSoundEnabled: config?.completionSoundEnabled,
+                audioSrc: completionSoundRef.current?.src,
+                audioReadyState: completionSoundRef.current?.readyState
+            });
             if (
                 action.sound_on_complete &&
                 completionSoundRef.current &&
                 config?.completionSoundEnabled !== false
             ) {
                 const volumePreference = config?.completionSoundVolume ?? 1.0;
-                if (volumePreference > 0) {
-                    completionSoundRef.current.volume = volumePreference;
+                const audio = completionSoundRef.current;
+                console.log('[useSpeechRecording] Attempting to play sound:', {
+                    hasAudio: !!audio,
+                    hasSrc: !!audio?.src,
+                    src: audio?.src,
+                    readyState: audio?.readyState,
+                    volumePreference,
+                    completionSoundEnabled: config?.completionSoundEnabled
+                });
+                if (volumePreference > 0 && audio && audio.src) {
+                    audio.volume = volumePreference;
                     try {
-                        completionSoundRef.current.currentTime = 0;
+                        audio.currentTime = 0;
                     } catch {
                         /* ignore */
                     }
-                    completionSoundRef.current.play().catch((error) => {
-                        console.error('[MicOverlay] Error playing sound:', error);
+                    if (audio.readyState >= 2) {
+                        console.log('[useSpeechRecording] Audio ready, playing...');
+                        audio.play().catch((error) => {
+                            console.error('[useSpeechRecording] Error playing sound:', error);
+                        });
+                    } else {
+                        console.log('[useSpeechRecording] Audio not ready, loading...');
+                        audio.load();
+                        audio.addEventListener('canplay', () => {
+                            console.log('[useSpeechRecording] Audio loaded, playing...');
+                            audio.play().catch((error) => {
+                                console.error('[useSpeechRecording] Error playing sound after load:', error);
+                            });
+                        }, {once: true});
+                    }
+                } else {
+                    console.warn('[useSpeechRecording] Cannot play sound:', {
+                        volumePreference,
+                        hasAudio: !!audio,
+                        hasSrc: !!audio?.src
                     });
                 }
+            } else {
+                console.warn('[useSpeechRecording] Sound playback skipped:', {
+                    sound_on_complete: action.sound_on_complete,
+                    hasCompletionSoundRef: !!completionSoundRef.current,
+                    completionSoundEnabled: config?.completionSoundEnabled
+                });
             }
         } catch (error: any) {
             console.error(error);
@@ -496,49 +588,14 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             
             // Проверяем не связана ли ошибка с локальным сервером речи
             if (!handleLocalSpeechServerFailure(errorMessage)) {
-                // Открываем главное окно и показываем Toast там
-                try {
-                    console.log('[useSpeechRecording] Opening main window for error:', errorMessage);
-                    
-                    // Открываем главное окно через Rust команду (создает окно заново если его нет)
-                    try {
-                        await invoke('window_open_main');
-                        console.log('[useSpeechRecording] Main window opened successfully');
-                    } catch (invokeError) {
-                        console.error('[useSpeechRecording] Failed to open main window via command:', invokeError);
-                        // Пробуем альтернативный способ
-                        const mainWindow = await WebviewWindow.getByLabel('main').catch(() => null);
-                        if (mainWindow) {
-                            await mainWindow.show().catch(() => {});
-                            await mainWindow.setFocus().catch(() => {});
-                            console.log('[useSpeechRecording] Main window opened via WebviewWindow API');
-                        } else {
-                            throw new Error('Could not open main window');
-                        }
-                    }
-                    
-                    // Увеличиваем задержку чтобы окно успело полностью загрузиться перед показом Toast
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    // Показываем Toast в главном окне через событие
-                    console.log('[useSpeechRecording] Showing toast in main window:', errorMessage);
-                    await emit('app:toast', {
-                        message: errorMessage,
-                        type: 'error',
-                        options: {durationMs: 6000}
-                    });
-                } catch (windowError) {
-                    console.error('[useSpeechRecording] Failed to open main window:', windowError);
-                    // Fallback - показываем Toast в текущем окне
-                    console.log('[useSpeechRecording] Showing toast in current window as fallback');
-                    showToast(errorMessage, 'error', {durationMs: 6000});
-                }
+                await openMainWindowWithToast(errorMessage);
             }
         }
-    }, [config, showToast, handleLocalSpeechServerFailure]);
+    }, [config, showToast, handleLocalSpeechServerFailure, openMainWindowWithToast]);
 
     const handleMicrophoneToggle = useCallback(async () => {
-        if (!ensureSpeechService()) {
+        const ready = await ensureSpeechService();
+        if (!ready) {
             return;
         }
 
@@ -587,7 +644,12 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     }, [ensureSpeechService, finishRecording, isRecording, showToast, startVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 
     const handleActionClick = useCallback(async (action: ActionConfig) => {
-        if (processingRef.current || processing || !isRecordingRef.current || !isRecording || !ensureSpeechService()) {
+        if (processingRef.current || processing || !isRecordingRef.current || !isRecording) {
+            return;
+        }
+
+        const ready = await ensureSpeechService();
+        if (!ready) {
             return;
         }
 

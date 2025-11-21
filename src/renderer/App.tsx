@@ -29,6 +29,11 @@ import MicShell from './app/layouts/MicShell';
 import ResultShell from './app/layouts/ResultShell';
 import ErrorShell from './app/layouts/ErrorShell';
 import StandaloneWindow from './app/layouts/StandaloneWindow';
+import {SPEECH_MODES} from '@shared/constants';
+import {checkLocalModelDownloaded, warmupLocalSpeechModel} from './services/localSpeechModels';
+
+const LOCAL_SERVER_READY_TIMEOUT_MS = 2 * 60 * 1000;
+const LOCAL_SERVER_POLL_INTERVAL_MS = 2_000;
 
 const AppContent: React.FC = () => {
     const windowIdentity = useWindowIdentity();
@@ -39,6 +44,7 @@ const AppContent: React.FC = () => {
     const shouldRenderToasts = windowIdentity.allowsToasts;
     const isAuthenticated = Boolean(user);
     const navigate = useNavigate();
+    const warmupRequestedModelRef = useRef<string | null>(null);
 
     const showToast = useCallback(
         (message: string, type: ToastType = 'info', options?: { durationMs?: number }) => {
@@ -72,6 +78,120 @@ const AppContent: React.FC = () => {
     useToastBridge({enabled: shouldRenderToasts, showToast});
     useWindowChrome(windowIdentity);
     useNavigationSync({config, loading, windowIdentity, isAuthenticated});
+
+    useEffect(() => {
+        const shouldWarmup =
+            Boolean(config?.launchOnSystemStartup) &&
+            Boolean(config?.autoStartLocalSpeechServer) &&
+            config?.speech.mode === SPEECH_MODES.LOCAL;
+
+        if (!shouldWarmup) {
+            warmupRequestedModelRef.current = null;
+            return;
+        }
+
+        const model = config?.speech.model?.trim();
+        if (!model) {
+            return;
+        }
+
+        if (warmupRequestedModelRef.current === model) {
+            return;
+        }
+
+        let cancelled = false;
+
+        // Ждём, пока локальный сервер действительно поднимется, иначе HTTP-проверка модели всегда вернёт false.
+        const waitForLocalServerReady = async (): Promise<boolean> => {
+            if (typeof window === 'undefined') {
+                return true;
+            }
+            const localSpeechApi = window.winky?.localSpeech;
+            if (!localSpeechApi?.checkHealth && !localSpeechApi?.getStatus) {
+                return true;
+            }
+
+            const fetchStatus = async () => {
+                try {
+                    if (localSpeechApi.checkHealth) {
+                        return await localSpeechApi.checkHealth();
+                    }
+                    return await localSpeechApi.getStatus();
+                } catch (error) {
+                    console.warn('[App] Не удалось получить статус локального сервера, повторяем…', error);
+                    return null;
+                }
+            };
+
+            const startedAt = Date.now();
+            while (!cancelled) {
+                const status = await fetchStatus();
+                if (cancelled) {
+                    return false;
+                }
+                if (status?.running) {
+                    return true;
+                }
+                if (status && !status.installed && status.phase === 'not-installed') {
+                    console.warn('[App] Локальный сервер не установлен, пропускаем автопрогрев.');
+                    return false;
+                }
+                if (Date.now() - startedAt >= LOCAL_SERVER_READY_TIMEOUT_MS) {
+                    console.warn(
+                        '[App] Локальный сервер не запустился за отведённое время, прекращаем ожидание.'
+                    );
+                    return false;
+                }
+                await new Promise((resolve) => setTimeout(resolve, LOCAL_SERVER_POLL_INTERVAL_MS));
+            }
+            return false;
+        };
+
+        const run = async () => {
+            const serverReady = await waitForLocalServerReady();
+            if (!serverReady || cancelled) {
+                return;
+            }
+
+            const downloaded = await checkLocalModelDownloaded(model, {force: true});
+            if (!downloaded || cancelled) {
+                if (!downloaded) {
+                    console.warn(
+                        `[App] Пропускаем автопрогрев: модель ${model} не отмечена как скачанная или сервер недоступен.`
+                    );
+                }
+                return;
+            }
+            warmupRequestedModelRef.current = model;
+            const maxAttempts = 3;
+            for (let attempt = 0; attempt < maxAttempts && !cancelled; attempt += 1) {
+                try {
+                    await warmupLocalSpeechModel(model);
+                    return;
+                } catch (error) {
+                    console.error(
+                        `[App] Автопрогрев модели не удался (попытка ${attempt + 1}/${maxAttempts}):`,
+                        error
+                    );
+                    if (attempt === maxAttempts - 1) {
+                        warmupRequestedModelRef.current = null;
+                        break;
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+                }
+            }
+        };
+        void run();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        config?.autoStartLocalSpeechServer,
+        config?.launchOnSystemStartup,
+        config?.speech.mode,
+        config?.speech.model
+    ]);
 
     useEffect(() => {
         const hasToken = config?.auth.access || config?.auth.accessToken;

@@ -727,6 +727,8 @@ const localSpeechApi = {
     restart: (): Promise<FastWhisperStatus> => invoke('local_speech_restart'),
     reinstall: (): Promise<FastWhisperStatus> => invoke('local_speech_reinstall'),
     stop: (): Promise<FastWhisperStatus> => invoke('local_speech_stop'),
+    isModelDownloaded: (model: string): Promise<boolean> =>
+        invoke('local_speech_check_model_downloaded', {model}),
     onStatus: (callback: (status: FastWhisperStatus) => void) => {
         const unlistenPromise = listen<FastWhisperStatus>('local-speech:status', (event) =>
             callback(event.payload)

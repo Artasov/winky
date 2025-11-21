@@ -1,5 +1,5 @@
-import React, {useEffect, useMemo} from 'react';
-import {Box, Button, Collapse, MenuItem, Stack, TextField, Typography} from '@mui/material';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {Box, Button, CircularProgress, Collapse, MenuItem, Stack, TextField, Typography} from '@mui/material';
 import {
     LLM_API_MODELS,
     LLM_GEMINI_API_MODELS,
@@ -12,8 +12,10 @@ import {
     SPEECH_MODES,
     SPEECH_OPENAI_API_MODELS
 } from '@shared/constants';
-import type {LLMMode, LLMModel, TranscribeMode, TranscribeModel} from '@shared/types';
+import type {FastWhisperStatus, LLMMode, LLMModel, TranscribeMode, TranscribeModel} from '@shared/types';
 import LocalSpeechInstallControl from './LocalSpeechInstallControl';
+import {checkLocalModelDownloaded, downloadLocalSpeechModel, warmupLocalSpeechModel} from '../services/localSpeechModels';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 export interface ModelConfigFormData {
     openaiKey: string;
@@ -63,6 +65,120 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                                          }) => {
     const shouldAutoSave = autoSave && typeof onAutoSave === 'function';
     const disableInputs = saving && !shouldAutoSave;
+    const [localModelDownloaded, setLocalModelDownloaded] = useState<boolean | null>(null);
+    const [checkingLocalModel, setCheckingLocalModel] = useState(false);
+    const [downloadingLocalModel, setDownloadingLocalModel] = useState(false);
+    const [localModelError, setLocalModelError] = useState<string | null>(null);
+    const [localServerStatus, setLocalServerStatus] = useState<FastWhisperStatus | null>(null);
+    const checkingRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        let mounted = true;
+        const fetchStatus = async (checkHealth: boolean = false) => {
+            if (!mounted) {
+                return;
+            }
+            try {
+                const status = checkHealth
+                    ? await window.winky?.localSpeech?.checkHealth()
+                    : await window.winky?.localSpeech?.getStatus();
+                if (mounted && status) {
+                    setLocalServerStatus(status);
+                }
+            } catch (error) {
+                console.warn('[ModelConfigForm] Failed to fetch local server status', error);
+            }
+        };
+        void fetchStatus(true);
+        const unsubscribe = window.winky?.localSpeech?.onStatus?.((status) => {
+            if (mounted) {
+                setLocalServerStatus(status);
+            }
+        });
+        return () => {
+            mounted = false;
+            unsubscribe?.();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (values.transcribeMode !== SPEECH_MODES.LOCAL || !values.transcribeModel) {
+            setLocalModelDownloaded(null);
+            setCheckingLocalModel(false);
+            setLocalModelError(null);
+            checkingRef.current = null;
+            return;
+        }
+
+        if (!localServerStatus?.installed || !localServerStatus?.running) {
+            setLocalModelDownloaded(null);
+            setCheckingLocalModel(false);
+            setLocalModelError(null);
+            checkingRef.current = null;
+            return;
+        }
+
+        const modelKey = `${values.transcribeMode}:${values.transcribeModel}`;
+        if (checkingRef.current === modelKey) {
+            return;
+        }
+
+        checkingRef.current = modelKey;
+        let cancelled = false;
+
+        const checkModel = async () => {
+            console.log(`[ModelConfigForm] Запуск проверки модели: ${values.transcribeModel}`);
+            setCheckingLocalModel(true);
+            setLocalModelError(null);
+            try {
+                const downloaded = await checkLocalModelDownloaded(values.transcribeModel, {force: true});
+                if (!cancelled) {
+                    setLocalModelDownloaded(downloaded);
+                    setCheckingLocalModel(false);
+                }
+            } catch (error: any) {
+                if (!cancelled) {
+                    setLocalModelDownloaded(false);
+                    setCheckingLocalModel(false);
+                    setLocalModelError(error?.message || 'Не удалось проверить модель.');
+                }
+            }
+        };
+
+        void checkModel();
+
+        return () => {
+            cancelled = true;
+            if (checkingRef.current === modelKey) {
+                checkingRef.current = null;
+            }
+        };
+    }, [values.transcribeMode, values.transcribeModel, localServerStatus?.installed, localServerStatus?.running]);
+
+    const handleDownloadModel = useCallback(async () => {
+        if (values.transcribeMode !== SPEECH_MODES.LOCAL || downloadingLocalModel) {
+            return;
+        }
+        setLocalModelError(null);
+        setDownloadingLocalModel(true);
+        try {
+            await downloadLocalSpeechModel(values.transcribeModel);
+            const downloaded = await checkLocalModelDownloaded(values.transcribeModel, {force: true});
+            setLocalModelDownloaded(downloaded);
+            try {
+                await warmupLocalSpeechModel(values.transcribeModel);
+            } catch {
+                setLocalModelError('Модель скачана, но прогреть не удалось. Попробуйте позже.');
+            }
+        } catch (error: any) {
+            const detail = error?.response?.data?.detail;
+            setLocalModelError(
+                detail || error?.message || 'Не удалось скачать модель. Проверьте локальный сервер.'
+            );
+        } finally {
+            setDownloadingLocalModel(false);
+        }
+    }, [downloadingLocalModel, values.transcribeMode, values.transcribeModel]);
 
     const formatLabel = (value: string) =>
         value
@@ -216,20 +332,67 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             <LocalSpeechInstallControl disabled={disableInputs}/>
                         </Collapse>
                     </div>
-                    <TextField
-                        select
-                        label="Transcribe Model"
-                        value={values.transcribeModel}
-                        onChange={(e) => emitChange({transcribeModel: e.target.value as TranscribeModel})}
-                        disabled={disableInputs}
-                    >
-                        {transcribeModelOptions.map((model) => (
-                            <MenuItem key={model} value={model}>
-                                {formatTranscribeLabel(model)}
-                            </MenuItem>
-                        ))}
-                    </TextField>
-
+                    <div className={'fc gap-1'}>
+                        <TextField
+                            select
+                            label="Transcribe Model"
+                            value={values.transcribeModel}
+                            onChange={(e) => {
+                                const newModel = e.target.value as TranscribeModel;
+                                emitChange({transcribeModel: newModel});
+                            }}
+                            disabled={disableInputs || (values.transcribeMode === SPEECH_MODES.LOCAL && (!localServerStatus?.installed || !localServerStatus?.running))}
+                        >
+                            {transcribeModelOptions.map((model) => (
+                                <MenuItem key={model} value={model}>
+                                    {formatTranscribeLabel(model)}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                        {values.transcribeMode === SPEECH_MODES.LOCAL && localServerStatus?.installed && localServerStatus?.running && (
+                            <Box sx={{width: '100%'}}>
+                                {(checkingLocalModel || localModelDownloaded === null) && (
+                                    <Typography
+                                        variant="body2"
+                                        color="text.secondary"
+                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                    >
+                                        <CircularProgress size={16} thickness={5} color="inherit"/>
+                                        Проверяем наличие модели…
+                                    </Typography>
+                                )}
+                                {!checkingLocalModel && localModelDownloaded === true && (
+                                    <Typography
+                                        variant="body2"
+                                        color="success.main"
+                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                    >
+                                        <CheckCircleIcon fontSize="small"/>
+                                        Модель скачана и готова к использованию.
+                                    </Typography>
+                                )}
+                                {!checkingLocalModel && localModelDownloaded === false && (
+                                    <Button
+                                        variant="contained"
+                                        color="primary"
+                                        onClick={handleDownloadModel}
+                                        disabled={disableInputs || downloadingLocalModel}
+                                        startIcon={downloadingLocalModel ? (
+                                            <CircularProgress size={18} thickness={5} color="inherit"/>
+                                        ) : undefined}
+                                        sx={{mt: 0.5}}
+                                    >
+                                        {downloadingLocalModel ? 'Скачиваем…' : 'Скачать модель'}
+                                    </Button>
+                                )}
+                                {localModelError && (
+                                    <Typography variant="body2" color="error" sx={{mt: 0.5}}>
+                                        {localModelError}
+                                    </Typography>
+                                )}
+                            </Box>
+                        )}
+                    </div>
                     <TextField
                         select
                         label="LLM Mode"

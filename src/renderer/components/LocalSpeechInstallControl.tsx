@@ -38,7 +38,6 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
                     ? await window.winky?.localSpeech?.checkHealth()
                     : await window.winky?.localSpeech?.getStatus();
                 if (mounted && nextStatus) {
-                    console.info('[LocalSpeechInstallControl] fetchStatus ->', nextStatus.phase, nextStatus);
                     setStatus(nextStatus);
                     setErrorMessage(nextStatus.error ?? null);
                 }
@@ -75,7 +74,6 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
             if (!mounted) {
                 return;
             }
-            console.info('[LocalSpeechInstallControl] push status ->', nextStatus.phase, nextStatus);
             setStatus(nextStatus);
             setErrorMessage(nextStatus.error ?? null);
         });

@@ -493,12 +493,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             ))}
                         </TextField>
                         {values.transcribeMode === SPEECH_MODES.LOCAL && localServerStatus?.installed && localServerStatus?.running && (
-                            <Box sx={{width: '100%'}}>
+                            <div className={'fc w-full flex-grow'}>
                                 {(checkingLocalModel || localModelDownloaded === null) && (
                                     <Typography
                                         variant="body2"
                                         color="text.secondary"
-                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                        sx={{display: 'flex', gap: 1}}
                                     >
                                         <CircularProgress size={16} thickness={5} color="inherit"/>
                                         {checkingMessage}
@@ -508,12 +508,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                     <Typography
                                         variant="body2"
                                         color="warning.main"
-                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                        sx={{display: 'flex', gap: 1}}
                                     >
                                         <CircularProgress
-                                            size={22}
+                                            size={20}
                                             thickness={5}
-                                            sx={{color: 'warning.main', flexShrink: 0}}
+                                            sx={{color: 'warning.main', flexShrink: 0, mt: '3px'}}
                                         />
                                         {warmupWarningMessage}
                                     </Typography>
@@ -522,9 +522,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                     <Typography
                                         variant="body2"
                                         color="success.main"
-                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                        sx={{display: 'flex', gap: 1}}
                                     >
-                                        <CheckCircleIcon fontSize="small"/>
+                                        <CheckCircleIcon style={{marginTop: 3}} fontSize="small"/>
                                         {downloadedMessage}
                                     </Typography>
                                 )}
@@ -537,7 +537,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                         startIcon={downloadingLocalModel ? (
                                             <CircularProgress size={18} thickness={5} color="inherit"/>
                                         ) : undefined}
-                                        sx={{mt: 0.5}}
+                                        sx={{mt: 0.5, minHeight: '51px'}}
                                     >
                                         {downloadButtonLabel}
                                     </Button>
@@ -547,7 +547,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                         {localModelError}
                                     </Typography>
                                 )}
-                            </Box>
+                            </div>
                         )}
                     </div>
                     <TextField

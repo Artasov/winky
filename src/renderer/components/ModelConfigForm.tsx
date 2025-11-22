@@ -14,7 +14,12 @@ import {
 } from '@shared/constants';
 import type {FastWhisperStatus, LLMMode, LLMModel, TranscribeMode, TranscribeModel} from '@shared/types';
 import LocalSpeechInstallControl from './LocalSpeechInstallControl';
-import {checkLocalModelDownloaded, downloadLocalSpeechModel, warmupLocalSpeechModel} from '../services/localSpeechModels';
+import {
+    checkLocalModelDownloaded,
+    downloadLocalSpeechModel,
+    getLocalSpeechModelMetadata,
+    warmupLocalSpeechModel
+} from '../services/localSpeechModels';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 export interface ModelConfigFormData {
@@ -71,6 +76,13 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const [localModelError, setLocalModelError] = useState<string | null>(null);
     const [localServerStatus, setLocalServerStatus] = useState<FastWhisperStatus | null>(null);
     const checkingRef = useRef<string | null>(null);
+    const selectedLocalModelMeta = useMemo(
+        () => getLocalSpeechModelMetadata(values.transcribeModel),
+        [values.transcribeModel]
+    );
+    const selectedLocalModelDescription = selectedLocalModelMeta
+        ? `${selectedLocalModelMeta.label} (${selectedLocalModelMeta.size})`
+        : null;
 
     useEffect(() => {
         let mounted = true;
@@ -159,12 +171,19 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         if (values.transcribeMode !== SPEECH_MODES.LOCAL || downloadingLocalModel) {
             return;
         }
+        const metadata = getLocalSpeechModelMetadata(values.transcribeModel);
+        if (metadata) {
+            console.info(`[ModelConfigForm] Скачиваем ${metadata.label} (${metadata.size})…`);
+        }
         setLocalModelError(null);
         setDownloadingLocalModel(true);
         try {
             await downloadLocalSpeechModel(values.transcribeModel);
             const downloaded = await checkLocalModelDownloaded(values.transcribeModel, {force: true});
             setLocalModelDownloaded(downloaded);
+            if (metadata) {
+                console.info(`[ModelConfigForm] ${metadata.label} (${metadata.size}) скачана.`);
+            }
             try {
                 await warmupLocalSpeechModel(values.transcribeModel);
             } catch {
@@ -201,6 +220,10 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     };
 
     const formatTranscribeLabel = (value: string) => {
+        const localMeta = getLocalSpeechModelMetadata(value);
+        if (localMeta) {
+            return `${localMeta.label} · ${localMeta.size}`;
+        }
         const base = formatLabel(value);
         if (isGoogleTranscribeModel(value as TranscribeModel)) {
             return `Google ${base}`;
@@ -233,25 +256,34 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         return [...LLM_LOCAL_MODELS] as LLMModel[];
     }, [values.llmMode, values.googleKey]);
 
-    const emitChange = (partial: Partial<ModelConfigFormData>) => {
+    const emitChange = useCallback((partial: Partial<ModelConfigFormData>) => {
         const nextValues = {...values, ...partial};
         onChange(nextValues);
         if (shouldAutoSave && onAutoSave) {
             void onAutoSave(nextValues);
         }
-    };
+    }, [values, onChange, shouldAutoSave, onAutoSave]);
+
+    useEffect(() => {
+        if (values.transcribeMode !== SPEECH_MODES.LOCAL) {
+            return;
+        }
+        if (selectedLocalModelMeta && selectedLocalModelMeta.id !== values.transcribeModel) {
+            emitChange({transcribeModel: selectedLocalModelMeta.id as TranscribeModel});
+        }
+    }, [values.transcribeMode, values.transcribeModel, selectedLocalModelMeta, emitChange]);
 
     useEffect(() => {
         if (!transcribeModelOptions.includes(values.transcribeModel)) {
             emitChange({transcribeModel: transcribeModelOptions[0] as TranscribeModel});
         }
-    }, [transcribeModelOptions, values.transcribeModel]);
+    }, [transcribeModelOptions, values.transcribeModel, emitChange]);
 
     useEffect(() => {
         if (!llmModelOptions.includes(values.llmModel)) {
             emitChange({llmModel: llmModelOptions[0] as LLMModel});
         }
-    }, [llmModelOptions, values.llmModel]);
+    }, [llmModelOptions, values.llmModel, emitChange]);
 
     const renderTranscribeModeSelector = (sx?: any) => (
         <TextField
@@ -299,6 +331,19 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         values.llmMode === LLM_MODES.API ||
         values.transcribeMode === SPEECH_MODES.API ||
         values.openaiKey.trim().length > 0;
+    const checkingMessage = selectedLocalModelDescription
+        ? `Проверяем наличие модели ${selectedLocalModelDescription}…`
+        : 'Проверяем наличие модели…';
+    const downloadedMessage = selectedLocalModelDescription
+        ? `Модель ${selectedLocalModelDescription} скачана и готова к использованию.`
+        : 'Модель скачана и готова к использованию.';
+    const downloadButtonLabel = selectedLocalModelDescription
+        ? downloadingLocalModel
+            ? `Скачиваем модель ${selectedLocalModelDescription}…`
+            : `Скачать модель ${selectedLocalModelDescription}`
+        : downloadingLocalModel
+            ? 'Скачиваем…'
+            : 'Скачать модель';
 
     return (
         <Box
@@ -358,7 +403,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                         sx={{display: 'flex', alignItems: 'center', gap: 1}}
                                     >
                                         <CircularProgress size={16} thickness={5} color="inherit"/>
-                                        Проверяем наличие модели…
+                                        {checkingMessage}
                                     </Typography>
                                 )}
                                 {!checkingLocalModel && localModelDownloaded === true && (
@@ -368,7 +413,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                         sx={{display: 'flex', alignItems: 'center', gap: 1}}
                                     >
                                         <CheckCircleIcon fontSize="small"/>
-                                        Модель скачана и готова к использованию.
+                                        {downloadedMessage}
                                     </Typography>
                                 )}
                                 {!checkingLocalModel && localModelDownloaded === false && (
@@ -382,7 +427,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                         ) : undefined}
                                         sx={{mt: 0.5}}
                                     >
-                                        {downloadingLocalModel ? 'Скачиваем…' : 'Скачать модель'}
+                                        {downloadButtonLabel}
                                     </Button>
                                 )}
                                 {localModelError && (

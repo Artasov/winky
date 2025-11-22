@@ -100,15 +100,20 @@ export const SPEECH_API_MODELS = [
     ...SPEECH_GOOGLE_API_MODELS
 ] as const;
 
-export const SPEECH_LOCAL_MODELS = [
-    'tiny',
-    'base',
-    'small',
-    'medium',
-    'large',
-    'large-v2',
-    'large-v3'
-] as const;
+export const SPEECH_LOCAL_MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3'] as const;
+
+export const SPEECH_LOCAL_MODEL_DETAILS = {
+    tiny: {label: 'Tiny', size: '75MB'},
+    base: {label: 'Base', size: '141MB'},
+    small: {label: 'Small', size: '463MB'},
+    medium: {label: 'Medium', size: '1.42GB'},
+    'large-v3': {label: 'Large', size: '3GB'}
+} as const;
+
+export const SPEECH_LOCAL_MODEL_ALIASES = {
+    large: 'large-v3',
+    'large-v2': 'large-v3'
+} as const;
 
 export const MIC_WINDOW_WIDTH = 300;
 export const MIC_WINDOW_HEIGHT = 300;

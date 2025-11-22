@@ -1,5 +1,9 @@
 import axios, {AxiosInstance} from 'axios';
-import {FAST_WHISPER_BASE_URL} from '@shared/constants';
+import {
+    FAST_WHISPER_BASE_URL,
+    SPEECH_LOCAL_MODEL_ALIASES,
+    SPEECH_LOCAL_MODEL_DETAILS
+} from '@shared/constants';
 
 const MODELS_DOWNLOAD_ENDPOINT = `${FAST_WHISPER_BASE_URL}/v1/models/download`;
 const MODELS_WARMUP_ENDPOINT = `${FAST_WHISPER_BASE_URL}/v1/models/warmup`;
@@ -101,8 +105,48 @@ export type LocalModelExistsResponse = {
     model_path?: string;
 };
 
+const localModelDetailsMap = SPEECH_LOCAL_MODEL_DETAILS as Record<string, {label: string; size: string}>;
+const legacyLocalModelMap = Object.entries(SPEECH_LOCAL_MODEL_ALIASES).reduce<Record<string, string>>(
+    (acc, [key, value]) => {
+        acc[key.toLowerCase()] = value;
+        return acc;
+    },
+    {}
+);
+
+export const normalizeLocalSpeechModelName = (model: string): string => {
+    const trimmed = (model ?? '').trim();
+    if (!trimmed) {
+        return '';
+    }
+    const alias = legacyLocalModelMap[trimmed.toLowerCase()];
+    return alias ?? trimmed;
+};
+
+export const getLocalSpeechModelMetadata = (
+    model: string
+): {id: string; label: string; size: string} | null => {
+    const normalized = normalizeLocalSpeechModelName(model);
+    if (!normalized) {
+        return null;
+    }
+    const details = localModelDetailsMap[normalized];
+    if (!details) {
+        return null;
+    }
+    return {id: normalized, label: details.label, size: details.size};
+};
+
+const describeLocalSpeechModel = (model: string): string => {
+    const metadata = getLocalSpeechModelMetadata(model);
+    if (metadata) {
+        return `${metadata.label} (${metadata.size})`;
+    }
+    return model;
+};
+
 export const checkLocalModelDownloaded = async (model: string, options: {force?: boolean} = {}): Promise<boolean> => {
-    const trimmed = model.trim();
+    const trimmed = normalizeLocalSpeechModelName(model);
     if (!trimmed) {
         console.log('[checkLocalModelDownloaded] Модель пустая, возвращаем false');
         return false;
@@ -129,11 +173,11 @@ export const checkLocalModelDownloaded = async (model: string, options: {force?:
 };
 
 export const downloadLocalSpeechModel = async (model: string): Promise<LocalModelDownloadResponse> => {
-    const trimmed = model.trim();
+    const trimmed = normalizeLocalSpeechModelName(model);
     if (!trimmed) {
         throw new Error('Модель не указана.');
     }
-    log(`Запуск скачивания модели ${trimmed}…`);
+    log(`Запуск скачивания модели ${describeLocalSpeechModel(trimmed)}…`);
     try {
         const {data} = await localSpeechClient.post<LocalModelDownloadResponse>(
             '/v1/models/download',
@@ -143,17 +187,24 @@ export const downloadLocalSpeechModel = async (model: string): Promise<LocalMode
                 timeout: 30 * 60 * 1000 // 30 минут
             }
         );
-        log(`Скачивание завершено (${data.status}) для модели ${trimmed}. Путь: ${data.model_path}`);
+        log(
+            `Скачивание завершено (${data.status}) для модели ${describeLocalSpeechModel(
+                trimmed
+            )}. Путь: ${data.model_path}`
+        );
         localModelCache.set(trimmed, true);
         return data;
     } catch (error: any) {
-        logError(`Скачивание модели ${trimmed} завершилось ошибкой`, error?.response?.data ?? error);
+        logError(
+            `Скачивание модели ${describeLocalSpeechModel(trimmed)} завершилось ошибкой`,
+            error?.response?.data ?? error
+        );
         throw error;
     }
 };
 
 export const warmupLocalSpeechModel = async (model: string, device?: string): Promise<LocalModelWarmupResponse> => {
-    const trimmed = model.trim();
+    const trimmed = normalizeLocalSpeechModelName(model);
     if (!trimmed) {
         throw new Error('Модель не указана.');
     }
@@ -161,21 +212,35 @@ export const warmupLocalSpeechModel = async (model: string, device?: string): Pr
     if (device) {
         payload.device = device;
     }
-    log(`Прогрев модели ${trimmed} (device=${device ?? 'auto'})…`);
+    log(`Прогрев модели ${describeLocalSpeechModel(trimmed)} (device=${device ?? 'auto'})…`);
     try {
         const {data} = await localSpeechClient.post<LocalModelWarmupResponse>(
             '/v1/models/warmup',
             payload,
-            {headers: {'Content-Type': 'application/json'}}
+            {
+                headers: {'Content-Type': 'application/json'},
+                timeout: 2 * 60 * 1000
+            }
         );
-        log(`Модель ${trimmed} прогрета: device=${data.device}, compute=${data.compute_type}, t=${data.load_time.toFixed(2)}s`);
+        log(
+            `Модель ${describeLocalSpeechModel(trimmed)} прогрета: device=${data.device}, compute=${
+                data.compute_type
+            }, t=${data.load_time.toFixed(2)}s`
+        );
         return data;
     } catch (error: any) {
-        logError(`Прогрев модели ${trimmed} завершился ошибкой`, error?.response?.data ?? error);
+        logError(
+            `Прогрев модели ${describeLocalSpeechModel(trimmed)} завершился ошибкой`,
+            error?.response?.data ?? error
+        );
         throw error;
     }
 };
 
 export const markLocalModelAsUnknown = (model: string) => {
-    localModelCache.delete(model.trim());
+    const normalized = normalizeLocalSpeechModelName(model);
+    if (!normalized) {
+        return;
+    }
+    localModelCache.delete(normalized);
 };

@@ -250,6 +250,8 @@ class MicWindowController {
     private positionLoaded = false;
     private visible = false;
     private toggleInProgress = false;
+    private autoStartConfig: {enabled: boolean; lastCheck: number} = {enabled: false, lastCheck: 0};
+    private readonly AUTO_START_CONFIG_CACHE_MS = 5000; // Кэшируем на 5 секунд
 
     private async syncIgnoreCursorEvents(win: WebviewWindow, ignore: boolean, requireVisible = false): Promise<void> {
         let appliedNative = false;
@@ -282,40 +284,32 @@ class MicWindowController {
     private buildUrl(): string {
         const base = window.location.href.split('#')[0].split('?')[0];
         const params = new URLSearchParams({window: 'mic'});
-        const url = `${base}?${params.toString()}#/mic`;
-        console.log('[MicWindowController] buildUrl:', url);
-        return url;
+        return `${base}?${params.toString()}#/mic`;
     }
 
     private async ensure(): Promise<WebviewWindow> {
-        console.log('[MicWindowController] ensure() called');
-        await this.ensureInitialPosition();
+        // Загружаем позицию параллельно с проверкой окна
+        const positionPromise = this.ensureInitialPosition();
+        
         if (this.window) {
-            console.log('[MicWindowController] window already exists, returning');
+            await positionPromise;
             return this.window;
         }
-        console.log('[MicWindowController] checking for existing window...');
-        // Пробуем получить существующее окно, но не выбрасываем ошибку если его нет
+        
+        // Пробуем получить существующее окно
         const existing = await WebviewWindow.getByLabel('mic').catch(() => null);
         if (existing) {
-            console.log('[MicWindowController] found existing window');
             this.window = existing;
-            await this.attachMoveListener(existing);
-            
-            // Синхронизируем состояние видимости с реальным состоянием окна
-            try {
-                const isVisible = await existing.isVisible().catch(() => false);
-                this.visible = isVisible;
-            } catch {
-                // Игнорируем ошибки
-            }
-            
-            // Гарантируем неинтерактивное состояние на Windows через оба механизма
-            await this.syncIgnoreCursorEvents(existing, true);
-            
+            // Параллельно выполняем операции
+            await Promise.all([
+                positionPromise,
+                this.attachMoveListener(existing),
+                this.syncIgnoreCursorEvents(existing, true)
+            ]);
             return existing;
         }
-        console.log('[MicWindowController] creating new window...');
+        
+        // Создаем новое окно с начальной позицией
         const win = new WebviewWindow('mic', {
             url: this.buildUrl(),
             title: 'Winky Mic',
@@ -323,22 +317,20 @@ class MicWindowController {
             height: MIC_WINDOW_HEIGHT,
             resizable: false,
             alwaysOnTop: true,
-            visible: false, // Создаем скрытым
+            visible: false,
             transparent: true,
             decorations: false,
             skipTaskbar: true,
             shadow: false,
+            x: this.position.x,
+            y: this.position.y,
         } as any);
         
-        // Ждем чтобы окно зарегистрировалось в Tauri backend и контент начал загружаться
+        // Ждем создания окна
         await new Promise<void>((resolve, reject) => {
             win.once('tauri://created', () => resolve());
             win.once('tauri://error', ({payload}) => reject(payload));
         });
-        
-        console.log('[MicWindowController] window created, skipping ready check');
-        // Убираем проверку готовности - она блокирует создание окна
-        // Окно зарегистрируется асинхронно
         
         void win.once('tauri://destroyed', () => {
             this.window = null;
@@ -348,23 +340,19 @@ class MicWindowController {
             }
             this.visible = false;
         });
+        
         this.window = win;
-        console.log('[MicWindowController] attaching move listener...');
-        await this.attachMoveListener(win);
         
-        console.log('[MicWindowController] window created and ready');
-        // Отключаем тень на Windows после создания окна
-        try {
-            // @ts-ignore - может быть доступно в некоторых версиях Tauri
-            if (win.setShadow) {
-                await win.setShadow(false);
-            }
-        } catch {
-            // Игнорируем если метод недоступен
-        }
+        // Устанавливаем позицию явно после создания (на случай если x/y не сработали в конструкторе)
+        const setPositionPromise = win.setPosition(new LogicalPosition(this.position.x, this.position.y)).catch(() => {});
         
-        // Устанавливаем неинтерактивное состояние сразу после создания
-        await this.syncIgnoreCursorEvents(win, true);
+        // Параллельно выполняем все операции инициализации
+        await Promise.all([
+            positionPromise,
+            setPositionPromise,
+            this.attachMoveListener(win),
+            this.syncIgnoreCursorEvents(win, true)
+        ]);
         
         return win;
     }
@@ -424,100 +412,70 @@ class MicWindowController {
     }
 
     async show(reason: string = 'system'): Promise<void> {
-        console.log('[MicWindowController] show() called, reason:', reason);
-        
-        // Проверяем что окно действительно существует перед использованием
+        // Проверяем кэш окна только если он есть
         if (this.window) {
             const exists = await WebviewWindow.getByLabel('mic').catch(() => null);
             if (!exists) {
-                console.log('[MicWindowController] cached window not found, recreating...');
                 this.window = null;
             }
         }
         
         const win = await this.ensure();
-        console.log('[MicWindowController] window ensured:', !!win);
-        // Проверяем реальное состояние окна
-        const isCurrentlyVisible = await win.isVisible().catch(() => false);
-        console.log('[MicWindowController] isCurrentlyVisible:', isCurrentlyVisible, 'this.visible:', this.visible);
-        if (isCurrentlyVisible && this.visible) {
-            await win.setFocus();
-            console.log('[MicWindowController] window already visible, focused');
-            return;
+        
+        // Быстрая проверка - если окно уже видимо, просто фокусируем
+        if (this.visible) {
+            try {
+                await win.setFocus();
+                return;
+            } catch {
+                // Игнорируем ошибки фокуса
+            }
         }
-        // Получаем текущую позицию окна перед показом
+        
+        // Получаем реальную позицию окна перед установкой (если окно уже существует)
         try {
-            const currentPos = await win.position();
+            const currentPos = await win.position().catch(() => null);
             if (currentPos) {
-                // Сохраняем текущую позицию если окно уже было видимо
+                // Используем реальную позицию окна, если она есть
                 this.position = {x: currentPos.x, y: currentPos.y};
-            } else {
-                // Устанавливаем позицию только если окно еще не было видимо
-                try {
-                    await this.moveWindow(this.position.x, this.position.y);
-                } catch {
-                    // Игнорируем ошибки позиционирования
-                }
             }
         } catch {
-            // Если не удалось получить позицию, просто устанавливаем позицию
-            try {
-                await this.moveWindow(this.position.x, this.position.y);
-            } catch {
-                // Игнорируем ошибки позиционирования
-            }
-        }
-        await emit('mic:prepare-recording', {reason});
-        
-        // Если окно показывается впервые, добавляем небольшую задержку для загрузки контента
-        const isFirstShow = !this.visible;
-        if (isFirstShow) {
-            console.log('[MicWindowController] First show, waiting for content to load...');
-            await new Promise(resolve => setTimeout(resolve, 200));
+            // Игнорируем ошибки
         }
         
+        // Устанавливаем позицию параллельно с подготовкой
+        const positionPromise = this.moveWindow(this.position.x, this.position.y).catch(() => {});
+        const preparePromise = emit('mic:prepare-recording', {reason});
+        
+        await Promise.all([positionPromise, preparePromise]);
+        
+        // Показываем окно и фокусируем параллельно
         try {
-            console.log('[MicWindowController] calling win.show()...');
-            await win.show();
-            console.log('[MicWindowController] win.show() succeeded');
-            
-            // Проверяем что окно действительно показалось
-            const isNowVisible = await win.isVisible().catch(() => false);
-            console.log('[MicWindowController] After show(), isVisible:', isNowVisible);
-            
-            // Проверяем позицию окна
-            const pos = await win.position().catch(() => null);
-            console.log('[MicWindowController] Window position:', pos);
-            
-            await win.setFocus();
-            console.log('[MicWindowController] win.setFocus() succeeded');
+            await Promise.all([
+                win.show(),
+                win.setFocus()
+            ]);
         } catch (error) {
-            console.error('[MicWindowController] Error showing window:', error);
-            // Если окно еще не готово, пробуем через небольшую задержку
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Если ошибка, пробуем еще раз без ожидания
             try {
                 await win.show();
                 await win.setFocus();
-                console.log('[MicWindowController] Retry succeeded');
-            } catch (retryError) {
-                console.error('[MicWindowController] Retry failed:', retryError);
-                // Игнорируем ошибки - окно может быть уже показано или закрыто
+            } catch {
+                // Игнорируем ошибки - окно может быть уже показано
             }
         }
         
-        // Устанавливаем окно как неинтерактивное после показа, чтобы клики проходили сквозь прозрачные области
-        // Интерактивность будет включаться автоматически через interactive.ts при наведении на элементы
-        await this.syncIgnoreCursorEvents(win, true);
-        
+        // Параллельно выполняем все операции после показа
         this.visible = true;
-        console.log('[MicWindowController] window shown, visible set to true');
-        await emit('mic:start-fade-in', {reason});
-        await emit('mic:visibility-change', {visible: true, reason});
-        await this.scheduleAutoStart(reason);
+        await Promise.all([
+            this.syncIgnoreCursorEvents(win, true),
+            emit('mic:start-fade-in', {reason}),
+            emit('mic:visibility-change', {visible: true, reason}),
+            emit('mic:reset-interactive', {})
+        ]);
         
-        // Отправляем событие для сброса состояния интерактивности в renderer
-        await emit('mic:reset-interactive', {});
-        console.log('[MicWindowController] show() completed');
+        // Автозапуск выполняется асинхронно без блокировки
+        void this.scheduleAutoStart(reason);
     }
 
     async hide(reason: string = 'system'): Promise<void> {
@@ -526,49 +484,59 @@ class MicWindowController {
             this.visible = false;
             return;
         }
-        // Проверяем реальное состояние окна
-        const isCurrentlyVisible = await win.isVisible().catch(() => false);
-        if (!isCurrentlyVisible && !this.visible) {
+        
+        if (!this.visible) {
             return;
         }
-        this.visible = false;
-        await emit('mic:start-fade-out', {reason});
+        
+        // Сохраняем текущую позицию перед скрытием
         try {
-            await win.hide();
+            const currentPos = await win.position().catch(() => null);
+            if (currentPos) {
+                this.position = {x: currentPos.x, y: currentPos.y};
+                // Сохраняем в конфиг асинхронно, не блокируя скрытие
+                void configApi.update({micWindowPosition: this.position});
+            }
         } catch {
-            this.window = null;
+            // Игнорируем ошибки получения позиции
         }
-        await emit('mic:visibility-change', {visible: false, reason});
+        
+        this.visible = false;
+        
+        // Параллельно скрываем окно и отправляем события
+        await Promise.all([
+            emit('mic:start-fade-out', {reason}),
+            win.hide().catch(() => {
+                this.window = null;
+            }),
+            emit('mic:visibility-change', {visible: false, reason})
+        ]);
     }
 
     async toggle(reason: string = 'manual'): Promise<void> {
-        // Защита от множественных вызовов
         if (this.toggleInProgress) {
             return;
         }
         this.toggleInProgress = true;
         
         try {
-            // Проверяем реальное состояние окна, а не только this.visible
             const win = this.window ?? (await WebviewWindow.getByLabel('mic').catch(() => null));
             if (!win) {
-                // Окно не существует, создаем и показываем
                 await this.show(reason);
                 return;
             }
             
-            // Проверяем реальное состояние видимости окна
-            const isVisible = await win.isVisible().catch(() => false);
-            if (isVisible) {
+            // Используем кэшированное состояние вместо проверки isVisible
+            if (this.visible) {
                 await this.hide(reason);
             } else {
                 await this.show(reason);
             }
         } finally {
-            // Сбрасываем флаг после небольшой задержки, чтобы предотвратить повторные вызовы
+            // Уменьшенная задержка
             setTimeout(() => {
                 this.toggleInProgress = false;
-            }, 100);
+            }, 50);
         }
     }
 
@@ -611,10 +579,15 @@ class MicWindowController {
                 if (!payload) {
                     return;
                 }
+                // Округляем координаты для точности
                 const x = Math.round(payload.x);
                 const y = Math.round(payload.y);
-                this.position = {x, y};
-                void configApi.update({micWindowPosition: {x, y}});
+                // Обновляем только если позиция действительно изменилась
+                if (this.position.x !== x || this.position.y !== y) {
+                    this.position = {x, y};
+                    // Сохраняем в конфиг асинхронно
+                    void configApi.update({micWindowPosition: {x, y}});
+                }
             });
         } catch {
             /* ignore */
@@ -625,17 +598,28 @@ class MicWindowController {
         if (reason !== 'shortcut' && reason !== 'taskbar') {
             return;
         }
-        try {
-            const config = await configApi.get();
-            if (!config.micAutoStartRecording) {
+        
+        // Используем кэшированную конфигурацию
+        const now = Date.now();
+        if (now - this.autoStartConfig.lastCheck > this.AUTO_START_CONFIG_CACHE_MS) {
+            try {
+                const config = await configApi.get();
+                this.autoStartConfig.enabled = Boolean(config.micAutoStartRecording);
+                this.autoStartConfig.lastCheck = now;
+            } catch {
+                this.autoStartConfig.enabled = false;
                 return;
             }
-            setTimeout(() => {
-                void emit('mic:start-recording', {reason});
-            }, 120);
-        } catch {
-            /* ignore */
         }
+        
+        if (!this.autoStartConfig.enabled) {
+            return;
+        }
+        
+        // Уменьшенная задержка для более быстрого старта
+        setTimeout(() => {
+            void emit('mic:start-recording', {reason});
+        }, 80);
     }
 }
 

@@ -44,23 +44,16 @@ export const useMicWindowEffects = ({
         const attemptAutoStart = () => {
             const toggle = handleMicrophoneToggleRef.current;
             if (!toggle) {
-                autoStartRetryTimeoutRef.current = window.setTimeout(attemptAutoStart, 50);
+                autoStartRetryTimeoutRef.current = window.setTimeout(attemptAutoStart, 30);
                 return;
             }
-            console.log('[mic-effects] attempt auto-start toggle');
             Promise.resolve(toggle()).finally(() => {
                 autoStartPendingRef.current = false;
                 clearAutoStartRetry();
-                console.log('[mic-effects] auto-start toggle settled');
             });
         };
 
         const startHandler = () => {
-            console.log('[mic-effects] start handler fired', {
-                pending: autoStartPendingRef.current,
-                recording: isRecordingRef.current,
-                processing: processingRef.current
-            });
             if (autoStartPendingRef.current || isRecordingRef.current || processingRef.current) {
                 return;
             }
@@ -72,7 +65,6 @@ export const useMicWindowEffects = ({
             const data = (first && typeof (first as any)?.visible === 'boolean')
                 ? (first as { visible?: boolean })
                 : second;
-            console.log('[mic-effects] visibility change', {visible: data?.visible});
             if (data?.visible) {
                 void warmUpRecorder();
                 return;

@@ -363,7 +363,7 @@ const AppContent: React.FC = () => {
         [showToast]
     );
 
-    // Не показываем WelcomeWindow если есть токен (даже если пользователь еще не загружен)
+    // Do not show WelcomeWindow when a token already exists (even if the user is still loading)
     const hasToken = config?.auth.access || config?.auth.accessToken;
     const shouldShowWelcome = !hasToken && !isAuthenticated && !userLoading;
 
@@ -409,12 +409,12 @@ const AppContent: React.FC = () => {
     if (loading) {
         return (
             <div className="flex h-full items-center justify-center bg-bg-base text-text-primary">
-                <div className="animate-pulse-soft text-primary">Загрузка...</div>
+                <div className="animate-pulse-soft text-primary">Loading...</div>
             </div>
         );
     }
 
-    // Если есть токен и идет загрузка пользователя, показываем CircularProgress вместо Welcome
+    // If we have a token and user data is loading, show a spinner instead of the Welcome view
     const isLoadingUser = userLoading && hasToken && !isAuthenticated;
     
     if (isLoadingUser && !windowIdentity.isAuxWindow) {
@@ -431,10 +431,12 @@ const AppContent: React.FC = () => {
         return (
             <div
                 className="flex h-full flex-col items-center justify-center gap-4 bg-bg-base px-6 text-center text-text-primary">
-                <h1 className="text-2xl font-semibold">Не удалось инициализировать приложение</h1>
-                <p className="max-w-md text-sm text-text-secondary">{preloadError ?? 'Веб-приложение не получило доступ к preload-скрипту.'}</p>
+                <h1 className="text-2xl font-semibold">Failed to initialize the application</h1>
+                <p className="max-w-md text-sm text-text-secondary">
+                    {preloadError ?? 'The renderer could not access the preload script.'}
+                </p>
                 <p className="text-xs text-text-tertiary">
-                    Перезапустите приложение. Если проблема повторяется, проверьте сборку `dist/main/preload.js`.
+                    Restart the app. If the problem persists, verify the `dist/main/preload.js` build.
                 </p>
             </div>
         );

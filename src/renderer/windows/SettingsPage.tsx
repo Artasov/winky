@@ -361,7 +361,7 @@ const SettingsPage: React.FC = () => {
         } catch (error) {
             console.error('[SettingsPage] Failed to update local speech auto start', error);
             setAutoStartLocalSpeech(previousValue);
-            showToast('Не удалось обновить настройку автозапуска локального сервера.', 'error');
+            showToast('Failed to update the local speech auto-start setting.', 'error');
         }
     };
 

@@ -20,7 +20,7 @@ const AuthWindow: React.FC = () => {
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
         if (!email || !password) {
-            showToast('Введите email и пароль', 'error');
+            showToast('Enter your email and password.', 'error');
             return;
         }
 
@@ -33,7 +33,7 @@ const AuthWindow: React.FC = () => {
             } catch (userError) {
                 console.warn('[AuthWindow] Failed to fetch user, but continuing:', userError);
             }
-            showToast('Авторизация успешна', 'success');
+            showToast('Signed in successfully.', 'success');
             const config = await refreshConfig();
             if (!config.setupCompleted) {
                 navigate('/setup');
@@ -42,7 +42,7 @@ const AuthWindow: React.FC = () => {
             }
         } catch (error) {
             console.error('[AuthWindow] login failed', error);
-            showToast('Не удалось авторизоваться. Проверьте данные и подключение.', 'error');
+            showToast('Failed to sign in. Check your credentials and connection.', 'error');
         } finally {
             setLoading(false);
         }
@@ -51,10 +51,10 @@ const AuthWindow: React.FC = () => {
     const handleOAuth = async (provider: AuthProvider) => {
         try {
             await auth.startOAuth(provider);
-            showToast(`Открываем ${provider} для авторизации...`, 'info');
+            showToast(`Opening ${provider} for authentication…`, 'info');
         } catch (error) {
             console.error('[AuthWindow] OAuth failed', error);
-            showToast(`Не удалось запустить OAuth через ${provider}`, 'error');
+            showToast(`Failed to start OAuth via ${provider}.`, 'error');
         }
     };
 

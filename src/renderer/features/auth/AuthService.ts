@@ -164,7 +164,7 @@ export class AuthService {
     async authenticatedRequest<T>(config: AxiosRequestConfig): Promise<T> {
         const accessToken = await this.ensureAccessToken();
         if (!accessToken) {
-            throw new AuthError('Войдите, чтобы продолжить.');
+            throw new AuthError('Please sign in to continue.');
         }
 
         try {
@@ -197,7 +197,7 @@ export class AuthService {
         const access = typeof payload.access === 'string' ? payload.access : '';
         const refresh = typeof payload.refresh === 'string' ? payload.refresh : null;
         if (!access) {
-            throw new AuthError('Сервер не вернул access токен.');
+            throw new AuthError('The server did not return an access token.');
         }
         return {access, refresh};
     }

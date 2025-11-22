@@ -145,11 +145,11 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         if (busyPhase) {
             switch (safeStatus.phase) {
                 case 'installing':
-                    return 'Дождитесь окончания установки…';
+                    return 'Please wait for the installation to finish…';
                 case 'starting':
-                    return 'Запуск локального сервера…';
+                    return 'Starting the local server…';
                 case 'stopping':
-                    return 'Останавливаем локальный сервер…';
+                    return 'Stopping the local server…';
             }
         }
         return safeStatus.message || '';

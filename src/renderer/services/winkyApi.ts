@@ -53,7 +53,7 @@ const withAuthClient = async <T>(operation: (client: AxiosInstance, config: AppC
     const config = await getConfig();
     const token = config.auth?.accessToken || config.auth?.access;
     if (!token) {
-        throw new Error('Требуется авторизация.');
+        throw new Error('Authentication is required.');
     }
     const client = createApiClient(token);
     return operation(client, config);
@@ -65,7 +65,7 @@ export const fetchActions = async (): Promise<ActionConfig[]> => {
         await updateConfig({actions});
         return actions.length ? actions : config.actions ?? [];
     }).catch(async (error) => {
-        if (error.message?.includes('Требуется авторизация')) {
+        if (error.message?.includes('Authentication is required')) {
             const config = await getConfig();
             return config.actions ?? [];
         }
@@ -184,7 +184,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
     // Google Gemini API для транскрибации (бесплатные квоты)
     if (config.mode === SPEECH_MODES.API && GEMINI_MODEL_SET.has(config.model)) {
         if (!config.googleKey?.trim()) {
-            throw new Error('Укажите Google AI API Key для использования моделей Gemini для транскрибации.');
+            throw new Error('Provide a Google AI API key to use Gemini models for transcription.');
         }
         
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent`;
@@ -323,7 +323,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
                 }
             }
             
-            throw new Error('Gemini вернул пустой ответ.');
+            throw new Error('Gemini returned an empty response.');
         } catch (error: any) {
             const status = error?.response?.status || 'ERROR';
             console.error(`%cTranscribe ← %c[Google Gemini] %c${config.model} %c[${status}]`, 
@@ -339,8 +339,12 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             }
             // Улучшаем сообщение об ошибке
             if (error?.response?.status === 404) {
-                const errorMessage = error?.response?.data?.error?.message || 'Модель не найдена или не поддерживает аудио';
-                throw new Error(`Gemini API: ${errorMessage}. Убедитесь, что модель ${config.model} поддерживает обработку аудио через generateContent API.`);
+                const errorMessage =
+                    error?.response?.data?.error?.message ||
+                    'The model was not found or does not support audio.';
+                throw new Error(
+                    `Gemini API: ${errorMessage}. Make sure the ${config.model} model supports audio via the generateContent API.`
+                );
             }
             throw error;
         }
@@ -348,7 +352,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
 
     // OpenAI Whisper для транскрибации
     if (!config.openaiKey) {
-        throw new Error('Укажите OpenAI API ключ для транскрибации.');
+        throw new Error('Provide an OpenAI API key to enable transcription.');
     }
 
     const url = 'https://api.openai.com/v1/audio/transcriptions';
@@ -397,7 +401,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
         });
         const text = extractSpeechText(data);
         if (!text) {
-            throw new Error('OpenAI вернул пустой ответ.');
+            throw new Error('OpenAI returned an empty response.');
         }
         console.log(`%cTranscribe ← %c[OpenAI Whisper] %c${config.model} %c[200]`, 
             'color: #10b981; font-weight: bold',
@@ -552,4 +556,3 @@ const blobToBase64 = (blob: Blob): Promise<string> =>
         reader.onerror = (event) => reject(event);
         reader.readAsDataURL(blob);
     });
-

@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useState} from 'react';
 import type {AppConfig} from '@shared/types';
 
-const missingPreloadMessage = 'Preload-скрипт не загружен.';
+const missingPreloadMessage = 'Preload script is not loaded.';
 
 export interface ConfigController {
     config: AppConfig | null;

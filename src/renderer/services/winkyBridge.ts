@@ -49,7 +49,7 @@ type LlmProcessConfig = {
 export const speechBridge = {
     transcribe(audioData: ArrayBuffer, config: SpeechTranscribeConfig): Promise<string> {
         if (!window.winky?.speech?.transcribe) {
-            return Promise.reject(new Error('Speech API недоступен.'));
+            return Promise.reject(new Error('Speech API is unavailable.'));
         }
         return window.winky.speech.transcribe(audioData, config);
     }
@@ -58,7 +58,7 @@ export const speechBridge = {
 export const llmBridge = {
     process(text: string, prompt: string, config: LlmProcessConfig): Promise<string> {
         if (!window.winky?.llm?.process) {
-            return Promise.reject(new Error('LLM API недоступен.'));
+            return Promise.reject(new Error('LLM API is unavailable.'));
         }
         return window.winky.llm.process(text, prompt, config);
     }

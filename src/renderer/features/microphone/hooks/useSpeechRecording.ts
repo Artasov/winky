@@ -307,7 +307,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             return true;
         }
         localServerAlertInFlightRef.current = true;
-        const failureMessage = 'Локальный сервер распознавания недоступен. Открываем Settings…';
+        const failureMessage = 'Local speech server is unavailable. Opening Settings…';
         if (typeof window === 'undefined') {
             showToast(failureMessage, 'error', {durationMs: 4000});
             localServerAlertInFlightRef.current = false;
@@ -350,7 +350,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
 
     const ensureSpeechService = useCallback(async () => {
         if (!recorderRef.current) {
-            showToast('Сервис записи недоступен.', 'error');
+            showToast('Recording service is unavailable.', 'error');
             return false;
         }
 
@@ -358,14 +358,14 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             const model = config.speech.model;
             const isDownloaded = await checkLocalModelDownloaded(model, {force: true});
             if (!isDownloaded) {
-                const message = `Скачайте модель ${model} перед использованием микрофона.`;
+                const message = `Download the ${model} model before using the microphone.`;
                 await openMainWindowWithToast(message);
                 return false;
             }
             if (localModelWarmingUp) {
                 const metadata = getLocalSpeechModelMetadata(model);
                 const label = metadata ? `${metadata.label} (${metadata.size})` : model;
-                const message = `Происходит прогрев модели ${label}. Подождите завершения перед использованием микрофона.`;
+                const message = `Model ${label} is warming up. Please wait before using the microphone.`;
                 await openMainWindowWithToast(message);
                 return false;
             }
@@ -384,7 +384,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             return blob;
         } catch (error) {
             console.error(error);
-            showToast('Не удалось остановить запись.', 'error');
+            showToast('Failed to stop recording.', 'error');
             return null;
         } finally {
             if (resetUI) {
@@ -417,7 +417,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             });
 
             if (!transcription) {
-                showToast('Не удалось распознать речь для действия.', 'error');
+                showToast('Failed to transcribe speech for the action.', 'error');
                 return;
             }
 
@@ -433,22 +433,22 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                     if (textToCopy) {
                         const copied = await clipboardBridge.writeText(textToCopy);
                         if (copied) {
-                            showToast('Результат скопирован.', 'success');
+                            showToast('Result copied.', 'success');
                         } else {
                             // Повторная попытка с небольшой задержкой
                             await new Promise(resolve => setTimeout(resolve, 100));
                             const retryCopied = await clipboardBridge.writeText(textToCopy);
                             if (retryCopied) {
-                                showToast('Результат скопирован.', 'success');
+                                showToast('Result copied.', 'success');
                             } else {
                                 // Еще одна попытка с большей задержкой
                                 await new Promise(resolve => setTimeout(resolve, 200));
                                 const finalRetryCopied = await clipboardBridge.writeText(textToCopy);
                                 if (finalRetryCopied) {
-                                    showToast('Результат скопирован.', 'success');
+                                    showToast('Result copied.', 'success');
                                 } else {
                                     console.error('[useSpeechRecording] Failed to copy transcription to clipboard after retries');
-                                    showToast('Не удалось скопировать результат в буфер обмена.', 'error');
+                                    showToast('Failed to copy the result to the clipboard.', 'error');
                                 }
                             }
                         }
@@ -510,22 +510,22 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 if (textToCopy) {
                     const copied = await clipboardBridge.writeText(textToCopy);
                     if (copied) {
-                        showToast('Ответ скопирован.', 'success');
+                        showToast('Response copied.', 'success');
                     } else {
                         // Повторная попытка с небольшой задержкой
                         await new Promise(resolve => setTimeout(resolve, 100));
                         const retryCopied = await clipboardBridge.writeText(textToCopy);
                         if (retryCopied) {
-                            showToast('Ответ скопирован.', 'success');
+                            showToast('Response copied.', 'success');
                         } else {
                             // Еще одна попытка с большей задержкой
                             await new Promise(resolve => setTimeout(resolve, 200));
                             const finalRetryCopied = await clipboardBridge.writeText(textToCopy);
                             if (finalRetryCopied) {
-                                showToast('Ответ скопирован.', 'success');
+                                showToast('Response copied.', 'success');
                             } else {
                                 console.error('[useSpeechRecording] Failed to copy response to clipboard after retries');
-                                showToast('Не удалось скопировать ответ в буфер обмена.', 'error');
+                                showToast('Failed to copy the response to the clipboard.', 'error');
                             }
                         }
                     }
@@ -596,27 +596,27 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             console.error(error);
             
             // Формируем понятное сообщение об ошибке
-            let errorMessage = 'Ошибка при обработке действия.';
+            let errorMessage = 'An error occurred while processing the action.';
             
             if (error?.response?.status === 401) {
                 // Ошибка авторизации OpenAI
                 const errorData = error?.response?.data?.error;
                 if (errorData?.message) {
                     if (errorData.message.includes('API key')) {
-                        errorMessage = 'Не указан или неверный OpenAI API ключ. Проверьте настройки.';
+                        errorMessage = 'The OpenAI API key is missing or invalid. Check your settings.';
                     } else {
-                        errorMessage = `Ошибка авторизации: ${errorData.message}`;
+                        errorMessage = `Authentication error: ${errorData.message}`;
                     }
                 } else {
-                    errorMessage = 'Ошибка авторизации OpenAI. Проверьте API ключ в настройках.';
+                    errorMessage = 'OpenAI authentication error. Check the API key in settings.';
                 }
             } else if (error?.response?.status) {
                 // Другие HTTP ошибки
                 const errorData = error?.response?.data?.error;
                 if (errorData?.message) {
-                    errorMessage = `Ошибка API: ${errorData.message}`;
+                    errorMessage = `API error: ${errorData.message}`;
                 } else {
-                    errorMessage = `Ошибка запроса (код ${error.response.status})`;
+                    errorMessage = `Request error (status ${error.response.status})`;
                 }
             } else if (error?.message) {
                 errorMessage = error.message;
@@ -653,16 +653,16 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError' || 
                     errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
                     showToast(
-                        'Доступ к микрофону запрещён. Нажмите на микрофон ещё раз и подтвердите системный запрос. Если окно не появляется, включите доступ в Windows: Параметры → Конфиденциальность → Микрофон.',
+                        'Microphone access is blocked. Click the mic again and confirm the system prompt. If no dialog appears, enable access in Windows: Settings → Privacy → Microphone.',
                         'error',
                         {durationMs: 9000}
                     );
                 } else if (errorName === 'NotFoundError' || errorMessage.includes('No microphone')) {
-                    showToast('Микрофон не найден. Подключите микрофон и попробуйте снова.', 'error');
+                    showToast('No microphone detected. Connect one and try again.', 'error');
                 } else if (errorName === 'NotReadableError' || errorMessage.includes('could not be read')) {
-                    showToast('Микрофон используется другим приложением. Закройте другие приложения и попробуйте снова.', 'error');
+                    showToast('The microphone is in use by another app. Close it and try again.', 'error');
                 } else {
-                    showToast('Не удалось начать запись. Проверьте доступ к микрофону в настройках Windows.', 'error');
+                    showToast('Failed to start recording. Check microphone permissions in Windows settings.', 'error');
                 }
             }
             return;

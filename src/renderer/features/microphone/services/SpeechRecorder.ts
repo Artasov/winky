@@ -36,7 +36,7 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
 
     async startRecording(): Promise<MediaStream> {
         if (!navigator.mediaDevices?.getUserMedia) {
-            throw new Error('Микрофон недоступен в этом окружении.');
+            throw new Error('Microphone is not available in this environment.');
         }
 
         if (this.mediaRecorder) {
@@ -63,7 +63,7 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
     stopRecording(): Promise<Blob> {
         const recorder = this.mediaRecorder;
         if (!recorder) {
-            return Promise.reject(new Error('Запись ещё не началась.'));
+            return Promise.reject(new Error('Recording has not started yet.'));
         }
 
         return new Promise<Blob>((resolve, reject) => {

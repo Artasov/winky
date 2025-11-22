@@ -4,11 +4,11 @@ import type {ActionConfig} from '@shared/types';
 import {getErrorMessage} from '../../../utils/errorMessage';
 
 const formSchema = z.object({
-    name: z.string().min(1, 'Заполните название действия.'),
+    name: z.string().min(1, 'Enter an action name.'),
     prompt: z.string().optional(),
     promptRecognizing: z.string().optional(),
     hotkey: z.string().optional(),
-    iconId: z.string().min(1, 'Выберите иконку.'),
+    iconId: z.string().min(1, 'Choose an icon.'),
     showResults: z.boolean(),
     soundOnComplete: z.boolean(),
     autoCopyResult: z.boolean()
@@ -132,7 +132,7 @@ export const useActionForm = ({
         event.preventDefault();
         const validation = formSchema.safeParse(values);
         if (!validation.success) {
-            const firstError = validation.error.errors[0]?.message ?? 'Заполните форму корректно.';
+            const firstError = validation.error.errors[0]?.message ?? 'Please complete the form correctly.';
             showToast(firstError, 'error');
             return;
         }
@@ -157,11 +157,11 @@ export const useActionForm = ({
             }
 
             await refreshConfig();
-            showToast(editingActionId ? 'Действие обновлено.' : 'Действие добавлено.', 'success');
+            showToast(editingActionId ? 'Action updated.' : 'Action created.', 'success');
             closeModal();
         } catch (error: any) {
             console.error('[ActionsPage] Ошибка сохранения действия', error);
-            const message = getErrorMessage(error, 'Не удалось сохранить действие.');
+            const message = getErrorMessage(error, 'Failed to save the action.');
             showToast(message, 'error');
         } finally {
             setSaving(false);
@@ -173,7 +173,7 @@ export const useActionForm = ({
             return;
         }
 
-        if (!confirm(`Удалить действие \"${actionName}\"?`)) {
+        if (!confirm(`Delete the action "${actionName}"?`)) {
             return;
         }
 
@@ -181,10 +181,10 @@ export const useActionForm = ({
         try {
             await window.winky?.actions.delete(actionId);
             await refreshConfig();
-            showToast('Действие удалено.', 'success');
+            showToast('Action deleted.', 'success');
         } catch (error: any) {
             console.error('[ActionsPage] Ошибка удаления действия', error);
-            const message = getErrorMessage(error, 'Не удалось удалить действие.');
+            const message = getErrorMessage(error, 'Failed to delete the action.');
             showToast(message, 'error');
         } finally {
             setDeletingIds((prev) => {

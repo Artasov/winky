@@ -34,7 +34,7 @@ const ActionsPage: React.FC = () => {
     const content = !isAuthorized ? (
         <ActionEmptyState
             title="Sign in to manage actions"
-            description="Авторизуйтесь, чтобы настраивать быстрые сценарии и горячие клавиши."
+            description="Sign in to configure quick scenarios and keyboard shortcuts."
             ctaLabel="Open sign in"
             onCta={handleCreateAction}
         />

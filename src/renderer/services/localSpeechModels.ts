@@ -226,7 +226,7 @@ export const checkLocalModelDownloaded = async (model: string, options: {force?:
 export const downloadLocalSpeechModel = async (model: string): Promise<LocalModelDownloadResponse> => {
     const trimmed = normalizeLocalSpeechModelName(model);
     if (!trimmed) {
-        throw new Error('Модель не указана.');
+        throw new Error('Model name is missing.');
     }
     log(`Запуск скачивания модели ${describeLocalSpeechModel(trimmed)}…`);
     try {
@@ -257,7 +257,7 @@ export const downloadLocalSpeechModel = async (model: string): Promise<LocalMode
 export const warmupLocalSpeechModel = async (model: string, device?: string): Promise<LocalModelWarmupResponse> => {
     const trimmed = normalizeLocalSpeechModelName(model);
     if (!trimmed) {
-        throw new Error('Модель не указана.');
+        throw new Error('Model name is missing.');
     }
     const payload: Record<string, string> = {model: trimmed};
     if (device) {

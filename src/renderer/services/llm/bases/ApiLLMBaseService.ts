@@ -38,7 +38,7 @@ export abstract class ApiLLMBaseService implements BaseLLMService {
 
     protected extractResult(response: any): string {
         if (!response) {
-            throw new Error('Пустой ответ от LLM.');
+            throw new Error('LLM returned an empty response.');
         }
         if (typeof response === 'string') {
             return response;

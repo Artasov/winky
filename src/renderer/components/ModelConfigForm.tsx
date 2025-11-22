@@ -168,7 +168,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             } catch (error) {
                 console.error('[ModelConfigForm] Failed to warmup model', error);
                 if (!cancelled) {
-                    setLocalModelError('Не удалось прогреть модель. Попробуйте позже.');
+                    setLocalModelError('Failed to warm up the model. Please try again later.');
                 }
                 warmupRequestRef.current = null;
             }
@@ -228,7 +228,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 if (!cancelled) {
                     setLocalModelDownloaded(false);
                     setCheckingLocalModel(false);
-                    setLocalModelError(error?.message || 'Не удалось проверить модель.');
+                    setLocalModelError(error?.message || 'Failed to verify the model.');
                 }
             }
         };
@@ -263,12 +263,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             try {
                 await warmupLocalSpeechModel(values.transcribeModel);
             } catch {
-                setLocalModelError('Модель скачана, но прогреть не удалось. Попробуйте позже.');
+                setLocalModelError('The model was downloaded but warmup failed. Please try again later.');
             }
         } catch (error: any) {
             const detail = error?.response?.data?.detail;
             setLocalModelError(
-                detail || error?.message || 'Не удалось скачать модель. Проверьте локальный сервер.'
+                detail || error?.message || 'Failed to download the model. Please check the local server.'
             );
         } finally {
             setDownloadingLocalModel(false);
@@ -408,21 +408,21 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         values.transcribeMode === SPEECH_MODES.API ||
         values.openaiKey.trim().length > 0;
     const checkingMessage = selectedLocalModelDescription
-        ? `Проверяем наличие модели ${selectedLocalModelDescription}…`
-        : 'Проверяем наличие модели…';
+        ? `Checking if ${selectedLocalModelDescription} is available…`
+        : 'Checking if the model is available…';
     const downloadedMessage = selectedLocalModelDescription
-        ? `Модель ${selectedLocalModelDescription} скачана и готова к использованию.`
-        : 'Модель скачана и готова к использованию.';
+        ? `${selectedLocalModelDescription} is downloaded and ready to use.`
+        : 'The model is downloaded and ready to use.';
     const downloadButtonLabel = selectedLocalModelDescription
         ? downloadingLocalModel
-            ? `Скачиваем модель ${selectedLocalModelDescription}…`
-            : `Скачать модель ${selectedLocalModelDescription}`
+            ? `Downloading ${selectedLocalModelDescription}…`
+            : `Download ${selectedLocalModelDescription}`
         : downloadingLocalModel
-            ? 'Скачиваем…'
-            : 'Скачать модель';
+            ? 'Downloading…'
+            : 'Download model';
     const warmupWarningMessage = selectedLocalModelDescription
-        ? `Происходит прогрев модели ${selectedLocalModelDescription}. Использование микрофона временно недоступно.`
-        : 'Происходит прогрев модели. Использование микрофона временно недоступно.';
+        ? `${selectedLocalModelDescription} is warming up. Using the microphone is temporarily unavailable.`
+        : 'The model is warming up. Using the microphone is temporarily unavailable.';
 
     return (
         <Box

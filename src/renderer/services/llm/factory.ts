@@ -43,7 +43,7 @@ export const createLLMService = (
 ): BaseLLMService => {
     const requireOpenAIKey = () => {
         if (!options.openaiKey) {
-            throw new Error('Требуется OpenAI API Key для использования моделей OpenAI.');
+            throw new Error('An OpenAI API key is required to use OpenAI models.');
         }
         return options.openaiKey;
     };
@@ -84,11 +84,11 @@ export const createLLMService = (
             case 'gemini-1.5-flash':
             case 'gemini-1.0-pro':
                 if (!options.googleKey) {
-                    throw new Error('Требуется Google AI API Key для использования моделей Google Gemini.');
+                    throw new Error('A Google AI API key is required to use Google Gemini models.');
                 }
                 return new GeminiLLMService(model, options.googleKey);
             default:
-                throw new Error(`Неизвестная API LLM модель: ${model}`);
+                throw new Error(`Unknown API LLM model: ${model}`);
         }
     }
 
@@ -116,7 +116,7 @@ export const createLLMService = (
         case 'qwen3:4b':
             return new Qwen34bLLMService();
         default:
-            throw new Error(`Неизвестная локальная LLM модель: ${model}`);
+            throw new Error(`Unknown local LLM model: ${model}`);
     }
 };
 

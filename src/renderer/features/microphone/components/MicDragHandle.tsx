@@ -38,7 +38,7 @@ const MicDragHandleComponent: React.FC<MicDragHandleProps> = ({interactions, isR
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             onPointerDown={handlePointerDown}
-            title="Перетащить микрофон"
+            title="Drag microphone"
             role="presentation"
             aria-hidden="true"
         >

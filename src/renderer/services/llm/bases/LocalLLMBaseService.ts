@@ -24,7 +24,7 @@ export abstract class LocalLLMBaseService implements BaseLLMService {
 
     protected extractResult(response: any): string {
         if (!response) {
-            throw new Error('Пустой ответ от локальной модели.');
+            throw new Error('Empty response from the local model.');
         }
         if (typeof response === 'string') {
             return response;

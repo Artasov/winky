@@ -73,6 +73,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const shouldAutoSave = autoSave && typeof onAutoSave === 'function';
     const disableInputs = saving && !shouldAutoSave;
     const [localModelDownloaded, setLocalModelDownloaded] = useState<boolean | null>(null);
+    const [localModelVerifiedFor, setLocalModelVerifiedFor] = useState<string | null>(null);
     const [checkingLocalModel, setCheckingLocalModel] = useState(false);
     const [downloadingLocalModel, setDownloadingLocalModel] = useState(false);
     const [localModelError, setLocalModelError] = useState<string | null>(null);
@@ -80,9 +81,13 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const [localWarmupInProgress, setLocalWarmupInProgress] = useState(false);
     const checkingRef = useRef<string | null>(null);
     const warmupRequestRef = useRef<string | null>(null);
-    const selectedLocalModelMeta = useMemo(
-        () => getLocalSpeechModelMetadata(values.transcribeModel),
+    const normalizedSelectedModel = useMemo(
+        () => normalizeLocalSpeechModelName(values.transcribeModel),
         [values.transcribeModel]
+    );
+    const selectedLocalModelMeta = useMemo(
+        () => getLocalSpeechModelMetadata(normalizedSelectedModel),
+        [normalizedSelectedModel]
     );
     const selectedLocalModelDescription = selectedLocalModelMeta
         ? `${selectedLocalModelMeta.label} (${selectedLocalModelMeta.size})`
@@ -123,26 +128,90 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             warmupRequestRef.current = null;
             return;
         }
-        const normalized = normalizeLocalSpeechModelName(values.transcribeModel);
+        if (!normalizedSelectedModel) {
+            setLocalWarmupInProgress(false);
+            warmupRequestRef.current = null;
+            return;
+        }
         const unsubscribe = subscribeToLocalModelWarmup((activeModels) => {
-            if (!normalized) {
-                setLocalWarmupInProgress(false);
-                return;
-            }
-            setLocalWarmupInProgress(activeModels.has(normalized));
+            setLocalWarmupInProgress(activeModels.has(normalizedSelectedModel));
         });
         return () => {
             unsubscribe();
         };
-    }, [values.transcribeMode, values.transcribeModel]);
+    }, [values.transcribeMode, normalizedSelectedModel]);
 
     useEffect(() => {
-        if (values.transcribeMode !== SPEECH_MODES.LOCAL) {
-            warmupRequestRef.current = null;
+        const normalized = normalizedSelectedModel;
+
+        if (values.transcribeMode !== SPEECH_MODES.LOCAL || !normalized) {
+            setLocalModelDownloaded(null);
+            setLocalModelVerifiedFor(null);
+            setCheckingLocalModel(false);
+            setLocalModelError(null);
+            checkingRef.current = null;
             return;
         }
-        const normalized = normalizeLocalSpeechModelName(values.transcribeModel);
-        if (!normalized) {
+
+        if (!localServerStatus?.installed || !localServerStatus?.running) {
+            setLocalModelDownloaded(null);
+            setLocalModelVerifiedFor(null);
+            setCheckingLocalModel(false);
+            setLocalModelError(null);
+            checkingRef.current = null;
+            return;
+        }
+
+        const modelKey = `${values.transcribeMode}:${normalized}`;
+        if (checkingRef.current === modelKey) {
+            return;
+        }
+
+        checkingRef.current = modelKey;
+        let cancelled = false;
+        setLocalModelDownloaded(null);
+        setLocalModelVerifiedFor(null);
+        setLocalModelError(null);
+
+        const checkModel = async () => {
+            console.log(`[ModelConfigForm] Запуск проверки модели: ${normalized}`);
+            setCheckingLocalModel(true);
+            setLocalModelError(null);
+            try {
+                const downloaded = await checkLocalModelDownloaded(normalized, {force: true});
+                if (!cancelled) {
+                    setLocalModelDownloaded(downloaded);
+                    setLocalModelVerifiedFor(downloaded ? normalized : null);
+                    setCheckingLocalModel(false);
+                }
+            } catch (error: any) {
+                if (!cancelled) {
+                    setLocalModelDownloaded(false);
+                    setLocalModelVerifiedFor(null);
+                    setCheckingLocalModel(false);
+                    setLocalModelError(error?.message || 'Failed to verify the model.');
+                }
+            }
+        };
+
+        void checkModel();
+
+        return () => {
+            cancelled = true;
+            if (checkingRef.current === modelKey) {
+                checkingRef.current = null;
+            }
+        };
+    }, [
+        values.transcribeMode,
+        normalizedSelectedModel,
+        localServerStatus?.installed,
+        localServerStatus?.running
+    ]);
+
+    useEffect(() => {
+        const normalized = normalizedSelectedModel;
+        if (values.transcribeMode !== SPEECH_MODES.LOCAL || !normalized) {
             warmupRequestRef.current = null;
             return;
         }
@@ -151,6 +220,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             return;
         }
         if (checkingLocalModel || downloadingLocalModel || !localModelDownloaded) {
+            return;
+        }
+        if (localModelVerifiedFor !== normalized) {
             return;
         }
         if (localWarmupInProgress) {
@@ -180,68 +252,15 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         };
     }, [
         values.transcribeMode,
-        values.transcribeModel,
+        normalizedSelectedModel,
         localServerStatus?.installed,
         localServerStatus?.running,
         localModelDownloaded,
+        localModelVerifiedFor,
         checkingLocalModel,
         downloadingLocalModel,
         localWarmupInProgress
     ]);
-
-    useEffect(() => {
-        if (values.transcribeMode !== SPEECH_MODES.LOCAL || !values.transcribeModel) {
-            setLocalModelDownloaded(null);
-            setCheckingLocalModel(false);
-            setLocalModelError(null);
-            checkingRef.current = null;
-            return;
-        }
-
-        if (!localServerStatus?.installed || !localServerStatus?.running) {
-            setLocalModelDownloaded(null);
-            setCheckingLocalModel(false);
-            setLocalModelError(null);
-            checkingRef.current = null;
-            return;
-        }
-
-        const modelKey = `${values.transcribeMode}:${values.transcribeModel}`;
-        if (checkingRef.current === modelKey) {
-            return;
-        }
-
-        checkingRef.current = modelKey;
-        let cancelled = false;
-
-        const checkModel = async () => {
-            console.log(`[ModelConfigForm] Запуск проверки модели: ${values.transcribeModel}`);
-            setCheckingLocalModel(true);
-            setLocalModelError(null);
-            try {
-                const downloaded = await checkLocalModelDownloaded(values.transcribeModel, {force: true});
-                if (!cancelled) {
-                    setLocalModelDownloaded(downloaded);
-                    setCheckingLocalModel(false);
-                }
-            } catch (error: any) {
-                if (!cancelled) {
-                    setLocalModelDownloaded(false);
-                    setCheckingLocalModel(false);
-                    setLocalModelError(error?.message || 'Failed to verify the model.');
-                }
-            }
-        };
-
-        void checkModel();
-
-        return () => {
-            cancelled = true;
-            if (checkingRef.current === modelKey) {
-                checkingRef.current = null;
-            }
-        };
-    }, [values.transcribeMode, values.transcribeModel, localServerStatus?.installed, localServerStatus?.running]);
 
     const handleDownloadModel = useCallback(async () => {
         if (values.transcribeMode !== SPEECH_MODES.LOCAL || downloadingLocalModel) {

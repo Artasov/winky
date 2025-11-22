@@ -3,6 +3,8 @@ import {cursorPosition, getCurrentWindow, LogicalPosition} from '@tauri-apps/api
 import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
 import {listen, emit, EventCallback, UnlistenFn} from '@tauri-apps/api/event';
 import {writeText as writeClipboardText} from '@tauri-apps/plugin-clipboard-manager';
+import {ResultWindowManager, type ResultPayload} from './services/windows/ResultWindowManager';
+import {AuxWindowController} from './services/windows/AuxWindowController';
 import type {
     ActionConfig,
     ActionIcon,
@@ -28,11 +30,7 @@ import {
     SpeechTranscribeConfig
 } from './services/winkyApi';
 
-type ResultPayload = {
-    transcription?: string;
-    llmResponse?: string;
-    isStreaming?: boolean;
-};
+// ResultPayload экспортируется из ResultWindowManager
 
 const resolveWindowKind = (): 'main' | 'mic' | 'result' | 'error' => {
     if (typeof window === 'undefined') {
@@ -82,41 +80,9 @@ if (typeof window !== 'undefined') {
 
 const configSubscribers = new Set<(config: AppConfig) => void>();
 let configUnlisten: UnlistenFn | null = null;
-let lastResultPayload: ResultPayload | null = null;
-let resultEventHistory: ResultPayload[] = [];
-const resultReadyWaiters = new Set<() => void>();
-let resultWindowReady = false;
-let pendingResultPayload: ResultPayload | null = null;
 
-const waitForResultWindowReady = (timeout: number = 5000): Promise<void> => {
-    if (resultWindowReady) {
-        return Promise.resolve();
-    }
-    return new Promise<void>((resolve, reject) => {
-        let timer: ReturnType<typeof setTimeout> | null = null;
-        const waiter = () => {
-            if (timer) {
-                clearTimeout(timer);
-                timer = null;
-            }
-            resultReadyWaiters.delete(waiter);
-            resolve();
-        };
-        timer = setTimeout(() => {
-            resultReadyWaiters.delete(waiter);
-            console.warn('[resultApi] Timeout waiting for result window ready');
-            reject(new Error('Result window ready timeout'));
-        }, timeout);
-        resultReadyWaiters.add(waiter);
-    });
-};
-
-void listen('result:ready', () => {
-    console.log('[resultApi] Result window is ready');
-    resultWindowReady = true;
-    resultReadyWaiters.forEach((waiter) => waiter());
-    resultReadyWaiters.clear();
-});
+// Инициализируем менеджер окна результатов
+const resultWindowManager = new ResultWindowManager();
 
 const ensureConfigSubscription = async () => {
     if (configUnlisten) {
@@ -246,244 +212,19 @@ const llmApi = {
         processLLMStream(text, prompt, config)
 };
 
-class AuxWindowController {
-    private window: WebviewWindow | null = null;
-
-    constructor(
-        private readonly label: string,
-        private readonly route: string,
-        private readonly options?: Record<string, unknown>
-    ) {}
-
-    private buildUrl(): string {
-        const base = window.location.href.split('#')[0].split('?')[0];
-        const searchParams = new URLSearchParams({window: this.label});
-        return `${base}?${searchParams.toString()}#${this.route}`;
-    }
-
-    async ensure(): Promise<WebviewWindow> {
-        if (this.window) {
-            return this.window;
-        }
-        const existing = await WebviewWindow.getByLabel(this.label).catch(() => null);
-        if (existing) {
-            this.window = existing;
-            return existing;
-        }
-        const win = new WebviewWindow(this.label, {
-            url: this.buildUrl(),
-            title: 'Winky',
-            focus: false,
-            ...(this.options ?? {})
-        } as any);
-        await new Promise<void>((resolve, reject) => {
-            win.once('tauri://created', () => resolve());
-            win.once('tauri://error', ({payload}) => reject(payload));
-        });
-        void win.once('tauri://destroyed', () => {
-            this.window = null;
-        });
-        this.window = win;
-        return win;
-    }
-
-    async show() {
-        const win = await this.ensure();
-        await win.show();
-        await win.setFocus();
-    }
-
-    async hide() {
-        if (!this.window) {
-            return;
-        }
-        try {
-            await this.window.hide();
-        } catch {
-            this.window = null;
-        }
-    }
-
-    async close() {
-        if (!this.window) {
-            return;
-        }
-        try {
-            await this.window.close();
-        } catch {
-            /* ignore */
-        } finally {
-            this.window = null;
-        }
-    }
-
-    async emit<T>(event: string, payload: T) {
-        await emit(event, payload);
-    }
-}
-
-const resultWindow = new AuxWindowController('result', 'result', {
-    width: 700,
-    height: 600,
-    resizable: true,
-    decorations: false
-});
-
 const errorWindow = new AuxWindowController('error', 'error', {
     width: 520,
     height: 360,
     decorations: false
 });
 
+// Используем новый менеджер для окна результатов
 const resultApi = {
-    open: async () => {
-        console.log('[resultApi] Opening result window...');
-        
-        // Проверяем, существует ли окно уже
-        const existingWindow = await WebviewWindow.getByLabel('result').catch(() => null);
-        const isAlreadyOpen = existingWindow !== null;
-        
-        // НЕ очищаем состояние сразу - это будет сделано после того, как окно подпишется
-        // Сбрасываем флаг готовности
-        resultWindowReady = false;
-        pendingResultPayload = null;
-        
-        // Открываем окно
-        await resultWindow.show();
-        
-        // Если окно уже было открыто, даем ему время на переинициализацию и отправку события ready
-        if (isAlreadyOpen) {
-            // Отправляем событие, чтобы окно знало, что нужно отправить result:ready
-            await emit('result:request-ready', {});
-            // Даем небольшое время на обработку
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        
-        // Ждем подтверждения готовности окна (это означает, что окно подписано)
-        try {
-            await waitForResultWindowReady();
-            console.log('[resultApi] Result window is ready and subscribed');
-            
-            // ТЕПЕРЬ очищаем состояние для нового сеанса (после того, как окно подписано)
-            lastResultPayload = null;
-            resultEventHistory = [];
-            
-            // Если есть данные, которые были отправлены до готовности окна, отправляем их
-            if (pendingResultPayload) {
-                const payload: ResultPayload = pendingResultPayload;
-                pendingResultPayload = null;
-                const currentPayload = lastResultPayload || {};
-                lastResultPayload = {...currentPayload, ...payload};
-                resultEventHistory.push(payload);
-                console.log('[resultApi] Sending pending payload after window ready:', payload);
-                await emit('result:data', payload);
-            }
-        } catch (error) {
-            console.error('[resultApi] Failed to wait for result window ready:', error);
-            // Если окно уже было открыто, считаем его готовым и продолжаем
-            if (isAlreadyOpen) {
-                console.log('[resultApi] Window was already open, considering it ready');
-                resultWindowReady = true;
-                // Очищаем состояние
-                lastResultPayload = null;
-                resultEventHistory = [];
-                if (pendingResultPayload) {
-                    const payload: ResultPayload = pendingResultPayload;
-                    pendingResultPayload = null;
-                    const currentPayload = lastResultPayload || {};
-                    lastResultPayload = {...currentPayload, ...payload};
-                    resultEventHistory.push(payload);
-                    console.log('[resultApi] Sending pending payload (window already open):', payload);
-                    await emit('result:data', payload);
-                }
-            } else {
-                // Если окно не открылось, все равно очищаем состояние
-                lastResultPayload = null;
-                resultEventHistory = [];
-            }
-        }
-    },
-    close: () => {
-        console.log('[resultApi] Closing result window...');
-        lastResultPayload = null;
-        resultEventHistory = [];
-        pendingResultPayload = null;
-        resultWindowReady = false;
-        resultReadyWaiters.forEach((waiter) => waiter());
-        resultReadyWaiters.clear();
-        return resultWindow.close();
-    },
-    update: async (payload: ResultPayload) => {
-        console.log('[resultApi] update() called with payload:', payload, 'windowReady:', resultWindowReady);
-        
-        // Обновляем состояние
-        if (lastResultPayload) {
-            lastResultPayload = {...lastResultPayload, ...payload};
-        } else {
-            lastResultPayload = payload;
-        }
-        resultEventHistory.push(payload);
-        
-        // Если окно еще не готово, сохраняем данные для отправки после готовности
-        if (!resultWindowReady) {
-            console.log('[resultApi] Window not ready yet, storing payload for later:', payload);
-            pendingResultPayload = {...(pendingResultPayload ?? {}), ...payload};
-            // Не возвращаемся сразу - попробуем подождать немного и проверить снова
-            // Это нужно для случая, когда окно готово, но флаг еще не обновлен
-            await new Promise(resolve => setTimeout(resolve, 50));
-            if (resultWindowReady) {
-                console.log('[resultApi] Window became ready, sending stored payload:', pendingResultPayload);
-                const finalPayload = pendingResultPayload || payload;
-                pendingResultPayload = null;
-                await emit('result:data', finalPayload);
-                return;
-            }
-            return;
-        }
-        
-        // Отправляем данные если окно готово
-        console.log('[resultApi] Sending result data (window ready):', payload);
-        await emit('result:data', payload);
-    },
-    getState: (): ResultPayload | null => lastResultPayload,
-    onData: (callback: (payload: ResultPayload) => void) => {
-        console.log('[resultApi] onData() called, setting up listener');
-        const unlistenPromise = listen<ResultPayload>('result:data', (event) => {
-            console.log('[resultApi] Received result:data event:', event.payload);
-            callback(event.payload);
-        });
-        
-        // Отправляем текущее состояние новому подписчику сразу
-        if (lastResultPayload) {
-            console.log('[resultApi] Sending current state to new subscriber:', lastResultPayload);
-            try {
-                // Используем setTimeout чтобы убедиться, что подписка установлена
-                setTimeout(() => {
-                    callback(lastResultPayload!);
-                }, 0);
-            } catch (error) {
-                console.warn('[resultBridge] Failed to send current state to subscriber', error);
-            }
-        }
-        
-        // Также отправляем историю событий, если она есть
-        if (resultEventHistory.length > 0) {
-            console.log('[resultApi] Sending event history to new subscriber:', resultEventHistory);
-            try {
-                // Объединяем все события в истории в один payload
-                const mergedPayload = resultEventHistory.reduce((acc, entry) => ({...acc, ...entry}), {} as ResultPayload);
-                setTimeout(() => {
-                    callback(mergedPayload);
-                }, 0);
-            } catch (error) {
-                console.warn('[resultBridge] Failed to send event history to subscriber', error);
-            }
-        }
-        
-        return () => {
-            unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
-        };
-    }
+    open: () => resultWindowManager.open(),
+    close: () => resultWindowManager.close(),
+    update: (payload: ResultPayload) => resultWindowManager.update(payload),
+    getState: () => resultWindowManager.getState(),
+    onData: (callback: (payload: ResultPayload) => void) => resultWindowManager.onData(callback)
 };
 
 const windowsApi = {

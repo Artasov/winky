@@ -1,8 +1,5 @@
-export type ResultPayload = {
-    transcription?: string;
-    llmResponse?: string;
-    isStreaming?: boolean;
-};
+// Экспортируем тип из менеджера окон
+export type {ResultPayload} from './windows/ResultWindowManager';
 
 export type ResultUnsubscribe = () => void;
 

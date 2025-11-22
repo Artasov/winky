@@ -300,6 +300,13 @@ class MicWindowController {
         const existing = await WebviewWindow.getByLabel('mic').catch(() => null);
         if (existing) {
             this.window = existing;
+            // Синхронизируем состояние видимости
+            try {
+                const isVisible = await existing.isVisible().catch(() => false);
+                this.visible = isVisible;
+            } catch {
+                // Игнорируем ошибки
+            }
             // Параллельно выполняем операции
             await Promise.all([
                 positionPromise,
@@ -422,14 +429,22 @@ class MicWindowController {
         
         const win = await this.ensure();
         
-        // Быстрая проверка - если окно уже видимо, просто фокусируем
-        if (this.visible) {
+        // Проверяем реальное состояние окна перед показом
+        const isCurrentlyVisible = await win.isVisible().catch(() => false);
+        if (isCurrentlyVisible) {
+            // Окно уже видимо, просто фокусируем и обновляем состояние
+            this.visible = true;
             try {
                 await win.setFocus();
                 return;
             } catch {
                 // Игнорируем ошибки фокуса
             }
+        }
+        
+        // Если окно скрыто, но this.visible еще true, сбрасываем состояние
+        if (!isCurrentlyVisible && this.visible) {
+            this.visible = false;
         }
         
         // Получаем реальную позицию окна перед установкой (если окно уже существует)
@@ -485,7 +500,9 @@ class MicWindowController {
             return;
         }
         
-        if (!this.visible) {
+        // Проверяем реальное состояние окна
+        const isCurrentlyVisible = await win.isVisible().catch(() => false);
+        if (!isCurrentlyVisible && !this.visible) {
             return;
         }
         
@@ -501,6 +518,7 @@ class MicWindowController {
             // Игнорируем ошибки получения позиции
         }
         
+        // Устанавливаем состояние ДО скрытия, чтобы предотвратить повторные вызовы
         this.visible = false;
         
         // Параллельно скрываем окно и отправляем события
@@ -526,8 +544,10 @@ class MicWindowController {
                 return;
             }
             
-            // Используем кэшированное состояние вместо проверки isVisible
-            if (this.visible) {
+            // Проверяем реальное состояние окна для точности
+            const isVisible = await win.isVisible().catch(() => false);
+            
+            if (isVisible) {
                 await this.hide(reason);
             } else {
                 await this.show(reason);
@@ -616,9 +636,23 @@ class MicWindowController {
             return;
         }
         
+        // Проверяем, что окно все еще видимо перед автозапуском
+        const checkBeforeStart = async () => {
+            const win = this.window ?? (await WebviewWindow.getByLabel('mic').catch(() => null));
+            if (!win) {
+                return false;
+            }
+            const isVisible = await win.isVisible().catch(() => false);
+            return isVisible && this.visible;
+        };
+        
         // Уменьшенная задержка для более быстрого старта
-        setTimeout(() => {
-            void emit('mic:start-recording', {reason});
+        setTimeout(async () => {
+            // Проверяем, что окно все еще видимо перед отправкой события
+            const shouldStart = await checkBeforeStart();
+            if (shouldStart) {
+                void emit('mic:start-recording', {reason});
+            }
         }, 80);
     }
 }

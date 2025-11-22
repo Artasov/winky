@@ -1,6 +1,8 @@
 import React, {useEffect, useRef, useState} from 'react';
 import TitleBar from '../components/TitleBar';
 import {clipboardBridge, resultBridge} from '../services/winkyBridge';
+import {emit, listen} from '@tauri-apps/api/event';
+import {getCurrentWindow} from '@tauri-apps/api/window';
 
 const ResultWindowPage: React.FC = () => {
     const [transcription, setTranscription] = useState('');
@@ -16,7 +18,9 @@ const ResultWindowPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        console.log('[ResultWindowPage] Subscribing to result data');
+        console.log('[ResultWindowPage] Initializing result window...');
+        
+        // Устанавливаем подписку на данные
         const unsubscribe = resultBridge.subscribe((data) => {
             console.log('[ResultWindowPage] Received data:', data);
             if (data.transcription !== undefined) {
@@ -31,8 +35,31 @@ const ResultWindowPage: React.FC = () => {
                 setIsStreaming(data.isStreaming);
             }
         });
+        
+        // Функция для отправки события готовности
+        const sendReady = () => {
+            console.log('[ResultWindowPage] Emitting result:ready event');
+            void emit('result:ready');
+        };
+        
+        // Отправляем событие готовности после установки подписки
+        // Используем небольшую задержку, чтобы убедиться, что подписка полностью установлена
+        const readyTimeout = setTimeout(sendReady, 50);
+        
+        // Также слушаем запрос на отправку ready (для случая, когда окно уже открыто)
+        let requestReadyUnlisten: (() => void) | null = null;
+        void listen('result:request-ready', () => {
+            console.log('[ResultWindowPage] Received result:request-ready, sending result:ready');
+            sendReady();
+        }).then((unlisten) => {
+            requestReadyUnlisten = unlisten;
+        });
 
         return () => {
+            clearTimeout(readyTimeout);
+            if (requestReadyUnlisten) {
+                requestReadyUnlisten();
+            }
             unsubscribe();
         };
     }, []);
@@ -56,6 +83,12 @@ const ResultWindowPage: React.FC = () => {
             console.log('[ResultWindowPage] Close request sent');
         } catch (error) {
             console.error('[ResultWindowPage] Error closing window:', error);
+        } finally {
+            try {
+                await getCurrentWindow().close();
+            } catch (error) {
+                console.error('[ResultWindowPage] Failed to close result window', error);
+            }
         }
     };
 

@@ -10,7 +10,12 @@ const noop: ResultUnsubscribe = () => undefined;
 
 export const resultBridge = {
     subscribe(listener: (payload: ResultPayload) => void): ResultUnsubscribe {
-        return window.winky?.result?.onData?.(listener) ?? noop;
+        const unsubscribe = window.winky?.result?.onData?.(listener) ?? noop;
+        const snapshot = window.winky?.result?.getState?.();
+        if (snapshot) {
+            Promise.resolve().then(() => listener(snapshot));
+        }
+        return unsubscribe;
     },
     open(): Promise<void> {
         return window.winky?.result?.open?.() ?? Promise.resolve();

@@ -497,13 +497,25 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 return;
             }
 
+            // Определяем, нужна ли обработка LLM
+            const needsLLM = Boolean(action.prompt && action.prompt.trim());
+            
+            // Если нужно показать результаты, открываем окно и отправляем транскрипцию
             if (action.show_results) {
+                console.log('[useSpeechRecording] Opening result window and sending transcription...');
                 await resultBridge.open();
-                await new Promise((resolve) => setTimeout(resolve, 200));
-                await resultBridge.update({transcription, llmResponse: '', isStreaming: false});
+                
+                // Отправляем транскрипцию сразу после открытия окна (окно уже готово благодаря resultBridge.open())
+                await resultBridge.update({
+                    transcription,
+                    llmResponse: needsLLM ? '' : transcription,
+                    isStreaming: needsLLM
+                });
+                console.log('[useSpeechRecording] Transcription sent to result window');
             }
 
-            if (!action.prompt || action.prompt.trim() === '') {
+            // Если не нужна обработка LLM, завершаем обработку
+            if (!needsLLM) {
                 if (action.auto_copy_result) {
                     const textToCopy = transcription?.trim() || '';
                     if (textToCopy) {
@@ -531,9 +543,6 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                     } else {
                         console.warn('[useSpeechRecording] Transcription is empty, skipping clipboard copy');
                     }
-                }
-                if (action.show_results) {
-                    await resultBridge.update({llmResponse: transcription, isStreaming: false});
                 }
                 if (
                     action.sound_on_complete &&
@@ -566,6 +575,8 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 return;
             }
 
+            // Обрабатываем через LLM
+            console.log('[useSpeechRecording] Processing transcription with LLM...');
             const llmConfig = {
                 mode: config.llm.mode,
                 model: config.llm.model,
@@ -575,9 +586,12 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             };
 
             const response = await llmBridge.process(transcription, action.prompt, llmConfig);
+            console.log('[useSpeechRecording] LLM response received, sending to result window...');
 
+            // Отправляем ответ LLM в окно результатов
             if (action.show_results) {
                 await resultBridge.update({llmResponse: response, isStreaming: false});
+                console.log('[useSpeechRecording] LLM response sent to result window');
             }
 
             if (action.auto_copy_result) {

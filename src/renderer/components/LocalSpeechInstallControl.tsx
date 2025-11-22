@@ -19,6 +19,7 @@ const actionLabels: Record<ActionKind, string> = {
     restart: 'Restart',
     reinstall: 'Reinstall'
 };
+const FAST_WHISPER_INSTALL_SIZE_HINT = '≈4.3 GB';
 
 const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({disabled = false}) => {
     const [status, setStatus] = useState<FastWhisperStatus | null>(null);
@@ -131,6 +132,10 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
     }, [safeStatus.installed, safeStatus.running]);
 
     const primaryLabel = actionLabels[primaryAction];
+    const primaryLabelWithSize =
+        primaryAction === 'install'
+            ? `${primaryLabel} (${FAST_WHISPER_INSTALL_SIZE_HINT})`
+            : primaryLabel;
     const successLabel = safeStatus.lastAction
         ? actionLabels[safeStatus.lastAction as ActionKind] ?? primaryLabel
         : primaryLabel;
@@ -314,7 +319,7 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
                 ) : showPrimarySpinner ? (
                     <CircularProgress size={18} sx={{color: 'inherit'}}/>
                 ) : (
-                    primaryLabel
+                    primaryLabelWithSize
                 )}
             </Button>
         );

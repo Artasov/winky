@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {emit} from '@tauri-apps/api/event';
 import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
-import {FAST_WHISPER_PORT, SPEECH_MODES} from '@shared/constants';
+import {FAST_WHISPER_PORT, SPEECH_MODES, LLM_MODES} from '@shared/constants';
 import type {ActionConfig, AppConfig} from '@shared/types';
 import {resetInteractive, setRecordingInteractive} from '../../../utils/interactive';
 import {createSpeechRecorder, type SpeechRecorder} from '../services/SpeechRecorder';
@@ -12,6 +12,14 @@ import {
     normalizeLocalSpeechModelName,
     subscribeToLocalModelWarmup
 } from '../../../services/localSpeechModels';
+import {
+    checkOllamaModelDownloaded,
+    isOllamaModelDownloading,
+    isOllamaModelWarming,
+    normalizeOllamaModelName,
+    subscribeToOllamaDownloads,
+    subscribeToOllamaWarmup
+} from '../../../services/ollama';
 import {
     actionHotkeysBridge,
     clipboardBridge,
@@ -68,6 +76,8 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     const [processing, setProcessing] = useState(false);
     const [volume, setVolume] = useState(0);
     const [localModelWarmingUp, setLocalModelWarmingUp] = useState(false);
+    const [localLlmWarmingUp, setLocalLlmWarmingUp] = useState(false);
+    const [localLlmDownloading, setLocalLlmDownloading] = useState(false);
 
     const commitVolumeSample = useCallback((nextValue: number) => {
         const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -296,6 +306,42 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         };
     }, [speechMode, speechModel]);
 
+    useEffect(() => {
+        if (config?.llm.mode !== LLM_MODES.LOCAL) {
+            setLocalLlmWarmingUp(false);
+            return;
+        }
+        const normalized = normalizeOllamaModelName(config?.llm.model ?? '');
+        if (!normalized) {
+            setLocalLlmWarmingUp(false);
+            return;
+        }
+        const unsubscribe = subscribeToOllamaWarmup((models) => {
+            setLocalLlmWarmingUp(models.has(normalized));
+        });
+        return () => {
+            unsubscribe();
+        };
+    }, [config?.llm.mode, config?.llm.model]);
+
+    useEffect(() => {
+        if (config?.llm.mode !== LLM_MODES.LOCAL) {
+            setLocalLlmDownloading(false);
+            return;
+        }
+        const normalized = normalizeOllamaModelName(config?.llm.model ?? '');
+        if (!normalized) {
+            setLocalLlmDownloading(false);
+            return;
+        }
+        const unsubscribe = subscribeToOllamaDownloads((models) => {
+            setLocalLlmDownloading(models.has(normalized));
+        });
+        return () => {
+            unsubscribe();
+        };
+    }, [config?.llm.mode, config?.llm.model]);
+
     const handleLocalSpeechServerFailure = useCallback((message?: string): boolean => {
         if (config?.speech.mode !== SPEECH_MODES.LOCAL) {
             return false;
@@ -371,8 +417,38 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             }
         }
 
+        if (config?.llm.mode === LLM_MODES.LOCAL) {
+            const model = config.llm.model;
+            const isDownloaded = await checkOllamaModelDownloaded(model, {force: true});
+            if (!isDownloaded) {
+                const message = `Download the ${model} LLM model before using the microphone.`;
+                await openMainWindowWithToast(message);
+                return false;
+            }
+            if (localLlmDownloading || isOllamaModelDownloading(model)) {
+                const message = `The ${model} LLM model is downloading via Ollama. Please wait until it completes.`;
+                await openMainWindowWithToast(message);
+                return false;
+            }
+            if (localLlmWarmingUp || isOllamaModelWarming(model)) {
+                const message = `The ${model} LLM model is warming up. Please wait before using the microphone.`;
+                await openMainWindowWithToast(message);
+                return false;
+            }
+        }
+
         return true;
-    }, [config?.speech.mode, config?.speech.model, localModelWarmingUp, openMainWindowWithToast, showToast]);
+    }, [
+        config?.speech.mode,
+        config?.speech.model,
+        config?.llm.mode,
+        config?.llm.model,
+        localModelWarmingUp,
+        localLlmDownloading,
+        localLlmWarmingUp,
+        openMainWindowWithToast,
+        showToast
+    ]);
 
     const finishRecording = useCallback(async (resetUI: boolean = true): Promise<Blob | null> => {
         if (!recorderRef.current) {

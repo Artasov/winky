@@ -164,6 +164,13 @@ declare global {
         }): Promise<string>;
     }
 
+    interface WinkyOllamaAPI {
+        checkInstalled(): Promise<boolean>;
+        listModels(): Promise<string[]>;
+        pullModel(model: string): Promise<void>;
+        warmupModel(model: string): Promise<void>;
+    }
+
     interface WinkyResultAPI {
         open(): Promise<void>;
 
@@ -194,6 +201,7 @@ declare global {
         speech: WinkySpeechAPI;
         localSpeech: WinkyLocalSpeechAPI;
         llm: WinkyLLMAPI;
+        ollama: WinkyOllamaAPI;
         result: WinkyResultAPI;
         windows: WinkyWindowsAPI;
         notifications: WinkyNotificationsAPI;

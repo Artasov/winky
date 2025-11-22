@@ -22,6 +22,15 @@ import {
     subscribeToLocalModelWarmup,
     warmupLocalSpeechModel
 } from '../services/localSpeechModels';
+import {
+    checkOllamaInstalled,
+    listInstalledOllamaModels,
+    downloadOllamaModel,
+    warmupOllamaModel as warmupOllamaModelService,
+    subscribeToOllamaDownloads,
+    subscribeToOllamaWarmup,
+    normalizeOllamaModelName
+} from '../services/ollama';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 export interface ModelConfigFormData {
@@ -48,6 +57,21 @@ const isGeminiApiModel = (model: LLMModel): boolean => GEMINI_API_MODEL_SET.has(
 const isOpenAiApiModel = (model: LLMModel): boolean => OPENAI_API_MODEL_SET.has(model as string);
 const isOpenAiTranscribeModel = (model: TranscribeModel): boolean => OPENAI_TRANSCRIBE_MODEL_SET.has(model as string);
 const isGoogleTranscribeModel = (model: TranscribeModel): boolean => GOOGLE_TRANSCRIBE_MODEL_SET.has(model as string);
+const LOCAL_LLM_MODEL_SET = new Set<string>([...LLM_LOCAL_MODELS].map((model) => model as string));
+const LOCAL_LLM_SIZE_HINTS: Record<string, string> = {
+    'gpt-oss:120b': '≈90 GB',
+    'gpt-oss:20b': '≈13 GB',
+    'gemma3:27b': '≈21 GB',
+    'gemma3:12b': '≈9.5 GB',
+    'gemma3:4b': '≈2.2 GB',
+    'gemma3:1b': '≈815 MB',
+    'deepseek-r1:8b': '≈5.5 GB',
+    'qwen3-coder:30b': '≈23 GB',
+    'qwen3:30b': '≈23 GB',
+    'qwen3:8b': '≈5.2 GB',
+    'qwen3:4b': '≈2.5 GB'
+};
+const FAST_WHISPER_INSTALL_SIZE_HINT = '≈4.3 GB';
 
 interface ModelConfigFormProps {
     values: ModelConfigFormData;
@@ -79,15 +103,28 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const [localModelError, setLocalModelError] = useState<string | null>(null);
     const [localServerStatus, setLocalServerStatus] = useState<FastWhisperStatus | null>(null);
     const [localWarmupInProgress, setLocalWarmupInProgress] = useState(false);
+    const [ollamaInstalled, setOllamaInstalled] = useState<boolean | null>(null);
+    const [ollamaChecking, setOllamaChecking] = useState(false);
+    const [ollamaError, setOllamaError] = useState<string | null>(null);
+    const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+    const [ollamaModelChecking, setOllamaModelChecking] = useState(false);
+    const [ollamaModelDownloaded, setOllamaModelDownloaded] = useState<boolean | null>(null);
+    const [ollamaDownloadingModel, setOllamaDownloadingModel] = useState(false);
+    const [ollamaModelError, setOllamaModelError] = useState<string | null>(null);
+    const [ollamaModelWarming, setOllamaModelWarming] = useState(false);
     const checkingRef = useRef<string | null>(null);
     const warmupRequestRef = useRef<string | null>(null);
-    const normalizedSelectedModel = useMemo(
+    const normalizedSpeechModel = useMemo(
         () => normalizeLocalSpeechModelName(values.transcribeModel),
         [values.transcribeModel]
     );
+    const normalizedLlmModel = useMemo(
+        () => normalizeOllamaModelName(values.llmModel),
+        [values.llmModel]
+    );
     const selectedLocalModelMeta = useMemo(
-        () => getLocalSpeechModelMetadata(normalizedSelectedModel),
-        [normalizedSelectedModel]
+        () => getLocalSpeechModelMetadata(values.transcribeModel),
+        [values.transcribeModel]
     );
     const selectedLocalModelDescription = selectedLocalModelMeta
         ? `${selectedLocalModelMeta.label} (${selectedLocalModelMeta.size})`
@@ -128,21 +165,21 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             warmupRequestRef.current = null;
             return;
         }
-        if (!normalizedSelectedModel) {
+        if (!normalizedSpeechModel) {
             setLocalWarmupInProgress(false);
             warmupRequestRef.current = null;
             return;
         }
         const unsubscribe = subscribeToLocalModelWarmup((activeModels) => {
-            setLocalWarmupInProgress(activeModels.has(normalizedSelectedModel));
+            setLocalWarmupInProgress(activeModels.has(normalizedSpeechModel));
         });
         return () => {
             unsubscribe();
         };
-    }, [values.transcribeMode, normalizedSelectedModel]);
+    }, [values.transcribeMode, normalizedSpeechModel]);
 
     useEffect(() => {
-        const normalized = normalizedSelectedModel;
+        const normalized = normalizedSpeechModel;
 
         if (values.transcribeMode !== SPEECH_MODES.LOCAL || !normalized) {
             setLocalModelDownloaded(null);
@@ -204,13 +241,13 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         };
     }, [
         values.transcribeMode,
-        normalizedSelectedModel,
+        normalizedSpeechModel,
         localServerStatus?.installed,
         localServerStatus?.running
     ]);
 
     useEffect(() => {
-        const normalized = normalizedSelectedModel;
+        const normalized = normalizedSpeechModel;
         if (values.transcribeMode !== SPEECH_MODES.LOCAL || !normalized) {
             warmupRequestRef.current = null;
             return;
@@ -252,7 +289,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         };
     }, [
         values.transcribeMode,
-        normalizedSelectedModel,
+        normalizedSpeechModel,
         localServerStatus?.installed,
         localServerStatus?.running,
         localModelDownloaded,
@@ -261,6 +298,105 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         downloadingLocalModel,
         localWarmupInProgress
     ]);
+
+    const refreshOllamaModels = useCallback(
+        async (force: boolean = false) => {
+            if (!ollamaInstalled) {
+                setOllamaModels([]);
+                return [];
+            }
+            setOllamaModelChecking(true);
+            try {
+                const models = await listInstalledOllamaModels({force});
+                setOllamaModels(models);
+                return models;
+            } catch (error: any) {
+                console.error('[ModelConfigForm] Failed to list Ollama models', error);
+                setOllamaError(error?.message || 'Failed to list Ollama models.');
+                return [];
+            } finally {
+                setOllamaModelChecking(false);
+            }
+        },
+        [ollamaInstalled]
+    );
+
+    useEffect(() => {
+        if (values.llmMode !== LLM_MODES.LOCAL) {
+            setOllamaInstalled(null);
+            setOllamaModels([]);
+            setOllamaModelDownloaded(null);
+            setOllamaError(null);
+            return;
+        }
+        let cancelled = false;
+        setOllamaChecking(true);
+        setOllamaError(null);
+        checkOllamaInstalled()
+            .then((installed) => {
+                if (cancelled) {
+                    return;
+                }
+                setOllamaInstalled(installed);
+                if (installed) {
+                    setOllamaError(null);
+                    void refreshOllamaModels(true);
+                } else {
+                    setOllamaModels([]);
+                    setOllamaModelDownloaded(null);
+                }
+            })
+            .catch((error: any) => {
+                if (!cancelled) {
+                    setOllamaInstalled(false);
+                    setOllamaModels([]);
+                    setOllamaModelDownloaded(null);
+                    setOllamaError(error?.message || 'Failed to detect Ollama installation.');
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setOllamaChecking(false);
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [values.llmMode, refreshOllamaModels]);
+
+    useEffect(() => {
+        if (values.llmMode !== LLM_MODES.LOCAL || !ollamaInstalled || !normalizedLlmModel) {
+            setOllamaModelDownloaded(null);
+            return;
+        }
+        setOllamaModelDownloaded(ollamaModels.includes(normalizedLlmModel));
+    }, [values.llmMode, ollamaInstalled, normalizedLlmModel, ollamaModels]);
+
+    useEffect(() => {
+        const unsubscribe = subscribeToOllamaDownloads((models) => {
+            if (values.llmMode !== LLM_MODES.LOCAL || !normalizedLlmModel) {
+                setOllamaDownloadingModel(false);
+                return;
+            }
+            setOllamaDownloadingModel(models.has(normalizedLlmModel));
+        });
+        return () => {
+            unsubscribe();
+        };
+    }, [values.llmMode, normalizedLlmModel]);
+
+    useEffect(() => {
+        const unsubscribe = subscribeToOllamaWarmup((models) => {
+            if (values.llmMode !== LLM_MODES.LOCAL || !normalizedLlmModel) {
+                setOllamaModelWarming(false);
+                return;
+            }
+            setOllamaModelWarming(models.has(normalizedLlmModel));
+        });
+        return () => {
+            unsubscribe();
+        };
+    }, [values.llmMode, normalizedLlmModel]);
 
     const handleDownloadModel = useCallback(async () => {
         if (values.transcribeMode !== SPEECH_MODES.LOCAL || downloadingLocalModel) {
@@ -294,25 +430,60 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         }
     }, [downloadingLocalModel, values.transcribeMode, values.transcribeModel]);
 
-    const formatLabel = (value: string) =>
-        value
-            .replace(/[:]/g, ' ')
-            .replace(/-/g, ' ')
-            .split(' ')
-            .filter(Boolean)
-            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-            .join(' ');
+    const handleDownloadLlmModel = useCallback(async () => {
+        if (values.llmMode !== LLM_MODES.LOCAL || ollamaDownloadingModel) {
+            return;
+        }
+        const model = values.llmModel;
+        if (!model) {
+            return;
+        }
+        setOllamaModelError(null);
+        setOllamaDownloadingModel(true);
+        try {
+            await downloadOllamaModel(model);
+            await refreshOllamaModels(true);
+            setOllamaModelDownloaded(true);
+            try {
+                await warmupOllamaModelService(model);
+            } catch {
+                setOllamaModelError('Model downloaded but warmup failed. Please try again later.');
+            }
+        } catch (error: any) {
+            setOllamaModelError(error?.message || 'Failed to download the model. Check the Ollama CLI.');
+        } finally {
+            setOllamaDownloadingModel(false);
+        }
+    }, [values.llmMode, values.llmModel, ollamaDownloadingModel, refreshOllamaModels]);
 
-    const formatLLMLabel = (value: string) => {
-        const base = formatLabel(value);
-        if (isGeminiApiModel(value as LLMModel)) {
-            return `Google ${base}`;
-        }
-        if (isOpenAiApiModel(value as LLMModel)) {
-            return `OpenAI ${base}`;
-        }
-        return base;
-    };
+const formatLabel = (value: string) =>
+    value
+        .replace(/[:]/g, ' ')
+        .replace(/-/g, ' ')
+        .split(' ')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+
+const formatLLMLabel = (value: string) => {
+    const base = formatLabel(value);
+    if (isGeminiApiModel(value as LLMModel)) {
+        return `Google ${base}`;
+    }
+    if (isOpenAiApiModel(value as LLMModel)) {
+        return `OpenAI ${base}`;
+    }
+    const normalized = normalizeOllamaModelName(value);
+    const size = LOCAL_LLM_SIZE_HINTS[normalized];
+    if (size) {
+        return `${base} · ${size}`;
+    }
+    return base;
+};
+    const selectedLocalLLMDescription = useMemo(
+        () => formatLLMLabel(values.llmModel),
+        [values.llmModel]
+    );
 
     const formatTranscribeLabel = (value: string) => {
         const localMeta = getLocalSpeechModelMetadata(value);
@@ -380,6 +551,10 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         }
     }, [llmModelOptions, values.llmModel, emitChange]);
 
+    useEffect(() => {
+        setOllamaModelError(null);
+    }, [values.llmModel]);
+
     const renderTranscribeModeSelector = (sx?: any) => (
         <TextField
             select
@@ -426,6 +601,8 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         values.llmMode === LLM_MODES.API ||
         values.transcribeMode === SPEECH_MODES.API ||
         values.openaiKey.trim().length > 0;
+    const isLocalLLMMode = values.llmMode === LLM_MODES.LOCAL;
+    const disableLlmModelSelect = disableInputs || (isLocalLLMMode && (ollamaChecking || !ollamaInstalled));
     const checkingMessage = selectedLocalModelDescription
         ? `Checking if ${selectedLocalModelDescription} is available…`
         : 'Checking if the model is available…';
@@ -441,6 +618,22 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             : 'Download model';
     const warmupWarningMessage = selectedLocalModelDescription
         ? `${selectedLocalModelDescription} is warming up. Using the microphone is temporarily unavailable.`
+        : 'The model is warming up. Using the microphone is temporarily unavailable.';
+    const llmCheckingMessage = selectedLocalLLMDescription
+        ? `Checking if ${selectedLocalLLMDescription} is available…`
+        : 'Checking if the model is available…';
+    const llmDownloadedMessage = selectedLocalLLMDescription
+        ? `${selectedLocalLLMDescription} is downloaded and ready to use.`
+        : 'The model is downloaded and ready to use.';
+    const llmDownloadButtonLabel = selectedLocalLLMDescription
+        ? ollamaDownloadingModel
+            ? `Downloading ${selectedLocalLLMDescription}…`
+            : `Download ${selectedLocalLLMDescription}`
+        : ollamaDownloadingModel
+            ? 'Downloading…'
+            : 'Download model';
+    const llmWarmupWarningMessage = selectedLocalLLMDescription
+        ? `${selectedLocalLLMDescription} is warming up. Using the microphone is temporarily unavailable.`
         : 'The model is warming up. Using the microphone is temporarily unavailable.';
 
     return (
@@ -565,19 +758,113 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         <MenuItem value={LLM_MODES.LOCAL}>Local</MenuItem>
                     </TextField>
 
-                    <TextField
-                        select
-                        label="LLM Model"
-                        value={values.llmModel}
-                        onChange={(e) => emitChange({llmModel: e.target.value as LLMModel})}
-                        disabled={disableInputs}
-                    >
-                        {llmModelOptions.map((model) => (
-                            <MenuItem key={model} value={model}>
-                                {formatLLMLabel(model)}
-                            </MenuItem>
-                        ))}
-                    </TextField>
+                    <div className={'fc gap-1'}>
+                        <TextField
+                            select
+                            label="LLM Model"
+                            value={values.llmModel}
+                            onChange={(e) => emitChange({llmModel: e.target.value as LLMModel})}
+                            disabled={disableLlmModelSelect}
+                        >
+                            {llmModelOptions.map((model) => (
+                                <MenuItem key={model} value={model}>
+                                    {formatLLMLabel(model)}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                        {isLocalLLMMode && (
+                            <Box sx={{width: '100%'}}>
+                                {ollamaChecking && (
+                                    <Typography
+                                        variant="body2"
+                                        color="text.secondary"
+                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                    >
+                                        <CircularProgress size={16} thickness={5} color="inherit"/>
+                                        Checking Ollama installation…
+                                    </Typography>
+                                )}
+                                {!ollamaChecking && ollamaInstalled === false && (
+                                    <Typography variant="body2" color="warning.main">
+                                        Install{' '}
+                                        <a
+                                            href="https://ollama.com/download"
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{color: 'inherit', fontWeight: 600}}
+                                        >
+                                            Ollama
+                                        </a>{' '}
+                                        to enable local LLM models.
+                                    </Typography>
+                                )}
+                                {!ollamaChecking && ollamaError && (
+                                    <Typography variant="body2" color="error">
+                                        {ollamaError}
+                                    </Typography>
+                                )}
+                                {ollamaInstalled && (
+                                    <Box>
+                                        {(ollamaModelChecking || ollamaModelDownloaded === null) && (
+                                            <Typography
+                                                variant="body2"
+                                                color="text.secondary"
+                                                sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                            >
+                                                <CircularProgress size={16} thickness={5} color="inherit"/>
+                                                {llmCheckingMessage}
+                                            </Typography>
+                                        )}
+                                        {!ollamaModelChecking && ollamaModelWarming && (
+                                            <Typography
+                                                variant="body2"
+                                                color="warning.main"
+                                                sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                            >
+                                                <CircularProgress
+                                                    size={22}
+                                                    thickness={5}
+                                                    sx={{color: 'warning.main', flexShrink: 0}}
+                                                />
+                                                {llmWarmupWarningMessage}
+                                            </Typography>
+                                        )}
+                                        {!ollamaModelChecking && !ollamaModelWarming && ollamaModelDownloaded === true && (
+                                            <Typography
+                                                variant="body2"
+                                                color="success.main"
+                                                sx={{display: 'flex', gap: 1}}
+                                            >
+                                                <CheckCircleIcon style={{marginTop: 3}} fontSize="small"/>
+                                                {llmDownloadedMessage}
+                                            </Typography>
+                                        )}
+                                        {!ollamaModelChecking && ollamaModelDownloaded === false && (
+                                            <Button
+                                                variant="contained"
+                                                color="primary"
+                                                onClick={handleDownloadLlmModel}
+                                                disabled={disableInputs || ollamaDownloadingModel}
+                                                startIcon={
+                                                    ollamaDownloadingModel ? (
+                                                        <CircularProgress size={18} thickness={5} color="inherit"/>
+                                                    ) : undefined
+                                                }
+                                                sx={{mt: 0.5, minHeight: '51px'}}
+                                            >
+                                                {llmDownloadButtonLabel}
+                                            </Button>
+                                        )}
+                                        {ollamaModelError && (
+                                            <Typography variant="body2" color="error" sx={{mt: 0.5}}>
+                                                {ollamaModelError}
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                )}
+                            </Box>
+                        )}
+                    </div>
                 </Box>
             </Stack>
 

@@ -739,6 +739,13 @@ const localSpeechApi = {
     }
 };
 
+const ollamaApi = {
+    checkInstalled: (): Promise<boolean> => invoke('ollama_check_installed'),
+    listModels: (): Promise<string[]> => invoke('ollama_list_models'),
+    pullModel: (model: string): Promise<void> => invoke('ollama_pull_model', {model}),
+    warmupModel: (model: string): Promise<void> => invoke('ollama_warmup_model', {model})
+};
+
 const eventListeners = new Map<string, UnlistenFn>();
 
 const eventsApi = {
@@ -791,6 +798,7 @@ window.winky = {
     },
     actionHotkeys: actionHotkeysApi,
     localSpeech: localSpeechApi,
+    ollama: ollamaApi,
     on: eventsApi.on,
     removeListener: eventsApi.removeListener
 } as any;

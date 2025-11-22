@@ -6,6 +6,7 @@ mod constants;
 mod hotkeys;
 mod local_speech;
 mod oauth;
+mod ollama;
 mod resources;
 mod tray;
 mod types;
@@ -211,6 +212,34 @@ async fn local_speech_check_model_downloaded(
 }
 
 #[tauri::command]
+async fn ollama_check_installed() -> Result<bool, String> {
+    ollama::check_installed()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn ollama_list_models() -> Result<Vec<String>, String> {
+    ollama::list_models()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn ollama_pull_model(model: String) -> Result<(), String> {
+    ollama::pull_model(&model)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn ollama_warmup_model(model: String) -> Result<(), String> {
+    ollama::warmup_model(&model)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn action_hotkeys_register(
     app: tauri::AppHandle,
     hotkeys_state: State<'_, Arc<HotkeyState>>,
@@ -409,6 +438,10 @@ fn main() {
             local_speech_reinstall,
             local_speech_stop,
             local_speech_check_model_downloaded,
+            ollama_check_installed,
+            ollama_list_models,
+            ollama_pull_model,
+            ollama_warmup_model,
             action_hotkeys_register,
             action_hotkeys_clear,
             window_open_devtools,

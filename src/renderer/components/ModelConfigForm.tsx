@@ -111,6 +111,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const [ollamaModelDownloaded, setOllamaModelDownloaded] = useState<boolean | null>(null);
     const [ollamaDownloadingModel, setOllamaDownloadingModel] = useState(false);
     const [ollamaModelError, setOllamaModelError] = useState<string | null>(null);
+    const [ollamaModelsLoaded, setOllamaModelsLoaded] = useState(false);
     const [ollamaModelWarming, setOllamaModelWarming] = useState(false);
     const checkingRef = useRef<string | null>(null);
     const warmupRequestRef = useRef<string | null>(null);
@@ -303,16 +304,20 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         async (force: boolean = false) => {
             if (!ollamaInstalled) {
                 setOllamaModels([]);
+                setOllamaModelsLoaded(false);
                 return [];
             }
             setOllamaModelChecking(true);
+            setOllamaModelsLoaded(false);
             try {
                 const models = await listInstalledOllamaModels({force});
                 setOllamaModels(models);
+                setOllamaModelsLoaded(true);
                 return models;
             } catch (error: any) {
                 console.error('[ModelConfigForm] Failed to list Ollama models', error);
                 setOllamaError(error?.message || 'Failed to list Ollama models.');
+                setOllamaModelsLoaded(false);
                 return [];
             } finally {
                 setOllamaModelChecking(false);
@@ -327,11 +332,14 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             setOllamaModels([]);
             setOllamaModelDownloaded(null);
             setOllamaError(null);
+            setOllamaModelsLoaded(false);
             return;
         }
         let cancelled = false;
         setOllamaChecking(true);
         setOllamaError(null);
+        setOllamaModelDownloaded(null); // Сбрасываем состояние модели при смене режима
+        setOllamaModelsLoaded(false);
         checkOllamaInstalled()
             .then((installed) => {
                 if (cancelled) {
@@ -344,6 +352,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 } else {
                     setOllamaModels([]);
                     setOllamaModelDownloaded(null);
+                    setOllamaModelsLoaded(false);
                 }
             })
             .catch((error: any) => {
@@ -352,6 +361,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                     setOllamaModels([]);
                     setOllamaModelDownloaded(null);
                     setOllamaError(error?.message || 'Failed to detect Ollama installation.');
+                    setOllamaModelsLoaded(false);
                 }
             })
             .finally(() => {
@@ -369,8 +379,17 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             setOllamaModelDownloaded(null);
             return;
         }
-        setOllamaModelDownloaded(ollamaModels.includes(normalizedLlmModel));
-    }, [values.llmMode, ollamaInstalled, normalizedLlmModel, ollamaModels]);
+        
+        // Не обновляем состояние пока модели не загружены
+        if (!ollamaModelsLoaded) {
+            // Если модели еще не загружены, оставляем null (показываем проверку)
+            return;
+        }
+        
+        // Устанавливаем состояние только один раз после загрузки
+        const isDownloaded = ollamaModels.includes(normalizedLlmModel);
+        setOllamaModelDownloaded(isDownloaded);
+    }, [values.llmMode, ollamaInstalled, normalizedLlmModel, ollamaModels, ollamaModelsLoaded]);
 
     useEffect(() => {
         const unsubscribe = subscribeToOllamaDownloads((models) => {
@@ -805,7 +824,7 @@ const formatLLMLabel = (value: string) => {
                                 )}
                                 {ollamaInstalled && (
                                     <Box>
-                                        {(ollamaModelChecking || ollamaModelDownloaded === null) && (
+                                        {(ollamaModelChecking || (!ollamaModelsLoaded && ollamaModelDownloaded === null)) && (
                                             <Typography
                                                 variant="body2"
                                                 color="text.secondary"
@@ -815,7 +834,7 @@ const formatLLMLabel = (value: string) => {
                                                 {llmCheckingMessage}
                                             </Typography>
                                         )}
-                                        {!ollamaModelChecking && ollamaModelWarming && (
+                                        {ollamaModelsLoaded && !ollamaModelChecking && ollamaModelWarming && (
                                             <Typography
                                                 variant="body2"
                                                 color="warning.main"
@@ -829,7 +848,7 @@ const formatLLMLabel = (value: string) => {
                                                 {llmWarmupWarningMessage}
                                             </Typography>
                                         )}
-                                        {!ollamaModelChecking && !ollamaModelWarming && ollamaModelDownloaded === true && (
+                                        {ollamaModelsLoaded && !ollamaModelChecking && !ollamaModelWarming && ollamaModelDownloaded === true && (
                                             <Typography
                                                 variant="body2"
                                                 color="success.main"
@@ -839,7 +858,7 @@ const formatLLMLabel = (value: string) => {
                                                 {llmDownloadedMessage}
                                             </Typography>
                                         )}
-                                        {!ollamaModelChecking && ollamaModelDownloaded === false && (
+                                        {ollamaModelsLoaded && !ollamaModelChecking && ollamaModelDownloaded === false && (
                                             <Button
                                                 variant="contained"
                                                 color="primary"

@@ -90,6 +90,9 @@ export type LocalModelWarmupResponse = {
 };
 
 const localModelCache = new Map<string, boolean>();
+const warmupModelsInProgress = new Set<string>();
+type WarmupListener = (activeModels: Set<string>) => void;
+const warmupListeners = new Set<WarmupListener>();
 
 const log = (message: string, ...args: any[]) => {
     console.log(`%c[LocalModel] %c${message}`, 'color:#0ea5e9;font-weight:600', 'color:#111827', ...args);
@@ -144,6 +147,54 @@ const describeLocalSpeechModel = (model: string): string => {
     }
     return model;
 };
+
+const notifyWarmupSubscribers = () => {
+    const snapshot = new Set(warmupModelsInProgress);
+    warmupListeners.forEach((listener) => {
+        try {
+            listener(snapshot);
+        } catch (error) {
+            console.error('[LocalModel] Warmup listener error', error);
+        }
+    });
+};
+
+const setWarmupState = (model: string, inProgress: boolean) => {
+    if (!model) {
+        return;
+    }
+    if (inProgress) {
+        if (warmupModelsInProgress.has(model)) {
+            return;
+        }
+        warmupModelsInProgress.add(model);
+        notifyWarmupSubscribers();
+        return;
+    }
+    if (!warmupModelsInProgress.has(model)) {
+        return;
+    }
+    warmupModelsInProgress.delete(model);
+    notifyWarmupSubscribers();
+};
+
+export const subscribeToLocalModelWarmup = (listener: WarmupListener): (() => void) => {
+    warmupListeners.add(listener);
+    listener(new Set(warmupModelsInProgress));
+    return () => {
+        warmupListeners.delete(listener);
+    };
+};
+
+export const isLocalModelWarmingUp = (model: string): boolean => {
+    const normalized = normalizeLocalSpeechModelName(model);
+    if (!normalized) {
+        return false;
+    }
+    return warmupModelsInProgress.has(normalized);
+};
+
+export const isAnyLocalModelWarmingUp = (): boolean => warmupModelsInProgress.size > 0;
 
 export const checkLocalModelDownloaded = async (model: string, options: {force?: boolean} = {}): Promise<boolean> => {
     const trimmed = normalizeLocalSpeechModelName(model);
@@ -213,6 +264,7 @@ export const warmupLocalSpeechModel = async (model: string, device?: string): Pr
         payload.device = device;
     }
     log(`Прогрев модели ${describeLocalSpeechModel(trimmed)} (device=${device ?? 'auto'})…`);
+    setWarmupState(trimmed, true);
     try {
         const {data} = await localSpeechClient.post<LocalModelWarmupResponse>(
             '/v1/models/warmup',
@@ -234,6 +286,8 @@ export const warmupLocalSpeechModel = async (model: string, device?: string): Pr
             error?.response?.data ?? error
         );
         throw error;
+    } finally {
+        setWarmupState(trimmed, false);
     }
 };
 

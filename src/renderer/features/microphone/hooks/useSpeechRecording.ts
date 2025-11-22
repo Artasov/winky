@@ -6,7 +6,12 @@ import {FAST_WHISPER_PORT, SPEECH_MODES} from '@shared/constants';
 import type {ActionConfig, AppConfig} from '@shared/types';
 import {resetInteractive, setRecordingInteractive} from '../../../utils/interactive';
 import {createSpeechRecorder, type SpeechRecorder} from '../services/SpeechRecorder';
-import {checkLocalModelDownloaded} from '../../../services/localSpeechModels';
+import {
+    checkLocalModelDownloaded,
+    getLocalSpeechModelMetadata,
+    normalizeLocalSpeechModelName,
+    subscribeToLocalModelWarmup
+} from '../../../services/localSpeechModels';
 import {
     actionHotkeysBridge,
     clipboardBridge,
@@ -55,11 +60,14 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     const lastCommittedVolumeRef = useRef<{ value: number; timestamp: number }>({value: 0, timestamp: 0});
     const windowVisibleRef = useRef(true);
     const currentStreamRef = useRef<MediaStream | null>(null);
+    const speechMode = config?.speech.mode;
+    const speechModel = config?.speech.model;
 
     const [isRecording, setIsRecording] = useState(false);
     const [activeActionId, setActiveActionId] = useState<string | null>(null);
     const [processing, setProcessing] = useState(false);
     const [volume, setVolume] = useState(0);
+    const [localModelWarmingUp, setLocalModelWarmingUp] = useState(false);
 
     const commitVolumeSample = useCallback((nextValue: number) => {
         const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -267,6 +275,27 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         };
     }, [isMicOverlay, stopVolumeMonitor, startVolumeMonitor]);
 
+    useEffect(() => {
+        if (speechMode !== SPEECH_MODES.LOCAL || !speechModel) {
+            setLocalModelWarmingUp(false);
+            return;
+        }
+        const normalized = normalizeLocalSpeechModelName(speechModel);
+        if (!normalized) {
+            setLocalModelWarmingUp(false);
+        }
+        const unsubscribe = subscribeToLocalModelWarmup((activeModels) => {
+            if (!normalized) {
+                setLocalModelWarmingUp(false);
+                return;
+            }
+            setLocalModelWarmingUp(activeModels.has(normalized));
+        });
+        return () => {
+            unsubscribe();
+        };
+    }, [speechMode, speechModel]);
+
     const handleLocalSpeechServerFailure = useCallback((message?: string): boolean => {
         if (config?.speech.mode !== SPEECH_MODES.LOCAL) {
             return false;
@@ -333,10 +362,17 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 await openMainWindowWithToast(message);
                 return false;
             }
+            if (localModelWarmingUp) {
+                const metadata = getLocalSpeechModelMetadata(model);
+                const label = metadata ? `${metadata.label} (${metadata.size})` : model;
+                const message = `Происходит прогрев модели ${label}. Подождите завершения перед использованием микрофона.`;
+                await openMainWindowWithToast(message);
+                return false;
+            }
         }
 
         return true;
-    }, [config?.speech.mode, config?.speech.model, openMainWindowWithToast, showToast]);
+    }, [config?.speech.mode, config?.speech.model, localModelWarmingUp, openMainWindowWithToast, showToast]);
 
     const finishRecording = useCallback(async (resetUI: boolean = true): Promise<Blob | null> => {
         if (!recorderRef.current) {

@@ -18,6 +18,8 @@ import {
     checkLocalModelDownloaded,
     downloadLocalSpeechModel,
     getLocalSpeechModelMetadata,
+    normalizeLocalSpeechModelName,
+    subscribeToLocalModelWarmup,
     warmupLocalSpeechModel
 } from '../services/localSpeechModels';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -75,7 +77,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const [downloadingLocalModel, setDownloadingLocalModel] = useState(false);
     const [localModelError, setLocalModelError] = useState<string | null>(null);
     const [localServerStatus, setLocalServerStatus] = useState<FastWhisperStatus | null>(null);
+    const [localWarmupInProgress, setLocalWarmupInProgress] = useState(false);
     const checkingRef = useRef<string | null>(null);
+    const warmupRequestRef = useRef<string | null>(null);
     const selectedLocalModelMeta = useMemo(
         () => getLocalSpeechModelMetadata(values.transcribeModel),
         [values.transcribeModel]
@@ -112,6 +116,78 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             unsubscribe?.();
         };
     }, []);
+
+    useEffect(() => {
+        if (values.transcribeMode !== SPEECH_MODES.LOCAL) {
+            setLocalWarmupInProgress(false);
+            warmupRequestRef.current = null;
+            return;
+        }
+        const normalized = normalizeLocalSpeechModelName(values.transcribeModel);
+        const unsubscribe = subscribeToLocalModelWarmup((activeModels) => {
+            if (!normalized) {
+                setLocalWarmupInProgress(false);
+                return;
+            }
+            setLocalWarmupInProgress(activeModels.has(normalized));
+        });
+        return () => {
+            unsubscribe();
+        };
+    }, [values.transcribeMode, values.transcribeModel]);
+
+    useEffect(() => {
+        if (values.transcribeMode !== SPEECH_MODES.LOCAL) {
+            warmupRequestRef.current = null;
+            return;
+        }
+        const normalized = normalizeLocalSpeechModelName(values.transcribeModel);
+        if (!normalized) {
+            warmupRequestRef.current = null;
+            return;
+        }
+        if (!localServerStatus?.installed || !localServerStatus?.running) {
+            warmupRequestRef.current = null;
+            return;
+        }
+        if (checkingLocalModel || downloadingLocalModel || !localModelDownloaded) {
+            return;
+        }
+        if (localWarmupInProgress) {
+            return;
+        }
+        if (warmupRequestRef.current === normalized) {
+            return;
+        }
+
+        let cancelled = false;
+        warmupRequestRef.current = normalized;
+        const run = async () => {
+            try {
+                await warmupLocalSpeechModel(normalized);
+            } catch (error) {
+                console.error('[ModelConfigForm] Failed to warmup model', error);
+                if (!cancelled) {
+                    setLocalModelError('Не удалось прогреть модель. Попробуйте позже.');
+                }
+                warmupRequestRef.current = null;
+            }
+        };
+        void run();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        values.transcribeMode,
+        values.transcribeModel,
+        localServerStatus?.installed,
+        localServerStatus?.running,
+        localModelDownloaded,
+        checkingLocalModel,
+        downloadingLocalModel,
+        localWarmupInProgress
+    ]);
 
     useEffect(() => {
         if (values.transcribeMode !== SPEECH_MODES.LOCAL || !values.transcribeModel) {
@@ -344,6 +420,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         : downloadingLocalModel
             ? 'Скачиваем…'
             : 'Скачать модель';
+    const warmupWarningMessage = selectedLocalModelDescription
+        ? `Происходит прогрев модели ${selectedLocalModelDescription}. Использование микрофона временно недоступно.`
+        : 'Происходит прогрев модели. Использование микрофона временно недоступно.';
 
     return (
         <Box
@@ -406,7 +485,21 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                         {checkingMessage}
                                     </Typography>
                                 )}
-                                {!checkingLocalModel && localModelDownloaded === true && (
+                                {!checkingLocalModel && localWarmupInProgress && (
+                                    <Typography
+                                        variant="body2"
+                                        color="warning.main"
+                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                    >
+                                        <CircularProgress
+                                            size={22}
+                                            thickness={5}
+                                            sx={{color: 'warning.main', flexShrink: 0}}
+                                        />
+                                        {warmupWarningMessage}
+                                    </Typography>
+                                )}
+                                {!checkingLocalModel && !localWarmupInProgress && localModelDownloaded === true && (
                                     <Typography
                                         variant="body2"
                                         color="success.main"

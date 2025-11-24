@@ -668,10 +668,12 @@ const actionHotkeysApi = {
 const localSpeechApi = {
     getStatus: (): Promise<FastWhisperStatus> => invoke('local_speech_get_status'),
     checkHealth: (): Promise<FastWhisperStatus> => invoke('local_speech_check_health'),
-    install: (): Promise<FastWhisperStatus> => invoke('local_speech_install'),
+    install: (targetDir?: string): Promise<FastWhisperStatus> =>
+        invoke('local_speech_install', {args: {targetDir}}),
     start: (): Promise<FastWhisperStatus> => invoke('local_speech_start'),
     restart: (): Promise<FastWhisperStatus> => invoke('local_speech_restart'),
-    reinstall: (): Promise<FastWhisperStatus> => invoke('local_speech_reinstall'),
+    reinstall: (targetDir?: string): Promise<FastWhisperStatus> =>
+        invoke('local_speech_reinstall', {args: {targetDir}}),
     stop: (): Promise<FastWhisperStatus> => invoke('local_speech_stop'),
     isModelDownloaded: (model: string): Promise<boolean> =>
         invoke('local_speech_check_model_downloaded', {model}),

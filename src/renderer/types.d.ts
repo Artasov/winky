@@ -131,13 +131,13 @@ declare global {
 
         checkHealth(): Promise<FastWhisperStatus>;
 
-        install(): Promise<FastWhisperStatus>;
+        install(targetDir?: string): Promise<FastWhisperStatus>;
 
         start(): Promise<FastWhisperStatus>;
 
         restart(): Promise<FastWhisperStatus>;
 
-        reinstall(): Promise<FastWhisperStatus>;
+        reinstall(targetDir?: string): Promise<FastWhisperStatus>;
 
         stop(): Promise<FastWhisperStatus>;
 

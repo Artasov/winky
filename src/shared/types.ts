@@ -169,5 +169,6 @@ export interface FastWhisperStatus {
     lastAction?: 'install' | 'start' | 'restart' | 'reinstall';
     lastSuccessAt?: number;
     logLine?: string;
+    installDir?: string;
     updatedAt: number;
 }

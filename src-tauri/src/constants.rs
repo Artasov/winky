@@ -11,6 +11,13 @@ pub const FAST_WHISPER_REPO_ARCHIVE_URL: &str =
 pub const FAST_WHISPER_REPO_NAME: &str = "fast-fast-whisper";
 pub const FAST_WHISPER_PORT: u16 = 8868;
 pub const FAST_WHISPER_HEALTH_ENDPOINT: &str = "http://127.0.0.1:8868/health";
+// A user-level environment variable that points to the shared local server base directory
+// (the git repo itself is kept in <value>/fast-fast-whisper). It lets other Winky-based
+// apps reuse the same installation without guessing paths.
+pub const FAST_WHISPER_INSTALL_ENV_VAR: &str = "WINKY_LOCAL_SPEECH_DIR";
+// A small hint file saved near the app config so we can recover the install path
+// even if the environment variable was not exported into the current process.
+pub const FAST_WHISPER_INSTALL_HINT_FILE: &str = "local-speech-path.txt";
 pub const CONFIG_FILE_NAME: &str = "config.json";
 
 pub const DEFAULT_SPEECH_MODEL: &str = "gpt-4o-mini-transcribe";

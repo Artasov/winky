@@ -14,9 +14,10 @@ mod types;
 use std::sync::{Arc, Mutex};
 
 use auth::AuthQueue;
+use serde::Deserialize;
 use config::{should_auto_start_local_speech, ConfigState};
 use hotkeys::{ActionHotkeyInput, HotkeyState};
-use local_speech::FastWhisperManager;
+use local_speech::{persist_install_dir_choice, FastWhisperManager};
 use once_cell::sync::Lazy;
 use serde_json::json;
 use tauri::{Emitter, Manager, State};
@@ -24,6 +25,12 @@ use tauri_plugin_deep_link::DeepLinkExt;
 use types::{AppConfig, AuthDeepLinkPayload, AuthTokens, FastWhisperStatus};
 
 static PENDING_DEEP_LINKS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
+
+#[derive(Deserialize)]
+struct InstallArgs {
+    #[serde(alias = "targetDir", alias = "target_dir")]
+    target_dir: Option<String>,
+}
 
 #[tauri::command]
 async fn config_get(state: State<'_, Arc<ConfigState>>) -> Result<AppConfig, String> {
@@ -147,7 +154,24 @@ async fn local_speech_check_health(
 async fn local_speech_install(
     app: tauri::AppHandle,
     manager: State<'_, Arc<FastWhisperManager>>,
+    args: InstallArgs,
 ) -> Result<FastWhisperStatus, String> {
+    let resolved_target = args.target_dir.clone();
+    if resolved_target.is_none() {
+        return Err("Путь установки не выбран".into());
+    }
+
+    let selected = persist_install_dir_choice(&app, resolved_target.clone())
+        .await
+        .map_err(|error| error.to_string())?;
+    if let Some(path) = selected {
+        manager.set_install_override(Some(path)).await;
+    } else {
+        return Err(format!(
+            "Путь установки не выбран (target_dir from UI: {:?})",
+            resolved_target
+        ));
+    }
     manager
         .install_and_start(&app)
         .await
@@ -180,7 +204,24 @@ async fn local_speech_restart(
 async fn local_speech_reinstall(
     app: tauri::AppHandle,
     manager: State<'_, Arc<FastWhisperManager>>,
+    args: InstallArgs,
 ) -> Result<FastWhisperStatus, String> {
+    let resolved_target = args.target_dir.clone();
+    if resolved_target.is_none() {
+        return Err("Путь установки не выбран".into());
+    }
+
+    let selected = persist_install_dir_choice(&app, resolved_target.clone())
+        .await
+        .map_err(|error| error.to_string())?;
+    if let Some(path) = selected {
+        manager.set_install_override(Some(path)).await;
+    } else {
+        return Err(format!(
+            "Путь установки не выбран (target_dir from UI: {:?})",
+            resolved_target
+        ));
+    }
     manager
         .reinstall(&app)
         .await
@@ -376,6 +417,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(url) = args.into_iter().find(|arg| arg.starts_with("winky://")) {
                 if let Some(state) = app.try_state::<Arc<AuthQueue>>() {

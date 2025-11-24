@@ -1,4 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
+import {open} from '@tauri-apps/plugin-dialog';
 import {Box, Button, CircularProgress, IconButton, Tooltip, Typography} from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
@@ -210,10 +211,43 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         }
     };
 
-    const handleInstall = () => callOperation('install', () => window.winky!.localSpeech!.install());
+    const pickInstallDirectory = async (initialPath?: string) => {
+        const selection = await open({
+            title: 'Select a folder for the local speech server',
+            directory: true,
+            multiple: false,
+            defaultPath: initialPath || undefined
+        });
+        if (!selection) {
+            return null;
+        }
+        return Array.isArray(selection) ? selection[0] ?? null : selection;
+    };
+
+    const handleInstall = async () => {
+        if (!window.winky?.localSpeech) {
+            setErrorMessage('Local speech API is unavailable.');
+            return;
+        }
+        const targetDir = await pickInstallDirectory(status?.installDir || undefined);
+        if (!targetDir) {
+            return;
+        }
+        await callOperation('install', () => window.winky!.localSpeech!.install(targetDir));
+    };
     const handleStart = () => callOperation('start', () => window.winky!.localSpeech!.start());
     const handleRestart = () => callOperation('restart', () => window.winky!.localSpeech!.restart());
-    const handleReinstall = () => callOperation('reinstall', () => window.winky!.localSpeech!.reinstall());
+    const handleReinstall = async () => {
+        if (!window.winky?.localSpeech) {
+            setErrorMessage('Local speech API is unavailable.');
+            return;
+        }
+        const targetDir = await pickInstallDirectory(status?.installDir || undefined);
+        if (!targetDir) {
+            return;
+        }
+        await callOperation('reinstall', () => window.winky!.localSpeech!.reinstall(targetDir));
+    };
 
     const handlePrimaryClick = () => {
         if (showSuccessState) {
@@ -325,7 +359,8 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         );
     };
 
-    const showMessages = Boolean(derivedMessage) || Boolean(logSnippet);
+    const showInstallDir = Boolean(safeStatus.installDir);
+    const showMessages = Boolean(derivedMessage) || Boolean(logSnippet) || showInstallDir;
     const showReinstall = safeStatus.installed && !isRunning && !isBusy && !isLoading;
 
     return (
@@ -359,6 +394,21 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
                     {derivedMessage ? (
                         <Typography variant="caption" sx={{color: messageColor}}>
                             {derivedMessage}
+                        </Typography>
+                    ) : null}
+                    {safeStatus.installDir ? (
+                        <Typography
+                            variant="caption"
+                            title={safeStatus.installDir}
+                            sx={{
+                                color: 'text.secondary',
+                                fontFamily: 'monospace',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                            }}
+                        >
+                            {`Install path: ${safeStatus.installDir}`}
                         </Typography>
                     ) : null}
                     {logSnippet ? (

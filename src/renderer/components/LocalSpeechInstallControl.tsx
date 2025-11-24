@@ -3,6 +3,7 @@ import {open} from '@tauri-apps/plugin-dialog';
 import {Box, Button, CircularProgress, IconButton, Tooltip, Typography} from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import StopCircleIcon from '@mui/icons-material/StopCircle';
 import type {FastWhisperStatus} from '@shared/types';
 
 const SUCCESS_DISPLAY_MS = 3_000;
@@ -12,13 +13,14 @@ interface LocalSpeechInstallControlProps {
 }
 
 type PrimaryAction = 'install' | 'start' | 'restart';
-type ActionKind = PrimaryAction | 'reinstall';
+type ActionKind = PrimaryAction | 'reinstall' | 'stop';
 
 const actionLabels: Record<ActionKind, string> = {
     install: 'Install',
     start: 'Start',
     restart: 'Restart',
-    reinstall: 'Reinstall'
+    reinstall: 'Reinstall',
+    stop: 'Stop'
 };
 const FAST_WHISPER_INSTALL_SIZE_HINT = '≈4.3 GB';
 
@@ -237,6 +239,7 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
     };
     const handleStart = () => callOperation('start', () => window.winky!.localSpeech!.start());
     const handleRestart = () => callOperation('restart', () => window.winky!.localSpeech!.restart());
+    const handleStop = () => callOperation('stop', () => window.winky!.localSpeech!.stop());
     const handleReinstall = async () => {
         if (!window.winky?.localSpeech) {
             setErrorMessage('Local speech API is unavailable.');
@@ -292,6 +295,7 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
 
         if (isRunning) {
             const restartDisabled = disabled || isBusy || loadingAction === 'restart';
+            const stopDisabled = disabled || isBusy || loadingAction === 'stop';
             return (
                 <Box
                     sx={{
@@ -303,7 +307,8 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
                         backgroundColor: 'rgba(16,185,129,0.08)',
                         px: 2,
                         py: 1.25,
-                        transition: 'opacity 120ms ease'
+                        transition: 'opacity 120ms ease',
+                        gap: 1.25
                     }}
                 >
                     <Box sx={{display: 'flex', alignItems: 'center', gap: 0.75}}>
@@ -312,22 +317,46 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
                             {showSuccessState ? 'Success' : 'Running'}
                         </Typography>
                     </Box>
-                    <Tooltip title="Restart server">
-                        <span>
-                            <IconButton
-                                size="small"
-                                color="success"
-                                onClick={() => void handleRestart()}
-                                disabled={restartDisabled}
-                            >
-                                {loadingAction === 'restart' ? (
-                                    <CircularProgress size={18} sx={{color: 'success.main'}}/>
-                                ) : (
-                                    <RestartAltIcon fontSize="small"/>
-                                )}
-                            </IconButton>
-                        </span>
-                    </Tooltip>
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5}}>
+                        <Tooltip title="Restart server">
+                            <span>
+                                <IconButton
+                                    size="small"
+                                    color="success"
+                                    onClick={() => void handleRestart()}
+                                    disabled={restartDisabled}
+                                >
+                                    {loadingAction === 'restart' ? (
+                                        <CircularProgress size={18} sx={{color: 'success.main'}}/>
+                                    ) : (
+                                        <RestartAltIcon fontSize="small"/>
+                                    )}
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+                        <Tooltip title="Stop server">
+                            <span>
+                                <IconButton
+                                    size="small"
+                                    onClick={() => void handleStop()}
+                                    disabled={stopDisabled}
+                                    sx={{
+                                        color: stopDisabled ? 'text.disabled' : 'text.primary',
+                                        '&:hover': {
+                                            color: 'error.main',
+                                            backgroundColor: 'rgba(239,68,68,0.12)'
+                                        }
+                                    }}
+                                >
+                                    {loadingAction === 'stop' ? (
+                                        <CircularProgress size={18} sx={{color: 'error.main'}}/>
+                                    ) : (
+                                        <StopCircleIcon fontSize="small"/>
+                                    )}
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+                    </Box>
                 </Box>
             );
         }

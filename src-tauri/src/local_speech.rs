@@ -117,6 +117,31 @@ fn load_install_dir_from_hint(app: &AppHandle) -> Option<PathBuf> {
     normalize_install_dir(&contents).map(normalize_saved_path)
 }
 
+fn load_saved_install_root(app: &AppHandle) -> Option<PathBuf> {
+    load_install_dir_from_env()
+        .or_else(|| {
+            #[cfg(windows)]
+            {
+                if let Some(from_registry) = load_install_dir_from_registry() {
+                    return Some(from_registry);
+                }
+            }
+            None
+        })
+        .or_else(|| load_install_dir_from_hint(app))
+}
+
+fn paths_equal(lhs: &Path, rhs: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        lhs.to_string_lossy().to_lowercase() == rhs.to_string_lossy().to_lowercase()
+    }
+    #[cfg(not(windows))]
+    {
+        lhs == rhs
+    }
+}
+
 fn remember_install_dir_in_process(path: &Path) {
     let value = path.to_string_lossy();
     std::env::set_var(FAST_WHISPER_INSTALL_ENV_VAR, value.as_ref());
@@ -187,6 +212,7 @@ pub async fn persist_install_dir_choice(
     app: &AppHandle,
     target_dir: Option<String>,
 ) -> Result<Option<PathBuf>> {
+    let previous_root = load_saved_install_root(app);
     let Some(raw_dir) = target_dir else {
         return Ok(None);
     };
@@ -214,6 +240,16 @@ pub async fn persist_install_dir_choice(
     {
         // Persist the env var at user level (HKCU\Environment).
         persist_windows_env_var(resolved.clone()).await?;
+    }
+
+    // Remove the previous installation (if different) to avoid duplicate installs.
+    if let Some(old_root) = previous_root {
+        if !paths_equal(&old_root, &resolved) {
+            let old_repo_dir = old_root.join(FAST_WHISPER_REPO_NAME);
+            if tokio::fs::metadata(&old_repo_dir).await.is_ok() {
+                let _ = tokio::fs::remove_dir_all(&old_repo_dir).await;
+            }
+        }
     }
 
     Ok(Some(resolved))

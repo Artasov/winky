@@ -249,8 +249,11 @@ class MicWindowController {
     private moveUnlisten: UnlistenFn | null = null;
     private positionLoaded = false;
     private visible = false;
+    private micReady = false;
     private toggleInProgress = false;
     private autoStartConfig: {enabled: boolean; lastCheck: number} = {enabled: false, lastCheck: 0};
+    private pendingAutoStart = false;
+    private pendingAutoStartReason: string | null = null;
     private readonly AUTO_START_CONFIG_CACHE_MS = 5000; // Кэшируем на 5 секунд
 
     private async syncIgnoreCursorEvents(win: WebviewWindow, ignore: boolean, requireVisible = false): Promise<void> {
@@ -346,6 +349,7 @@ class MicWindowController {
                 this.moveUnlisten = null;
             }
             this.visible = false;
+            this.micReady = false;
         });
         
         this.window = win;
@@ -614,11 +618,27 @@ class MicWindowController {
         }
     }
 
+    private async tryEmitStart(reason: string): Promise<boolean> {
+        const win = this.window ?? (await WebviewWindow.getByLabel('mic').catch(() => null));
+        if (!win) {
+            return false;
+        }
+        if (!this.micReady) {
+            return false;
+        }
+        const isVisible = await win.isVisible().catch(() => false);
+        if (!isVisible || !this.visible) {
+            return false;
+        }
+        void emit('mic:start-recording', {reason});
+        return true;
+    }
+
     private async scheduleAutoStart(reason: string): Promise<void> {
         if (reason !== 'shortcut' && reason !== 'taskbar') {
             return;
         }
-        
+
         // Используем кэшированную конфигурацию
         const now = Date.now();
         if (now - this.autoStartConfig.lastCheck > this.AUTO_START_CONFIG_CACHE_MS) {
@@ -635,25 +655,42 @@ class MicWindowController {
         if (!this.autoStartConfig.enabled) {
             return;
         }
-        
-        // Проверяем, что окно все еще видимо перед автозапуском
-        const checkBeforeStart = async () => {
-            const win = this.window ?? (await WebviewWindow.getByLabel('mic').catch(() => null));
-            if (!win) {
-                return false;
-            }
-            const isVisible = await win.isVisible().catch(() => false);
-            return isVisible && this.visible;
-        };
-        
-        // Уменьшенная задержка для более быстрого старта
+
+        this.pendingAutoStart = true;
+        this.pendingAutoStartReason = reason;
+
+        // Уменьшенная задержка и несколько попыток, чтобы дождаться загрузки окна перед стартом записи
         setTimeout(async () => {
-            // Проверяем, что окно все еще видимо перед отправкой события
-            const shouldStart = await checkBeforeStart();
-            if (shouldStart) {
-                void emit('mic:start-recording', {reason});
+            const maxAttempts = 8;
+            for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                const started = await this.tryEmitStart(reason);
+                if (started) {
+                    this.pendingAutoStart = false;
+                    this.pendingAutoStartReason = null;
+                    return;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 140 + attempt * 120));
             }
+            // Оставляем флаг pending — при сигнале готовности окна сделаем ещё одну попытку
         }, 80);
+    }
+
+    async handleMicReady(): Promise<void> {
+        this.micReady = true;
+        if (!this.pendingAutoStart || !this.autoStartConfig.enabled) {
+            return;
+        }
+        const reason = this.pendingAutoStartReason ?? 'shortcut';
+        const maxAttempts = 3;
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+            const started = await this.tryEmitStart(reason);
+            if (started) {
+                this.pendingAutoStart = false;
+                this.pendingAutoStartReason = null;
+                return;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 120 + attempt * 80));
+        }
     }
 }
 
@@ -764,6 +801,10 @@ void listen('mic:hide-request', (event) => {
 void listen('mic:toggle-request', (event) => {
     const reason = (event.payload as any)?.reason ?? 'system';
     void micController.toggle(reason);
+});
+
+void listen('mic:ready', () => {
+    void micController.handleMicReady();
 });
 
 let micShortcutHandling = false;

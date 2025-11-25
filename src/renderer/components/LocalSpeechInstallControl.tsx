@@ -2,7 +2,9 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {open} from '@tauri-apps/plugin-dialog';
 import {Box, Button, CircularProgress, IconButton, Tooltip, Typography} from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import SettingsBackupRestoreIcon from '@mui/icons-material/SettingsBackupRestore';
 import StopCircleIcon from '@mui/icons-material/StopCircle';
 import type {FastWhisperStatus} from '@shared/types';
 
@@ -142,6 +144,7 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
     const successLabel = safeStatus.lastAction
         ? actionLabels[safeStatus.lastAction as ActionKind] ?? primaryLabel
         : primaryLabel;
+    const showStoppedPanel = safeStatus.installed && !isRunning && !isLoading && !busyPhase;
 
     const derivedMessage = useMemo(() => {
         if (isRunning || showSuccessState) {
@@ -245,6 +248,12 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
             setErrorMessage('Local speech API is unavailable.');
             return;
         }
+        const confirmed =
+            typeof window === 'undefined' ||
+            window.confirm('Reinstalling will remove the local server and downloaded models. Continue?');
+        if (!confirmed) {
+            return;
+        }
         const targetDir = await pickInstallDirectory(status?.installDir || undefined);
         if (!targetDir) {
             return;
@@ -272,7 +281,6 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
     const primaryDisabled = disabled || isBusy || showSuccessState;
     const reinstallDisabled = disabled || isBusy;
     const showPrimarySpinner = isBusy && !showSuccessState && loadingAction !== 'reinstall';
-    const showReinstallSpinner = loadingAction === 'reinstall';
     const buttonColor = showSuccessState && status?.phase === 'running' ? 'success' : 'primary';
 
     const renderPrimaryControl = () => {
@@ -361,6 +369,80 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
             );
         }
 
+        if (showStoppedPanel) {
+            const startDisabled = disabled || isBusy || loadingAction === 'start';
+            const reinstallButtonDisabled = reinstallDisabled || loadingAction === 'reinstall';
+
+            return (
+                <Box
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        borderRadius: 3,
+                        border: '1px solid rgba(107,114,128,0.35)',
+                        backgroundColor: 'rgba(107,114,128,0.12)',
+                        px: 2,
+                        py: 1.25,
+                        transition: 'opacity 120ms ease',
+                        gap: 1.25
+                    }}
+                >
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 0.75}}>
+                        <Typography fontWeight={700} color="text.secondary">
+                            Stopped
+                        </Typography>
+                    </Box>
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5}}>
+                        <Tooltip title="Start server">
+                            <span>
+                                <IconButton
+                                    size="small"
+                                    onClick={() => void handleStart()}
+                                    disabled={startDisabled}
+                                    sx={{
+                                        color: startDisabled ? 'text.disabled' : 'primary.main',
+                                        '&:hover': {
+                                            color: 'primary.main',
+                                            backgroundColor: 'rgba(59,130,246,0.12)'
+                                        }
+                                    }}
+                                >
+                                    {loadingAction === 'start' ? (
+                                        <CircularProgress size={18} sx={{color: 'primary.main'}}/>
+                                    ) : (
+                                        <PlayArrowRoundedIcon fontSize="small"/>
+                                    )}
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+                        <Tooltip title="Reinstall server">
+                            <span>
+                                <IconButton
+                                    size="small"
+                                    onClick={() => void handleReinstall()}
+                                    disabled={reinstallButtonDisabled}
+                                    sx={{
+                                        color: reinstallButtonDisabled ? 'text.disabled' : 'warning.main',
+                                        '&:hover': {
+                                            color: 'warning.main',
+                                            backgroundColor: 'rgba(234,179,8,0.12)'
+                                        }
+                                    }}
+                                >
+                                    {loadingAction === 'reinstall' ? (
+                                        <CircularProgress size={18} sx={{color: 'warning.main'}}/>
+                                    ) : (
+                                        <SettingsBackupRestoreIcon fontSize="small"/>
+                                    )}
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+                    </Box>
+                </Box>
+            );
+        }
+
         return (
             <Button
                 variant="contained"
@@ -390,34 +472,15 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
 
     const showInstallDir = Boolean(safeStatus.installDir);
     const showMessages = Boolean(derivedMessage) || Boolean(logSnippet) || showInstallDir;
-    const showReinstall = safeStatus.installed && !isRunning && !isBusy && !isLoading;
 
     return (
         <Box sx={{
             display: 'flex',
             flexDirection: 'column',
-            gap: showReinstall || showMessages ? 0.75 : 0.5,
+            gap: showMessages ? 0.75 : 0.5,
             minWidth: {xs: '100%', sm: 260}
         }}>
             {renderPrimaryControl()}
-
-            {showReinstall ? (
-                <Button
-                    variant="outlined"
-                    color="warning"
-                    onClick={() => void handleReinstall()}
-                    disabled={reinstallDisabled}
-                    fullWidth
-                    sx={{
-                        minHeight: 40,
-                        textTransform: 'none',
-                        fontWeight: 600
-                    }}
-                >
-                    {showReinstallSpinner ? <CircularProgress size={18}/> : actionLabels.reinstall}
-                </Button>
-            ) : null}
-
             {showMessages ? (
                 <Box sx={{display: 'flex', flexDirection: 'column', gap: 0.25}}>
                     {derivedMessage ? (

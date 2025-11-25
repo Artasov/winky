@@ -1,4 +1,5 @@
 import {useEffect, useRef} from 'react';
+import {emit as emitEvent} from '@tauri-apps/api/event';
 import {resetInteractive} from '../../../utils/interactive';
 
 type MicWindowEffectsParams = {
@@ -95,6 +96,11 @@ export const useMicWindowEffects = ({
         api.on('mic:start-recording', startHandler);
         api.on('mic:visibility-change', visibilityHandler);
         api.on('mic:reset-interactive', resetInteractiveHandler);
+
+        // Сообщаем о готовности окна только после регистрации обработчиков,
+        // чтобы автозапуск записи не терял событие.
+        void emitEvent('mic:ready', {visible: true}).catch(() => {});
+
         return () => {
             clearAutoStartRetry();
             api.removeListener?.('mic:prepare-recording', prepareHandler);

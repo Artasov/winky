@@ -120,6 +120,15 @@ async fn resources_sound_path(
 }
 
 #[tauri::command]
+async fn resources_sound_data(
+    app: tauri::AppHandle,
+    sound_name: String,
+) -> Result<Vec<u8>, String> {
+    resources::read_sound_file(&app, &sound_name)
+        .ok_or_else(|| format!("Sound {sound_name} not found or could not be read"))
+}
+
+#[tauri::command]
 async fn auth_consume_pending(
     queue: State<'_, Arc<AuthQueue>>,
 ) -> Result<Vec<AuthDeepLinkPayload>, String> {
@@ -470,6 +479,7 @@ fn main() {
             config_reset,
             config_path,
             resources_sound_path,
+            resources_sound_data,
             auth_consume_pending,
             auth_start_oauth,
             local_speech_get_status,

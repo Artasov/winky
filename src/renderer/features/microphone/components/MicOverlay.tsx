@@ -1,5 +1,4 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {convertFileSrc} from '@tauri-apps/api/core';
 import MicrophoneButton from '../../../components/MicrophoneButton';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import {useConfig} from '../../../context/ConfigContext';
@@ -81,12 +80,22 @@ const MicOverlay: React.FC = () => {
                     // В dev-режиме используем файл из public
                     setSoundPath('/sounds/completion.wav');
                 } else {
-                    // В production используем ресурсы через convertFileSrc
-                    const path = await resourcesBridge.getSoundPath('completion.wav');
-                    if (path && path.trim()) {
-                        const fileUrl = convertFileSrc(path);
-                        setSoundPath(fileUrl);
+                    // В production загружаем файл через Tauri API и создаем blob URL
+                    // Это самый надежный способ, который точно работает
+                    const soundData = await resourcesBridge.getSoundData('completion.wav');
+                    if (soundData && soundData.length > 0) {
+                        try {
+                            const uint8Array = new Uint8Array(soundData);
+                            const blob = new Blob([uint8Array], {type: 'audio/wav'});
+                            const blobUrl = URL.createObjectURL(blob);
+                            setSoundPath(blobUrl);
+                            console.log('[MicOverlay] Sound loaded via blob URL, size:', soundData.length, 'bytes');
+                        } catch (blobError) {
+                            console.warn('[MicOverlay] Failed to create blob URL:', blobError);
+                            setSoundPath('');
+                        }
                     } else {
+                        console.warn('[MicOverlay] Sound data is empty or not found');
                         setSoundPath('');
                     }
                 }

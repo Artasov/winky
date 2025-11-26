@@ -108,7 +108,8 @@ const configApi = {
 };
 
 const resourcesApi = {
-    getSoundPath: (soundName: string): Promise<string> => invoke('resources_sound_path', {soundName})
+    getSoundPath: (soundName: string): Promise<string> => invoke('resources_sound_path', {soundName}),
+    getSoundData: (soundName: string): Promise<Uint8Array> => invoke('resources_sound_data', {soundName})
 };
 
 const clipboardApi = {

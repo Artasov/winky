@@ -417,14 +417,11 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             }
         }
 
+        // Проверка ollama выполняется синхронно, чтобы микрофон не открывался если ollama не готов
         if (config?.llm.mode === LLM_MODES.LOCAL) {
             const model = config.llm.model;
-            const isDownloaded = await checkOllamaModelDownloaded(model, {force: true});
-            if (!isDownloaded) {
-                const message = `Download the ${model} LLM model before using the microphone.`;
-                await openMainWindowWithToast(message);
-                return false;
-            }
+            
+            // Быстрая проверка состояния без блокировки
             if (localLlmDownloading || isOllamaModelDownloading(model)) {
                 const message = `The ${model} LLM model is downloading via Ollama. Please wait until it completes.`;
                 await openMainWindowWithToast(message);
@@ -433,6 +430,29 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             if (localLlmWarmingUp || isOllamaModelWarming(model)) {
                 const message = `The ${model} LLM model is warming up. Please wait before using the microphone.`;
                 await openMainWindowWithToast(message);
+                return false;
+            }
+            
+            // Проверяем модель синхронно - если не найдена или ошибка, закрываем микрофон
+            try {
+                const isDownloaded = await checkOllamaModelDownloaded(model, {force: true});
+                if (!isDownloaded) {
+                    const message = `Download the ${model} LLM model before using the microphone.`;
+                    await openMainWindowWithToast(message);
+                    // Скрываем микрофон если модель не найдена
+                    if (isMicOverlay) {
+                        void micBridge.hide({reason: 'ollama-not-ready'});
+                    }
+                    return false;
+                }
+            } catch (error) {
+                console.error('[useSpeechRecording] Failed to check ollama model:', error);
+                const errorMessage = error instanceof Error ? error.message : 'Failed to check Ollama model. Make sure Ollama is running.';
+                await openMainWindowWithToast(errorMessage);
+                // Скрываем микрофон при ошибке
+                if (isMicOverlay) {
+                    void micBridge.hide({reason: 'ollama-error'});
+                }
                 return false;
             }
         }

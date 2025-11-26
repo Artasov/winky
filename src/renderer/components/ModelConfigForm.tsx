@@ -301,7 +301,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     ]);
 
     const refreshOllamaModels = useCallback(
-        async (force: boolean = false) => {
+        async (force: boolean = false, maxAttempts: number = 25, attemptInterval: number = 1000): Promise<string[]> => {
             if (!ollamaInstalled) {
                 setOllamaModels([]);
                 setOllamaModelsLoaded(false);
@@ -309,19 +309,40 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             }
             setOllamaModelChecking(true);
             setOllamaModelsLoaded(false);
-            try {
-                const models = await listInstalledOllamaModels({force});
-                setOllamaModels(models);
-                setOllamaModelsLoaded(true);
-                return models;
-            } catch (error: any) {
-                console.error('[ModelConfigForm] Failed to list Ollama models', error);
-                setOllamaError(error?.message || 'Failed to list Ollama models.');
-                setOllamaModelsLoaded(false);
-                return [];
-            } finally {
-                setOllamaModelChecking(false);
+            
+            let lastError: any = null;
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                    // Проверка с таймаутом, чтобы не блокировать UI
+                    const models = await Promise.race([
+                        listInstalledOllamaModels({force}),
+                        new Promise<string[]>((_, reject) => {
+                            setTimeout(() => reject(new Error('Timeout: Ollama service may not be running.')), attemptInterval);
+                        })
+                    ]);
+                    // Если проверка успешна, останавливаем цикл
+                    setOllamaModels(models);
+                    setOllamaModelsLoaded(true);
+                    setOllamaModelChecking(false);
+                    setOllamaError(null);
+                    return models;
+                } catch (error: any) {
+                    lastError = error;
+                    console.warn(`[ModelConfigForm] Failed to list Ollama models (attempt ${attempt}/${maxAttempts}):`, error);
+                    
+                    // Если это не последняя попытка, ждем перед следующей
+                    if (attempt < maxAttempts) {
+                        await new Promise(resolve => setTimeout(resolve, attemptInterval));
+                    }
+                }
             }
+            
+            // После всех попыток показываем ошибку
+            setOllamaModelChecking(false);
+            const errorMessage = lastError?.message || 'Failed to list Ollama models. Make sure Ollama is running.';
+            setOllamaError(errorMessage);
+            setOllamaModelsLoaded(false);
+            return [];
         },
         [ollamaInstalled]
     );
@@ -336,39 +357,66 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             return;
         }
         let cancelled = false;
-        setOllamaChecking(true);
-        setOllamaError(null);
-        setOllamaModelDownloaded(null); // Сбрасываем состояние модели при смене режима
-        setOllamaModelsLoaded(false);
-        checkOllamaInstalled()
-            .then((installed) => {
+        let attemptCount = 0;
+        const maxAttempts = 3;
+        const checkInterval = 5000; // 5 секунд
+        
+        const performCheck = async (): Promise<void> => {
+            if (cancelled) {
+                return;
+            }
+            attemptCount += 1;
+            setOllamaChecking(true);
+            setOllamaError(null);
+            setOllamaModelDownloaded(null);
+            setOllamaModelsLoaded(false);
+            
+            try {
+                const installed = await checkOllamaInstalled();
                 if (cancelled) {
                     return;
                 }
                 setOllamaInstalled(installed);
                 if (installed) {
                     setOllamaError(null);
-                    void refreshOllamaModels(true);
+                    // Загружаем модели с автоматическими повторными попытками (25 попыток по 1 секунде)
+                    void refreshOllamaModels(true, 25, 1000).catch((error: any) => {
+                        if (!cancelled) {
+                            console.error('[ModelConfigForm] Failed to refresh ollama models after all attempts:', error);
+                            // Ошибка уже установлена в refreshOllamaModels
+                        }
+                    });
+                    setOllamaChecking(false);
                 } else {
                     setOllamaModels([]);
                     setOllamaModelDownloaded(null);
                     setOllamaModelsLoaded(false);
-                }
-            })
-            .catch((error: any) => {
-                if (!cancelled) {
-                    setOllamaInstalled(false);
-                    setOllamaModels([]);
-                    setOllamaModelDownloaded(null);
-                    setOllamaError(error?.message || 'Failed to detect Ollama installation.');
-                    setOllamaModelsLoaded(false);
-                }
-            })
-            .finally(() => {
-                if (!cancelled) {
                     setOllamaChecking(false);
                 }
-            });
+            } catch (error: any) {
+                if (cancelled) {
+                    return;
+                }
+                // Если это не последняя попытка, повторяем через интервал
+                if (attemptCount < maxAttempts) {
+                    setOllamaChecking(true);
+                    setTimeout(() => {
+                        void performCheck();
+                    }, checkInterval);
+                } else {
+                    // После всех попыток показываем ошибку
+                    setOllamaInstalled(null);
+                    setOllamaModels([]);
+                    setOllamaModelDownloaded(null);
+                    setOllamaError(error?.message || 'Failed to detect Ollama installation. Make sure Ollama is running.');
+                    setOllamaModelsLoaded(false);
+                    setOllamaChecking(false);
+                }
+            }
+        };
+        
+        void performCheck();
+        
         return () => {
             cancelled = true;
         };
@@ -762,20 +810,93 @@ const formatLLMLabel = (value: string) => {
                             </div>
                         )}
                     </div>
-                    <TextField
-                        select
-                        label="LLM Mode"
-                        value={values.llmMode}
-                        onChange={(e) => {
-                            const llmMode = e.target.value as LLMMode;
-                            const llmModel = getDefaultLLMModel(llmMode);
-                            emitChange({llmMode, llmModel});
-                        }}
-                        disabled={disableInputs}
-                    >
-                        <MenuItem value={LLM_MODES.API}>API</MenuItem>
-                        <MenuItem value={LLM_MODES.LOCAL}>Local</MenuItem>
-                    </TextField>
+                    <div className={'fc gap-1'}>
+                        <TextField
+                            select
+                            label="LLM Mode"
+                            value={values.llmMode}
+                            onChange={(e) => {
+                                const llmMode = e.target.value as LLMMode;
+                                const llmModel = getDefaultLLMModel(llmMode);
+                                emitChange({llmMode, llmModel});
+                            }}
+                            disabled={disableInputs}
+                        >
+                            <MenuItem value={LLM_MODES.API}>API</MenuItem>
+                            <MenuItem value={LLM_MODES.LOCAL}>Local</MenuItem>
+                        </TextField>
+                        {isLocalLLMMode && (
+                            <Box sx={{width: '100%'}}>
+                                {ollamaChecking && (
+                                    <Typography
+                                        variant="body2"
+                                        color="text.secondary"
+                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                    >
+                                        <CircularProgress size={16} thickness={5} color="inherit"/>
+                                        Checking Ollama installation and model availability…
+                                    </Typography>
+                                )}
+                                {!ollamaChecking && ollamaInstalled === false && (
+                                    <Typography variant="body2" color="warning.main">
+                                        Install{' '}
+                                        <a
+                                            href="https://ollama.com/download"
+                                            target="_blank"
+                                            rel="noreferrer noopener"
+                                            style={{color: 'inherit', fontWeight: 600}}
+                                        >
+                                            Ollama
+                                        </a>{' '}
+                                        to enable local LLM models.
+                                    </Typography>
+                                )}
+                                {!ollamaChecking && ollamaError && (
+                                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap'}}>
+                                        <Typography variant="body2" color="error" sx={{flex: 1, minWidth: 0}}>
+                                            {ollamaError}
+                                        </Typography>
+                                        {(ollamaError.includes('Timeout') || ollamaError.includes('not be running') || ollamaError.includes('Make sure Ollama is running')) && (
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                onClick={() => {
+                                                    setOllamaError(null);
+                                                    setOllamaChecking(true);
+                                                    setOllamaModelsLoaded(false);
+                                                    checkOllamaInstalled()
+                                                        .then((installed) => {
+                                                            setOllamaInstalled(installed);
+                                                            if (installed) {
+                                                                setOllamaError(null);
+                                                                void refreshOllamaModels(true, 25, 1000);
+                                                            } else {
+                                                                setOllamaModels([]);
+                                                                setOllamaModelDownloaded(null);
+                                                                setOllamaModelsLoaded(false);
+                                                            }
+                                                        })
+                                                        .catch((error: any) => {
+                                                            setOllamaInstalled(false);
+                                                            setOllamaModels([]);
+                                                            setOllamaModelDownloaded(null);
+                                                            setOllamaError(error?.message || 'Failed to detect Ollama installation.');
+                                                            setOllamaModelsLoaded(false);
+                                                        })
+                                                        .finally(() => {
+                                                            setOllamaChecking(false);
+                                                        });
+                                                }}
+                                                sx={{flexShrink: 0}}
+                                            >
+                                                Refresh
+                                            </Button>
+                                        )}
+                                    </Box>
+                                )}
+                            </Box>
+                        )}
+                    </div>
 
                     <div className={'fc gap-1'}>
                         <TextField
@@ -791,95 +912,62 @@ const formatLLMLabel = (value: string) => {
                                 </MenuItem>
                             ))}
                         </TextField>
-                        {isLocalLLMMode && (
+                        {isLocalLLMMode && ollamaInstalled && (
                             <Box sx={{width: '100%'}}>
-                                {ollamaChecking && (
+                                {(ollamaModelChecking || (!ollamaModelsLoaded && ollamaModelDownloaded === null)) && (
                                     <Typography
                                         variant="body2"
                                         color="text.secondary"
                                         sx={{display: 'flex', alignItems: 'center', gap: 1}}
                                     >
                                         <CircularProgress size={16} thickness={5} color="inherit"/>
-                                        Checking Ollama installation…
+                                        {llmCheckingMessage}
                                     </Typography>
                                 )}
-                                {!ollamaChecking && ollamaInstalled === false && (
-                                    <Typography variant="body2" color="warning.main">
-                                        Install{' '}
-                                        <a
-                                            href="https://ollama.com/download"
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            style={{color: 'inherit', fontWeight: 600}}
-                                        >
-                                            Ollama
-                                        </a>{' '}
-                                        to enable local LLM models.
+                                {ollamaModelsLoaded && !ollamaModelChecking && ollamaModelWarming && (
+                                    <Typography
+                                        variant="body2"
+                                        color="warning.main"
+                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                    >
+                                        <CircularProgress
+                                            size={22}
+                                            thickness={5}
+                                            sx={{color: 'warning.main', flexShrink: 0}}
+                                        />
+                                        {llmWarmupWarningMessage}
                                     </Typography>
                                 )}
-                                {!ollamaChecking && ollamaError && (
-                                    <Typography variant="body2" color="error">
-                                        {ollamaError}
+                                {ollamaModelsLoaded && !ollamaModelChecking && !ollamaModelWarming && ollamaModelDownloaded === true && (
+                                    <Typography
+                                        variant="body2"
+                                        color="success.main"
+                                        sx={{display: 'flex', gap: 1}}
+                                    >
+                                        <CheckCircleIcon style={{marginTop: 3}} fontSize="small"/>
+                                        {llmDownloadedMessage}
                                     </Typography>
                                 )}
-                                {ollamaInstalled && (
-                                    <Box>
-                                        {(ollamaModelChecking || (!ollamaModelsLoaded && ollamaModelDownloaded === null)) && (
-                                            <Typography
-                                                variant="body2"
-                                                color="text.secondary"
-                                                sx={{display: 'flex', alignItems: 'center', gap: 1}}
-                                            >
-                                                <CircularProgress size={16} thickness={5} color="inherit"/>
-                                                {llmCheckingMessage}
-                                            </Typography>
-                                        )}
-                                        {ollamaModelsLoaded && !ollamaModelChecking && ollamaModelWarming && (
-                                            <Typography
-                                                variant="body2"
-                                                color="warning.main"
-                                                sx={{display: 'flex', alignItems: 'center', gap: 1}}
-                                            >
-                                                <CircularProgress
-                                                    size={22}
-                                                    thickness={5}
-                                                    sx={{color: 'warning.main', flexShrink: 0}}
-                                                />
-                                                {llmWarmupWarningMessage}
-                                            </Typography>
-                                        )}
-                                        {ollamaModelsLoaded && !ollamaModelChecking && !ollamaModelWarming && ollamaModelDownloaded === true && (
-                                            <Typography
-                                                variant="body2"
-                                                color="success.main"
-                                                sx={{display: 'flex', gap: 1}}
-                                            >
-                                                <CheckCircleIcon style={{marginTop: 3}} fontSize="small"/>
-                                                {llmDownloadedMessage}
-                                            </Typography>
-                                        )}
-                                        {ollamaModelsLoaded && !ollamaModelChecking && ollamaModelDownloaded === false && (
-                                            <Button
-                                                variant="contained"
-                                                color="primary"
-                                                onClick={handleDownloadLlmModel}
-                                                disabled={disableInputs || ollamaDownloadingModel}
-                                                startIcon={
-                                                    ollamaDownloadingModel ? (
-                                                        <CircularProgress size={18} thickness={5} color="inherit"/>
-                                                    ) : undefined
-                                                }
-                                                sx={{mt: 0.5, minHeight: '51px'}}
-                                            >
-                                                {llmDownloadButtonLabel}
-                                            </Button>
-                                        )}
-                                        {ollamaModelError && (
-                                            <Typography variant="body2" color="error" sx={{mt: 0.5}}>
-                                                {ollamaModelError}
-                                            </Typography>
-                                        )}
-                                    </Box>
+                                {ollamaModelsLoaded && !ollamaModelChecking && ollamaModelDownloaded === false && (
+                                    <Button
+                                        variant="contained"
+                                        color="primary"
+                                        onClick={handleDownloadLlmModel}
+                                        disabled={disableInputs || ollamaDownloadingModel}
+                                        startIcon={
+                                            ollamaDownloadingModel ? (
+                                                <CircularProgress size={18} thickness={5} color="inherit"/>
+                                            ) : undefined
+                                        }
+                                        sx={{mt: 0.5, minHeight: '51px'}}
+                                    >
+                                        {llmDownloadButtonLabel}
+                                    </Button>
+                                )}
+                                {ollamaModelError && (
+                                    <Typography variant="body2" color="error" sx={{mt: 0.5}}>
+                                        {ollamaModelError}
+                                    </Typography>
                                 )}
                             </Box>
                         )}
@@ -954,3 +1042,4 @@ const formatLLMLabel = (value: string) => {
 };
 
 export default ModelConfigForm;
+

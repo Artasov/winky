@@ -71,6 +71,7 @@ declare global {
 
     interface WinkyResourcesAPI {
         getSoundPath(soundName: string): Promise<string>;
+        getSoundData(soundName: string): Promise<Uint8Array>;
     }
 
     interface WinkyProfileAPI {

@@ -107,5 +107,14 @@ export const resourcesBridge = {
     async getSoundPath(soundName: string): Promise<string> {
         const result = await window.winky?.resources?.getSoundPath?.(soundName);
         return result ?? '';
+    },
+    async getSoundData(soundName: string): Promise<Uint8Array | null> {
+        try {
+            const result = await window.winky?.resources?.getSoundData?.(soundName);
+            return result ?? null;
+        } catch (error) {
+            console.warn('[resourcesBridge] Failed to get sound data:', error);
+            return null;
+        }
     }
 };

@@ -1,16 +1,23 @@
 use std::io;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::process::Stdio;
 
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use tokio::process::Command;
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 pub async fn check_installed() -> Result<bool> {
-    let spawn_result = Command::new("ollama")
-        .arg("--version")
+    let mut cmd = Command::new("ollama");
+    cmd.arg("--version")
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn();
+        .stderr(Stdio::null());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let spawn_result = cmd.spawn();
 
     let mut child = match spawn_result {
         Ok(child) => child,
@@ -38,10 +45,11 @@ pub async fn list_models() -> Result<Vec<String>> {
     }
 
     // Prefer JSON output (available in recent ollama versions).
-    let json_output = Command::new("ollama")
-        .args(["list", "--format", "json"])
-        .output()
-        .await;
+    let mut cmd = Command::new("ollama");
+    cmd.args(["list", "--format", "json"]);
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let json_output = cmd.output().await;
 
     if let Ok(output) = &json_output {
         if output.status.success() {
@@ -52,7 +60,11 @@ pub async fn list_models() -> Result<Vec<String>> {
     }
 
     // Fallback to plain-text parsing.
-    let output = Command::new("ollama").arg("list").output().await?;
+    let mut cmd = Command::new("ollama");
+    cmd.arg("list");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let output = cmd.output().await?;
     if !output.status.success() {
         return Err(anyhow!("ollama list failed"));
     }
@@ -74,12 +86,13 @@ pub async fn pull_model(model: &str) -> Result<()> {
     if model.trim().is_empty() {
         return Err(anyhow!("Model name is empty"));
     }
-    let status = Command::new("ollama")
-        .args(["pull", model])
+    let mut cmd = Command::new("ollama");
+    cmd.args(["pull", model])
         .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .await?;
+        .stderr(Stdio::inherit());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let status = cmd.status().await?;
     if !status.success() {
         return Err(anyhow!("ollama pull failed"));
     }

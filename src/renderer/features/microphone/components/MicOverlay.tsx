@@ -80,19 +80,36 @@ const MicOverlay: React.FC = () => {
                     // В dev-режиме используем файл из public
                     setSoundPath('/sounds/completion.wav');
                 } else {
-                    // В production загружаем файл через Tauri API и создаем blob URL
-                    // Это самый надежный способ, который точно работает
+                    // В production загружаем файл через Tauri API и создаем data URL (base64)
+                    // Это самый надежный способ для Tauri 2.x
                     const soundData = await resourcesBridge.getSoundData('completion.wav');
                     if (soundData && soundData.length > 0) {
                         try {
+                            // Преобразуем Uint8Array в base64 более эффективным способом
                             const uint8Array = new Uint8Array(soundData);
-                            const blob = new Blob([uint8Array], {type: 'audio/wav'});
-                            const blobUrl = URL.createObjectURL(blob);
-                            setSoundPath(blobUrl);
-                            console.log('[MicOverlay] Sound loaded via blob URL, size:', soundData.length, 'bytes');
-                        } catch (blobError) {
-                            console.warn('[MicOverlay] Failed to create blob URL:', blobError);
-                            setSoundPath('');
+                            let binaryString = '';
+                            const chunkSize = 8192; // Обрабатываем по частям для больших файлов
+                            for (let i = 0; i < uint8Array.length; i += chunkSize) {
+                                const chunk = uint8Array.subarray(i, i + chunkSize);
+                                binaryString += String.fromCharCode.apply(null, Array.from(chunk));
+                            }
+                            const base64 = btoa(binaryString);
+                            const dataUrl = `data:audio/wav;base64,${base64}`;
+                            setSoundPath(dataUrl);
+                            console.log('[MicOverlay] Sound loaded via data URL, size:', soundData.length, 'bytes, dataUrl length:', dataUrl.length);
+                        } catch (dataUrlError) {
+                            console.warn('[MicOverlay] Failed to create data URL, trying blob URL:', dataUrlError);
+                            // Fallback: пробуем blob URL
+                            try {
+                                const uint8Array = new Uint8Array(soundData);
+                                const blob = new Blob([uint8Array], {type: 'audio/wav'});
+                                const blobUrl = URL.createObjectURL(blob);
+                                setSoundPath(blobUrl);
+                                console.log('[MicOverlay] Sound loaded via blob URL (fallback)');
+                            } catch (blobError) {
+                                console.warn('[MicOverlay] Failed to create blob URL:', blobError);
+                                setSoundPath('');
+                            }
                         }
                     } else {
                         console.warn('[MicOverlay] Sound data is empty or not found');
@@ -168,9 +185,20 @@ const MicOverlay: React.FC = () => {
         }
 
         if (soundPath && soundPath.trim()) {
+            // Очищаем предыдущий blob URL если он был
+            if (audio.src && audio.src.startsWith('blob:')) {
+                URL.revokeObjectURL(audio.src);
+            }
             audio.src = soundPath;
+            // Сбрасываем время воспроизведения
+            audio.currentTime = 0;
+            // Загружаем аудио
             audio.load();
+            console.log('[MicOverlay] Audio src set:', soundPath.substring(0, 50) + '...', 'readyState:', audio.readyState);
         } else {
+            if (audio.src && audio.src.startsWith('blob:')) {
+                URL.revokeObjectURL(audio.src);
+            }
             audio.src = '';
         }
     }, [soundPath]);

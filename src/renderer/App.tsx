@@ -30,6 +30,7 @@ import ResultShell from './app/layouts/ResultShell';
 import ErrorShell from './app/layouts/ErrorShell';
 import StandaloneWindow from './app/layouts/StandaloneWindow';
 import {SPEECH_MODES} from '@shared/constants';
+import TitleBar from './components/TitleBar';
 import {checkLocalModelDownloaded, warmupLocalSpeechModel} from './services/localSpeechModels';
 
 const LOCAL_SERVER_READY_TIMEOUT_MS = 2 * 60 * 1000;
@@ -367,6 +368,25 @@ const AppContent: React.FC = () => {
     const hasToken = config?.auth.access || config?.auth.accessToken;
     const shouldShowWelcome = !hasToken && !isAuthenticated && !userLoading;
 
+    const renderPrimaryWindowState = (content: React.ReactNode) => {
+        const showPrimaryChrome = !windowIdentity.isMicWindow && !windowIdentity.isResultWindow && !windowIdentity.isErrorWindow;
+        if (!showPrimaryChrome) {
+            return (
+                <div className="flex h-full items-center justify-center bg-bg-base text-text-primary">
+                    {content}
+                </div>
+            );
+        }
+        return (
+            <div className="fc h-full bg-bg-base text-text-primary">
+                <TitleBar/>
+                <div className="flex flex-1 items-center justify-center px-6">
+                    {content}
+                </div>
+            </div>
+        );
+    };
+
     const routes = (
         <Routes>
             <Route element={<StandaloneWindow/>}>
@@ -407,31 +427,26 @@ const AppContent: React.FC = () => {
     );
 
     if (loading) {
-        return (
-            <div className="flex h-full items-center justify-center bg-bg-base text-text-primary">
-                <div className="animate-pulse-soft text-primary">Loading...</div>
-            </div>
+        return renderPrimaryWindowState(
+            <div className="animate-pulse-soft text-primary">Loading...</div>
         );
     }
 
     // If we have a token and user data is loading, show a spinner instead of the Welcome view
     const isLoadingUser = userLoading && hasToken && !isAuthenticated;
     
-    if (isLoadingUser && !windowIdentity.isAuxWindow) {
-        return (
-            <div className="flex h-full items-center justify-center bg-bg-base text-text-primary">
-                <div className="fccc gap-4">
-                    <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                </div>
+    if (isLoadingUser) {
+        return renderPrimaryWindowState(
+            <div className="fccc gap-4">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
             </div>
         );
     }
 
     if (preloadError || !window.winky) {
-        return (
-            <div
-                className="flex h-full flex-col items-center justify-center gap-4 bg-bg-base px-6 text-center text-text-primary">
-                <h1 className="text-2xl font-semibold">Failed to initialize the application</h1>
+        return renderPrimaryWindowState(
+            <div className="fccc gap-4 px-6 text-center">
+                <div className="text-2xl font-semibold">Failed to initialize the application</div>
                 <p className="max-w-md text-sm text-text-secondary">
                     {preloadError ?? 'The renderer could not access the preload script.'}
                 </p>

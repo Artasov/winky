@@ -783,11 +783,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     if (requiresOpenAIKeyForLLM) {
         openaiKeyReasons.push('OpenAI GPT models');
     }
-    const needsAnyApiKey = requireApiKeys && (requiresOpenAIKey || requiresGoogleKey);
     const shouldShowOpenAIField =
         values.llmMode === LLM_MODES.API ||
         values.transcribeMode === SPEECH_MODES.API ||
         values.openaiKey.trim().length > 0;
+    const shouldShowApiKeysSection =
+        values.transcribeMode !== SPEECH_MODES.LOCAL || values.llmMode !== LLM_MODES.LOCAL;
     const isLocalLLMMode = values.llmMode === LLM_MODES.LOCAL;
     const disableLlmModelSelect = disableInputs || (isLocalLLMMode && (ollamaChecking || !ollamaInstalled));
     const checkingMessage = selectedLocalModelDescription
@@ -1106,72 +1107,74 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                     </Box>
                 </Stack>
 
-                <div className={'fc gap-2'}>
-                    <div className={'fc gap-1'}>
-                        <Typography variant="h6" color="text.primary" fontWeight={600}>
-                            API Keys
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Visit{' '}
-                            <a
-                                href="https://platform.openai.com/api-keys"
-                                target="_blank"
-                                rel="noreferrer noopener"
-                                className="text-primary font-semibold"
-                            >
-                                OpenAI
-                            </a>{' '}
-                            or{' '}
-                            <a
-                                href="https://ai.google.dev/gemini-api"
-                                target="_blank"
-                                rel="noreferrer noopener"
-                                className="text-primary font-semibold flex items-center gap-1 inline-flex"
-                            >
-                                GoogleAI
-                                <span style={{color: '#16a34a', fontWeight: 300}}>free</span>
-                            </a>{' '}
-                            to generate these keys.
-                        </Typography>
-                    </div>
-                    <div className={'fc gap-2 mt-1'}>
-                        <TextField
-                            id="google-key"
-                            type="password"
-                            label="Google AI API Key"
-                            value={values.googleKey}
-                            onChange={(e) => emitChange({googleKey: e.target.value})}
-                            placeholder="AIza..."
-                            required={requireApiKeys && requiresGoogleKey}
-                            disabled={disableInputs}
-                        />
-                        {requireApiKeys && requiresGoogleKey && (
-                            <Typography variant="caption" color="text.secondary">
-                                Required for {googleKeyReasons.join(' + ')}.
+                {shouldShowApiKeysSection ? (
+                    <div className={'fc gap-2'}>
+                        <div className={'fc gap-1'}>
+                            <Typography variant="h6" color="text.primary" fontWeight={600}>
+                                API Keys
                             </Typography>
-                        )}
-                    </div>
-
-                    {shouldShowOpenAIField && (
+                            <Typography variant="body2" color="text.secondary">
+                                Visit{' '}
+                                <a
+                                    href="https://platform.openai.com/api-keys"
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    className="text-primary font-semibold"
+                                >
+                                    OpenAI
+                                </a>{' '}
+                                or{' '}
+                                <a
+                                    href="https://aistudio.google.com/"
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    className="text-primary font-semibold flex items-center gap-1 inline-flex"
+                                >
+                                    GoogleAI
+                                    <span style={{color: '#16a34a', fontWeight: 300}}>free</span>
+                                </a>{' '}
+                                to generate these keys.
+                            </Typography>
+                        </div>
                         <div className={'fc gap-2 mt-1'}>
                             <TextField
-                                id="openai-key"
+                                id="google-key"
                                 type="password"
-                                label="OpenAI API Key"
-                                value={values.openaiKey}
-                                onChange={(e) => emitChange({openaiKey: e.target.value})}
-                                placeholder="sk-..."
-                                required={requireApiKeys && requiresOpenAIKey}
+                                label="Google AI API Key"
+                                value={values.googleKey}
+                                onChange={(e) => emitChange({googleKey: e.target.value})}
+                                placeholder="AIza..."
+                                required={requireApiKeys && requiresGoogleKey}
                                 disabled={disableInputs}
                             />
-                            {requireApiKeys && requiresOpenAIKey && (
+                            {requireApiKeys && requiresGoogleKey && (
                                 <Typography variant="caption" color="text.secondary">
-                                    Required for {openaiKeyReasons.join(' + ')}.
+                                    Required for {googleKeyReasons.join(' + ')}.
                                 </Typography>
                             )}
                         </div>
-                    )}
-                </div>
+
+                        {shouldShowOpenAIField && (
+                            <div className={'fc gap-2 mt-1'}>
+                                <TextField
+                                    id="openai-key"
+                                    type="password"
+                                    label="OpenAI API Key"
+                                    value={values.openaiKey}
+                                    onChange={(e) => emitChange({openaiKey: e.target.value})}
+                                    placeholder="sk-..."
+                                    required={requireApiKeys && requiresOpenAIKey}
+                                    disabled={disableInputs}
+                                />
+                                {requireApiKeys && requiresOpenAIKey && (
+                                    <Typography variant="caption" color="text.secondary">
+                                        Required for {openaiKeyReasons.join(' + ')}.
+                                    </Typography>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                ) : null}
 
                 {!shouldAutoSave && onSubmit && (
                     <Box display="flex" justifyContent="flex-end" mt={2}>

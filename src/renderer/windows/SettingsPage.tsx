@@ -9,7 +9,7 @@ import ModelConfigForm, {ModelConfigFormData} from '../components/ModelConfigFor
 import HotkeyInput from '../components/HotkeyInput';
 import theme from "@renderer/theme/muiTheme";
 
-const DEFAULT_MIC_HOTKEY = 'Ctrl+`';
+const DEFAULT_MIC_HOTKEY = 'Alt+Q';
 
 const SettingsPage: React.FC = () => {
     const {config, updateConfig} = useConfig();

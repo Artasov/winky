@@ -83,7 +83,7 @@ pub struct WindowPosition {
     pub y: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     #[serde(default)]
@@ -120,6 +120,29 @@ pub struct AppConfig {
     pub completion_sound_enabled: bool,
 }
 
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            auth: AuthTokens::default(),
+            setup_completed: false,
+            speech: SpeechConfig::default(),
+            llm: LlmConfig::default(),
+            api_keys: ApiKeys::default(),
+            actions: Vec::new(),
+            mic_window_position: None,
+            mic_hotkey: default_mic_hotkey(),
+            mic_anchor: default_mic_anchor(),
+            mic_auto_start_recording: default_true(),
+            mic_hide_on_stop_recording: default_true(),
+            mic_show_on_launch: default_false(),
+            launch_on_system_startup: false,
+            auto_start_local_speech_server: false,
+            completion_sound_volume: default_completion_volume(),
+            completion_sound_enabled: default_true(),
+        }
+    }
+}
+
 fn default_true() -> bool {
     true
 }
@@ -137,7 +160,7 @@ fn default_mic_anchor() -> String {
 }
 
 fn default_mic_hotkey() -> String {
-    "Ctrl+`".to_string()
+    "Alt+Q".to_string()
 }
 
 impl AppConfig {

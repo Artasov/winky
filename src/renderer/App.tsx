@@ -318,7 +318,7 @@ const AppContent: React.FC = () => {
         if (
             !windowIdentity.isAuxWindow &&
             config?.setupCompleted &&
-            config.micShowOnLaunch !== false &&
+            config.micShowOnLaunch === true &&
             !autoShowMicRef.current
         ) {
             autoShowMicRef.current = true;

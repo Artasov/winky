@@ -100,15 +100,15 @@ pub struct AppConfig {
     pub actions: Vec<serde_json::Value>,
     #[serde(default)]
     pub mic_window_position: Option<WindowPosition>,
-    #[serde(default)]
+    #[serde(default = "default_mic_hotkey")]
     pub mic_hotkey: String,
     #[serde(default = "default_mic_anchor")]
     pub mic_anchor: String,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub mic_auto_start_recording: bool,
     #[serde(default = "default_true")]
     pub mic_hide_on_stop_recording: bool,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_false")]
     pub mic_show_on_launch: bool,
     #[serde(default)]
     pub launch_on_system_startup: bool,
@@ -124,12 +124,20 @@ fn default_true() -> bool {
     true
 }
 
+fn default_false() -> bool {
+    false
+}
+
 fn default_completion_volume() -> f32 {
     1.0
 }
 
 fn default_mic_anchor() -> String {
     DEFAULT_MIC_ANCHOR.to_string()
+}
+
+fn default_mic_hotkey() -> String {
+    "Ctrl+`".to_string()
 }
 
 impl AppConfig {

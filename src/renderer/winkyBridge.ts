@@ -645,7 +645,7 @@ class MicWindowController {
         if (now - this.autoStartConfig.lastCheck > this.AUTO_START_CONFIG_CACHE_MS) {
             try {
                 const config = await configApi.get();
-                this.autoStartConfig.enabled = Boolean(config.micAutoStartRecording);
+                this.autoStartConfig.enabled = config.micAutoStartRecording !== false;
                 this.autoStartConfig.lastCheck = now;
             } catch {
                 this.autoStartConfig.enabled = false;

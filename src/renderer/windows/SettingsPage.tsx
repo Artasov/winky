@@ -9,6 +9,8 @@ import ModelConfigForm, {ModelConfigFormData} from '../components/ModelConfigFor
 import HotkeyInput from '../components/HotkeyInput';
 import theme from "@renderer/theme/muiTheme";
 
+const DEFAULT_MIC_HOTKEY = 'Ctrl+`';
+
 const SettingsPage: React.FC = () => {
     const {config, updateConfig} = useConfig();
     const {user} = useUser();
@@ -24,11 +26,11 @@ const SettingsPage: React.FC = () => {
     });
 
     const [saving, setSaving] = useState(false);
-    const [micHotkey, setMicHotkey] = useState('');
+    const [micHotkey, setMicHotkey] = useState(DEFAULT_MIC_HOTKEY);
     const [micAnchor, setMicAnchor] = useState<MicAnchor>('bottom-right');
-    const [micAutoStart, setMicAutoStart] = useState(false);
+    const [micAutoStart, setMicAutoStart] = useState(true);
     const [micHideOnStop, setMicHideOnStop] = useState(true);
-    const [micShowOnLaunch, setMicShowOnLaunch] = useState(true);
+    const [micShowOnLaunch, setMicShowOnLaunch] = useState(false);
     const [launchOnSystemStartup, setLaunchOnSystemStartup] = useState(false);
     const [autoStartLocalSpeech, setAutoStartLocalSpeech] = useState(false);
     const [completionSoundEnabled, setCompletionSoundEnabled] = useState(true);
@@ -44,11 +46,11 @@ const SettingsPage: React.FC = () => {
                 llmMode: config.llm.mode,
                 llmModel: config.llm.model
             });
-            setMicHotkey(config.micHotkey ?? '');
+            setMicHotkey(config.micHotkey && config.micHotkey.trim().length > 0 ? config.micHotkey : DEFAULT_MIC_HOTKEY);
             setMicAnchor((config.micAnchor as MicAnchor) ?? 'bottom-right');
-            setMicAutoStart(Boolean(config.micAutoStartRecording));
+            setMicAutoStart(config.micAutoStartRecording !== false);
             setMicHideOnStop(config.micHideOnStopRecording ?? true);
-            setMicShowOnLaunch(config.micShowOnLaunch !== false);
+            setMicShowOnLaunch(config.micShowOnLaunch === true);
             setCompletionSoundEnabled(config.completionSoundEnabled !== false);
             setCompletionSoundVolume(config.completionSoundVolume ?? 1.0);
             setLaunchOnSystemStartup(Boolean(config.launchOnSystemStartup));

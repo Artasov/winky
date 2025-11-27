@@ -39,12 +39,12 @@ import {
 } from '../services/localSpeechModels';
 import {
     checkOllamaInstalled,
-    listInstalledOllamaModels,
     downloadOllamaModel,
-    warmupOllamaModel as warmupOllamaModelService,
+    listInstalledOllamaModels,
+    normalizeOllamaModelName,
     subscribeToOllamaDownloads,
     subscribeToOllamaWarmup,
-    normalizeOllamaModelName
+    warmupOllamaModel as warmupOllamaModelService
 } from '../services/ollama';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
@@ -90,7 +90,11 @@ const LOCAL_LLM_SIZE_HINTS: Record<string, string> = {
 const FAST_WHISPER_INSTALL_SIZE_HINT = '≈43 MB';
 type ModeInfoDialogType = 'transcribe' | 'llm';
 
-const MODE_INFO_DIALOG_CONTENT: Record<ModeInfoDialogType, {title: string; description: string; bullets: string[]}> = {
+const MODE_INFO_DIALOG_CONTENT: Record<ModeInfoDialogType, {
+    title: string;
+    description: string;
+    bullets: string[]
+}> = {
     transcribe: {
         title: 'Local Transcribe Mode',
         description:
@@ -370,7 +374,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             }
             setOllamaModelChecking(true);
             setOllamaModelsLoaded(false);
-            
+
             let lastError: any = null;
             for (let attempt = 1; attempt <= maxAttempts; attempt++) {
                 try {
@@ -390,14 +394,14 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 } catch (error: any) {
                     lastError = error;
                     console.warn(`[ModelConfigForm] Failed to list Ollama models (attempt ${attempt}/${maxAttempts}):`, error);
-                    
+
                     // Если это не последняя попытка, ждем перед следующей
                     if (attempt < maxAttempts) {
                         await new Promise(resolve => setTimeout(resolve, attemptInterval));
                     }
                 }
             }
-            
+
             // После всех попыток показываем ошибку
             setOllamaModelChecking(false);
             const errorMessage = lastError?.message || 'Failed to list Ollama models. Make sure Ollama is running.';
@@ -421,7 +425,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         let attemptCount = 0;
         const maxAttempts = 3;
         const checkInterval = 5000; // 5 секунд
-        
+
         const performCheck = async (): Promise<void> => {
             if (cancelled) {
                 return;
@@ -431,7 +435,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             setOllamaError(null);
             setOllamaModelDownloaded(null);
             setOllamaModelsLoaded(false);
-            
+
             try {
                 const installed = await checkOllamaInstalled();
                 if (cancelled) {
@@ -475,9 +479,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 }
             }
         };
-        
+
         void performCheck();
-        
+
         return () => {
             cancelled = true;
         };
@@ -488,13 +492,13 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             setOllamaModelDownloaded(null);
             return;
         }
-        
+
         // Не обновляем состояние пока модели не загружены
         if (!ollamaModelsLoaded) {
             // Если модели еще не загружены, оставляем null (показываем проверку)
             return;
         }
-        
+
         // Устанавливаем состояние только один раз после загрузки
         const isDownloaded = ollamaModels.includes(normalizedLlmModel);
         setOllamaModelDownloaded(isDownloaded);
@@ -584,30 +588,30 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         }
     }, [values.llmMode, values.llmModel, ollamaDownloadingModel, refreshOllamaModels]);
 
-const formatLabel = (value: string) =>
-    value
-        .replace(/[:]/g, ' ')
-        .replace(/-/g, ' ')
-        .split(' ')
-        .filter(Boolean)
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(' ');
+    const formatLabel = (value: string) =>
+        value
+            .replace(/[:]/g, ' ')
+            .replace(/-/g, ' ')
+            .split(' ')
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
 
-const formatLLMLabel = (value: string) => {
-    const base = formatLabel(value);
-    if (isGeminiApiModel(value as LLMModel)) {
-        return `Google ${base}`;
-    }
-    if (isOpenAiApiModel(value as LLMModel)) {
-        return `OpenAI ${base}`;
-    }
-    const normalized = normalizeOllamaModelName(value);
-    const size = LOCAL_LLM_SIZE_HINTS[normalized];
-    if (size) {
-        return `${base} · ${size}`;
-    }
-    return base;
-};
+    const formatLLMLabel = (value: string) => {
+        const base = formatLabel(value);
+        if (isGeminiApiModel(value as LLMModel)) {
+            return `Google ${base}`;
+        }
+        if (isOpenAiApiModel(value as LLMModel)) {
+            return `OpenAI ${base}`;
+        }
+        const normalized = normalizeOllamaModelName(value);
+        const size = LOCAL_LLM_SIZE_HINTS[normalized];
+        if (size) {
+            return `${base} · ${size}`;
+        }
+        return base;
+    };
     const selectedLocalLLMDescription = useMemo(
         () => formatLLMLabel(values.llmModel),
         [values.llmModel]
@@ -683,21 +687,21 @@ const formatLLMLabel = (value: string) => {
         setOllamaModelError(null);
     }, [values.llmModel]);
 
-const ModeInfoDialogTransition = forwardRef(function ModeInfoDialogTransition(
-    props: React.ComponentProps<typeof Fade>,
-    ref: React.Ref<unknown>
-) {
-    return <Fade timeout={200} ref={ref} {...props} />;
-});
+    const ModeInfoDialogTransition = forwardRef(function ModeInfoDialogTransition(
+        props: React.ComponentProps<typeof Fade>,
+        ref: React.Ref<unknown>
+    ) {
+        return <Fade timeout={200} ref={ref} {...props} />;
+    });
 
-const renderModeInfoButton = (type: ModeInfoDialogType, disabledButton: boolean) => (
+    const renderModeInfoButton = (type: ModeInfoDialogType, disabledButton: boolean) => (
         <IconButton
             size="small"
             onClick={(event) => handleModeInfoClick(event, type)}
             disabled={disabledButton}
             sx={{
                 position: 'absolute',
-            right: 12,
+                right: 12,
                 top: '50%',
                 transform: 'translateY(-50%)',
                 borderRadius: '50%',
@@ -705,28 +709,28 @@ const renderModeInfoButton = (type: ModeInfoDialogType, disabledButton: boolean)
                 height: 28,
                 backgroundColor: 'transparent',
                 color: 'rgba(0,0,0,0.3)',
-            boxShadow: 'none',
+                boxShadow: 'none',
                 '&:hover': {
                     color: 'rgba(0,0,0,1)',
-                backgroundColor: 'transparent',
-                boxShadow: 'none'
+                    backgroundColor: 'transparent',
+                    boxShadow: 'none'
                 },
-            '&:active': {
-                boxShadow: 'none'
-            },
+                '&:active': {
+                    boxShadow: 'none'
+                },
                 '&.Mui-disabled': {
-                color: 'rgba(0,0,0,0.12)',
-                boxShadow: 'none'
-            },
-            '&:focus-visible': {
-                boxShadow: 'none'
+                    color: 'rgba(0,0,0,0.12)',
+                    boxShadow: 'none'
+                },
+                '&:focus-visible': {
+                    boxShadow: 'none'
                 }
             }}
             aria-label={
                 type === 'transcribe' ? 'Local transcribe mode details' : 'Local LLM mode details'
             }
         >
-        <ErrorOutlineRoundedIcon fontSize="small"/>
+            <ErrorOutlineRoundedIcon fontSize="small"/>
         </IconButton>
     );
 
@@ -1102,17 +1106,19 @@ const renderModeInfoButton = (type: ModeInfoDialogType, disabledButton: boolean)
                     </Box>
                 </Stack>
 
-                <Stack spacing={2}>
-                    <Typography variant="h6" color="text.primary" fontWeight={600}>
-                        API Keys
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        {needsAnyApiKey
-                            ? 'Provide the API keys required for the selected providers below.'
-                            : 'These keys are used for API-based speech recognition and LLM processing (OpenAI or Google Gemini). Leave empty if you plan to work in local mode.'}
-                    </Typography>
+                <div className={'fc gap-2'}>
+                    <div className={'fc'}>
+                        <Typography variant="h6" color="text.primary" fontWeight={600}>
+                            API Keys
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            {needsAnyApiKey
+                                ? 'Provide the API keys required for the selected providers below.'
+                                : 'These keys are used for API-based speech recognition and LLM processing (OpenAI or Google Gemini). Leave empty if you plan to work in local mode.'}
+                        </Typography>
 
-                    <Stack spacing={0.5}>
+                    </div>
+                    <div className={'fc gap-2 mt-1'}>
                         <TextField
                             id="google-key"
                             type="password"
@@ -1128,10 +1134,10 @@ const renderModeInfoButton = (type: ModeInfoDialogType, disabledButton: boolean)
                                 Required for {googleKeyReasons.join(' + ')}.
                             </Typography>
                         )}
-                    </Stack>
+                    </div>
 
                     {shouldShowOpenAIField && (
-                        <Stack spacing={0.5}>
+                        <div className={'fc gap-2 mt-1'}>
                             <TextField
                                 id="openai-key"
                                 type="password"
@@ -1147,15 +1153,9 @@ const renderModeInfoButton = (type: ModeInfoDialogType, disabledButton: boolean)
                                     Required for {openaiKeyReasons.join(' + ')}.
                                 </Typography>
                             )}
-                        </Stack>
+                        </div>
                     )}
-
-                    {!requiresGoogleKey && !requiresOpenAIKey && (
-                        <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                            No API keys required for local mode.
-                        </Typography>
-                    )}
-                </Stack>
+                </div>
 
                 {!shouldAutoSave && onSubmit && (
                     <Box display="flex" justifyContent="flex-end" mt={2}>

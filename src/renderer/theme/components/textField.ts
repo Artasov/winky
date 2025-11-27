@@ -29,6 +29,27 @@ export const createTextFieldOverrides = (theme: Theme): Pick<
                     '& .MuiOutlinedInput-notchedOutline': {
                         borderColor: theme.palette.primary.main
                     }
+                },
+                '&.Mui-disabled': {
+                    backgroundColor: '#fff',
+                    opacity: 1,
+                    '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(15, 23, 42, 0.12)'
+                    },
+                    '& .MuiSelect-select, & .MuiSelect-select.Mui-disabled': {
+                        color: 'rgba(15, 23, 42, 0.5)',
+                        WebkitTextFillColor: 'rgba(15, 23, 42, 0.5)'
+                    },
+                    '& .MuiInputBase-input, & .MuiInputBase-input.Mui-disabled': {
+                        color: 'rgba(15, 23, 42, 0.5)',
+                        WebkitTextFillColor: 'rgba(15, 23, 42, 0.5)'
+                    },
+                    '& .MuiSelect-icon': {
+                        color: 'rgba(15, 23, 42, 0.4)'
+                    },
+                    '& .MuiTypography-root': {
+                        color: theme.palette.text.primary
+                    }
                 }
             },
             input: {
@@ -57,6 +78,11 @@ export const createTextFieldOverrides = (theme: Theme): Pick<
                     display: 'inline-flex',
                     alignItems: 'center',
                     zIndex: 1
+                },
+                '&.Mui-disabled': {
+                    color: 'rgba(15, 23, 42, 0.5)',
+                    fontWeight: 600,
+                    opacity: 0.5
                 }
             }
         }

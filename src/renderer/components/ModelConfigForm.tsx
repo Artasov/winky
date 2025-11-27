@@ -1,5 +1,20 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Box, Button, CircularProgress, Collapse, MenuItem, Stack, TextField, Typography} from '@mui/material';
+import React, {forwardRef, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {
+    Box,
+    Button,
+    CircularProgress,
+    Collapse,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    Fade,
+    IconButton,
+    MenuItem,
+    Stack,
+    TextField,
+    Typography
+} from '@mui/material';
 import {
     LLM_API_MODELS,
     LLM_GEMINI_API_MODELS,
@@ -32,6 +47,7 @@ import {
     normalizeOllamaModelName
 } from '../services/ollama';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 
 export interface ModelConfigFormData {
     openaiKey: string;
@@ -71,7 +87,33 @@ const LOCAL_LLM_SIZE_HINTS: Record<string, string> = {
     'qwen3:8b': '≈5.2 GB',
     'qwen3:4b': '≈2.5 GB'
 };
-const FAST_WHISPER_INSTALL_SIZE_HINT = '≈4.3 GB';
+const FAST_WHISPER_INSTALL_SIZE_HINT = '≈43 MB';
+type ModeInfoDialogType = 'transcribe' | 'llm';
+
+const MODE_INFO_DIALOG_CONTENT: Record<ModeInfoDialogType, {title: string; description: string; bullets: string[]}> = {
+    transcribe: {
+        title: 'Local Transcribe Mode',
+        description:
+            'Audio is processed entirely on your machine via the bundled FastWhisper server. The server itself occupies roughly 43 MB and works offline once the model is warmed up.',
+        bullets: [
+            'Available model sizes: Tiny 75 MB, Base 141 MB, Small 463 MB, Medium 1.42 GB, Large v3 3 GB (aka Florcheva 3).',
+            'If you lack an NVIDIA GPU the engine falls back to CPU, so Medium/Large v3 models will run noticeably slower.',
+            'Best results come from using an NVIDIA GPU with the Large v3 model; warmup may temporarily block the microphone.',
+            'Everything stays offline, with no API quotas or token costs once installed.'
+        ]
+    },
+    llm: {
+        title: 'Local LLM Mode',
+        description:
+            'Responses are generated through your local Ollama runtime. Winky communicates with the Ollama HTTP server, so everything stays on-device.',
+        bullets: [
+            'Requires Ollama to be installed and running in the background.',
+            'LLM weights are downloaded once per model and stored locally.',
+            'Without a discrete GPU (CUDA/Metal) expect inference and warmup to take significantly longer, especially on 20B+ models.',
+            'Completely offline after download — no API keys or internet connection required.'
+        ]
+    }
+};
 
 interface ModelConfigFormProps {
     values: ModelConfigFormData;
@@ -96,6 +138,8 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                                          }) => {
     const shouldAutoSave = autoSave && typeof onAutoSave === 'function';
     const disableInputs = saving && !shouldAutoSave;
+    const [modeInfoDialog, setModeInfoDialog] = useState<ModeInfoDialogType | null>(null);
+    const [modeInfoDialogContentType, setModeInfoDialogContentType] = useState<ModeInfoDialogType>('transcribe');
     const [localModelDownloaded, setLocalModelDownloaded] = useState<boolean | null>(null);
     const [localModelVerifiedFor, setLocalModelVerifiedFor] = useState<string | null>(null);
     const [checkingLocalModel, setCheckingLocalModel] = useState(false);
@@ -130,6 +174,23 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const selectedLocalModelDescription = selectedLocalModelMeta
         ? `${selectedLocalModelMeta.label} (${selectedLocalModelMeta.size})`
         : null;
+
+    const handleModeInfoClick = useCallback(
+        (event: React.MouseEvent, dialogType: ModeInfoDialogType) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (disableInputs) {
+                return;
+            }
+            setModeInfoDialogContentType(dialogType);
+            setModeInfoDialog(dialogType);
+        },
+        [disableInputs]
+    );
+
+    const closeModeInfoDialog = useCallback(() => {
+        setModeInfoDialog(null);
+    }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -622,23 +683,78 @@ const formatLLMLabel = (value: string) => {
         setOllamaModelError(null);
     }, [values.llmModel]);
 
-    const renderTranscribeModeSelector = (sx?: any) => (
-        <TextField
-            select
-            label="Transcribe Mode"
-            value={values.transcribeMode}
-            onChange={(e) => {
-                const transcribeMode = e.target.value as TranscribeMode;
-                const transcribeModel = getDefaultTranscribeModel(transcribeMode);
-                emitChange({transcribeMode, transcribeModel});
+const ModeInfoDialogTransition = forwardRef(function ModeInfoDialogTransition(
+    props: React.ComponentProps<typeof Fade>,
+    ref: React.Ref<unknown>
+) {
+    return <Fade timeout={200} ref={ref} {...props} />;
+});
+
+const renderModeInfoButton = (type: ModeInfoDialogType, disabledButton: boolean) => (
+        <IconButton
+            size="small"
+            onClick={(event) => handleModeInfoClick(event, type)}
+            disabled={disabledButton}
+            sx={{
+                position: 'absolute',
+            right: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                borderRadius: '50%',
+                width: 28,
+                height: 28,
+                backgroundColor: 'transparent',
+                color: 'rgba(0,0,0,0.3)',
+            boxShadow: 'none',
+                '&:hover': {
+                    color: 'rgba(0,0,0,1)',
+                backgroundColor: 'transparent',
+                boxShadow: 'none'
+                },
+            '&:active': {
+                boxShadow: 'none'
+            },
+                '&.Mui-disabled': {
+                color: 'rgba(0,0,0,0.12)',
+                boxShadow: 'none'
+            },
+            '&:focus-visible': {
+                boxShadow: 'none'
+                }
             }}
-            disabled={disableInputs}
-            fullWidth
-            sx={sx}
+            aria-label={
+                type === 'transcribe' ? 'Local transcribe mode details' : 'Local LLM mode details'
+            }
         >
-            <MenuItem value={SPEECH_MODES.API}>API</MenuItem>
-            <MenuItem value={SPEECH_MODES.LOCAL}>Local</MenuItem>
-        </TextField>
+        <ErrorOutlineRoundedIcon fontSize="small"/>
+        </IconButton>
+    );
+
+    const renderTranscribeModeSelector = (sx?: any) => (
+        <Box sx={{position: 'relative', width: '100%'}}>
+            <TextField
+                select
+                label="Transcribe Mode"
+                value={values.transcribeMode}
+                onChange={(e) => {
+                    const transcribeMode = e.target.value as TranscribeMode;
+                    const transcribeModel = getDefaultTranscribeModel(transcribeMode);
+                    emitChange({transcribeMode, transcribeModel});
+                }}
+                disabled={disableInputs}
+                fullWidth
+                sx={sx}
+                slotProps={{
+                    select: {
+                        sx: {pr: 8}
+                    }
+                }}
+            >
+                <MenuItem value={SPEECH_MODES.API}>API</MenuItem>
+                <MenuItem value={SPEECH_MODES.LOCAL}>Local</MenuItem>
+            </TextField>
+            {renderModeInfoButton('transcribe', disableInputs)}
+        </Box>
     );
 
     const requiresOpenAIKeyForLLM = values.llmMode === LLM_MODES.API && isOpenAiApiModel(values.llmModel);
@@ -702,342 +818,399 @@ const formatLLMLabel = (value: string) => {
     const llmWarmupWarningMessage = selectedLocalLLMDescription
         ? `${selectedLocalLLMDescription} is warming up. Using the microphone is temporarily unavailable.`
         : 'The model is warming up. Using the microphone is temporarily unavailable.';
+    const modeInfoDialogDetails = MODE_INFO_DIALOG_CONTENT[modeInfoDialogContentType];
 
     return (
-        <Box
-            component={shouldAutoSave ? 'div' : 'form'}
-            onSubmit={shouldAutoSave ? undefined : onSubmit}
-            sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 2,
-                borderRadius: 4,
-                border: '1px solid rgba(244,63,94,0.15)',
-                backgroundColor: '#fff',
-                p: {xs: 3, md: 4},
-                boxShadow: '0 30px 60px rgba(255, 255, 255, 0.03)'
-            }}
-        >
-            <Stack spacing={2}>
-                <Typography variant="h6" color="text.primary" fontWeight={600}>
-                    Modes and Models
-                </Typography>
-                <Box
-                    sx={{
-                        display: 'grid',
-                        gap: 2,
-                        gridTemplateColumns: {xs: 'repeat(1, minmax(0, 1fr))', md: 'repeat(2, minmax(0, 1fr))'}
-                    }}
-                >
-                    <div className={'fc gap-2'}>
-                        {renderTranscribeModeSelector({flex: 1})}
-                        <Collapse in={values.transcribeMode === SPEECH_MODES.LOCAL} unmountOnExit>
-                            <LocalSpeechInstallControl disabled={disableInputs}/>
-                        </Collapse>
-                    </div>
-                    <div className={'fc gap-1'}>
-                        <TextField
-                            select
-                            label="Transcribe Model"
-                            value={values.transcribeModel}
-                            onChange={(e) => {
-                                const newModel = e.target.value as TranscribeModel;
-                                emitChange({transcribeModel: newModel});
-                            }}
-                            disabled={disableInputs || (values.transcribeMode === SPEECH_MODES.LOCAL && (!localServerStatus?.installed || !localServerStatus?.running))}
-                        >
-                            {transcribeModelOptions.map((model) => (
-                                <MenuItem key={model} value={model}>
-                                    {formatTranscribeLabel(model)}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                        {values.transcribeMode === SPEECH_MODES.LOCAL && localServerStatus?.installed && localServerStatus?.running && (
-                            <div className={'fc w-full flex-grow'}>
-                                {(checkingLocalModel || localModelDownloaded === null) && (
-                                    <Typography
-                                        variant="body2"
-                                        color="text.secondary"
-                                        sx={{display: 'flex', gap: 1}}
-                                    >
-                                        <CircularProgress size={16} thickness={5} color="inherit"/>
-                                        {checkingMessage}
-                                    </Typography>
-                                )}
-                                {!checkingLocalModel && localWarmupInProgress && (
-                                    <Typography
-                                        variant="body2"
-                                        color="warning.main"
-                                        sx={{display: 'flex', gap: 1}}
-                                    >
-                                        <CircularProgress
-                                            size={20}
-                                            thickness={5}
-                                            sx={{color: 'warning.main', flexShrink: 0, mt: '3px'}}
-                                        />
-                                        {warmupWarningMessage}
-                                    </Typography>
-                                )}
-                                {!checkingLocalModel && !localWarmupInProgress && localModelDownloaded === true && (
-                                    <Typography
-                                        variant="body2"
-                                        color="success.main"
-                                        sx={{display: 'flex', gap: 1}}
-                                    >
-                                        <CheckCircleIcon style={{marginTop: 3}} fontSize="small"/>
-                                        {downloadedMessage}
-                                    </Typography>
-                                )}
-                                {!checkingLocalModel && localModelDownloaded === false && (
-                                    <Button
-                                        variant="contained"
-                                        color="primary"
-                                        onClick={handleDownloadModel}
-                                        disabled={disableInputs || downloadingLocalModel}
-                                        startIcon={downloadingLocalModel ? (
-                                            <CircularProgress size={18} thickness={5} color="inherit"/>
-                                        ) : undefined}
-                                        sx={{mt: 0.5, minHeight: '51px'}}
-                                    >
-                                        {downloadButtonLabel}
-                                    </Button>
-                                )}
-                                {localModelError && (
-                                    <Typography variant="body2" color="error" sx={{mt: 0.5}}>
-                                        {localModelError}
-                                    </Typography>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                    <div className={'fc gap-1'}>
-                        <TextField
-                            select
-                            label="LLM Mode"
-                            value={values.llmMode}
-                            onChange={(e) => {
-                                const llmMode = e.target.value as LLMMode;
-                                const llmModel = getDefaultLLMModel(llmMode);
-                                emitChange({llmMode, llmModel});
-                            }}
-                            disabled={disableInputs}
-                        >
-                            <MenuItem value={LLM_MODES.API}>API</MenuItem>
-                            <MenuItem value={LLM_MODES.LOCAL}>Local</MenuItem>
-                        </TextField>
-                        {isLocalLLMMode && (
-                            <Box sx={{width: '100%'}}>
-                                {ollamaChecking && (
-                                    <Typography
-                                        variant="body2"
-                                        color="text.secondary"
-                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
-                                    >
-                                        <CircularProgress size={16} thickness={5} color="inherit"/>
-                                        Checking Ollama installation and model availability…
-                                    </Typography>
-                                )}
-                                {!ollamaChecking && ollamaInstalled === false && (
-                                    <Typography variant="body2" color="warning.main">
-                                        Install{' '}
-                                        <a
-                                            href="https://ollama.com/download"
-                                            target="_blank"
-                                            rel="noreferrer noopener"
-                                            style={{color: 'inherit', fontWeight: 600}}
+        <>
+            <Box
+                component={shouldAutoSave ? 'div' : 'form'}
+                onSubmit={shouldAutoSave ? undefined : onSubmit}
+                sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                    borderRadius: 4,
+                    border: '1px solid rgba(244,63,94,0.15)',
+                    backgroundColor: '#fff',
+                    p: {xs: 3, md: 4},
+                    boxShadow: '0 30px 60px rgba(255, 255, 255, 0.03)'
+                }}
+            >
+                <Stack spacing={2}>
+                    <Typography variant="h6" color="text.primary" fontWeight={600}>
+                        Modes and Models
+                    </Typography>
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            gap: 2,
+                            gridTemplateColumns: {xs: 'repeat(1, minmax(0, 1fr))', md: 'repeat(2, minmax(0, 1fr))'}
+                        }}
+                    >
+                        <div className={'fc gap-2'}>
+                            {renderTranscribeModeSelector({flex: 1})}
+                            <Collapse in={values.transcribeMode === SPEECH_MODES.LOCAL} unmountOnExit>
+                                <LocalSpeechInstallControl disabled={disableInputs}/>
+                            </Collapse>
+                        </div>
+                        <div className={'fc gap-1'}>
+                            <TextField
+                                select
+                                label="Transcribe Model"
+                                value={values.transcribeModel}
+                                onChange={(e) => {
+                                    const newModel = e.target.value as TranscribeModel;
+                                    emitChange({transcribeModel: newModel});
+                                }}
+                                disabled={disableInputs || (values.transcribeMode === SPEECH_MODES.LOCAL && (!localServerStatus?.installed || !localServerStatus?.running))}
+                            >
+                                {transcribeModelOptions.map((model) => (
+                                    <MenuItem key={model} value={model}>
+                                        {formatTranscribeLabel(model)}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            {values.transcribeMode === SPEECH_MODES.LOCAL && localServerStatus?.installed && localServerStatus?.running && (
+                                <div className={'fc w-full flex-grow'}>
+                                    {(checkingLocalModel || localModelDownloaded === null) && (
+                                        <Typography
+                                            variant="body2"
+                                            color="text.secondary"
+                                            sx={{display: 'flex', gap: 1}}
                                         >
-                                            Ollama
-                                        </a>{' '}
-                                        to enable local LLM models.
-                                    </Typography>
-                                )}
-                                {!ollamaChecking && ollamaError && (
-                                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap'}}>
-                                        <Typography variant="body2" color="error" sx={{flex: 1, minWidth: 0}}>
-                                            {ollamaError}
+                                            <CircularProgress size={16} thickness={5} color="inherit"/>
+                                            {checkingMessage}
                                         </Typography>
-                                        {(ollamaError.includes('Timeout') || ollamaError.includes('not be running') || ollamaError.includes('Make sure Ollama is running')) && (
-                                            <Button
-                                                size="small"
-                                                variant="outlined"
-                                                onClick={() => {
-                                                    setOllamaError(null);
-                                                    setOllamaChecking(true);
-                                                    setOllamaModelsLoaded(false);
-                                                    checkOllamaInstalled()
-                                                        .then((installed) => {
-                                                            setOllamaInstalled(installed);
-                                                            if (installed) {
-                                                                setOllamaError(null);
-                                                                void refreshOllamaModels(true, 25, 1000);
-                                                            } else {
+                                    )}
+                                    {!checkingLocalModel && localWarmupInProgress && (
+                                        <Typography
+                                            variant="body2"
+                                            color="warning.main"
+                                            sx={{display: 'flex', gap: 1}}
+                                        >
+                                            <CircularProgress
+                                                size={20}
+                                                thickness={5}
+                                                sx={{color: 'warning.main', flexShrink: 0, mt: '3px'}}
+                                            />
+                                            {warmupWarningMessage}
+                                        </Typography>
+                                    )}
+                                    {!checkingLocalModel && !localWarmupInProgress && localModelDownloaded === true && (
+                                        <Typography
+                                            variant="body2"
+                                            color="success.main"
+                                            sx={{display: 'flex', gap: 1}}
+                                        >
+                                            <CheckCircleIcon style={{marginTop: 3}} fontSize="small"/>
+                                            {downloadedMessage}
+                                        </Typography>
+                                    )}
+                                    {!checkingLocalModel && localModelDownloaded === false && (
+                                        <Button
+                                            variant="contained"
+                                            color="primary"
+                                            onClick={handleDownloadModel}
+                                            disabled={disableInputs || downloadingLocalModel}
+                                            startIcon={downloadingLocalModel ? (
+                                                <CircularProgress size={18} thickness={5} color="inherit"/>
+                                            ) : undefined}
+                                            sx={{mt: 0.5, minHeight: '51px'}}
+                                        >
+                                            {downloadButtonLabel}
+                                        </Button>
+                                    )}
+                                    {localModelError && (
+                                        <Typography variant="body2" color="error" sx={{mt: 0.5}}>
+                                            {localModelError}
+                                        </Typography>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        <div className={'fc gap-1'}>
+                            <Box sx={{position: 'relative', width: '100%'}}>
+                                <TextField
+                                    select
+                                    label="LLM Mode"
+                                    value={values.llmMode}
+                                    onChange={(e) => {
+                                        const llmMode = e.target.value as LLMMode;
+                                        const llmModel = getDefaultLLMModel(llmMode);
+                                        emitChange({llmMode, llmModel});
+                                    }}
+                                    disabled={disableInputs}
+                                    fullWidth
+                                    slotProps={{
+                                        select: {
+                                            sx: {pr: 8}
+                                        }
+                                    }}
+                                >
+                                    <MenuItem value={LLM_MODES.API}>API</MenuItem>
+                                    <MenuItem value={LLM_MODES.LOCAL}>Local</MenuItem>
+                                </TextField>
+                                {renderModeInfoButton('llm', disableInputs)}
+                            </Box>
+                            {isLocalLLMMode && (
+                                <Box sx={{width: '100%'}}>
+                                    {ollamaChecking && (
+                                        <Typography
+                                            variant="body2"
+                                            color="text.secondary"
+                                            sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                        >
+                                            <CircularProgress size={16} thickness={5} color="inherit"/>
+                                            Checking Ollama installation and model availability…
+                                        </Typography>
+                                    )}
+                                    {!ollamaChecking && ollamaInstalled === false && (
+                                        <Typography variant="body2" color="warning.main">
+                                            Install{' '}
+                                            <a
+                                                href="https://ollama.com/download"
+                                                target="_blank"
+                                                rel="noreferrer noopener"
+                                                style={{color: 'inherit', fontWeight: 600}}
+                                            >
+                                                Ollama
+                                            </a>{' '}
+                                            to enable local LLM models.
+                                        </Typography>
+                                    )}
+                                    {!ollamaChecking && ollamaError && (
+                                        <Box sx={{display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap'}}>
+                                            <Typography variant="body2" color="error" sx={{flex: 1, minWidth: 0}}>
+                                                {ollamaError}
+                                            </Typography>
+                                            {(ollamaError.includes('Timeout') || ollamaError.includes('not be running') || ollamaError.includes('Make sure Ollama is running')) && (
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    onClick={() => {
+                                                        setOllamaError(null);
+                                                        setOllamaChecking(true);
+                                                        setOllamaModelsLoaded(false);
+                                                        checkOllamaInstalled()
+                                                            .then((installed) => {
+                                                                setOllamaInstalled(installed);
+                                                                if (installed) {
+                                                                    setOllamaError(null);
+                                                                    void refreshOllamaModels(true, 25, 1000);
+                                                                } else {
+                                                                    setOllamaModels([]);
+                                                                    setOllamaModelDownloaded(null);
+                                                                    setOllamaModelsLoaded(false);
+                                                                }
+                                                            })
+                                                            .catch((error: any) => {
+                                                                setOllamaInstalled(false);
                                                                 setOllamaModels([]);
                                                                 setOllamaModelDownloaded(null);
+                                                                setOllamaError(error?.message || 'Failed to detect Ollama installation.');
                                                                 setOllamaModelsLoaded(false);
-                                                            }
-                                                        })
-                                                        .catch((error: any) => {
-                                                            setOllamaInstalled(false);
-                                                            setOllamaModels([]);
-                                                            setOllamaModelDownloaded(null);
-                                                            setOllamaError(error?.message || 'Failed to detect Ollama installation.');
-                                                            setOllamaModelsLoaded(false);
-                                                        })
-                                                        .finally(() => {
-                                                            setOllamaChecking(false);
-                                                        });
-                                                }}
-                                                sx={{flexShrink: 0}}
-                                            >
-                                                Refresh
-                                            </Button>
-                                        )}
-                                    </Box>
-                                )}
-                            </Box>
-                        )}
-                    </div>
+                                                            })
+                                                            .finally(() => {
+                                                                setOllamaChecking(false);
+                                                            });
+                                                    }}
+                                                    sx={{flexShrink: 0}}
+                                                >
+                                                    Refresh
+                                                </Button>
+                                            )}
+                                        </Box>
+                                    )}
+                                </Box>
+                            )}
+                        </div>
 
-                    <div className={'fc gap-1'}>
+                        <div className={'fc gap-1'}>
+                            <TextField
+                                select
+                                label="LLM Model"
+                                value={values.llmModel}
+                                onChange={(e) => emitChange({llmModel: e.target.value as LLMModel})}
+                                disabled={disableLlmModelSelect}
+                            >
+                                {llmModelOptions.map((model) => (
+                                    <MenuItem key={model} value={model}>
+                                        {formatLLMLabel(model)}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            {isLocalLLMMode && ollamaInstalled && (
+                                <Box sx={{width: '100%'}}>
+                                    {(ollamaModelChecking || (!ollamaModelsLoaded && ollamaModelDownloaded === null)) && (
+                                        <Typography
+                                            variant="body2"
+                                            color="text.secondary"
+                                            sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                        >
+                                            <CircularProgress size={16} thickness={5} color="inherit"/>
+                                            {llmCheckingMessage}
+                                        </Typography>
+                                    )}
+                                    {ollamaModelsLoaded && !ollamaModelChecking && ollamaModelWarming && (
+                                        <Typography
+                                            variant="body2"
+                                            color="warning.main"
+                                            sx={{display: 'flex', alignItems: 'center', gap: 1}}
+                                        >
+                                            <CircularProgress
+                                                size={22}
+                                                thickness={5}
+                                                sx={{color: 'warning.main', flexShrink: 0}}
+                                            />
+                                            {llmWarmupWarningMessage}
+                                        </Typography>
+                                    )}
+                                    {ollamaModelsLoaded && !ollamaModelChecking && !ollamaModelWarming && ollamaModelDownloaded === true && (
+                                        <Typography
+                                            variant="body2"
+                                            color="success.main"
+                                            sx={{display: 'flex', gap: 1}}
+                                        >
+                                            <CheckCircleIcon style={{marginTop: 3}} fontSize="small"/>
+                                            {llmDownloadedMessage}
+                                        </Typography>
+                                    )}
+                                    {ollamaModelsLoaded && !ollamaModelChecking && ollamaModelDownloaded === false && (
+                                        <Button
+                                            variant="contained"
+                                            color="primary"
+                                            onClick={handleDownloadLlmModel}
+                                            disabled={disableInputs || ollamaDownloadingModel}
+                                            startIcon={
+                                                ollamaDownloadingModel ? (
+                                                    <CircularProgress size={18} thickness={5} color="inherit"/>
+                                                ) : undefined
+                                            }
+                                            sx={{mt: 0.5, minHeight: '51px'}}
+                                        >
+                                            {llmDownloadButtonLabel}
+                                        </Button>
+                                    )}
+                                    {ollamaModelError && (
+                                        <Typography variant="body2" color="error" sx={{mt: 0.5}}>
+                                            {ollamaModelError}
+                                        </Typography>
+                                    )}
+                                </Box>
+                            )}
+                        </div>
+                    </Box>
+                </Stack>
+
+                <Stack spacing={2}>
+                    <Typography variant="h6" color="text.primary" fontWeight={600}>
+                        API Keys
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        {needsAnyApiKey
+                            ? 'Provide the API keys required for the selected providers below.'
+                            : 'These keys are used for API-based speech recognition and LLM processing (OpenAI or Google Gemini). Leave empty if you plan to work in local mode.'}
+                    </Typography>
+
+                    <Stack spacing={0.5}>
                         <TextField
-                            select
-                            label="LLM Model"
-                            value={values.llmModel}
-                            onChange={(e) => emitChange({llmModel: e.target.value as LLMModel})}
-                            disabled={disableLlmModelSelect}
-                        >
-                            {llmModelOptions.map((model) => (
-                                <MenuItem key={model} value={model}>
-                                    {formatLLMLabel(model)}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                        {isLocalLLMMode && ollamaInstalled && (
-                            <Box sx={{width: '100%'}}>
-                                {(ollamaModelChecking || (!ollamaModelsLoaded && ollamaModelDownloaded === null)) && (
-                                    <Typography
-                                        variant="body2"
-                                        color="text.secondary"
-                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
-                                    >
-                                        <CircularProgress size={16} thickness={5} color="inherit"/>
-                                        {llmCheckingMessage}
-                                    </Typography>
-                                )}
-                                {ollamaModelsLoaded && !ollamaModelChecking && ollamaModelWarming && (
-                                    <Typography
-                                        variant="body2"
-                                        color="warning.main"
-                                        sx={{display: 'flex', alignItems: 'center', gap: 1}}
-                                    >
-                                        <CircularProgress
-                                            size={22}
-                                            thickness={5}
-                                            sx={{color: 'warning.main', flexShrink: 0}}
-                                        />
-                                        {llmWarmupWarningMessage}
-                                    </Typography>
-                                )}
-                                {ollamaModelsLoaded && !ollamaModelChecking && !ollamaModelWarming && ollamaModelDownloaded === true && (
-                                    <Typography
-                                        variant="body2"
-                                        color="success.main"
-                                        sx={{display: 'flex', gap: 1}}
-                                    >
-                                        <CheckCircleIcon style={{marginTop: 3}} fontSize="small"/>
-                                        {llmDownloadedMessage}
-                                    </Typography>
-                                )}
-                                {ollamaModelsLoaded && !ollamaModelChecking && ollamaModelDownloaded === false && (
-                                    <Button
-                                        variant="contained"
-                                        color="primary"
-                                        onClick={handleDownloadLlmModel}
-                                        disabled={disableInputs || ollamaDownloadingModel}
-                                        startIcon={
-                                            ollamaDownloadingModel ? (
-                                                <CircularProgress size={18} thickness={5} color="inherit"/>
-                                            ) : undefined
-                                        }
-                                        sx={{mt: 0.5, minHeight: '51px'}}
-                                    >
-                                        {llmDownloadButtonLabel}
-                                    </Button>
-                                )}
-                                {ollamaModelError && (
-                                    <Typography variant="body2" color="error" sx={{mt: 0.5}}>
-                                        {ollamaModelError}
-                                    </Typography>
-                                )}
-                            </Box>
+                            id="google-key"
+                            type="password"
+                            label="Google AI API Key"
+                            value={values.googleKey}
+                            onChange={(e) => emitChange({googleKey: e.target.value})}
+                            placeholder="AIza..."
+                            required={requireApiKeys && requiresGoogleKey}
+                            disabled={disableInputs}
+                        />
+                        {requireApiKeys && requiresGoogleKey && (
+                            <Typography variant="caption" color="text.secondary">
+                                Required for {googleKeyReasons.join(' + ')}.
+                            </Typography>
                         )}
-                    </div>
-                </Box>
-            </Stack>
+                    </Stack>
 
-            <Stack spacing={2}>
-                <Typography variant="h6" color="text.primary" fontWeight={600}>
-                    API Keys
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                    {needsAnyApiKey
-                        ? 'Provide the API keys required for the selected providers below.'
-                        : 'These keys are used for API-based speech recognition and LLM processing (OpenAI or Google Gemini). Leave empty if you plan to work in local mode.'}
-                </Typography>
+                    {shouldShowOpenAIField && (
+                        <Stack spacing={0.5}>
+                            <TextField
+                                id="openai-key"
+                                type="password"
+                                label="OpenAI API Key"
+                                value={values.openaiKey}
+                                onChange={(e) => emitChange({openaiKey: e.target.value})}
+                                placeholder="sk-..."
+                                required={requireApiKeys && requiresOpenAIKey}
+                                disabled={disableInputs}
+                            />
+                            {requireApiKeys && requiresOpenAIKey && (
+                                <Typography variant="caption" color="text.secondary">
+                                    Required for {openaiKeyReasons.join(' + ')}.
+                                </Typography>
+                            )}
+                        </Stack>
+                    )}
 
-                <Stack spacing={0.5}>
-                    <TextField
-                        id="google-key"
-                        type="password"
-                        label="Google AI API Key"
-                        value={values.googleKey}
-                        onChange={(e) => emitChange({googleKey: e.target.value})}
-                        placeholder="AIza..."
-                        required={requireApiKeys && requiresGoogleKey}
-                        disabled={disableInputs}
-                    />
-                    {requireApiKeys && requiresGoogleKey && (
-                        <Typography variant="caption" color="text.secondary">
-                            Required for {googleKeyReasons.join(' + ')}.
+                    {!requiresGoogleKey && !requiresOpenAIKey && (
+                        <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                            No API keys required for local mode.
                         </Typography>
                     )}
                 </Stack>
 
-                {shouldShowOpenAIField && (
-                    <Stack spacing={0.5}>
-                        <TextField
-                            id="openai-key"
-                            type="password"
-                            label="OpenAI API Key"
-                            value={values.openaiKey}
-                            onChange={(e) => emitChange({openaiKey: e.target.value})}
-                            placeholder="sk-..."
-                            required={requireApiKeys && requiresOpenAIKey}
-                            disabled={disableInputs}
-                        />
-                        {requireApiKeys && requiresOpenAIKey && (
-                            <Typography variant="caption" color="text.secondary">
-                                Required for {openaiKeyReasons.join(' + ')}.
-                            </Typography>
-                        )}
-                    </Stack>
+                {!shouldAutoSave && onSubmit && (
+                    <Box display="flex" justifyContent="flex-end" mt={2}>
+                        <Button type="submit" variant="contained" size="large" disabled={saving} sx={{px: 4}}>
+                            {saving ? 'Saving…' : submitButtonText}
+                        </Button>
+                    </Box>
                 )}
+            </Box>
 
-                {!requiresGoogleKey && !requiresOpenAIKey && (
-                    <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                        No API keys required for local mode.
-                    </Typography>
-                )}
-            </Stack>
-
-            {!shouldAutoSave && onSubmit && (
-                <Box display="flex" justifyContent="flex-end" mt={2}>
-                    <Button type="submit" variant="contained" size="large" disabled={saving} sx={{px: 4}}>
-                        {saving ? 'Saving…' : submitButtonText}
-                    </Button>
-                </Box>
+            {modeInfoDialog && (
+                <Dialog
+                    open
+                    onClose={closeModeInfoDialog}
+                    maxWidth="sm"
+                    slots={{transition: ModeInfoDialogTransition}}
+                    slotProps={{
+                        paper: {
+                            sx: {borderRadius: 3}
+                        }
+                    }}
+                >
+                    <DialogTitle>{modeInfoDialogDetails.title}</DialogTitle>
+                    <DialogContent dividers>
+                        <Typography variant="body1" color="text.primary">
+                            {modeInfoDialogDetails.description}
+                        </Typography>
+                        <Box
+                            component="ul"
+                            sx={{
+                                mt: 2,
+                                pl: 3,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 1,
+                                color: 'text.primary'
+                            }}
+                        >
+                            {modeInfoDialogDetails.bullets.map((bullet) => (
+                                <li key={bullet}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {bullet}
+                                    </Typography>
+                                </li>
+                            ))}
+                        </Box>
+                    </DialogContent>
+                    <DialogActions sx={{px: 3, py: 2}}>
+                        <Button onClick={closeModeInfoDialog} variant="contained">
+                            Got it
+                        </Button>
+                    </DialogActions>
+                </Dialog>
             )}
-        </Box>
+        </>
     );
 };
 

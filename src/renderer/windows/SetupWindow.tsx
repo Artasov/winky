@@ -42,6 +42,8 @@ const SetupWindow: React.FC = () => {
     });
 
     const [saving, setSaving] = useState(false);
+    const bothLocalModes =
+        formData.transcribeMode === SPEECH_MODES.LOCAL && formData.llmMode === LLM_MODES.LOCAL;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -127,7 +129,7 @@ const SetupWindow: React.FC = () => {
                         onSubmit={handleSubmit}
                         submitButtonText="Complete Setup"
                         saving={saving}
-                        requireApiKeys={true}
+                        requireApiKeys={!bothLocalModes}
                     />
                 </div>
             </div>

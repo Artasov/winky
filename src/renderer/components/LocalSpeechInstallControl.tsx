@@ -24,7 +24,7 @@ const actionLabels: Record<ActionKind, string> = {
     reinstall: 'Reinstall',
     stop: 'Stop'
 };
-const FAST_WHISPER_INSTALL_SIZE_HINT = '≈4.3 GB';
+const FAST_WHISPER_INSTALL_SIZE_HINT = '≈43 MB';
 
 const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({disabled = false}) => {
     const [status, setStatus] = useState<FastWhisperStatus | null>(null);

@@ -1112,10 +1112,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             API Keys
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Вы можете получить OpenAI ключи для удалённых режимов.
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Посетите{' '}
+                            Visit{' '}
                             <a
                                 href="https://platform.openai.com/api-keys"
                                 target="_blank"
@@ -1124,7 +1121,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             >
                                 OpenAI
                             </a>{' '}
-                            или{' '}
+                            or{' '}
                             <a
                                 href="https://ai.google.dev/gemini-api"
                                 target="_blank"
@@ -1132,9 +1129,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                 className="text-primary font-semibold flex items-center gap-1 inline-flex"
                             >
                                 GoogleAI
-                                <span style={{color: '#16a34a', fontWeight: 600}}>free</span>
+                                <span style={{color: '#16a34a', fontWeight: 300}}>free</span>
                             </a>{' '}
-                            чтобы получить эти ключи.
+                            to generate these keys.
                         </Typography>
                     </div>
                     <div className={'fc gap-2 mt-1'}>

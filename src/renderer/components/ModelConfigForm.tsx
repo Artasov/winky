@@ -1107,16 +1107,35 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 </Stack>
 
                 <div className={'fc gap-2'}>
-                    <div className={'fc'}>
+                    <div className={'fc gap-1'}>
                         <Typography variant="h6" color="text.primary" fontWeight={600}>
                             API Keys
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            {needsAnyApiKey
-                                ? 'Provide the API keys required for the selected providers below.'
-                                : 'These keys are used for API-based speech recognition and LLM processing (OpenAI or Google Gemini). Leave empty if you plan to work in local mode.'}
+                            Вы можете получить OpenAI ключи для удалённых режимов.
                         </Typography>
-
+                        <Typography variant="body2" color="text.secondary">
+                            Посетите{' '}
+                            <a
+                                href="https://platform.openai.com/api-keys"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="text-primary font-semibold"
+                            >
+                                OpenAI
+                            </a>{' '}
+                            или{' '}
+                            <a
+                                href="https://ai.google.dev/gemini-api"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="text-primary font-semibold flex items-center gap-1 inline-flex"
+                            >
+                                GoogleAI
+                                <span style={{color: '#16a34a', fontWeight: 600}}>free</span>
+                            </a>{' '}
+                            чтобы получить эти ключи.
+                        </Typography>
                     </div>
                     <div className={'fc gap-2 mt-1'}>
                         <TextField

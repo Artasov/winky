@@ -67,14 +67,14 @@ const SettingsPage: React.FC = () => {
         if (config?.micHotkey) {
             const currentHotkey = config.micHotkey.trim();
             const previousHotkey = previousHotkeyRef.current;
-            
+
             // Если это первое монтирование, просто сохраняем
             if (isInitialMountRef.current) {
                 isInitialMountRef.current = false;
                 previousHotkeyRef.current = currentHotkey;
                 return;
             }
-            
+
             // Если хоткей изменился не из-за пользователя (например, при изменении модели),
             // обновляем ref, но не показываем уведомление
             if (previousHotkey !== currentHotkey && !isUserChangingHotkeyRef.current) {
@@ -119,7 +119,7 @@ const SettingsPage: React.FC = () => {
             if (payload.accelerator) {
                 const currentHotkey = payload.accelerator.trim();
                 const previousHotkey = previousHotkeyRef.current;
-                
+
                 // Показываем уведомление только если:
                 // 1. Хоткей действительно изменился
                 // 2. Это изменение было инициировано пользователем (не автоматическое обновление конфига)
@@ -393,11 +393,9 @@ const SettingsPage: React.FC = () => {
             />
 
             <Box
+                className={'fc gap-1'}
                 component="section"
                 sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2,
                     borderRadius: 4,
                     border: '1px solid rgba(244,63,94,0.15)',
                     backgroundColor: '#fff',
@@ -443,11 +441,9 @@ const SettingsPage: React.FC = () => {
             </Box>
 
             <Box
+                className={'fc gap-1'}
                 component="section"
                 sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2,
                     borderRadius: 4,
                     border: '1px solid rgba(244,63,94,0.15)',
                     backgroundColor: '#fff',
@@ -516,45 +512,48 @@ const SettingsPage: React.FC = () => {
                     </Typography>
                 </div>
 
-                <div className={'fc gap-2 -mt-[12px]'}>
-                    <FormControlLabel
-                        control={<Checkbox checked={micAutoStart} onChange={handleAutoStartChange}/>}
-                        label="Start recording automatically"
-                    />
-                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
-                        When enabled, showing the mic via hotkey or taskbar menu immediately begins recording.
-                    </Typography>
-                </div>
+                <div className={'fc gap-1'}>
+                    <div className={'fc gap-2'}>
+                        <FormControlLabel
+                            control={<Checkbox checked={micAutoStart} onChange={handleAutoStartChange}/>}
+                            label="Start recording automatically"
+                        />
+                        <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
+                            When enabled, showing the mic via hotkey or taskbar menu immediately begins recording.
+                        </Typography>
+                    </div>
 
-                <div className={'fc gap-2 -mt-[12px]'}>
-                    <FormControlLabel
-                        control={<Checkbox checked={micHideOnStop} onChange={handleHideOnStopChange}/>}
-                        label="Hide mic overlay when recording stops"
-                    />
-                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
-                        When enabled, the mic overlay automatically hides after you stop recording. When disabled, it
-                        stays visible.
-                    </Typography>
-                </div>
+                    <div className={'fc gap-2'}>
+                        <FormControlLabel
+                            control={<Checkbox checked={micHideOnStop} onChange={handleHideOnStopChange}/>}
+                            label="Hide mic overlay when recording stops"
+                        />
+                        <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
+                            When enabled, the mic automatically hides after you stop recording. When disabled,
+                            it stays visible.
+                        </Typography>
+                    </div>
 
-                <div className={'fc gap-2 -mt-[12px]'}>
-                    <FormControlLabel
-                        control={<Checkbox checked={micShowOnLaunch} onChange={handleShowOnLaunchChange}/>}
-                        label="Show mic overlay when Winky starts"
-                    />
-                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
-                        Controls whether the floating microphone opens automatically right after the app launches.
-                    </Typography>
-                </div>
+                    <div className={'fc gap-2'}>
+                        <FormControlLabel
+                            control={<Checkbox checked={micShowOnLaunch} onChange={handleShowOnLaunchChange}/>}
+                            label="Show mic overlay when Winky starts"
+                        />
+                        <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
+                            Controls whether the floating microphone opens automatically right after the app launches.
+                        </Typography>
+                    </div>
 
-                <div className={'fc gap-2 -mt-[12px]'}>
-                    <FormControlLabel
-                        control={<Checkbox checked={completionSoundEnabled} onChange={handleCompletionSoundToggle}/>}
-                        label="Play sound when an action completes"
-                    />
-                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
-                        Uncheck to disable the completion sound entirely, regardless of volume.
-                    </Typography>
+                    <div className={'fc gap-2'}>
+                        <FormControlLabel
+                            control={<Checkbox checked={completionSoundEnabled}
+                                               onChange={handleCompletionSoundToggle}/>}
+                            label="Play sound when an action completes"
+                        />
+                        <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
+                            Uncheck to disable the completion sound entirely, regardless of volume.
+                        </Typography>
+                    </div>
                 </div>
 
                 <div className={'fc '}>

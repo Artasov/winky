@@ -18,6 +18,3 @@ export const actionsBridge = {
 export const iconsBridge = {
     fetch: (): Promise<ActionIcon[]> => fetchIcons()
 };
-
-export type ActionsBridge = typeof actionsBridge;
-export type IconsBridge = typeof iconsBridge;

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState, type FormEvent} from 'react';
 import {z} from 'zod';
 import type {ActionConfig} from '@shared/types';
 import {getErrorMessage} from '../../../utils/errorMessage';
@@ -129,7 +129,7 @@ export const useActionForm = ({
         }
     }, [isModalVisible, icons, iconsLoading, values.iconId, fetchIcons, isAuthorized, showToast, setField]);
 
-    const handleSubmit = useCallback(async (event: React.FormEvent) => {
+    const handleSubmit = useCallback(async (event: FormEvent) => {
         event.preventDefault();
         const validation = formSchema.safeParse(values);
         if (!validation.success) {
@@ -178,9 +178,9 @@ export const useActionForm = ({
         try {
             await window.winky?.actions.delete(actionId);
             await refreshConfig();
-            showToast('Action deleted.', 'success');
+            showToast(`Action "${actionName}" deleted.`, 'success');
         } catch (error: any) {
-            console.error('[ActionsPage] Ошибка удаления действия', error);
+            console.error('[ActionsPage] Ошибка удаления действия', {error, actionName});
             const message = getErrorMessage(error, 'Failed to delete the action.');
             showToast(message, 'error');
         } finally {

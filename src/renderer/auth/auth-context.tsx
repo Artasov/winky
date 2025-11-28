@@ -130,7 +130,7 @@ export function AuthProvider({children}: AuthProviderProps) {
 
                 // Ждем сохранения токенов в config перед получением пользователя
                 saveTokensPromise
-                    .then(async (savedConfig) => {
+                    .then(async () => {
                         if (cancelled) return;
                         
                         console.log('[auth] OAuth tokens saved to config, fetching user profile...');
@@ -223,10 +223,14 @@ export function AuthProvider({children}: AuthProviderProps) {
     const startOAuth = useCallback(async (provider: OAuthProviderType) => {
         setError(null);
         setStatus('oauth');
+        if (!window.winky?.auth) {
+            const normalized = normalizeAuthError(new AuthError('OAuth bridge unavailable'));
+            console.error('[auth] Failed to initiate OAuth', {provider, error: normalized.message});
+            setStatus('unauthenticated');
+            setError(normalized.message);
+            throw normalized;
+        }
         try {
-            if (!window.winky?.auth) {
-                throw new AuthError('OAuth bridge unavailable');
-            }
             await window.winky.auth.startOAuth(provider);
         } catch (err) {
             const normalized = normalizeAuthError(err);

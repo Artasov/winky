@@ -1,24 +1,24 @@
-import {useCallback} from 'react';
+import {useCallback, type RefObject} from 'react';
 import type {ActionConfig, AppConfig} from '@shared/types';
-import {clipboardBridge, llmBridge, notificationBridge, resultBridge, speechBridge} from '../../../services/winkyBridge';
+import {clipboardBridge, llmBridge, resultBridge, speechBridge} from '../../../services/winkyBridge';
 
-type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: {durationMs?: number}) => void;
+type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
 
 type UseActionProcessingParams = {
     config: AppConfig | null;
     showToast: ToastFn;
     handleLocalSpeechServerFailure: (message?: string) => boolean;
     openMainWindowWithToast: (message: string) => Promise<void>;
-    completionSoundRef: React.RefObject<HTMLAudioElement | null>;
+    completionSoundRef: RefObject<HTMLAudioElement | null>;
 };
 
 export const useActionProcessing = ({
-    config,
-    showToast,
-    handleLocalSpeechServerFailure,
-    openMainWindowWithToast,
-    completionSoundRef
-}: UseActionProcessingParams) => {
+                                        config,
+                                        showToast,
+                                        handleLocalSpeechServerFailure,
+                                        openMainWindowWithToast,
+                                        completionSoundRef
+                                    }: UseActionProcessingParams) => {
     const processAction = useCallback(async (action: ActionConfig, blob: Blob) => {
         if (!config) {
             return;
@@ -135,11 +135,11 @@ type CopyWithRetriesParams = {
 };
 
 const copyWithRetries = async ({
-    text,
-    showToast,
-    successMessage,
-    failureMessage
-}: CopyWithRetriesParams): Promise<boolean> => {
+                                   text,
+                                   showToast,
+                                   successMessage,
+                                   failureMessage
+                               }: CopyWithRetriesParams): Promise<boolean> => {
     const payload = text?.trim() ?? '';
     if (!payload) {
         console.warn('[useActionProcessing] Nothing to copy, skipping clipboard write');
@@ -164,16 +164,16 @@ const copyWithRetries = async ({
 type PlayCompletionSoundParams = {
     action: ActionConfig;
     config: AppConfig | null;
-    audioRef: React.RefObject<HTMLAudioElement | null>;
+    audioRef: RefObject<HTMLAudioElement | null>;
     debug?: boolean;
 };
 
 const playCompletionSound = async ({
-    action,
-    config,
-    audioRef,
-    debug = false
-}: PlayCompletionSoundParams): Promise<void> => {
+                                       action,
+                                       config,
+                                       audioRef,
+                                       debug = false
+                                   }: PlayCompletionSoundParams): Promise<void> => {
     const audio = audioRef.current;
     const completionSoundEnabled = config?.completionSoundEnabled !== false;
     const volumePreference = config?.completionSoundVolume ?? 1.0;
@@ -234,5 +234,3 @@ const playCompletionSound = async ({
         );
     }
 };
-
-export default useActionProcessing;

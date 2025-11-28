@@ -3,7 +3,6 @@ import {
     Box,
     Button,
     CircularProgress,
-    Collapse,
     Dialog,
     DialogActions,
     DialogContent,
@@ -21,17 +20,14 @@ import {
     LLM_LOCAL_MODELS,
     LLM_MODES,
     LLM_OPENAI_API_MODELS,
-    SPEECH_API_MODELS,
     SPEECH_GOOGLE_API_MODELS,
     SPEECH_LOCAL_MODELS,
     SPEECH_MODES,
     SPEECH_OPENAI_API_MODELS
 } from '@shared/constants';
 import type {LLMMode, LLMModel, TranscribeMode, TranscribeModel} from '@shared/types';
-import LocalSpeechInstallControl from './LocalSpeechInstallControl';
 import {
     formatLLMLabel,
-    formatTranscribeLabel,
     isGeminiApiModel,
     isGoogleTranscribeModel,
     isOpenAiApiModel,
@@ -45,11 +41,7 @@ import {
     subscribeToLocalModelWarmup,
     warmupLocalSpeechModel
 } from '../services/localSpeechModels';
-import {
-    downloadOllamaModel,
-    warmupOllamaModel as warmupOllamaModelService
-} from '../services/ollama';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import {downloadOllamaModel, warmupOllamaModel as warmupOllamaModelService} from '../services/ollama';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import {useLocalSpeechStatus} from '../hooks/useLocalSpeechStatus';
 import {useOllamaStatus} from '../hooks/useOllamaStatus';
@@ -65,9 +57,6 @@ export interface ModelConfigFormData {
     llmMode: LLMMode;
     llmModel: LLMModel;
 }
-
-const getDefaultTranscribeModel = (mode: TranscribeMode): TranscribeModel =>
-    (mode === SPEECH_MODES.API ? SPEECH_API_MODELS[0] : SPEECH_LOCAL_MODELS[0]) as TranscribeModel;
 
 const getDefaultLLMModel = (mode: LLMMode): LLMModel =>
     (mode === LLM_MODES.API ? LLM_API_MODELS[0] : LLM_LOCAL_MODELS[0]) as LLMModel;
@@ -184,7 +173,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         installed: ollamaInstalled,
         checking: ollamaChecking,
         error: ollamaError,
-        models: ollamaModels,
         modelsLoaded: ollamaModelsLoaded,
         modelChecking: ollamaModelChecking,
         modelDownloaded: ollamaModelDownloaded,
@@ -192,7 +180,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         modelDownloading: ollamaDownloadingModel,
         setModelDownloading: setOllamaDownloadingModel,
         modelWarming: ollamaModelWarming,
-        modelError: ollamaModelError,
         setModelError: setOllamaModelError,
         setError: setOllamaError,
         refreshModels: refreshOllamaModels,
@@ -525,33 +512,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         </IconButton>
     );
 
-    const renderTranscribeModeSelector = (sx?: any) => (
-        <Box sx={{position: 'relative', width: '100%'}}>
-            <TextField
-                select
-                label="Transcribe Mode"
-                value={values.transcribeMode}
-                onChange={(e) => {
-                    const transcribeMode = e.target.value as TranscribeMode;
-                    const transcribeModel = getDefaultTranscribeModel(transcribeMode);
-                    emitChange({transcribeMode, transcribeModel});
-                }}
-                disabled={disableInputs}
-                fullWidth
-                sx={sx}
-                slotProps={{
-                    select: {
-                        sx: {pr: 8}
-                    }
-                }}
-            >
-                <MenuItem value={SPEECH_MODES.API}>API</MenuItem>
-                <MenuItem value={SPEECH_MODES.LOCAL}>Local</MenuItem>
-            </TextField>
-            {renderModeInfoButton('transcribe', disableInputs)}
-        </Box>
-    );
-
     const requiresOpenAIKeyForLLM = values.llmMode === LLM_MODES.API && isOpenAiApiModel(safeLlmModel);
     const requiresGoogleKeyForLLM = values.llmMode === LLM_MODES.API && isGeminiApiModel(safeLlmModel);
     const requiresOpenAIKeyForTranscribe =
@@ -581,7 +541,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const shouldShowApiKeysSection =
         values.transcribeMode !== SPEECH_MODES.LOCAL || values.llmMode !== LLM_MODES.LOCAL;
     const isLocalLLMMode = values.llmMode === LLM_MODES.LOCAL;
-    const disableLlmModelSelect = disableInputs || (isLocalLLMMode && (ollamaChecking || !ollamaInstalled));
     const checkingMessage = selectedLocalModelDescription
         ? `Checking if ${selectedLocalModelDescription} is available…`
         : 'Checking if the model is available…';
@@ -836,4 +795,3 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
 };
 
 export default ModelConfigForm;
-

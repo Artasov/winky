@@ -5,5 +5,3 @@ export const actionHotkeysBridge = {
         invoke('action_hotkeys_register', {hotkeys}),
     clear: () => invoke('action_hotkeys_clear')
 };
-
-export type ActionHotkeysBridge = typeof actionHotkeysBridge;

@@ -8,7 +8,8 @@ interface HotkeyInputProps {
     placeholder?: string;
 }
 
-const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const resolvedPlatform = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+const isMac = /mac|ipod|iphone|ipad/i.test(resolvedPlatform);
 
 const MODIFIERS = [
     {key: 'Control', prop: 'ctrlKey' as const, label: 'Ctrl'},

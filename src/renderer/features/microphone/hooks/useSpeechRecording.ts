@@ -1,30 +1,14 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type RefObject} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {emit} from '@tauri-apps/api/event';
 import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
-import {FAST_WHISPER_PORT, SPEECH_MODES, LLM_MODES} from '@shared/constants';
+import {FAST_WHISPER_PORT, LLM_MODES, SPEECH_MODES} from '@shared/constants';
 import type {ActionConfig, AppConfig} from '@shared/types';
 import {resetInteractive, setRecordingInteractive} from '../../../utils/interactive';
 import {createSpeechRecorder, type SpeechRecorder} from '../services/SpeechRecorder';
-import {
-    getLocalSpeechModelMetadata,
-    normalizeLocalSpeechModelName,
-    subscribeToLocalModelWarmup
-} from '../../../services/localSpeechModels';
-import {
-    normalizeOllamaModelName,
-    subscribeToOllamaDownloads,
-    subscribeToOllamaWarmup
-} from '../../../services/ollama';
-import {
-    micBridge,
-    notificationBridge,
-    resultBridge,
-    speechBridge,
-    windowBridge,
-    localSpeechBridge,
-    ollamaBridge
-} from '../../../services/winkyBridge';
+import {normalizeLocalSpeechModelName, subscribeToLocalModelWarmup} from '../../../services/localSpeechModels';
+import {normalizeOllamaModelName, subscribeToOllamaDownloads, subscribeToOllamaWarmup} from '../../../services/ollama';
+import {micBridge, notificationBridge, windowBridge} from '../../../services/winkyBridge';
 import {useMicActionHotkeys} from './useMicActionHotkeys';
 import {useMicVisibilityMonitor} from './useMicVisibilityMonitor';
 import {useActionProcessing} from './useActionProcessing';
@@ -110,7 +94,9 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                     await mainWindow.setFocus().catch(() => {});
                     console.log('[useSpeechRecording] Main window opened using WebviewWindow API');
                 } else {
-                    throw new Error('Main window is unavailable');
+                    console.warn('[useSpeechRecording] Main window is unavailable, showing toast in the overlay');
+                    showToast(message, 'error', {durationMs: 6000});
+                    return;
                 }
             }
 
@@ -310,8 +296,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         }
 
         try {
-            const blob = await recorder.stopRecording();
-            return blob;
+            return await recorder.stopRecording();
         } catch (error) {
             console.error(error);
             showToast('Failed to stop recording.', 'error');

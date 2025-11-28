@@ -1,5 +1,4 @@
 import {
-    LLM_API_MODELS,
     LLM_GEMINI_API_MODELS,
     LLM_LOCAL_MODELS,
     LLM_MODES,
@@ -16,10 +15,6 @@ export type LLMModel =
     | (typeof LLM_GEMINI_API_MODELS)[number]
     | (typeof LLM_LOCAL_MODELS)[number];
 export type TranscribeModel = (typeof SPEECH_API_MODELS)[number] | (typeof SPEECH_LOCAL_MODELS)[number];
-
-// Обратная совместимость - старые названия
-export type SpeechMode = TranscribeMode;
-export type SpeechModel = TranscribeModel;
 
 export interface AuthTokens {
     access: string;
@@ -75,12 +70,6 @@ export interface User {
     tiers_and_features?: Array<Record<string, any>>;
 }
 
-export interface AuthResponse {
-    access: string;
-    refresh: string;
-    user?: User;
-}
-
 export interface ActionIcon {
     id: string;
     name: string;
@@ -104,12 +93,6 @@ export interface ActionConfig {
     sound_on_complete?: boolean;
     auto_copy_result?: boolean;
     is_active?: boolean;
-}
-
-export interface ActionPreferences {
-    show_results: boolean;
-    sound_on_complete: boolean;
-    auto_copy_result: boolean;
 }
 
 export interface WinkyProfile {
@@ -150,14 +133,6 @@ export interface AppConfig {
     autoStartLocalSpeechServer?: boolean;
     completionSoundVolume?: number;
     completionSoundEnabled?: boolean;
-}
-
-export interface LLMProcessResponse {
-    result: string;
-}
-
-export interface TranscriptionResponse {
-    text: string;
 }
 
 export type MicAnchor = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';

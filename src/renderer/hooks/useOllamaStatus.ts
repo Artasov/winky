@@ -242,5 +242,3 @@ export const useOllamaStatus = ({
         recheckInstall: () => setInstallProbe((value) => value + 1)
     };
 };
-
-export default useOllamaStatus;

@@ -13,7 +13,7 @@ export const TokenStorage = {
                 return null;
             }
             const parsed = JSON.parse(raw) as AuthTokens;
-            if (!parsed || typeof parsed.access !== 'string') {
+            if (!parsed) {
                 return null;
             }
             return {

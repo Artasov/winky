@@ -158,5 +158,3 @@ export const useLocalSpeechStatus = ({
         setStatus
     };
 };
-
-export default useLocalSpeechStatus;

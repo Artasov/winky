@@ -1,8 +1,7 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import {Box, Button, CircularProgress, MenuItem, TextField, Typography} from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import type {LLMMode, LLMModel} from '@shared/types';
-import {LLM_MODES} from '@shared/constants';
 import {formatLLMLabel} from '../utils/modelFormatters';
 
 type ModelLlmSectionProps = {
@@ -10,7 +9,7 @@ type ModelLlmSectionProps = {
         llmMode: LLMMode;
         llmModel: LLMModel;
     };
-    emitChange: (partial: Partial<{llmMode: LLMMode; llmModel: LLMModel}>) => void;
+    emitChange: (partial: Partial<{ llmMode: LLMMode; llmModel: LLMModel }>) => void;
     disableInputs: boolean;
     isLocalLLMMode: boolean;
     llmModelOptions: LLMModel[];
@@ -34,30 +33,36 @@ type ModelLlmSectionProps = {
 };
 
 export const ModelLlmSection: React.FC<ModelLlmSectionProps> = ({
-    values,
-    emitChange,
-    disableInputs,
-    isLocalLLMMode,
-    llmModelOptions,
-    ollamaChecking,
-    ollamaInstalled,
-    ollamaError,
-    setOllamaError,
+                                                                    values,
+                                                                    emitChange,
+                                                                    disableInputs,
+                                                                    isLocalLLMMode,
+                                                                    llmModelOptions,
+                                                                    ollamaChecking,
+                                                                    ollamaInstalled,
+                                                                    ollamaError,
+                                                                    setOllamaError,
     refreshOllamaModels,
-    recheckOllamaInstall,
-    ollamaModelsLoaded,
-    ollamaModelChecking,
-    ollamaModelWarming,
-    ollamaModelDownloaded,
-    ollamaDownloadingModel,
-    handleDownloadLlmModel,
-    llmCheckingMessage,
-    llmWarmupWarningMessage,
-    llmDownloadedMessage,
+                                                                    recheckOllamaInstall,
+                                                                    ollamaModelsLoaded,
+                                                                    ollamaModelChecking,
+                                                                    ollamaModelWarming,
+                                                                    ollamaModelDownloaded,
+                                                                    ollamaDownloadingModel,
+                                                                    handleDownloadLlmModel,
+                                                                    llmCheckingMessage,
+                                                                    llmWarmupWarningMessage,
+                                                                    llmDownloadedMessage,
     llmDownloadButtonLabel,
     selectedLocalLLMDescription
-}) => {
+                                                                  }) => {
     const disableLlmModelSelect = disableInputs || (isLocalLLMMode && (ollamaChecking || !ollamaInstalled));
+
+    useEffect(() => {
+        if (isLocalLLMMode && !ollamaModelsLoaded && !ollamaModelChecking) {
+            void refreshOllamaModels();
+        }
+    }, [isLocalLLMMode, ollamaModelsLoaded, ollamaModelChecking, refreshOllamaModels]);
 
     return (
         <>
@@ -75,6 +80,11 @@ export const ModelLlmSection: React.FC<ModelLlmSectionProps> = ({
                         </MenuItem>
                     ))}
                 </TextField>
+                {selectedLocalLLMDescription && (
+                    <Typography variant="body2" color="text.secondary">
+                        {selectedLocalLLMDescription}
+                    </Typography>
+                )}
                 {isLocalLLMMode && ollamaInstalled && (
                     <Box sx={{width: '100%'}}>
                         {(ollamaModelChecking || (!ollamaModelsLoaded && ollamaModelDownloaded === null)) && (
@@ -154,17 +164,17 @@ export const ModelLlmSection: React.FC<ModelLlmSectionProps> = ({
                             {ollamaError}
                         </Typography>
                         {(ollamaError.includes('Timeout') || ollamaError.includes('not be running') || ollamaError.includes('Make sure Ollama is running')) && (
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    onClick={() => {
-                                        setOllamaError(null);
-                                        recheckOllamaInstall();
-                                    }}
-                                    sx={{flexShrink: 0}}
-                                >
-                                    Refresh
-                                </Button>
+                            <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => {
+                                    setOllamaError(null);
+                                    recheckOllamaInstall();
+                                }}
+                                sx={{flexShrink: 0}}
+                            >
+                                Refresh
+                            </Button>
                         )}
                     </Box>
                 )}

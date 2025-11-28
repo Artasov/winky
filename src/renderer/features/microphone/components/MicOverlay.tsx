@@ -10,7 +10,7 @@ import {useMicInteractiveProximity} from '../hooks/useMicInteractiveProximity';
 import MicDragHandle from './MicDragHandle';
 import MicVolumeRings from './MicVolumeRings';
 import MicActionOrbit from './MicActionOrbit';
-import {interactiveEnter, interactiveLeave, resetInteractive} from '../../../utils/interactive';
+import {resetInteractive} from '../../../utils/interactive';
 import {resourcesBridge} from '../../../services/winkyBridge';
 
 
@@ -154,8 +154,7 @@ const MicOverlay: React.FC = () => {
         if (!completionSoundRef.current) {
             return;
         }
-        const volumePreference = typeof config?.completionSoundVolume === 'number' ? config.completionSoundVolume : 1;
-        completionSoundRef.current.volume = volumePreference;
+        completionSoundRef.current.volume = typeof config?.completionSoundVolume === 'number' ? config.completionSoundVolume : 1;
     }, [config?.completionSoundVolume]);
 
     if (!config) {

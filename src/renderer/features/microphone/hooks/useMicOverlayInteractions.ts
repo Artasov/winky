@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent} from 'react';
 import {interactiveEnter, interactiveLeave, setDragInteractive} from '../../../utils/interactive';
 
 type UseMicOverlayInteractionsParams = {
@@ -40,7 +40,7 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
         interactiveLeave();
     }, []);
 
-    const handleHandlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const handleHandlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
         if (event.pointerType === 'mouse' && event.button !== 0) {
             return;
         }
@@ -197,7 +197,7 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
                 if (inside) {
                     console.log('[mic-overlay] cursor near handle', {cursor});
                     handleHandleMouseEnter();
-                } else if (handleHoveringRef.current && dragPointerIdRef.current === null) {
+                } else if (handleHoveringRef.current) {
                     console.log('[mic-overlay] cursor left handle', {cursor});
                     handleHandleMouseLeave();
                 }
@@ -208,7 +208,7 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
             }
         };
 
-        pollCursor();
+        void pollCursor();
 
         return () => {
             cancelled = true;

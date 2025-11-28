@@ -1,5 +1,5 @@
 // Экспортируем тип из менеджера окон
-import type {ResultPayload} from './windows/ResultWindowManager';
+import type {ResultPayload} from '@renderer/services/windows';
 export type {ResultPayload} from './windows/ResultWindowManager';
 
 export type ResultUnsubscribe = () => void;
@@ -89,10 +89,6 @@ export const windowBridge = {
     navigate(path: string): Promise<void> {
         return window.winky?.windows?.navigate?.(path) ?? Promise.resolve();
     },
-    getCurrentKind(): string {
-        const params = new URLSearchParams(window.location.search);
-        return params.get('window') || 'main';
-    }
 };
 
 export const notificationBridge = {
@@ -172,14 +168,5 @@ export const ollamaBridge = {
     },
     warmupModel(model: string): Promise<void> {
         return window.winky?.ollama?.warmupModel?.(model) ?? Promise.resolve();
-    }
-};
-
-export const eventsBridge = {
-    on<T = any>(channel: string, callback: (payload: T) => void): () => void {
-        return window.winky?.on?.(channel, callback) ?? (() => {});
-    },
-    removeListener(channel: string, callback: (...args: any[]) => void): void {
-        window.winky?.removeListener?.(channel, callback);
     }
 };

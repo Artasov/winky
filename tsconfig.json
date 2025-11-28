@@ -2,10 +2,15 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
+    "noEmit": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
@@ -15,10 +20,20 @@
     "jsx": "react-jsx",
     "baseUrl": "./src",
     "paths": {
-      "@renderer/*": ["renderer/*"],
-      "@shared/*": ["shared/*"]
+      "@renderer/*": [
+        "renderer/*"
+      ],
+      "@shared/*": [
+        "shared/*"
+      ]
     }
   },
-  "include": ["src"],
-  "references": [{"path": "./tsconfig.node.json"}]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ]
 }

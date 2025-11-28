@@ -1,10 +1,12 @@
-import {useEffect, type MutableRefObject} from 'react';
+import {useEffect} from 'react';
+
+type MutableRef<T> = {current: T};
 
 type UseMicVisibilityMonitorParams = {
     isMicOverlay: boolean;
-    isRecordingRef: MutableRefObject<boolean>;
-    currentStreamRef: MutableRefObject<MediaStream | null>;
-    windowVisibleRef: MutableRefObject<boolean>;
+    isRecordingRef: MutableRef<boolean>;
+    currentStreamRef: MutableRef<MediaStream | null>;
+    windowVisibleRef: MutableRef<boolean>;
     startVolumeMonitor: (stream: MediaStream) => void;
     stopVolumeMonitor: () => void;
 };
@@ -65,5 +67,3 @@ export const useMicVisibilityMonitor = ({
         };
     }, [isMicOverlay, startVolumeMonitor, stopVolumeMonitor, isRecordingRef, currentStreamRef, windowVisibleRef]);
 };
-
-export default useMicVisibilityMonitor;

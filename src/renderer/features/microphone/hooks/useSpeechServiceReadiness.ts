@@ -179,17 +179,12 @@ export const useSpeechServiceReadiness = ({
             return false;
         }
 
-        const llmReady = await ensureLocalLlmReady();
-        if (!llmReady) {
-            return false;
-        }
+        return await ensureLocalLlmReady();
 
-        return true;
+
     }, [config, ensureApiKeysReady, ensureLocalSpeechReady, ensureLocalLlmReady, showToast]);
 
     return {
         ensureSpeechService
     };
 };
-
-export default useSpeechServiceReadiness;

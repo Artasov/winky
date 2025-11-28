@@ -1,6 +1,5 @@
 import {invoke} from '@tauri-apps/api/core';
 import {getCurrentWindow} from '@tauri-apps/api/window';
-import {emit, listen} from '@tauri-apps/api/event';
 import type {MicAnchor} from '@shared/types';
 import {MIC_WINDOW_HEIGHT, MIC_WINDOW_MARGIN, MIC_WINDOW_WIDTH} from '@shared/constants';
 import {MicWindowController} from './services/windows/MicWindowController';
@@ -16,8 +15,8 @@ import {notificationsBridge} from './winkyBridge/notificationsBridge';
 import {
     auxWindowsBridge,
     resultBridge,
-    windowsBridge,
-    windowControlsBridge as baseWindowControlsBridge
+    windowControlsBridge as baseWindowControlsBridge,
+    windowsBridge
 } from './winkyBridge/windowsBridge';
 import {eventsBridge} from './winkyBridge/eventsBridge';
 import {actionHotkeysBridge as actionHotkeysApi} from './winkyBridge/actionHotkeysBridge';
@@ -46,7 +45,7 @@ const currentWindow = getCurrentWindow();
 const windowControlsBridge = {
     ...baseWindowControlsBridge,
     openDevtools: async () => {
-        const maybeWindow = currentWindow as unknown as {openDevtools?: () => Promise<void>};
+        const maybeWindow = currentWindow as unknown as { openDevtools?: () => Promise<void> };
         if (maybeWindow?.openDevtools) {
             try {
                 await maybeWindow.openDevtools();

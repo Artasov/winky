@@ -1,7 +1,9 @@
 import {useCallback, useRef, useState} from 'react';
 
+type MutableRef<T> = {current: T};
+
 type UseVolumeMonitorParams = {
-    windowVisibleRef: React.MutableRefObject<boolean>;
+    windowVisibleRef: MutableRef<boolean>;
 };
 
 export const useVolumeMonitor = ({windowVisibleRef}: UseVolumeMonitorParams) => {
@@ -91,5 +93,3 @@ export const useVolumeMonitor = ({windowVisibleRef}: UseVolumeMonitorParams) => 
         animationFrameRef
     };
 };
-
-export default useVolumeMonitor;

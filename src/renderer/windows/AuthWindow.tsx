@@ -26,7 +26,7 @@ const AuthWindow: React.FC = () => {
 
         setLoading(true);
         try {
-            const user = await auth.signIn(email, password);
+            await auth.signIn(email, password);
             await refreshConfig();
             try {
                 await fetchUser();

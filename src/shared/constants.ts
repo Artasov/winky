@@ -1,28 +1,12 @@
 export const APP_NAME = 'Winky';
-export const SITE_BASE_URL = 'https://xldev.ru';
 export const API_BASE_URL = 'https://xldev.ru/api/v1';
-// export const API_BASE_URL = 'http://localhost:8000/api/v1';
-export const MEDIA_BASE_URL = 'https://xldev.ru';
-export const API_BASE_URL_FALLBACK_LOCAL = 'http://127.0.0.1:8000/api/v1';
-export const API_BASE_URL_FALLBACKS = [API_BASE_URL, API_BASE_URL_FALLBACK_LOCAL];
 export const AUTH_ENDPOINT = `${API_BASE_URL}/auth/login/`;
 export const AUTH_REFRESH_ENDPOINT = `${API_BASE_URL}/auth/refresh/`;
 export const ME_ENDPOINT = `${API_BASE_URL}/me/`;
-export const FAST_WHISPER_REPO_URL = 'https://github.com/Artasov/fast-fast-whisper.git';
-export const FAST_WHISPER_REPO_NAME = 'fast-fast-whisper';
 export const FAST_WHISPER_PORT = 8868;
 export const FAST_WHISPER_BASE_URL = `http://127.0.0.1:${FAST_WHISPER_PORT}`;
-export const FAST_WHISPER_HEALTH_ENDPOINT = `${FAST_WHISPER_BASE_URL}/health`;
 export const FAST_WHISPER_TRANSCRIBE_ENDPOINT = `${FAST_WHISPER_BASE_URL}/v1/audio/transcriptions`;
 export const FAST_WHISPER_TRANSCRIBE_TIMEOUT = 600_000; // 10 минут
-
-export const CONFIG_FILE_NAME = 'config.json';
-
-export const IPC_CHANNELS = {
-    AUTH_START_OAUTH: 'auth:start-oauth',
-    AUTH_CONSUME_DEEP_LINKS: 'auth:consume-deep-links',
-    AUTH_DEEP_LINK: 'auth:deep-link',
-} as const;
 
 export const SPEECH_MODES = {
     API: 'api',

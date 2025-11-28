@@ -2,12 +2,14 @@ import {useEffect, useRef} from 'react';
 import {emit as emitEvent} from '@tauri-apps/api/event';
 import {resetInteractive} from '../../../utils/interactive';
 
+type MutableRef<T> = {current: T};
+
 type MicWindowEffectsParams = {
     isMicOverlay: boolean;
-    autoStartPendingRef: React.MutableRefObject<boolean>;
-    isRecordingRef: React.MutableRefObject<boolean>;
-    processingRef: React.MutableRefObject<boolean>;
-    handleMicrophoneToggleRef: React.MutableRefObject<(() => Promise<void> | void) | null>;
+    autoStartPendingRef: MutableRef<boolean>;
+    isRecordingRef: MutableRef<boolean>;
+    processingRef: MutableRef<boolean>;
+    handleMicrophoneToggleRef: MutableRef<(() => Promise<void> | void) | null>;
     finishRecording: (resetUI?: boolean) => Promise<Blob | null>;
     setActiveActionId: (value: string | null) => void;
     warmUpRecorder: () => Promise<void>;

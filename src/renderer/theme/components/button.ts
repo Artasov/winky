@@ -15,12 +15,15 @@ export const createButtonOverrides = (theme: Theme): Components['MuiButton'] => 
                 boxShadow: 'none'
             }
         },
-        containedPrimary: {
+        contained: {
             backgroundImage: 'linear-gradient(135deg, #ff4d6d, #f43f5e)',
             color: theme.palette.common.white,
             transition: 'all .3s ease-in-out',
             '&:hover': {
                 backgroundImage: 'linear-gradient(135deg, #f43f5e, #e11d48)'
+            },
+            '&.MuiButton-containedSecondary': {
+                backgroundImage: 'none'
             }
         },
         outlined: {

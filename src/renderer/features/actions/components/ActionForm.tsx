@@ -59,6 +59,7 @@ const ActionForm: React.FC<Props> = ({
 
     return (
         <Dialog
+            key={editingActionId ?? 'new'}
             open={modal.isModalVisible}
             onClose={modal.closeModal}
             maxWidth="sm"
@@ -264,4 +265,3 @@ const ActionForm: React.FC<Props> = ({
 };
 
 export default ActionForm;
-

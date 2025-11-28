@@ -6,5 +6,3 @@ export const ollamaBridge = {
     pullModel: (model: string): Promise<void> => invoke('ollama_pull_model', {model}),
     warmupModel: (model: string): Promise<void> => invoke('ollama_warmup_model', {model})
 };
-
-export type OllamaBridge = typeof ollamaBridge;

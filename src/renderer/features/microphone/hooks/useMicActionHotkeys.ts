@@ -1,16 +1,17 @@
 import {useEffect} from 'react';
-import type {MutableRefObject} from 'react';
 import type {ActionConfig} from '@shared/types';
 import {actionHotkeysBridge} from '../../../services/winkyBridge';
+
+type MutableRef<T> = {current: T};
 
 type UseMicActionHotkeysParams = {
     activeActions: ActionConfig[];
     isMicOverlay: boolean;
     isRecording: boolean;
-    isRecordingRef: MutableRefObject<boolean>;
+    isRecordingRef: MutableRef<boolean>;
     handleActionClick: (action: ActionConfig) => Promise<void> | void;
-    lastDomActionHotkeyTsRef: MutableRefObject<number>;
-    lastGlobalActionHotkeyTsRef: MutableRefObject<number>;
+    lastDomActionHotkeyTsRef: MutableRef<number>;
+    lastGlobalActionHotkeyTsRef: MutableRef<number>;
 };
 
 export const useMicActionHotkeys = ({
@@ -124,5 +125,3 @@ export const useMicActionHotkeys = ({
         };
     }, [activeActions, handleActionClick, isMicOverlay, isRecording, lastDomActionHotkeyTsRef, lastGlobalActionHotkeyTsRef]);
 };
-
-export default useMicActionHotkeys;

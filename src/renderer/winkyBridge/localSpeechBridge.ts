@@ -23,5 +23,3 @@ export const localSpeechBridge = {
         };
     }
 };
-
-export type LocalSpeechBridge = typeof localSpeechBridge;

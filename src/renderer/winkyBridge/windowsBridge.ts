@@ -1,7 +1,7 @@
 import {invoke} from '@tauri-apps/api/core';
 import {emit} from '@tauri-apps/api/event';
-import {ResultWindowManager, type ResultPayload} from '../services/windows/ResultWindowManager';
-import {AuxWindowController} from '../services/windows/AuxWindowController';
+import {ResultWindowManager, type ResultPayload} from '@renderer/services/windows';
+import {AuxWindowController} from '@renderer/services/windows';
 import {getCurrentWindow} from '@tauri-apps/api/window';
 
 const resultWindowManager = new ResultWindowManager();
@@ -53,8 +53,3 @@ export const auxWindowsBridge = {
         close: () => errorWindow.close()
     }
 };
-
-export type ResultBridge = typeof resultBridge;
-export type WindowsBridge = typeof windowsBridge;
-export type WindowControlsBridge = typeof windowControlsBridge;
-export type AuxWindowsBridge = typeof auxWindowsBridge;

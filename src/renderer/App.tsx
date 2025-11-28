@@ -32,6 +32,7 @@ import StandaloneWindow from './app/layouts/StandaloneWindow';
 import {SPEECH_MODES} from '@shared/constants';
 import TitleBar from './components/TitleBar';
 import {checkLocalModelDownloaded, warmupLocalSpeechModel} from './services/localSpeechModels';
+import StyleUsageSentinel from './components/StyleUsageSentinel';
 
 const LOCAL_SERVER_READY_TIMEOUT_MS = 2 * 60 * 1000;
 const LOCAL_SERVER_POLL_INTERVAL_MS = 2_000;
@@ -215,7 +216,7 @@ const AppContent: React.FC = () => {
             return;
         }
         const hasToken = config?.auth.access || config?.auth.accessToken;
-        if (!hasToken || (typeof hasToken === 'string' && hasToken.trim() === '')) {
+        if (!hasToken || (hasToken.trim() === '')) {
             console.log('[App] No token found, requiring authentication');
             userFetchAttempted.current = true;
             if (!windowIdentity.isAuxWindow) {
@@ -262,7 +263,7 @@ const AppContent: React.FC = () => {
             return;
         }
         const hasToken = config?.auth.access || config?.auth.accessToken;
-        if (!hasToken || (typeof hasToken === 'string' && hasToken.trim() === '')) {
+        if (!hasToken || (hasToken.trim() === '')) {
             actionsFetched.current = false;
             return;
         }
@@ -457,11 +458,12 @@ const AppContent: React.FC = () => {
         );
     }
 
-    return (
-        <ToastContext.Provider value={toastContextValue}>
-            <ConfigContext.Provider value={configContextValue}>
-                {routes}
-                {shouldRenderToasts ? (
+        return (
+            <ToastContext.Provider value={toastContextValue}>
+                <ConfigContext.Provider value={configContextValue}>
+                    <StyleUsageSentinel/>
+                    {routes}
+                    {shouldRenderToasts ? (
                     <ToastContainer
                         position="top-right"
                         theme="colored"

@@ -23,5 +23,3 @@ export const eventsBridge = {
         }
     }
 };
-
-export type EventsBridge = typeof eventsBridge;

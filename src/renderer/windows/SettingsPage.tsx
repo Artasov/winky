@@ -1,7 +1,6 @@
 import React, {ChangeEvent, useEffect, useRef, useState} from 'react';
 import {Box, Button, Checkbox, FormControlLabel, Slider, Typography} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
-import {useUser} from '../context/UserContext';
 import {useToast} from '../context/ToastContext';
 import {LLM_API_MODELS, LLM_MODES, SPEECH_API_MODELS, SPEECH_MODES} from '@shared/constants';
 import type {MicAnchor} from '@shared/types';
@@ -13,7 +12,6 @@ const DEFAULT_MIC_HOTKEY = 'Alt+Q';
 
 const SettingsPage: React.FC = () => {
     const {config, updateConfig} = useConfig();
-    const {user} = useUser();
     const {showToast} = useToast();
 
     const [formData, setFormData] = useState<ModelConfigFormData>({

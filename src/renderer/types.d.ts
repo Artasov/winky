@@ -6,7 +6,6 @@ import type {
     AuthProvider,
     AuthTokens,
     FastWhisperStatus,
-    User,
     WinkyProfile
 } from '@shared/types';
 
@@ -21,8 +20,6 @@ declare global {
         reset(): Promise<AppConfig>;
 
         path(): Promise<string>;
-
-        subscribe?(listener: (config: AppConfig) => void): () => void;
     }
 
     interface WinkyClipboardAPI {
@@ -71,21 +68,24 @@ declare global {
 
     interface WinkyResourcesAPI {
         getSoundPath(soundName: string): Promise<string>;
+
         getSoundData(soundName: string): Promise<Uint8Array>;
     }
 
     interface WinkyProfileAPI {
         fetch(): Promise<WinkyProfile>;
-        currentUser?(options?: { includeTiersAndFeatures?: boolean }): Promise<User | null>;
     }
 
     interface WinkyWindowsAPI {
         openSettings(): Promise<void>;
+
         navigate(route: string): Promise<void>;
     }
 
     interface WinkyNotificationsAPI {
-        showToast(message: string, type?: 'success' | 'error' | 'info', options?: { durationMs?: number }): Promise<void>;
+        showToast(message: string, type?: 'success' | 'error' | 'info', options?: {
+            durationMs?: number
+        }): Promise<void>;
     }
 
     interface WinkyWindowControlsAPI {
@@ -167,8 +167,11 @@ declare global {
 
     interface WinkyOllamaAPI {
         checkInstalled(): Promise<boolean>;
+
         listModels(force?: boolean): Promise<string[]>;
+
         pullModel(model: string): Promise<void>;
+
         warmupModel(model: string): Promise<void>;
     }
 
@@ -190,6 +193,7 @@ declare global {
 
     interface WinkyActionHotkeysAPI {
         register(hotkeys: Array<{ id: string; accelerator: string }>): Promise<void>;
+
         clear(): Promise<void>;
     }
 

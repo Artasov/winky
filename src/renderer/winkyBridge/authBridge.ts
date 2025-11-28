@@ -23,5 +23,3 @@ export const authBridge = {
     },
     consumePendingOAuthPayloads: (): Promise<AuthDeepLinkPayload[]> => invoke('auth_consume_pending')
 };
-
-export type AuthBridge = typeof authBridge;

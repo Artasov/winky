@@ -5,10 +5,6 @@ import {
     SPEECH_LOCAL_MODEL_DETAILS
 } from '@shared/constants';
 
-const MODELS_DOWNLOAD_ENDPOINT = `${FAST_WHISPER_BASE_URL}/v1/models/download`;
-const MODELS_WARMUP_ENDPOINT = `${FAST_WHISPER_BASE_URL}/v1/models/warmup`;
-const MODELS_EXISTS_ENDPOINT = `${FAST_WHISPER_BASE_URL}/download/model/exists`;
-
 const localSpeechClient: AxiosInstance = axios.create({
     baseURL: FAST_WHISPER_BASE_URL,
     timeout: 10000
@@ -186,16 +182,6 @@ export const subscribeToLocalModelWarmup = (listener: WarmupListener): (() => vo
     };
 };
 
-export const isLocalModelWarmingUp = (model: string): boolean => {
-    const normalized = normalizeLocalSpeechModelName(model);
-    if (!normalized) {
-        return false;
-    }
-    return warmupModelsInProgress.has(normalized);
-};
-
-export const isAnyLocalModelWarmingUp = (): boolean => warmupModelsInProgress.size > 0;
-
 export const checkLocalModelDownloaded = async (model: string, options: {force?: boolean} = {}): Promise<boolean> => {
     const trimmed = normalizeLocalSpeechModelName(model);
     if (!trimmed) {
@@ -291,10 +277,4 @@ export const warmupLocalSpeechModel = async (model: string, device?: string): Pr
     }
 };
 
-export const markLocalModelAsUnknown = (model: string) => {
-    const normalized = normalizeLocalSpeechModelName(model);
-    if (!normalized) {
-        return;
-    }
-    localModelCache.delete(normalized);
-};
+

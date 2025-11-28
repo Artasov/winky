@@ -119,5 +119,3 @@ export const createLLMService = (
             throw new Error(`Unknown local LLM model: ${model}`);
     }
 };
-
-export default createLLMService;

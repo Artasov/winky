@@ -6,16 +6,9 @@ import {
     FAST_WHISPER_TRANSCRIBE_TIMEOUT,
     LLM_GEMINI_API_MODELS,
     ME_ENDPOINT,
-    SPEECH_MODES,
-    SPEECH_OPENAI_API_MODELS
+    SPEECH_MODES
 } from '@shared/constants';
-import type {
-    ActionConfig,
-    ActionIcon,
-    AppConfig,
-    User,
-    WinkyProfile
-} from '@shared/types';
+import type {ActionConfig, ActionIcon, AppConfig, User, WinkyProfile} from '@shared/types';
 import {createLLMService} from '../services/llm/factory';
 
 export type ActionPayload = {
@@ -156,8 +149,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
                 headers: {'Content-Type': 'multipart/form-data'},
                 timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT
             });
-            const text = extractSpeechText(data);
-            const result = typeof text === 'string' ? text : '';
+            const result = extractSpeechText(data);
             console.log(`%cTranscribe ← %c[LOCAL] %c${config.model} %c[200]`, 
                 'color: #10b981; font-weight: bold',
                 'color: #3b82f6; font-weight: bold',
@@ -322,8 +314,6 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
                     }
                 }
             }
-            
-            throw new Error('Gemini returned an empty response.');
         } catch (error: any) {
             const status = error?.response?.status || 'ERROR';
             console.error(`%cTranscribe ← %c[Google Gemini] %c${config.model} %c[${status}]`, 
@@ -348,6 +338,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             }
             throw error;
         }
+        throw new Error('Gemini returned an empty response.');
     }
 
     // OpenAI Whisper для транскрибации
@@ -379,11 +370,6 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
     if (sanitizedToken !== config.openaiKey) {
         console.warn('[winkyApi] OpenAI key contains invalid characters for HTTP headers, sanitizing...');
     }
-    
-    const headers: Record<string, string> = {
-        Authorization: `Bearer ${sanitizedToken.substring(0, 10)}...`
-    };
-
     console.log('  📤 Request:', {
         url: url,
         model: config.model,
@@ -400,21 +386,20 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             timeout: 120_000
         });
         const text = extractSpeechText(data);
-        if (!text) {
-            throw new Error('OpenAI returned an empty response.');
+        if (text) {
+            console.log(`%cTranscribe ← %c[OpenAI Whisper] %c${config.model} %c[200]`, 
+                'color: #10b981; font-weight: bold',
+                'color: #3b82f6; font-weight: bold',
+                'color: #8b5cf6',
+                'color: #22c55e; font-weight: bold'
+            );
+            console.log('  📥 Response:', {
+                transcription: text,
+                length: text.length,
+                fullResponse: data
+            });
+            return text;
         }
-        console.log(`%cTranscribe ← %c[OpenAI Whisper] %c${config.model} %c[200]`, 
-            'color: #10b981; font-weight: bold',
-            'color: #3b82f6; font-weight: bold',
-            'color: #8b5cf6',
-            'color: #22c55e; font-weight: bold'
-        );
-        console.log('  📥 Response:', {
-            transcription: text,
-            length: text.length,
-            fullResponse: data
-        });
-        return text;
     } catch (error: any) {
         const status = error?.response?.status || 'ERROR';
         console.error(`%cTranscribe ← %c[OpenAI Whisper] %c${config.model} %c[${status}]`, 
@@ -430,6 +415,7 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
         }
         throw error;
     }
+    throw new Error('OpenAI returned an empty response.');
 };
 
 export const processLLM = async (text: string, prompt: string, config: {

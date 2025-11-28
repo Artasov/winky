@@ -13,10 +13,6 @@ export abstract class ApiLLMBaseService implements BaseLLMService {
         this.client = axios.create({timeout: 120_000});
     }
 
-    updateAccessToken(token?: string) {
-        this.accessToken = token;
-    }
-
     protected abstract buildUrl(): string;
 
     protected buildHeaders(): Record<string, string> {
@@ -71,8 +67,7 @@ export abstract class ApiLLMBaseService implements BaseLLMService {
         const headers = this.buildHeaders();
 
         const {data} = await this.client.post(url, body, {headers});
-        const result = this.extractResult(data);
-        return result;
+        return this.extractResult(data);
     }
 
     async processStream(text: string, prompt: string, onChunk: (chunk: string) => void): Promise<string> {

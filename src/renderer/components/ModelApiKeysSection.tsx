@@ -1,5 +1,5 @@
 import React from 'react';
-import {Box, TextField, Typography} from '@mui/material';
+import {TextField, Typography} from '@mui/material';
 import type {ModelConfigFormData} from './ModelConfigForm';
 
 type ModelApiKeysSectionProps = {

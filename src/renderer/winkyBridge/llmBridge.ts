@@ -12,5 +12,3 @@ export const llmBridge = {
         config: {mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string}
     ) => processLLMStream(text, prompt, config)
 };
-
-export type LlmBridge = typeof llmBridge;

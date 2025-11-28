@@ -20,7 +20,6 @@ export const createApiClient = (accessToken?: string, sendToRenderer?: (message:
             const url = config.url || '';
             const fullUrl = url.startsWith('http') ? url : `${config.baseURL}${url}`;
 
-            const logMessage = `API → [${method}] ${fullUrl}`;
             console.log(`%cAPI → %c[${method}] %c${fullUrl}`,
                 'color: #10b981; font-weight: bold',
                 'color: #3b82f6; font-weight: bold',
@@ -107,4 +106,4 @@ export const createApiClient = (accessToken?: string, sendToRenderer?: (message:
     return instance;
 };
 
-export const apiClient = createApiClient();
+// Убираем экспорт singleton, т.к. в коде он не используется

@@ -45,8 +45,7 @@ export abstract class LocalLLMBaseService implements BaseLLMService {
         const endpoint = this.buildEndpoint();
         const body = this.buildBody(text, prompt);
         const {data} = await this.client.post(endpoint, body);
-        const result = this.extractResult(data);
-        return result;
+        return this.extractResult(data);
     }
 }
 

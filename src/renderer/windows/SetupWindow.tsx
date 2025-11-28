@@ -80,7 +80,7 @@ const SetupWindow: React.FC = () => {
 
         setSaving(true);
         try {
-            const updated = await updateConfig({
+            await updateConfig({
                 setupCompleted: true,
                 speech: {mode: formData.transcribeMode, model: formData.transcribeModel},
                 llm: {mode: formData.llmMode, model: formData.llmModel},

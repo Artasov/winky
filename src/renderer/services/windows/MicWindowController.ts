@@ -1,7 +1,7 @@
 import {invoke} from '@tauri-apps/api/core';
 import {cursorPosition, LogicalPosition} from '@tauri-apps/api/window';
 import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
-import {emit, listen, UnlistenFn} from '@tauri-apps/api/event';
+import {emit, UnlistenFn} from '@tauri-apps/api/event';
 import type {AppConfig, MicAnchor} from '@shared/types';
 
 type MicWindowConfigApi = {
@@ -168,8 +168,8 @@ export class MicWindowController {
     async setAnchor(anchor: MicAnchor): Promise<{x: number; y: number}> {
         const width = window.screen?.availWidth ?? this.width + this.margin * 2;
         const height = window.screen?.availHeight ?? this.height + this.margin * 2;
-        let x = this.margin;
-        let y = this.margin;
+        let x: number;
+        let y: number;
         switch (anchor) {
             case 'top-right':
                 x = width - this.width - this.margin;
@@ -431,5 +431,3 @@ export class MicWindowController {
         }
     }
 }
-
-export default MicWindowController;

@@ -300,12 +300,17 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     });
 
     const finishRecording = useCallback(async (resetUI: boolean = true): Promise<Blob | null> => {
-        if (!recorderRef.current) {
+        const recorder = recorderRef.current;
+        if (!recorder) {
+            return null;
+        }
+
+        if (!recorder.isRecordingActive()) {
             return null;
         }
 
         try {
-            const blob = await recorderRef.current.stopRecording();
+            const blob = await recorder.stopRecording();
             return blob;
         } catch (error) {
             console.error(error);

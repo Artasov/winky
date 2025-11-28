@@ -3,6 +3,7 @@ export interface SpeechRecorder {
     stopRecording(): Promise<Blob>;
     warmUp(): Promise<void>;
     dispose(): void;
+    isRecordingActive(): boolean;
 }
 
 const SUPPORTABLE_MIME_TYPES = [
@@ -101,6 +102,10 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
     dispose(): void {
         this.clearReleaseTimer();
         this.cleanup(true);
+    }
+
+    isRecordingActive(): boolean {
+        return this.mediaRecorder?.state === 'recording';
     }
 
     private async ensureMediaStream(): Promise<MediaStream> {

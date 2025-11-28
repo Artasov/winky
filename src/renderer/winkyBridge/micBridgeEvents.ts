@@ -29,7 +29,7 @@ export const attachMicBridgeEvents = ({micController, currentWindowKind, openMai
 
     let micShortcutHandling = false;
     let lastShortcutAt = 0;
-    const SHORTCUT_COOLDOWN_MS = 100;
+    const SHORTCUT_COOLDOWN_MS = 120;
     void listen('mic:shortcut', () => {
         const now = Date.now();
         if (micShortcutHandling || now - lastShortcutAt < SHORTCUT_COOLDOWN_MS) {

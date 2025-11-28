@@ -80,7 +80,4 @@ export class AuxWindowController {
         }
     }
 
-    async emitEvent<T>(event: string, payload: T): Promise<void> {
-        await emit(event, payload);
-    }
 }

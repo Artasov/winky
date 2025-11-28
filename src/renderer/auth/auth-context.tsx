@@ -1,5 +1,6 @@
 import {createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState} from 'react';
 import {AuthClient, AuthError} from '../services/authClient';
+import {authBridge as appAuthBridge, configBridge} from '../services/winkyBridge';
 import type {AuthDeepLinkPayload, AuthProvider as OAuthProviderType, User} from '@shared/types';
 
 type AuthStatus =
@@ -84,7 +85,6 @@ export function AuthProvider({children}: AuthProviderProps) {
     }, []);
 
     useEffect(() => {
-        if (!window.winky?.auth) return;
         let cancelled = false;
 
         const handleOAuthPayload = (payload: AuthDeepLinkPayload) => {
@@ -115,7 +115,7 @@ export function AuthProvider({children}: AuthProviderProps) {
                     hasRefresh: !!payload.tokens.refresh
                 });
                 
-                const saveTokensPromise = window.winky?.config?.setAuth ? window.winky.config.setAuth({
+                const saveTokensPromise = configBridge ? configBridge.setAuth({
                     access: payload.tokens.access,
                     refresh: payload.tokens.refresh ?? null,
                     accessToken: payload.tokens.access,
@@ -167,8 +167,8 @@ export function AuthProvider({children}: AuthProviderProps) {
             }
         };
 
-        const unsubscribe = window.winky.auth.onOAuthPayload(handleOAuthPayload);
-        window.winky.auth
+                const unsubscribe = appAuthBridge.onOAuthPayload(handleOAuthPayload);
+        appAuthBridge
             .consumePendingOAuthPayloads()
             .then((payloads) => {
                 if (Array.isArray(payloads)) {
@@ -196,8 +196,8 @@ export function AuthProvider({children}: AuthProviderProps) {
 
             // Синхронизируем токены с config
             const tokens = authClient.getTokens();
-            if (tokens && window.winky?.config?.setAuth) {
-                await window.winky.config.setAuth({
+            if (tokens && configBridge) {
+                await configBridge.setAuth({
                     access: tokens.access,
                     refresh: tokens.refresh ?? null,
                     accessToken: tokens.access,
@@ -223,7 +223,7 @@ export function AuthProvider({children}: AuthProviderProps) {
     const startOAuth = useCallback(async (provider: OAuthProviderType) => {
         setError(null);
         setStatus('oauth');
-        if (!window.winky?.auth) {
+        if (!appAuthBridge) {
             const normalized = normalizeAuthError(new AuthError('OAuth bridge unavailable'));
             console.error('[auth] Failed to initiate OAuth', {provider, error: normalized.message});
             setStatus('unauthenticated');
@@ -231,7 +231,7 @@ export function AuthProvider({children}: AuthProviderProps) {
             throw normalized;
         }
         try {
-            await window.winky.auth.startOAuth(provider);
+            await appAuthBridge.startOAuth(provider);
         } catch (err) {
             const normalized = normalizeAuthError(err);
             console.error('[auth] Failed to initiate OAuth', {provider, error: normalized.message});
@@ -245,8 +245,8 @@ export function AuthProvider({children}: AuthProviderProps) {
         authClient.clearTokens();
 
         // Очищаем токены в config
-        if (window.winky?.config?.setAuth) {
-            window.winky.config.setAuth({
+        if (configBridge) {
+            configBridge.setAuth({
                 access: '',
                 refresh: null,
                 accessToken: '',

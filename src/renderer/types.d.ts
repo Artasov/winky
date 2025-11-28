@@ -155,14 +155,6 @@ declare global {
             googleKey?: string;
             accessToken?: string
         }): Promise<string>;
-
-        processStream(text: string, prompt: string, config: {
-            mode: string;
-            model: string;
-            openaiKey?: string;
-            googleKey?: string;
-            accessToken?: string
-        }): Promise<string>;
     }
 
     interface WinkyOllamaAPI {
@@ -182,9 +174,7 @@ declare global {
 
         update(data: { transcription?: string; llmResponse?: string; isStreaming?: boolean }): Promise<void>;
 
-        getState(): { transcription?: string; llmResponse?: string; isStreaming?: boolean } | null;
-
-        onData(callback: (data: {
+        subscribe(callback: (data: {
             transcription?: string;
             llmResponse?: string;
             isStreaming?: boolean

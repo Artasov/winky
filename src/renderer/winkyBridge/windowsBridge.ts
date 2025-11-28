@@ -17,8 +17,7 @@ export const resultBridge = {
     open: () => resultWindowManager.open(),
     close: () => resultWindowManager.close(),
     update: (payload: ResultPayload) => resultWindowManager.update(payload),
-    getState: () => resultWindowManager.getState(),
-    onData: (callback: (payload: ResultPayload) => void) => resultWindowManager.onData(callback)
+    subscribe: (callback: (payload: ResultPayload) => void) => resultWindowManager.onData(callback)
 };
 
 export const windowsBridge = {

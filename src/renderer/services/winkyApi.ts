@@ -104,17 +104,6 @@ export const fetchProfile = async (): Promise<WinkyProfile> => {
     });
 };
 
-export const fetchCurrentUser = async (options: {includeTiersAndFeatures?: boolean} = {}): Promise<User> => {
-    const url = options.includeTiersAndFeatures ? `${ME_ENDPOINT}?tiers_and_features=1` : ME_ENDPOINT;
-    console.log('[API] → [GET]', url);
-    return withAuthClient(async (client) => {
-        const {data} = await client.get(url);
-        console.log('[API] ← [GET]', url, '[200]');
-        console.log('  📥 Response data:', data);
-        return data;
-    });
-};
-
 export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTranscribeConfig): Promise<string> => {
     const blob = new Blob([audioData], {type: 'audio/webm'});
     const buildFormData = (extraFields: Record<string, string> = {}) => {
@@ -477,22 +466,6 @@ export const processLLM = async (text: string, prompt: string, config: {
         throw error;
     }
 };
-
-export const processLLMStream = async (text: string, prompt: string, config: {
-    mode: string;
-    model: string;
-    openaiKey?: string;
-    googleKey?: string;
-    accessToken?: string;
-}): Promise<string> => {
-    const service = createLLMService(config.mode as any, config.model as any, {
-        openaiKey: config.openaiKey,
-        googleKey: config.googleKey,
-        accessToken: config.accessToken
-    });
-    return service.process(text, prompt);
-};
-
 const fetchAllPages = async <T>(client: AxiosInstance, initialPath: string): Promise<T[]> => {
     const results: T[] = [];
     let nextUrl: string | null = initialPath;

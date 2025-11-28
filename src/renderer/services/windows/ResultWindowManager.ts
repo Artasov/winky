@@ -168,14 +168,6 @@ export class ResultWindowManager {
         console.log('[ResultWindowManager] Sending payload (window ready)');
         await this.sendPayload(payload);
     }
-
-    /**
-     * Возвращает текущее состояние
-     */
-    getState(): ResultPayload | null {
-        return this.lastPayload;
-    }
-
     /**
      * Подписывается на обновления данных
      */

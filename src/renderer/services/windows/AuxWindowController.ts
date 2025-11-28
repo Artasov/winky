@@ -45,6 +45,11 @@ export class AuxWindowController {
         return win;
     }
 
+    async open(_payload?: unknown): Promise<void> {
+        // payload пока не используется; окно просто показывается
+        await this.show();
+    }
+
     async show(): Promise<void> {
         const win = await this.ensure();
         await win.show();

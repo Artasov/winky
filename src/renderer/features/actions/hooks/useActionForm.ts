@@ -38,6 +38,7 @@ export const useActionForm = ({
     const [mode, setMode] = useState<'create' | 'edit'>('create');
     const [saving, setSaving] = useState(false);
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+    const [pendingDelete, setPendingDelete] = useState<{id: string; name: string} | null>(null);
 
     const [values, setValues] = useState<ActionFormValues>({
         name: '',
@@ -168,12 +169,8 @@ export const useActionForm = ({
         }
     }, [values, editingActionId, closeModal, refreshConfig, showToast]);
 
-    const handleDelete = useCallback(async (actionId: string, actionName: string) => {
+    const handleDeleteConfirmed = useCallback(async (actionId: string, actionName: string) => {
         if (deletingIds.has(actionId)) {
-            return;
-        }
-
-        if (!confirm(`Delete the action "${actionName}"?`)) {
             return;
         }
 
@@ -192,8 +189,24 @@ export const useActionForm = ({
                 next.delete(actionId);
                 return next;
             });
+            setPendingDelete(null);
         }
     }, [deletingIds, refreshConfig, showToast]);
+
+    const requestDelete = useCallback((actionId: string, actionName: string) => {
+        if (deletingIds.has(actionId)) {
+            return;
+        }
+        setPendingDelete({id: actionId, name: actionName});
+    }, [deletingIds]);
+
+    const confirmDelete = useCallback(() => {
+        if (pendingDelete) {
+            void handleDeleteConfirmed(pendingDelete.id, pendingDelete.name);
+        }
+    }, [handleDeleteConfirmed, pendingDelete]);
+
+    const cancelDelete = useCallback(() => setPendingDelete(null), []);
 
     const modalProps = useMemo(() => ({
         isModalVisible,
@@ -210,7 +223,10 @@ export const useActionForm = ({
         editingActionId,
         saving,
         deletingIds,
+        pendingDelete,
         handleSubmit,
-        handleDelete
+        handleDelete: requestDelete,
+        confirmDelete,
+        cancelDelete
     };
 };

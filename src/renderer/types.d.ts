@@ -167,7 +167,7 @@ declare global {
 
     interface WinkyOllamaAPI {
         checkInstalled(): Promise<boolean>;
-        listModels(): Promise<string[]>;
+        listModels(force?: boolean): Promise<string[]>;
         pullModel(model: string): Promise<void>;
         warmupModel(model: string): Promise<void>;
     }
@@ -178,6 +178,8 @@ declare global {
         close(): Promise<void>;
 
         update(data: { transcription?: string; llmResponse?: string; isStreaming?: boolean }): Promise<void>;
+
+        getState(): { transcription?: string; llmResponse?: string; isStreaming?: boolean } | null;
 
         onData(callback: (data: {
             transcription?: string;

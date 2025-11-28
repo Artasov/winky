@@ -7,6 +7,8 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SettingsBackupRestoreIcon from '@mui/icons-material/SettingsBackupRestore';
 import StopCircleIcon from '@mui/icons-material/StopCircle';
 import type {FastWhisperStatus} from '@shared/types';
+import {useLocalSpeechStatus} from '../hooks/useLocalSpeechStatus';
+import {localSpeechBridge} from '../services/winkyBridge';
 
 const SUCCESS_DISPLAY_MS = 3_000;
 
@@ -27,71 +29,21 @@ const actionLabels: Record<ActionKind, string> = {
 const FAST_WHISPER_INSTALL_SIZE_HINT = '≈43 MB';
 
 const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({disabled = false}) => {
-    const [status, setStatus] = useState<FastWhisperStatus | null>(null);
     const [loadingAction, setLoadingAction] = useState<ActionKind | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [tick, setTick] = useState(0);
-
-    useEffect(() => {
-        let mounted = true;
-
-        const fetchStatus = async (checkHealth: boolean = false) => {
-            if (!mounted || typeof document === 'undefined' || document.hidden) {
-                return;
-            }
-            try {
-                const nextStatus = checkHealth
-                    ? await window.winky?.localSpeech?.checkHealth()
-                    : await window.winky?.localSpeech?.getStatus();
-                if (mounted && nextStatus) {
-                    setStatus(nextStatus);
-                    setErrorMessage(nextStatus.error ?? null);
-                }
-            } catch (error: any) {
-                console.warn('[LocalSpeechInstallControl] fetchStatus failed', error);
-                if (mounted) {
-                    setErrorMessage(error?.message || 'Failed to request local server status.');
-                }
-            }
-        };
-
-        // При первом монтировании проверяем реальное состояние сервера через /health
-        void fetchStatus(true);
-
-        const handleFocus = () => {
-            void fetchStatus();
-        };
-
-        const handleVisibilityChange = () => {
-            if (!document.hidden) {
-                void fetchStatus();
-            }
-        };
-
-        window.addEventListener('focus', handleFocus);
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        const pollInterval = setInterval(() => {
-            if (!document.hidden) {
-                void fetchStatus();
-            }
-        }, 15_000);
-
-        const unsubscribe = window.winky?.localSpeech?.onStatus?.((nextStatus) => {
-            if (!mounted) {
-                return;
-            }
-            setStatus(nextStatus);
-            setErrorMessage(nextStatus.error ?? null);
-        });
-
-        return () => {
-            mounted = false;
-            window.removeEventListener('focus', handleFocus);
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-            clearInterval(pollInterval);
-            unsubscribe?.();
-        };
-    }, []);
+    const {
+        status,
+        error: statusError,
+        loading: statusLoading,
+        setStatus
+    } = useLocalSpeechStatus({
+        checkHealthOnMount: true,
+        onStatus: (nextStatus) => {
+            setErrorMessage(nextStatus?.error ?? null);
+        },
+        onError: (message) => setErrorMessage(message)
+    });
 
     useEffect(() => {
         if (!status?.lastSuccessAt) {
@@ -116,11 +68,12 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         return Date.now() - status.lastSuccessAt < SUCCESS_DISPLAY_MS;
     }, [status?.lastSuccessAt, status?.updatedAt, tick]);
 
+    const combinedErrorMessage = errorMessage ?? status?.error ?? statusError;
     const isRunning = status?.phase === 'running';
     const busyPhase = status?.phase === 'installing' || status?.phase === 'starting' || status?.phase === 'stopping';
     const isBusy = loadingAction !== null || busyPhase;
 
-    const isLoading = status === null;
+    const isLoading = status === null || statusLoading;
     const safeStatus: FastWhisperStatus = status ?? {
         installed: false,
         running: false,
@@ -150,8 +103,8 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         if (isRunning || showSuccessState) {
             return '';
         }
-        if (errorMessage) {
-            return errorMessage;
+        if (combinedErrorMessage) {
+            return combinedErrorMessage;
         }
         if (busyPhase) {
             switch (safeStatus.phase) {
@@ -164,17 +117,17 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
             }
         }
         return safeStatus.message || '';
-    }, [errorMessage, safeStatus.message, isRunning, showSuccessState, busyPhase, safeStatus.phase]);
+    }, [combinedErrorMessage, safeStatus.message, isRunning, showSuccessState, busyPhase, safeStatus.phase]);
 
     const messageColor = useMemo(() => {
-        if (errorMessage || safeStatus.phase === 'error') {
+        if (combinedErrorMessage || safeStatus.phase === 'error') {
             return 'error.main';
         }
         if (safeStatus.phase === 'running') {
             return 'success.main';
         }
         return 'text.secondary';
-    }, [errorMessage, safeStatus.phase]);
+    }, [combinedErrorMessage, safeStatus.phase]);
 
     const logSnippet = useMemo(() => {
         if (isRunning || showSuccessState) {
@@ -187,10 +140,6 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
     }, [safeStatus.logLine, safeStatus.updatedAt, isRunning, showSuccessState]);
 
     const callOperation = async (action: ActionKind, fn: () => Promise<FastWhisperStatus | undefined>) => {
-        if (!window.winky?.localSpeech) {
-            setErrorMessage('Local speech API is unavailable.');
-            return;
-        }
         setLoadingAction(action);
         setErrorMessage(null);
         try {
@@ -230,24 +179,16 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
     };
 
     const handleInstall = async () => {
-        if (!window.winky?.localSpeech) {
-            setErrorMessage('Local speech API is unavailable.');
-            return;
-        }
         const targetDir = await pickInstallDirectory(status?.installDir || undefined);
         if (!targetDir) {
             return;
         }
-        await callOperation('install', () => window.winky!.localSpeech!.install(targetDir));
+        await callOperation('install', () => localSpeechBridge.install(targetDir));
     };
-    const handleStart = () => callOperation('start', () => window.winky!.localSpeech!.start());
-    const handleRestart = () => callOperation('restart', () => window.winky!.localSpeech!.restart());
-    const handleStop = () => callOperation('stop', () => window.winky!.localSpeech!.stop());
+    const handleStart = () => callOperation('start', () => localSpeechBridge.start());
+    const handleRestart = () => callOperation('restart', () => localSpeechBridge.restart());
+    const handleStop = () => callOperation('stop', () => localSpeechBridge.stop());
     const handleReinstall = async () => {
-        if (!window.winky?.localSpeech) {
-            setErrorMessage('Local speech API is unavailable.');
-            return;
-        }
         const confirmed =
             typeof window === 'undefined' ||
             window.confirm('Reinstalling will remove the local server and downloaded models. Continue?');
@@ -258,7 +199,7 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         if (!targetDir) {
             return;
         }
-        await callOperation('reinstall', () => window.winky!.localSpeech!.reinstall(targetDir));
+        await callOperation('reinstall', () => localSpeechBridge.reinstall(targetDir));
     };
 
     const handlePrimaryClick = () => {

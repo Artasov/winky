@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState, type RefObject} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {emit} from '@tauri-apps/api/event';
 import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
@@ -7,29 +7,29 @@ import type {ActionConfig, AppConfig} from '@shared/types';
 import {resetInteractive, setRecordingInteractive} from '../../../utils/interactive';
 import {createSpeechRecorder, type SpeechRecorder} from '../services/SpeechRecorder';
 import {
-    checkLocalModelDownloaded,
     getLocalSpeechModelMetadata,
     normalizeLocalSpeechModelName,
     subscribeToLocalModelWarmup
 } from '../../../services/localSpeechModels';
 import {
-    checkOllamaModelDownloaded,
-    isOllamaModelDownloading,
-    isOllamaModelWarming,
     normalizeOllamaModelName,
     subscribeToOllamaDownloads,
     subscribeToOllamaWarmup
 } from '../../../services/ollama';
 import {
-    actionHotkeysBridge,
-    clipboardBridge,
-    llmBridge,
     micBridge,
     notificationBridge,
     resultBridge,
     speechBridge,
-    windowBridge
+    windowBridge,
+    localSpeechBridge,
+    ollamaBridge
 } from '../../../services/winkyBridge';
+import {useMicActionHotkeys} from './useMicActionHotkeys';
+import {useMicVisibilityMonitor} from './useMicVisibilityMonitor';
+import {useActionProcessing} from './useActionProcessing';
+import {useVolumeMonitor} from './useVolumeMonitor';
+import {useSpeechServiceReadiness} from './useSpeechServiceReadiness';
 
 type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
 
@@ -53,9 +53,6 @@ const isLocalServerUnavailableMessage = (message?: string): boolean => {
 
 export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechRecordingParams) => {
     const recorderRef = useRef<SpeechRecorder | null>(null);
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const analyserRef = useRef<AnalyserNode | null>(null);
-    const animationFrameRef = useRef<number | undefined>(undefined);
     const autoStartPendingRef = useRef(false);
     const isRecordingRef = useRef(false);
     const processingRef = useRef(false);
@@ -65,30 +62,22 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     const completionSoundRef = useRef<HTMLAudioElement | null>(null);
     const localServerAlertInFlightRef = useRef(false);
     const localServerAlertReleaseRef = useRef<number | null>(null);
-    const lastCommittedVolumeRef = useRef<{ value: number; timestamp: number }>({value: 0, timestamp: 0});
     const windowVisibleRef = useRef(true);
-    const currentStreamRef = useRef<MediaStream | null>(null);
+    const {
+        volume,
+        startVolumeMonitor,
+        stopVolumeMonitor,
+        currentStreamRef
+    } = useVolumeMonitor({windowVisibleRef});
     const speechMode = config?.speech.mode;
     const speechModel = config?.speech.model;
 
     const [isRecording, setIsRecording] = useState(false);
     const [activeActionId, setActiveActionId] = useState<string | null>(null);
     const [processing, setProcessing] = useState(false);
-    const [volume, setVolume] = useState(0);
     const [localModelWarmingUp, setLocalModelWarmingUp] = useState(false);
     const [localLlmWarmingUp, setLocalLlmWarmingUp] = useState(false);
     const [localLlmDownloading, setLocalLlmDownloading] = useState(false);
-
-    const commitVolumeSample = useCallback((nextValue: number) => {
-        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-        const previous = lastCommittedVolumeRef.current;
-        const difference = Math.abs(nextValue - previous.value);
-        if (difference < 0.025 && now - previous.timestamp < 48) {
-            return;
-        }
-        lastCommittedVolumeRef.current = {value: nextValue, timestamp: now};
-        setVolume(nextValue);
-    }, []);
 
     const scheduleLocalServerAlertRelease = useCallback(() => {
         if (typeof window === 'undefined') {
@@ -182,108 +171,14 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         void warmUpRecorder();
     }, [isMicOverlay, warmUpRecorder]);
 
-    const stopVolumeMonitor = useCallback(() => {
-        if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-        }
-        animationFrameRef.current = undefined;
-        if (audioContextRef.current) {
-            audioContextRef.current.close().catch(() => {
-                /* ignore */
-            });
-            audioContextRef.current = null;
-            analyserRef.current = null;
-        }
-        lastCommittedVolumeRef.current = {value: 0, timestamp: 0};
-        setVolume(0);
-        currentStreamRef.current = null;
-    }, []);
-
-    const startVolumeMonitor = useCallback((stream: MediaStream) => {
-        stopVolumeMonitor();
-        currentStreamRef.current = stream;
-        if (!windowVisibleRef.current) {
-            return;
-        }
-        try {
-            const audioContext = new AudioContext();
-            const analyser = audioContext.createAnalyser();
-            analyser.fftSize = 512;
-            const source = audioContext.createMediaStreamSource(stream);
-            source.connect(analyser);
-            const buffer = new Uint8Array(analyser.fftSize);
-
-            const update = () => {
-                if (!windowVisibleRef.current) {
-                    animationFrameRef.current = undefined;
-                    return;
-                }
-                analyser.getByteTimeDomainData(buffer);
-                let sumSquares = 0;
-                for (let i = 0; i < buffer.length; i += 1) {
-                    const deviation = buffer[i] - 128;
-                    sumSquares += deviation * deviation;
-                }
-                const rms = Math.sqrt(sumSquares / buffer.length) / 128;
-                commitVolumeSample(Number.isFinite(rms) ? rms : 0);
-                animationFrameRef.current = requestAnimationFrame(update);
-            };
-
-            update();
-            audioContextRef.current = audioContext;
-            analyserRef.current = analyser;
-        } catch (error) {
-            console.error('[MicOverlay] Не удалось инициализировать визуализацию микрофона', error);
-        }
-    }, [commitVolumeSample, stopVolumeMonitor]);
-
-    useEffect(() => {
-        if (!isMicOverlay || typeof window === 'undefined') {
-            return;
-        }
-        const api = window.winky;
-        if (!api?.on) {
-            return;
-        }
-        const handleVisibilityChange = (
-            first?: { visible?: boolean } | unknown,
-            second?: { visible?: boolean }
-        ) => {
-            const payload = (first && typeof (first as any)?.visible === 'boolean')
-                ? (first as { visible?: boolean })
-                : second;
-            const isVisible = payload?.visible === true;
-            windowVisibleRef.current = isVisible;
-            if (!isVisible) {
-                stopVolumeMonitor();
-            } else if (isRecordingRef.current && currentStreamRef.current) {
-                startVolumeMonitor(currentStreamRef.current);
-            }
-        };
-        
-        const handleDocumentVisibilityChange = () => {
-            const isVisible = !document.hidden;
-            windowVisibleRef.current = isVisible;
-            if (!isVisible) {
-                stopVolumeMonitor();
-            } else if (isRecordingRef.current && currentStreamRef.current) {
-                startVolumeMonitor(currentStreamRef.current);
-            }
-        };
-        
-        api.on('mic:visibility-change', handleVisibilityChange);
-        document.addEventListener('visibilitychange', handleDocumentVisibilityChange);
-        
-        if (document.hidden) {
-            windowVisibleRef.current = false;
-            stopVolumeMonitor();
-        }
-        
-        return () => {
-            api.removeListener?.('mic:visibility-change', handleVisibilityChange);
-            document.removeEventListener('visibilitychange', handleDocumentVisibilityChange);
-        };
-    }, [isMicOverlay, stopVolumeMonitor, startVolumeMonitor]);
+    useMicVisibilityMonitor({
+        isMicOverlay,
+        isRecordingRef,
+        currentStreamRef,
+        windowVisibleRef,
+        startVolumeMonitor,
+        stopVolumeMonitor
+    });
 
     useEffect(() => {
         if (speechMode !== SPEECH_MODES.LOCAL || !speechModel) {
@@ -394,81 +289,15 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         return true;
     }, [config?.speech.mode, showToast, scheduleLocalServerAlertRelease]);
 
-    const ensureSpeechService = useCallback(async () => {
-        if (!recorderRef.current) {
-            showToast('Recording service is unavailable.', 'error');
-            return false;
-        }
-
-        if (config?.speech.mode === SPEECH_MODES.LOCAL) {
-            const model = config.speech.model;
-            const isDownloaded = await checkLocalModelDownloaded(model, {force: true});
-            if (!isDownloaded) {
-                const message = `Download the ${model} model before using the microphone.`;
-                await openMainWindowWithToast(message);
-                return false;
-            }
-            if (localModelWarmingUp) {
-                const metadata = getLocalSpeechModelMetadata(model);
-                const label = metadata ? `${metadata.label} (${metadata.size})` : model;
-                const message = `Model ${label} is warming up. Please wait before using the microphone.`;
-                await openMainWindowWithToast(message);
-                return false;
-            }
-        }
-
-        // Проверка ollama выполняется синхронно, чтобы микрофон не открывался если ollama не готов
-        if (config?.llm.mode === LLM_MODES.LOCAL) {
-            const model = config.llm.model;
-            
-            // Быстрая проверка состояния без блокировки
-            if (localLlmDownloading || isOllamaModelDownloading(model)) {
-                const message = `The ${model} LLM model is downloading via Ollama. Please wait until it completes.`;
-                await openMainWindowWithToast(message);
-                return false;
-            }
-            if (localLlmWarmingUp || isOllamaModelWarming(model)) {
-                const message = `The ${model} LLM model is warming up. Please wait before using the microphone.`;
-                await openMainWindowWithToast(message);
-                return false;
-            }
-            
-            // Проверяем модель синхронно - если не найдена или ошибка, закрываем микрофон
-            try {
-                const isDownloaded = await checkOllamaModelDownloaded(model, {force: true});
-                if (!isDownloaded) {
-                    const message = `Download the ${model} LLM model before using the microphone.`;
-                    await openMainWindowWithToast(message);
-                    // Скрываем микрофон если модель не найдена
-                    if (isMicOverlay) {
-                        void micBridge.hide({reason: 'ollama-not-ready'});
-                    }
-                    return false;
-                }
-            } catch (error) {
-                console.error('[useSpeechRecording] Failed to check ollama model:', error);
-                const errorMessage = error instanceof Error ? error.message : 'Failed to check Ollama model. Make sure Ollama is running.';
-                await openMainWindowWithToast(errorMessage);
-                // Скрываем микрофон при ошибке
-                if (isMicOverlay) {
-                    void micBridge.hide({reason: 'ollama-error'});
-                }
-                return false;
-            }
-        }
-
-        return true;
-    }, [
-        config?.speech.mode,
-        config?.speech.model,
-        config?.llm.mode,
-        config?.llm.model,
+    const {ensureSpeechService} = useSpeechServiceReadiness({
+        config,
         localModelWarmingUp,
         localLlmDownloading,
         localLlmWarmingUp,
         openMainWindowWithToast,
-        showToast
-    ]);
+        showToast,
+        isMicOverlay
+    });
 
     const finishRecording = useCallback(async (resetUI: boolean = true): Promise<Blob | null> => {
         if (!recorderRef.current) {
@@ -490,254 +319,13 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         }
     }, [showToast, stopVolumeMonitor]);
 
-    const processAction = useCallback(async (action: ActionConfig, blob: Blob) => {
-        if (!config) {
-            return;
-        }
-        try {
-            const arrayBuffer = await blob.arrayBuffer();
-            const authToken = config.auth.access || config.auth.accessToken || undefined;
-
-            // prompt_recognizing используется для улучшения качества распознавания речи
-            // Он должен передаваться всегда, когда указан, независимо от наличия action.prompt
-            // Это помогает моделям лучше распознавать специфические термины, имена, акронимы и т.д.
-            const transcriptionPrompt = action.prompt_recognizing?.trim() || undefined;
-            
-            const transcription = await speechBridge.transcribe(arrayBuffer, {
-                mode: config.speech.mode,
-                model: config.speech.model,
-                openaiKey: config.apiKeys.openai,
-                googleKey: config.apiKeys.google,
-                accessToken: authToken,
-                prompt: transcriptionPrompt
-            });
-
-            if (!transcription) {
-                showToast('Failed to transcribe speech for the action.', 'error');
-                return;
-            }
-
-            // Определяем, нужна ли обработка LLM
-            const needsLLM = Boolean(action.prompt && action.prompt.trim());
-            
-            // Если нужно показать результаты, открываем окно и отправляем транскрипцию
-            if (action.show_results) {
-                console.log('[useSpeechRecording] Opening result window and sending transcription...');
-                await resultBridge.open();
-                
-                // Отправляем транскрипцию сразу после открытия окна (окно уже готово благодаря resultBridge.open())
-                await resultBridge.update({
-                    transcription,
-                    llmResponse: needsLLM ? '' : transcription,
-                    isStreaming: needsLLM
-                });
-                console.log('[useSpeechRecording] Transcription sent to result window');
-            }
-
-            // Если не нужна обработка LLM, завершаем обработку
-            if (!needsLLM) {
-                if (action.auto_copy_result) {
-                    const textToCopy = transcription?.trim() || '';
-                    if (textToCopy) {
-                        const copied = await clipboardBridge.writeText(textToCopy);
-                        if (copied) {
-                            showToast('Result copied.', 'success');
-                        } else {
-                            // Повторная попытка с небольшой задержкой
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                            const retryCopied = await clipboardBridge.writeText(textToCopy);
-                            if (retryCopied) {
-                                showToast('Result copied.', 'success');
-                            } else {
-                                // Еще одна попытка с большей задержкой
-                                await new Promise(resolve => setTimeout(resolve, 200));
-                                const finalRetryCopied = await clipboardBridge.writeText(textToCopy);
-                                if (finalRetryCopied) {
-                                    showToast('Result copied.', 'success');
-                                } else {
-                                    console.error('[useSpeechRecording] Failed to copy transcription to clipboard after retries');
-                                    showToast('Failed to copy the result to the clipboard.', 'error');
-                                }
-                            }
-                        }
-                    } else {
-                        console.warn('[useSpeechRecording] Transcription is empty, skipping clipboard copy');
-                    }
-                }
-                if (
-                    action.sound_on_complete &&
-                    completionSoundRef.current &&
-                    config?.completionSoundEnabled !== false
-                ) {
-                    const volumePreference = config?.completionSoundVolume ?? 1.0;
-                    const audio = completionSoundRef.current;
-                    if (volumePreference > 0 && audio && audio.src) {
-                        audio.volume = volumePreference;
-                        try {
-                            audio.currentTime = 0;
-                        } catch {
-                            /* ignore */
-                        }
-                        if (audio.readyState >= 2) {
-                            audio.play().catch((error) => {
-                                console.error('[MicOverlay] Error playing sound:', error);
-                            });
-                        } else {
-                            audio.load();
-                            audio.addEventListener('canplay', () => {
-                                audio.play().catch((error) => {
-                                    console.error('[MicOverlay] Error playing sound after load:', error);
-                                });
-                            }, {once: true});
-                        }
-                    }
-                }
-                return;
-            }
-
-            // Обрабатываем через LLM
-            console.log('[useSpeechRecording] Processing transcription with LLM...');
-            const llmConfig = {
-                mode: config.llm.mode,
-                model: config.llm.model,
-                openaiKey: config.apiKeys.openai,
-                googleKey: config.apiKeys.google,
-                accessToken: authToken
-            };
-
-            const response = await llmBridge.process(transcription, action.prompt, llmConfig);
-            console.log('[useSpeechRecording] LLM response received, sending to result window...');
-
-            // Отправляем ответ LLM в окно результатов
-            if (action.show_results) {
-                await resultBridge.update({llmResponse: response, isStreaming: false});
-                console.log('[useSpeechRecording] LLM response sent to result window');
-            }
-
-            if (action.auto_copy_result) {
-                // Убеждаемся, что ответ не пустой
-                const textToCopy = response?.trim() || '';
-                if (textToCopy) {
-                    const copied = await clipboardBridge.writeText(textToCopy);
-                    if (copied) {
-                        showToast('Response copied.', 'success');
-                    } else {
-                        // Повторная попытка с небольшой задержкой
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                        const retryCopied = await clipboardBridge.writeText(textToCopy);
-                        if (retryCopied) {
-                            showToast('Response copied.', 'success');
-                        } else {
-                            // Еще одна попытка с большей задержкой
-                            await new Promise(resolve => setTimeout(resolve, 200));
-                            const finalRetryCopied = await clipboardBridge.writeText(textToCopy);
-                            if (finalRetryCopied) {
-                                showToast('Response copied.', 'success');
-                            } else {
-                                console.error('[useSpeechRecording] Failed to copy response to clipboard after retries');
-                                showToast('Failed to copy the response to the clipboard.', 'error');
-                            }
-                        }
-                    }
-                } else {
-                    console.warn('[useSpeechRecording] Response is empty, skipping clipboard copy');
-                }
-            }
-
-            console.log('[useSpeechRecording] Checking sound playback:', {
-                sound_on_complete: action.sound_on_complete,
-                hasCompletionSoundRef: !!completionSoundRef.current,
-                completionSoundEnabled: config?.completionSoundEnabled,
-                audioSrc: completionSoundRef.current?.src,
-                audioReadyState: completionSoundRef.current?.readyState
-            });
-            if (
-                action.sound_on_complete &&
-                completionSoundRef.current &&
-                config?.completionSoundEnabled !== false
-            ) {
-                const volumePreference = config?.completionSoundVolume ?? 1.0;
-                const audio = completionSoundRef.current;
-                console.log('[useSpeechRecording] Attempting to play sound:', {
-                    hasAudio: !!audio,
-                    hasSrc: !!audio?.src,
-                    src: audio?.src,
-                    readyState: audio?.readyState,
-                    volumePreference,
-                    completionSoundEnabled: config?.completionSoundEnabled
-                });
-                if (volumePreference > 0 && audio && audio.src) {
-                    audio.volume = volumePreference;
-                    try {
-                        audio.currentTime = 0;
-                    } catch {
-                        /* ignore */
-                    }
-                    if (audio.readyState >= 2) {
-                        console.log('[useSpeechRecording] Audio ready, playing...');
-                        audio.play().catch((error) => {
-                            console.error('[useSpeechRecording] Error playing sound:', error);
-                        });
-                    } else {
-                        console.log('[useSpeechRecording] Audio not ready, loading...');
-                        audio.load();
-                        audio.addEventListener('canplay', () => {
-                            console.log('[useSpeechRecording] Audio loaded, playing...');
-                            audio.play().catch((error) => {
-                                console.error('[useSpeechRecording] Error playing sound after load:', error);
-                            });
-                        }, {once: true});
-                    }
-                } else {
-                    console.warn('[useSpeechRecording] Cannot play sound:', {
-                        volumePreference,
-                        hasAudio: !!audio,
-                        hasSrc: !!audio?.src
-                    });
-                }
-            } else {
-                console.warn('[useSpeechRecording] Sound playback skipped:', {
-                    sound_on_complete: action.sound_on_complete,
-                    hasCompletionSoundRef: !!completionSoundRef.current,
-                    completionSoundEnabled: config?.completionSoundEnabled
-                });
-            }
-        } catch (error: any) {
-            console.error(error);
-            
-            // Формируем понятное сообщение об ошибке
-            let errorMessage = 'An error occurred while processing the action.';
-            
-            if (error?.response?.status === 401) {
-                // Ошибка авторизации OpenAI
-                const errorData = error?.response?.data?.error;
-                if (errorData?.message) {
-                    if (errorData.message.includes('API key')) {
-                        errorMessage = 'The OpenAI API key is missing or invalid. Check your settings.';
-                    } else {
-                        errorMessage = `Authentication error: ${errorData.message}`;
-                    }
-                } else {
-                    errorMessage = 'OpenAI authentication error. Check the API key in settings.';
-                }
-            } else if (error?.response?.status) {
-                // Другие HTTP ошибки
-                const errorData = error?.response?.data?.error;
-                if (errorData?.message) {
-                    errorMessage = `API error: ${errorData.message}`;
-                } else {
-                    errorMessage = `Request error (status ${error.response.status})`;
-                }
-            } else if (error?.message) {
-                errorMessage = error.message;
-            }
-            
-            // Проверяем не связана ли ошибка с локальным сервером речи
-            if (!handleLocalSpeechServerFailure(errorMessage)) {
-                await openMainWindowWithToast(errorMessage);
-            }
-        }
-    }, [config, showToast, handleLocalSpeechServerFailure, openMainWindowWithToast]);
+    const {processAction} = useActionProcessing({
+        config,
+        showToast,
+        handleLocalSpeechServerFailure,
+        openMainWindowWithToast,
+        completionSoundRef
+    });
 
     const handleMicrophoneToggle = useCallback(async () => {
         const ready = await ensureSpeechService();
@@ -849,104 +437,15 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         handleMicrophoneToggleRef.current = handleMicrophoneToggle;
     }, [handleMicrophoneToggle]);
 
-    useEffect(() => {
-        if (!isMicOverlay || typeof window === 'undefined') {
-            return;
-        }
-        const handler = (event: KeyboardEvent) => {
-            if (!isRecordingRef.current || activeActions.length === 0 || event.repeat) {
-                return;
-            }
-            const action = activeActions.find((a) => {
-                if (!a.hotkey) {
-                    return false;
-                }
-                const normalizedActionHotkey = a.hotkey.trim().replace(/\s+/g, '');
-                const parts: string[] = [];
-                if (event.ctrlKey || event.metaKey) {
-                    parts.push('Ctrl');
-                }
-                if (event.altKey) {
-                    parts.push('Alt');
-                }
-                if (event.shiftKey) {
-                    parts.push('Shift');
-                }
-                if (event.key) {
-                    parts.push(event.key.toUpperCase());
-                }
-                const normalizedEventHotkey = parts.join('');
-                return normalizedActionHotkey.toLowerCase() === normalizedEventHotkey.toLowerCase();
-            });
-            if (!action) {
-                return;
-            }
-            const now = Date.now();
-            lastDomActionHotkeyTsRef.current = now;
-            if (now - lastGlobalActionHotkeyTsRef.current < 150) {
-                return;
-            }
-            event.preventDefault();
-            event.stopPropagation();
-            void handleActionClick(action);
-        };
-        window.addEventListener('keydown', handler);
-        return () => {
-            window.removeEventListener('keydown', handler);
-        };
-    }, [activeActions, handleActionClick, isMicOverlay]);
-
-    useEffect(() => {
-        if (!isMicOverlay || typeof window === 'undefined') {
-            return;
-        }
-        if (!isRecording) {
-            void actionHotkeysBridge.clear();
-            return;
-        }
-        const hotkeys = activeActions
-            .filter((action) => typeof action.hotkey === 'string' && action.hotkey.trim().length > 0)
-            .map((action) => ({
-                id: action.id,
-                accelerator: action.hotkey!.trim()
-            }));
-
-        if (hotkeys.length === 0) {
-            void actionHotkeysBridge.clear();
-            return;
-        }
-
-        void actionHotkeysBridge.register(hotkeys);
-
-        return () => {
-            void actionHotkeysBridge.clear();
-        };
-    }, [activeActions, isMicOverlay, isRecording]);
-
-    useEffect(() => {
-        if (!isMicOverlay || typeof window === 'undefined') {
-            return;
-        }
-        const handler = (payload: { actionId?: string }) => {
-            if (!payload?.actionId || !isRecording) {
-                return;
-            }
-            const action = activeActions.find((item) => item.id === payload.actionId);
-            if (!action) {
-                return;
-            }
-            const now = Date.now();
-            if (now - lastDomActionHotkeyTsRef.current < 150) {
-                return;
-            }
-            lastGlobalActionHotkeyTsRef.current = now;
-            void handleActionClick(action);
-        };
-        const unsubscribe = window.winky?.on?.('hotkey:action-triggered', handler as any);
-        return () => {
-            unsubscribe?.();
-        };
-    }, [activeActions, handleActionClick, isMicOverlay, isRecording]);
+    useMicActionHotkeys({
+        activeActions,
+        isMicOverlay,
+        isRecording,
+        isRecordingRef,
+        handleActionClick,
+        lastDomActionHotkeyTsRef,
+        lastGlobalActionHotkeyTsRef
+    });
 
     return {
         view: {

@@ -1,5 +1,5 @@
 import React, {useMemo} from 'react';
-import {Container, Stack} from '@mui/material';
+import {Button, Container, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Stack} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useIcons} from '../context/IconsContext';
 import {useToast} from '../context/ToastContext';
@@ -71,6 +71,24 @@ const ActionsPage: React.FC = () => {
                 editingActionId={form.editingActionId}
                 onSubmit={form.handleSubmit}
             />
+            <Dialog open={Boolean(form.pendingDelete)} onClose={form.cancelDelete} maxWidth="xs" fullWidth>
+                <DialogTitle>Delete action?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        {form.pendingDelete
+                            ? `Do you really want to delete "${form.pendingDelete.name}"? This cannot be undone.`
+                            : ''}
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={form.cancelDelete} color="inherit">
+                        Cancel
+                    </Button>
+                    <Button onClick={form.confirmDelete} color="error" variant="contained">
+                        Delete
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Container>
     );
 };

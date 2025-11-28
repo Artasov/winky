@@ -1,4 +1,5 @@
 // Экспортируем тип из менеджера окон
+import type {ResultPayload} from './windows/ResultWindowManager';
 export type {ResultPayload} from './windows/ResultWindowManager';
 
 export type ResultUnsubscribe = () => void;
@@ -69,6 +70,12 @@ export const llmBridge = {
 export const micBridge = {
     hide(options?: { reason?: string; disableAutoShow?: boolean }): Promise<void> {
         return window.winky?.mic?.hide?.(options) ?? Promise.resolve();
+    },
+    show(reason?: string): Promise<void> {
+        return window.winky?.mic?.show?.(reason) ?? Promise.resolve();
+    },
+    toggle(reason?: string): Promise<void> {
+        return window.winky?.mic?.toggle?.(reason) ?? Promise.resolve();
     }
 };
 
@@ -81,6 +88,10 @@ export const windowBridge = {
     },
     navigate(path: string): Promise<void> {
         return window.winky?.windows?.navigate?.(path) ?? Promise.resolve();
+    },
+    getCurrentKind(): string {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('window') || 'main';
     }
 };
 
@@ -116,5 +127,59 @@ export const resourcesBridge = {
             console.warn('[resourcesBridge] Failed to get sound data:', error);
             return null;
         }
+    }
+};
+
+export const localSpeechBridge = {
+    getStatus(): Promise<any> {
+        return window.winky?.localSpeech?.getStatus?.() ?? Promise.reject(new Error('Local speech API unavailable.'));
+    },
+    checkHealth(): Promise<any> {
+        return window.winky?.localSpeech?.checkHealth?.() ?? Promise.reject(new Error('Local speech API unavailable.'));
+    },
+    isModelDownloaded(model: string): Promise<boolean> {
+        return window.winky?.localSpeech?.isModelDownloaded?.(model) ?? Promise.resolve(false);
+    },
+    install(targetDir?: string): Promise<any> {
+        return window.winky?.localSpeech?.install?.(targetDir) ?? Promise.reject(new Error('Local speech API unavailable.'));
+    },
+    start(): Promise<any> {
+        return window.winky?.localSpeech?.start?.() ?? Promise.reject(new Error('Local speech API unavailable.'));
+    },
+    restart(): Promise<any> {
+        return window.winky?.localSpeech?.restart?.() ?? Promise.reject(new Error('Local speech API unavailable.'));
+    },
+    reinstall(targetDir?: string): Promise<any> {
+        return window.winky?.localSpeech?.reinstall?.(targetDir) ?? Promise.reject(new Error('Local speech API unavailable.'));
+    },
+    stop(): Promise<any> {
+        return window.winky?.localSpeech?.stop?.() ?? Promise.reject(new Error('Local speech API unavailable.'));
+    },
+    onStatus(callback: (status: any) => void): () => void {
+        return window.winky?.localSpeech?.onStatus?.(callback) ?? (() => {});
+    }
+};
+
+export const ollamaBridge = {
+    checkInstalled(): Promise<boolean> {
+        return window.winky?.ollama?.checkInstalled?.() ?? Promise.resolve(false);
+    },
+    listModels(force?: boolean): Promise<string[]> {
+        return window.winky?.ollama?.listModels?.(force) ?? Promise.resolve([]);
+    },
+    pullModel(model: string): Promise<void> {
+        return window.winky?.ollama?.pullModel?.(model) ?? Promise.resolve();
+    },
+    warmupModel(model: string): Promise<void> {
+        return window.winky?.ollama?.warmupModel?.(model) ?? Promise.resolve();
+    }
+};
+
+export const eventsBridge = {
+    on<T = any>(channel: string, callback: (payload: T) => void): () => void {
+        return window.winky?.on?.(channel, callback) ?? (() => {});
+    },
+    removeListener(channel: string, callback: (...args: any[]) => void): void {
+        window.winky?.removeListener?.(channel, callback);
     }
 };

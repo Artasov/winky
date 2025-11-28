@@ -12,6 +12,51 @@ const MePage: React.FC = () => {
     const hasToken = config?.auth.access || config?.auth.accessToken;
     const isAuthorized = Boolean(hasToken);
 
+    const winkyToken = Array.isArray(user?.tiers_and_features)
+        ? user?.tiers_and_features.find((item: any) => item?.token_ticker === 'WINKY') ??
+        user?.tiers_and_features[0]
+        : null;
+    const tierLabel =
+        (winkyToken?.active_tier?.name as string) ||
+        (winkyToken?.active_tier?.slug as string) ||
+        (user?.winky_tier as string) ||
+        (user?.active_tier as string) ||
+        (user?.tier as string) ||
+        'Not available';
+    const balanceRaw =
+        (winkyToken?.balance as any) ??
+        (user?.winky_balance as any) ??
+        (user?.token_balance as any) ??
+        (user?.balance as any);
+    const balance =
+        typeof balanceRaw === 'number'
+            ? balanceRaw.toLocaleString(undefined, {maximumFractionDigits: 2})
+            : typeof balanceRaw === 'string'
+                ? balanceRaw
+                : '—';
+
+    const featureSchema: Array<{ code: string; label?: string; kind?: string }> =
+        Array.isArray(winkyToken?.feature_schema) ? winkyToken?.feature_schema : [];
+    const activeFeatures: Record<string, any> = winkyToken?.active_features || {};
+    const parsedFeatures =
+        featureSchema.length > 0
+            ? featureSchema.map((item) => {
+                const value = activeFeatures[item.code];
+                const label = item.label || item.code;
+                const formatted =
+                    typeof value === 'boolean'
+                        ? value ? 'Enabled' : 'Disabled'
+                        : value ?? '—';
+                return {label, value: formatted};
+            })
+            : Object.keys(activeFeatures).map((code) => ({
+                label: code,
+                value:
+                    typeof activeFeatures[code] === 'boolean'
+                        ? activeFeatures[code] ? 'Enabled' : 'Disabled'
+                        : activeFeatures[code]
+            }));
+
     const handleLogout = async () => {
         try {
             await auth.signOut();
@@ -83,7 +128,7 @@ const MePage: React.FC = () => {
                     {user && (
                         <section
                             className="card-animated rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6">
-                            <h2 className="mb-4 text-lg font-semibold text-text-primary">User Information</h2>
+                            <h2 className="mb-2 text-lg font-semibold text-text-primary">User Information</h2>
                             <div className="flex flex-col gap-2 text-sm text-text-primary">
                                 <div className="flex items-center justify-between">
                                     <span className="text-text-secondary">Email:</span>
@@ -95,16 +140,52 @@ const MePage: React.FC = () => {
                                         <span className="font-medium">{user.username}</span>
                                     </div>
                                 )}
-                                {(user.first_name || user.last_name) && (
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-text-secondary">Name:</span>
-                                        <span
-                                            className="font-medium">{`${user.first_name || ''} ${user.last_name || ''}`.trim()}</span>
-                                    </div>
-                                )}
                             </div>
                         </section>
                     )}
+                    <section
+                        className="card-animated rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 via-white to-primary-100 shadow-primary-sm p-6 md:col-span-2">
+                        <div className="mb-3 flex items-center justify-between gap-4">
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.24em] text-primary-700">WINKY access</p>
+                                <h2 className="text-xl font-semibold text-text-primary">Features & balance</h2>
+                            </div>
+                            <div
+                                className="rounded-full bg-primary-200 px-3 py-1 text-xs font-semibold text-primary-800 shadow-primary-sm">
+                                Tier: {tierLabel || '—'}
+                            </div>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="rounded-xl border border-primary-200/60 bg-white/70 p-4 shadow-primary-sm">
+                                <p className="text-xs uppercase tracking-[0.2em] text-text-secondary">Balance</p>
+                                <p className="mt-1 text-2xl font-bold text-primary-900">{balance}</p>
+                                <p className="text-xs text-text-secondary">Token: WINKY</p>
+                            </div>
+                            <div className="rounded-xl border border-primary-200/60 bg-white/70 p-4 shadow-primary-sm">
+                                <p className="text-xs uppercase tracking-[0.2em] text-text-secondary">Tier</p>
+                                <p className="mt-1 text-lg font-semibold text-text-primary">{tierLabel}</p>
+                                <p className="text-xs text-text-secondary">Access level for premium features.</p>
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            <p className="text-sm font-semibold text-text-primary mb-2">Available features</p>
+                            {parsedFeatures.length === 0 ? (
+                                <p className="text-sm text-text-secondary">No feature info available.</p>
+                            ) : (
+                                <div className="flex flex-wrap gap-2">
+                                    {parsedFeatures.map((feature) => (
+                                        <span
+                                            key={feature.label}
+                                            className="rounded-full border border-primary-200 bg-white px-3 py-1 text-xs font-medium text-text-primary shadow-primary-sm"
+                                            title={feature.label}
+                                        >
+                                            {feature.label}: {String(feature.value)}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </section>
                 </div>
             )}
         </div>

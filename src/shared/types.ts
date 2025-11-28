@@ -62,6 +62,17 @@ export interface User {
     is_email_confirmed?: boolean;
     is_active?: boolean;
     date_joined?: string;
+    // Дополнительные поля с расширенной информацией о тарифе/балансе
+    features?: string[];
+    available_features?: string[];
+    perks?: string[];
+    winky_balance?: number | string | null;
+    token_balance?: number | string | null;
+    balance?: number | string | null;
+    winky_tier?: string | null;
+    tier?: string | null;
+    active_tier?: string | null;
+    tiers_and_features?: Array<Record<string, any>>;
 }
 
 export interface AuthResponse {

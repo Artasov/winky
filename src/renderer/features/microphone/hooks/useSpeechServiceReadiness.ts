@@ -91,6 +91,29 @@ export const useSpeechServiceReadiness = ({
         if (config?.speech.mode !== SPEECH_MODES.LOCAL) {
             return true;
         }
+        
+        // Проверяем, запущен ли локальный сервер
+        try {
+            const status = await localSpeechBridge.checkHealth();
+            if (!status.running) {
+                const message = 'Local speech server is not running. Start the server in Settings before using the microphone.';
+                await openMainWindowWithToast(message);
+                showToast(message, 'error', {durationMs: 6000});
+                if (isMicOverlay) {
+                    void micBridge.hide({reason: 'local-server-not-running'});
+                }
+                return false;
+            }
+        } catch (error) {
+            const message = 'Local speech server is not available. Start the server in Settings before using the microphone.';
+            await openMainWindowWithToast(message);
+            showToast(message, 'error', {durationMs: 6000});
+            if (isMicOverlay) {
+                void micBridge.hide({reason: 'local-server-error'});
+            }
+            return false;
+        }
+        
         const model = config.speech.model;
         const isDownloaded = await localSpeechBridge.isModelDownloaded(model);
         if (!isDownloaded) {
@@ -106,7 +129,7 @@ export const useSpeechServiceReadiness = ({
             return false;
         }
         return true;
-    }, [config?.speech.mode, config?.speech.model, localModelWarmingUp, openMainWindowWithToast]);
+    }, [config?.speech.mode, config?.speech.model, localModelWarmingUp, openMainWindowWithToast, showToast, isMicOverlay]);
 
     const ensureLocalLlmReady = useCallback(async (): Promise<boolean> => {
         if (config?.llm.mode !== LLM_MODES.LOCAL) {

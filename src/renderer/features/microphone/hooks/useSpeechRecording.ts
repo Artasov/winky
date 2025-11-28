@@ -372,19 +372,27 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             return;
         }
 
-        const ready = await ensureSpeechService();
-        if (!ready) {
-            return;
-        }
-
+        // Устанавливаем состояние обработки сразу для отзывчивости UI
         processingRef.current = true;
         setActiveActionId(action.id);
         setProcessing(true);
+
         try {
+            const ready = await ensureSpeechService();
+            if (!ready) {
+                // Если сервис не готов, сбрасываем состояние
+                processingRef.current = false;
+                setActiveActionId(null);
+                setProcessing(false);
+                return;
+            }
+
             const blob = await finishRecording(false);
             if (blob) {
                 await processAction(action, blob);
             }
+        } catch (error) {
+            console.error('[useSpeechRecording] Action processing failed:', error);
         } finally {
             setIsRecording(false);
             stopVolumeMonitor();
@@ -392,8 +400,13 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
             processingRef.current = false;
             setProcessing(false);
             resetInteractive();
+            // Закрываем микрофон сразу, но только если он действительно должен закрываться
+            // Убираем задержку, чтобы избежать проблем с повторным открытием
             if (isMicOverlay && config?.micHideOnStopRecording !== false) {
-                void micBridge.hide({reason: 'action'});
+                // Используем requestAnimationFrame для гарантии, что состояние обновлено
+                requestAnimationFrame(() => {
+                    void micBridge.hide({reason: 'action'});
+                });
             }
         }
     }, [processing, isRecording, ensureSpeechService, finishRecording, processAction, stopVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);

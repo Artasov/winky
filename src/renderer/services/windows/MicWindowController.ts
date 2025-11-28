@@ -24,6 +24,7 @@ export class MicWindowController {
     private visible = false;
     private micReady = false;
     private toggleInProgress = false;
+    private hideInProgress = false;
     private autoStartConfig: {enabled: boolean; lastCheck: number} = {enabled: false, lastCheck: 0};
     private pendingAutoStart = false;
     private pendingAutoStartReason: string | null = null;
@@ -203,6 +204,16 @@ export class MicWindowController {
     }
 
     async show(reason: string = 'system'): Promise<void> {
+        // Если идет процесс закрытия, ждем его завершения
+        if (this.hideInProgress) {
+            // Ждем завершения закрытия перед открытием
+            let attempts = 0;
+            while (this.hideInProgress && attempts < 50) {
+                await new Promise((resolve) => setTimeout(resolve, 10));
+                attempts += 1;
+            }
+        }
+
         if (this.window) {
             const exists = await WebviewWindow.getByLabel('mic').catch(() => null);
             if (!exists) {
@@ -258,35 +269,54 @@ export class MicWindowController {
     }
 
     async hide(reason: string = 'system'): Promise<void> {
-        const win = this.window ?? (await WebviewWindow.getByLabel('mic').catch(() => null));
-        if (!win) {
-            this.visible = false;
+        // Защита от повторных вызовов hide
+        if (this.hideInProgress) {
             return;
         }
-
-        if (!this.visible) {
-            return;
-        }
+        this.hideInProgress = true;
 
         try {
-            const currentPos = await win.position().catch(() => null);
-            if (currentPos) {
-                this.position = {x: currentPos.x, y: currentPos.y};
-                void this.configApi.update({micWindowPosition: this.position});
+            const win = this.window ?? (await WebviewWindow.getByLabel('mic').catch(() => null));
+            if (!win) {
+                this.visible = false;
+                this.micReady = false;
+                this.pendingAutoStart = false;
+                this.pendingAutoStartReason = null;
+                this.hideInProgress = false;
+                return;
             }
-        } catch {
-            /* ignore */
+
+            if (!this.visible) {
+                this.hideInProgress = false;
+                return;
+            }
+
+            try {
+                const currentPos = await win.position().catch(() => null);
+                if (currentPos) {
+                    this.position = {x: currentPos.x, y: currentPos.y};
+                    void this.configApi.update({micWindowPosition: this.position});
+                }
+            } catch {
+                /* ignore */
+            }
+
+            this.visible = false;
+            // Сбрасываем состояние готовности и автозапуска при закрытии
+            this.micReady = false;
+            this.pendingAutoStart = false;
+            this.pendingAutoStartReason = null;
+
+            await Promise.all([
+                emit('mic:start-fade-out', {reason}),
+                win.hide().catch(() => {
+                    this.window = null;
+                }),
+                emit('mic:visibility-change', {visible: false, reason})
+            ]);
+        } finally {
+            this.hideInProgress = false;
         }
-
-        this.visible = false;
-
-        await Promise.all([
-            emit('mic:start-fade-out', {reason}),
-            win.hide().catch(() => {
-                this.window = null;
-            }),
-            emit('mic:visibility-change', {visible: false, reason})
-        ]);
     }
 
     async toggle(reason: string = 'manual'): Promise<void> {
@@ -403,12 +433,35 @@ export class MicWindowController {
 
         this.pendingAutoStart = true;
         this.pendingAutoStartReason = reason;
+        
         // Если окно уже готово, попробуем сразу запустить без ожиданий.
         if (this.micReady) {
             const started = await this.tryEmitStart(reason);
             if (started) {
                 this.pendingAutoStart = false;
                 this.pendingAutoStartReason = null;
+                return;
+            }
+        }
+        
+        // Если micReady еще не установлен, ждем его установки (максимум 1 секунду)
+        // Это важно для повторных открытий, когда micReady был сброшен при закрытии
+        if (!this.micReady) {
+            const maxWaitTime = 1000; // 1 секунда
+            const checkInterval = 50; // проверяем каждые 50мс
+            const startTime = Date.now();
+            
+            while (!this.micReady && (Date.now() - startTime) < maxWaitTime) {
+                await new Promise((resolve) => setTimeout(resolve, checkInterval));
+            }
+            
+            // После ожидания пробуем запустить, если micReady установлен
+            if (this.micReady) {
+                const started = await this.tryEmitStart(reason);
+                if (started) {
+                    this.pendingAutoStart = false;
+                    this.pendingAutoStartReason = null;
+                }
             }
         }
     }

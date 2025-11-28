@@ -47,10 +47,14 @@ export const useMicWindowEffects = ({
         const attemptAutoStart = () => {
             const toggle = handleMicrophoneToggleRef.current;
             if (!toggle) {
-                autoStartRetryTimeoutRef.current = window.setTimeout(attemptAutoStart, 30);
+                // Увеличиваем интервал повтора, если функция еще не готова
+                autoStartRetryTimeoutRef.current = window.setTimeout(attemptAutoStart, 100);
                 return;
             }
-            Promise.resolve(toggle()).finally(() => {
+            // Вызываем toggle асинхронно, но не ждем его завершения для автозапуска
+            Promise.resolve(toggle()).catch((error) => {
+                console.error('[useMicWindowEffects] Auto-start failed:', error);
+            }).finally(() => {
                 autoStartPendingRef.current = false;
                 clearAutoStartRetry();
             });
@@ -61,7 +65,10 @@ export const useMicWindowEffects = ({
                 return;
             }
             autoStartPendingRef.current = true;
-            attemptAutoStart();
+            // Небольшая задержка, чтобы убедиться, что окно полностью готово
+            autoStartRetryTimeoutRef.current = window.setTimeout(() => {
+                attemptAutoStart();
+            }, 50);
         };
 
         const visibilityHandler = (first?: { visible?: boolean } | unknown, second?: { visible?: boolean }) => {
@@ -69,13 +76,23 @@ export const useMicWindowEffects = ({
                 ? (first as { visible?: boolean })
                 : second;
             if (data?.visible) {
+                // При открытии окна очищаем любые pending состояния и прогреваем рекордер
+                clearAutoStartRetry();
+                autoStartPendingRef.current = false;
                 void warmUpRecorder();
+                // Отправляем событие готовности при каждом открытии окна
+                // Это важно для повторных открытий после закрытия
+                void emitEvent('mic:ready', {visible: true}).catch(() => {});
                 return;
             }
-            clearAutoStartRetry();
-            autoStartPendingRef.current = false;
+            // Очищаем автозапуск только если окно действительно скрывается
+            // Не очищаем если идет обработка действия, чтобы избежать закрытия во время обработки
+            if (!processingRef.current) {
+                clearAutoStartRetry();
+                autoStartPendingRef.current = false;
+            }
             resetInteractive();
-            if (isRecordingRef.current) {
+            if (isRecordingRef.current && !processingRef.current) {
                 (async () => {
                     try {
                         await finishRecording();

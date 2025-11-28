@@ -403,19 +403,14 @@ export class MicWindowController {
 
         this.pendingAutoStart = true;
         this.pendingAutoStartReason = reason;
-
-        setTimeout(async () => {
-            const maxAttempts = 8;
-            for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-                const started = await this.tryEmitStart(reason);
-                if (started) {
-                    this.pendingAutoStart = false;
-                    this.pendingAutoStartReason = null;
-                    return;
-                }
-                await new Promise((resolve) => setTimeout(resolve, 140 + attempt * 120));
+        // Если окно уже готово, попробуем сразу запустить без ожиданий.
+        if (this.micReady) {
+            const started = await this.tryEmitStart(reason);
+            if (started) {
+                this.pendingAutoStart = false;
+                this.pendingAutoStartReason = null;
             }
-        }, 80);
+        }
     }
 
     async handleMicReady(): Promise<void> {
@@ -424,7 +419,7 @@ export class MicWindowController {
             return;
         }
         const reason = this.pendingAutoStartReason ?? 'shortcut';
-        const maxAttempts = 3;
+        const maxAttempts = 10;
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
             const started = await this.tryEmitStart(reason);
             if (started) {
@@ -432,7 +427,7 @@ export class MicWindowController {
                 this.pendingAutoStartReason = null;
                 return;
             }
-            await new Promise((resolve) => setTimeout(resolve, 120 + attempt * 80));
+            await new Promise((resolve) => setTimeout(resolve, 10));
         }
     }
 }

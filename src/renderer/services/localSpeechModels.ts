@@ -89,6 +89,10 @@ const localModelCache = new Map<string, boolean>();
 const warmupModelsInProgress = new Set<string>();
 type WarmupListener = (activeModels: Set<string>) => void;
 const warmupListeners = new Set<WarmupListener>();
+const activeTranscriptions = new Set<number>();
+type TranscriptionListener = (inProgress: boolean) => void;
+const transcriptionListeners = new Set<TranscriptionListener>();
+let transcriptionCounter = 0;
 
 const log = (message: string, ...args: any[]) => {
     console.log(`%c[LocalModel] %c${message}`, 'color:#0ea5e9;font-weight:600', 'color:#111827', ...args);
@@ -174,6 +178,78 @@ const setWarmupState = (model: string, inProgress: boolean) => {
     notifyWarmupSubscribers();
 };
 
+const notifyTranscriptionSubscribers = () => {
+    const inProgress = activeTranscriptions.size > 0;
+    transcriptionListeners.forEach((listener) => {
+        try {
+            listener(inProgress);
+        } catch (error) {
+            console.error('[LocalModel] Transcription listener error', error);
+        }
+    });
+};
+
+const registerTranscription = (): number => {
+    transcriptionCounter += 1;
+    activeTranscriptions.add(transcriptionCounter);
+    notifyTranscriptionSubscribers();
+    return transcriptionCounter;
+};
+
+const unregisterTranscription = (token?: number) => {
+    if (typeof token !== 'number') {
+        return;
+    }
+    if (!activeTranscriptions.has(token)) {
+        return;
+    }
+    activeTranscriptions.delete(token);
+    notifyTranscriptionSubscribers();
+};
+
+const hasActiveTranscriptions = (): boolean => activeTranscriptions.size > 0;
+
+export const subscribeToLocalTranscriptions = (listener: TranscriptionListener): (() => void) => {
+    transcriptionListeners.add(listener);
+    listener(hasActiveTranscriptions());
+    return () => {
+        transcriptionListeners.delete(listener);
+    };
+};
+
+export const markLocalTranscriptionStart = (): number => registerTranscription();
+
+export const markLocalTranscriptionFinish = (token?: number): void => {
+    unregisterTranscription(token);
+};
+
+const waitForTranscriptionsToFinish = (timeoutMs: number = 15_000): Promise<boolean> => {
+    if (!hasActiveTranscriptions()) {
+        return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        let unsubscribe: (() => void) | null = null;
+        const handleUpdate = (inProgress: boolean) => {
+            if (inProgress) {
+                return;
+            }
+            if (timeoutId !== null) {
+                clearTimeout(timeoutId);
+            }
+            unsubscribe?.();
+            resolve(true);
+        };
+        unsubscribe = subscribeToLocalTranscriptions(handleUpdate);
+        if (timeoutMs > 0) {
+            timeoutId = setTimeout(() => {
+                unsubscribe?.();
+                resolve(false);
+            }, timeoutMs);
+        }
+    });
+};
+
 export const subscribeToLocalModelWarmup = (listener: WarmupListener): (() => void) => {
     warmupListeners.add(listener);
     listener(new Set(warmupModelsInProgress));
@@ -245,6 +321,19 @@ export const warmupLocalSpeechModel = async (model: string, device?: string): Pr
     if (!trimmed) {
         throw new Error('Model name is missing.');
     }
+    if (hasActiveTranscriptions()) {
+        const idle = await waitForTranscriptionsToFinish();
+        if (!idle) {
+            log(`Пропускаем прогрев модели ${describeLocalSpeechModel(trimmed)}: идёт транскрибация.`);
+            return {
+                status: 'ready',
+                model: trimmed,
+                device: 'busy',
+                compute_type: 'skipped',
+                load_time: 0
+            };
+        }
+    }
     const payload: Record<string, string> = {model: trimmed};
     if (device) {
         payload.device = device;
@@ -276,5 +365,3 @@ export const warmupLocalSpeechModel = async (model: string, device?: string): Pr
         setWarmupState(trimmed, false);
     }
 };
-
-

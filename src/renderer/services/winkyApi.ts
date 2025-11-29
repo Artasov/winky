@@ -10,6 +10,7 @@ import {
 } from '@shared/constants';
 import type {ActionConfig, ActionIcon, AppConfig, User, WinkyProfile} from '@shared/types';
 import {createLLMService} from '../services/llm/factory';
+import {markLocalTranscriptionFinish, markLocalTranscriptionStart} from './localSpeechModels';
 
 export type ActionPayload = {
     name: string;
@@ -133,7 +134,9 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             extraFields.prompt = promptValue;
         }
         const formData = buildFormData(extraFields);
+        let transcriptionToken: number | null = null;
         try {
+            transcriptionToken = markLocalTranscriptionStart();
             const {data} = await axios.post(FAST_WHISPER_TRANSCRIBE_ENDPOINT, formData, {
                 headers: {'Content-Type': 'multipart/form-data'},
                 timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT
@@ -159,6 +162,10 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             );
             console.error('  ❌ Error:', error.message);
             throw error;
+        } finally {
+            if (transcriptionToken !== null) {
+                markLocalTranscriptionFinish(transcriptionToken);
+            }
         }
     }
 

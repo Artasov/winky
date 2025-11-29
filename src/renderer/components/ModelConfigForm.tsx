@@ -39,6 +39,7 @@ import {
     getLocalSpeechModelMetadata,
     normalizeLocalSpeechModelName,
     subscribeToLocalModelWarmup,
+    subscribeToLocalTranscriptions,
     warmupLocalSpeechModel
 } from '../services/localSpeechModels';
 import {downloadOllamaModel, warmupOllamaModel as warmupOllamaModelService} from '../services/ollama';
@@ -145,6 +146,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const [downloadingLocalModel, setDownloadingLocalModel] = useState(false);
     const [localModelError, setLocalModelError] = useState<string | null>(null);
     const [localWarmupInProgress, setLocalWarmupInProgress] = useState(false);
+    const [localTranscriptionInProgress, setLocalTranscriptionInProgress] = useState(false);
     const checkingRef = useRef<string | null>(null);
     const warmupRequestRef = useRef<string | null>(null);
     const normalizedSpeechModel = useMemo(
@@ -195,6 +197,15 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const selectedLocalModelDescription = selectedLocalModelMeta
         ? `${selectedLocalModelMeta.label} (${selectedLocalModelMeta.size})`
         : null;
+
+    useEffect(() => {
+        const unsubscribe = subscribeToLocalTranscriptions((inProgress) => {
+            setLocalTranscriptionInProgress(inProgress);
+        });
+        return () => {
+            unsubscribe();
+        };
+    }, []);
 
     const handleModeInfoClick = useCallback(
         (event: React.MouseEvent, dialogType: ModeInfoDialogType) => {
@@ -316,6 +327,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         if (localModelVerifiedFor !== normalized) {
             return;
         }
+        if (localTranscriptionInProgress) {
+            return;
+        }
         if (localWarmupInProgress) {
             return;
         }
@@ -350,6 +364,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         localModelVerifiedFor,
         checkingLocalModel,
         downloadingLocalModel,
+        localTranscriptionInProgress,
         localWarmupInProgress
     ]);
 

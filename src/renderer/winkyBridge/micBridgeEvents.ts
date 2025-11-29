@@ -8,45 +8,49 @@ export type MicBridgeEventsDeps = {
 };
 
 export const attachMicBridgeEvents = ({micController, currentWindowKind, openMainWindow}: MicBridgeEventsDeps): void => {
-    void listen('mic:show-request', (event) => {
-        const reason = (event.payload as any)?.reason ?? 'system';
-        void micController.show(reason);
-    });
+    const isPrimaryWindow = currentWindowKind === 'main';
 
-    void listen('mic:hide-request', (event) => {
-        const reason = (event.payload as any)?.reason ?? 'system';
-        void micController.hide(reason);
-    });
+    if (isPrimaryWindow) {
+        void listen('mic:show-request', (event) => {
+            const reason = (event.payload as any)?.reason ?? 'system';
+            void micController.show(reason);
+        });
 
-    void listen('mic:toggle-request', (event) => {
-        const reason = (event.payload as any)?.reason ?? 'system';
-        void micController.toggle(reason);
-    });
+        void listen('mic:hide-request', (event) => {
+            const reason = (event.payload as any)?.reason ?? 'system';
+            void micController.hide(reason);
+        });
 
-    void listen('mic:ready', () => {
-        void micController.handleMicReady();
-    });
+        void listen('mic:toggle-request', (event) => {
+            const reason = (event.payload as any)?.reason ?? 'system';
+            void micController.toggle(reason);
+        });
 
-    let micShortcutHandling = false;
-    let lastShortcutAt = 0;
-    const SHORTCUT_COOLDOWN_MS = 120;
-    void listen('mic:shortcut', () => {
-        const now = Date.now();
-        if (micShortcutHandling || now - lastShortcutAt < SHORTCUT_COOLDOWN_MS) {
-            return;
-        }
-        micShortcutHandling = true;
-        const finish = () => {
-            lastShortcutAt = Date.now();
-            micShortcutHandling = false;
-        };
-        const result = micController.toggle('shortcut');
-        if (result && typeof (result as Promise<void>).finally === 'function') {
-            void (result as Promise<void>).finally(finish);
-        } else {
-            finish();
-        }
-    });
+        void listen('mic:ready', () => {
+            void micController.handleMicReady();
+        });
+
+        let micShortcutHandling = false;
+        let lastShortcutAt = 0;
+        const SHORTCUT_COOLDOWN_MS = 120;
+        void listen('mic:shortcut', () => {
+            const now = Date.now();
+            if (micShortcutHandling || now - lastShortcutAt < SHORTCUT_COOLDOWN_MS) {
+                return;
+            }
+            micShortcutHandling = true;
+            const finish = () => {
+                lastShortcutAt = Date.now();
+                micShortcutHandling = false;
+            };
+            const result = micController.toggle('shortcut');
+            if (result && typeof (result as Promise<void>).finally === 'function') {
+                void (result as Promise<void>).finally(finish);
+            } else {
+                finish();
+            }
+        });
+    }
 
     void listen('tray:open-main', async () => {
         if (currentWindowKind !== 'main') {

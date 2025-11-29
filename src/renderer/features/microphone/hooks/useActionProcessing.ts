@@ -4,6 +4,9 @@ import {clipboardBridge, llmBridge, resultBridge, speechBridge} from '../../../s
 
 type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
 
+const TRANSCRIBE_UI_TIMEOUT_MS = 120_000;
+const TRANSCRIBE_SLOW_LOG_MS = 15_000;
+
 type UseActionProcessingParams = {
     config: AppConfig | null;
     showToast: ToastFn;
@@ -23,11 +26,25 @@ export const useActionProcessing = ({
         if (!config) {
             return;
         }
+        let abortController: AbortController | null = null;
+        let slowLogTimer: ReturnType<typeof setTimeout> | null = null;
         try {
             const arrayBuffer = await blob.arrayBuffer();
             const authToken = config.auth.access || config.auth.accessToken || undefined;
 
             const transcriptionPrompt = action.prompt_recognizing?.trim() || undefined;
+
+            abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            slowLogTimer =
+                typeof window !== 'undefined'
+                    ? window.setTimeout(() => {
+                        console.warn('[useActionProcessing] Transcription still in-flight', {
+                            mode: config.speech.mode,
+                            model: config.speech.model,
+                            actionId: action.id
+                        });
+                    }, TRANSCRIBE_SLOW_LOG_MS)
+                    : null;
 
             const transcription = await speechBridge.transcribe(arrayBuffer, {
                 mode: config.speech.mode,
@@ -36,7 +53,14 @@ export const useActionProcessing = ({
                 googleKey: config.apiKeys.google,
                 accessToken: authToken,
                 prompt: transcriptionPrompt
+            }, {
+                signal: abortController?.signal,
+                uiTimeoutMs: TRANSCRIBE_UI_TIMEOUT_MS
             });
+
+            if (slowLogTimer !== null) {
+                clearTimeout(slowLogTimer);
+            }
 
             if (!transcription) {
                 showToast('Failed to transcribe speech for the action.', 'error');
@@ -120,6 +144,10 @@ export const useActionProcessing = ({
 
             if (!handleLocalSpeechServerFailure(errorMessage)) {
                 await openMainWindowWithToast(errorMessage);
+            }
+        } finally {
+            if (slowLogTimer !== null) {
+                clearTimeout(slowLogTimer);
             }
         }
     }, [config, showToast, handleLocalSpeechServerFailure, openMainWindowWithToast, completionSoundRef]);

@@ -124,7 +124,7 @@ declare global {
             googleKey?: string;
             accessToken?: string;
             prompt?: string;
-        }): Promise<string>;
+        }, options?: { signal?: AbortSignal; uiTimeoutMs?: number }): Promise<string>;
     }
 
     interface WinkyLocalSpeechAPI {

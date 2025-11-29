@@ -32,6 +32,14 @@ export type SpeechTranscribeConfig = {
     prompt?: string;
 };
 
+export type SpeechTranscribeOptions = {
+    signal?: AbortSignal;
+    uiTimeoutMs?: number;
+};
+
+const DEFAULT_TRANSCRIBE_UI_TIMEOUT_MS = 120_000;
+const SLOW_TRANSCRIBE_WARNING_MS = 15_000;
+
 const ACTIONS_API_PATH = 'winky/actions/';
 const ICONS_API_PATH = 'winky/icons/';
 const PROFILE_API_PATH = 'winky/profile/';
@@ -105,7 +113,11 @@ export const fetchProfile = async (): Promise<WinkyProfile> => {
     });
 };
 
-export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTranscribeConfig): Promise<string> => {
+export const transcribeAudio = async (
+    audioData: ArrayBuffer,
+    config: SpeechTranscribeConfig,
+    options: SpeechTranscribeOptions = {}
+): Promise<string> => {
     const blob = new Blob([audioData], {type: 'audio/webm'});
     const buildFormData = (extraFields: Record<string, string> = {}) => {
         const formData = new FormData();
@@ -117,7 +129,33 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
 
     const promptValue = config.prompt?.trim();
     const audioSizeKB = (audioData.byteLength / 1024).toFixed(2);
+    const controller = new AbortController();
+    const {signal, uiTimeoutMs} = options;
+    let clearExternalAbort: (() => void) | null = null;
+    if (signal) {
+        const forwardAbort = () => controller.abort(signal.reason);
+        if (signal.aborted) {
+            forwardAbort();
+        } else {
+            signal.addEventListener('abort', forwardAbort, {once: true});
+            clearExternalAbort = () => signal.removeEventListener('abort', forwardAbort);
+        }
+    }
+    const timeoutMs = Math.max(5_000, uiTimeoutMs ?? DEFAULT_TRANSCRIBE_UI_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => {
+        if (!controller.signal.aborted) {
+            controller.abort(new DOMException('Transcription request timed out.', 'AbortError'));
+        }
+    }, timeoutMs);
+    const slowWarnId = setTimeout(() => {
+        console.warn('[Transcribe] UI still waiting for response…', {
+            model: config.model,
+            mode: config.mode,
+            timeoutMs
+        });
+    }, Math.min(SLOW_TRANSCRIBE_WARNING_MS, timeoutMs - 1_000));
 
+    try {
     if (config.mode === SPEECH_MODES.LOCAL) {
         console.log(`%cTranscribe → %c[LOCAL] %c${config.model}`, 
             'color: #10b981; font-weight: bold',
@@ -139,7 +177,8 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             transcriptionToken = markLocalTranscriptionStart();
             const {data} = await axios.post(FAST_WHISPER_TRANSCRIBE_ENDPOINT, formData, {
                 headers: {'Content-Type': 'multipart/form-data'},
-                timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT
+                timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT,
+                signal: controller.signal
             });
             const result = extractSpeechText(data);
             console.log(`%cTranscribe ← %c[LOCAL] %c${config.model} %c[200]`, 
@@ -154,6 +193,10 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             });
             return result;
         } catch (error: any) {
+            if (controller.signal.aborted) {
+                console.warn('[Transcribe] LOCAL request aborted or timed out.', {model: config.model});
+                throw new Error('Transcription request was cancelled or timed out.');
+            }
             console.error(`%cTranscribe ← %c[LOCAL] %c${config.model} %c[ERROR]`, 
                 'color: #ef4444; font-weight: bold',
                 'color: #3b82f6; font-weight: bold',
@@ -280,7 +323,8 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT
+                    timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT,
+                    signal: controller.signal
                 }
             );
             
@@ -311,6 +355,10 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
                 }
             }
         } catch (error: any) {
+            if (controller.signal.aborted) {
+                console.warn('[Transcribe] Gemini request aborted or timed out.', {model: config.model});
+                throw new Error('Transcription request was cancelled or timed out.');
+            }
             const status = error?.response?.status || 'ERROR';
             console.error(`%cTranscribe ← %c[Google Gemini] %c${config.model} %c[${status}]`, 
                 'color: #ef4444; font-weight: bold',
@@ -379,7 +427,8 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             headers: {
                 Authorization: `Bearer ${sanitizedToken}`
             },
-            timeout: 120_000
+            timeout: 120_000,
+            signal: controller.signal
         });
         const text = extractSpeechText(data);
         if (text) {
@@ -397,6 +446,10 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
             return text;
         }
     } catch (error: any) {
+        if (controller.signal.aborted) {
+            console.warn('[Transcribe] OpenAI request aborted or timed out.', {model: config.model});
+            throw new Error('Transcription request was cancelled or timed out.');
+        }
         const status = error?.response?.status || 'ERROR';
         console.error(`%cTranscribe ← %c[OpenAI Whisper] %c${config.model} %c[${status}]`, 
             'color: #ef4444; font-weight: bold',
@@ -412,6 +465,11 @@ export const transcribeAudio = async (audioData: ArrayBuffer, config: SpeechTran
         throw error;
     }
     throw new Error('OpenAI returned an empty response.');
+    } finally {
+        clearTimeout(timeoutId);
+        clearTimeout(slowWarnId);
+        clearExternalAbort?.();
+    }
 };
 
 export const processLLM = async (text: string, prompt: string, config: {

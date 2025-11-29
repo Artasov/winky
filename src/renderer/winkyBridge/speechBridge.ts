@@ -1,5 +1,9 @@
-import {transcribeAudio, SpeechTranscribeConfig} from '../services/winkyApi';
+import {transcribeAudio, SpeechTranscribeConfig, SpeechTranscribeOptions} from '../services/winkyApi';
 
 export const speechBridge = {
-    transcribe: (audioData: ArrayBuffer, config: SpeechTranscribeConfig) => transcribeAudio(audioData, config)
+    transcribe: (
+        audioData: ArrayBuffer,
+        config: SpeechTranscribeConfig,
+        options?: SpeechTranscribeOptions
+    ) => transcribeAudio(audioData, config, options)
 };

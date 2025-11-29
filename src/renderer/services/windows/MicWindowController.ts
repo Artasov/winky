@@ -223,7 +223,10 @@ export class MicWindowController {
 
         const win = await this.ensure();
 
-        if (this.visible) {
+        const isVisible = await win.isVisible().catch(() => false);
+        this.visible = isVisible;
+
+        if (isVisible) {
             try {
                 await win.setFocus();
                 return;
@@ -286,7 +289,10 @@ export class MicWindowController {
                 return;
             }
 
-            if (!this.visible) {
+            const isVisible = await win.isVisible().catch(() => false);
+            this.visible = isVisible;
+
+            if (!isVisible) {
                 this.hideInProgress = false;
                 return;
             }
@@ -333,6 +339,7 @@ export class MicWindowController {
             }
 
             const isVisible = await win.isVisible().catch(() => false);
+            this.visible = isVisible;
 
             if (isVisible) {
                 await this.hide(reason);

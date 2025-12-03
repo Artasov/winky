@@ -28,7 +28,9 @@ export class MicWindowController {
     private autoStartConfig: {enabled: boolean; lastCheck: number} = {enabled: false, lastCheck: 0};
     private pendingAutoStart = false;
     private pendingAutoStartReason: string | null = null;
+    private positionSaveTimeout: ReturnType<typeof setTimeout> | null = null;
     private readonly AUTO_START_CONFIG_CACHE_MS = 5000;
+    private readonly POSITION_SAVE_DEBOUNCE_MS = 300;
     private readonly width: number;
     private readonly height: number;
     private readonly margin: number;
@@ -393,7 +395,14 @@ export class MicWindowController {
                 const y = Math.round(payload.y);
                 if (this.position.x !== x || this.position.y !== y) {
                     this.position = {x, y};
-                    void this.configApi.update({micWindowPosition: {x, y}});
+                    // Debounce сохранения позиции — не записываем на диск при каждом пикселе перемещения
+                    if (this.positionSaveTimeout !== null) {
+                        clearTimeout(this.positionSaveTimeout);
+                    }
+                    this.positionSaveTimeout = setTimeout(() => {
+                        this.positionSaveTimeout = null;
+                        void this.configApi.update({micWindowPosition: {x, y}});
+                    }, this.POSITION_SAVE_DEBOUNCE_MS);
                 }
             });
         } catch {

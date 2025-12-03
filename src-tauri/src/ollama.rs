@@ -2,7 +2,7 @@ use std::io;
 use std::process::Stdio;
 
 use anyhow::{anyhow, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 
 #[cfg(target_os = "windows")]
@@ -101,4 +101,48 @@ pub async fn warmup_model(model: &str) -> Result<()> {
     // A lightweight "warmup": ensure the model is pulled; actual prompt
     // warmup can be added later if needed.
     pull_model(model).await
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
+pub async fn chat_completions(
+    model: &str,
+    messages: Vec<ChatMessage>,
+) -> Result<serde_json::Value> {
+    let client = reqwest::Client::new();
+    let url = "http://localhost:11434/v1/chat/completions";
+    
+    let request = serde_json::json!({
+        "model": model,
+        "messages": messages
+    });
+
+    let response = client
+        .post(url)
+        .json(&request)
+        .timeout(std::time::Duration::from_secs(120))
+        .send()
+        .await
+        .map_err(|e| anyhow!("Failed to send request to Ollama: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(anyhow!(
+            "Ollama API returned error status {}: {}",
+            status,
+            error_text
+        ));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| anyhow!("Failed to parse Ollama response: {}", e))?;
+
+    Ok(json)
 }

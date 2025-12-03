@@ -1,25 +1,20 @@
-import axios, {AxiosInstance} from 'axios';
 import type {BaseLLMService} from '../BaseLLMService';
+import {ollamaBridge, type ChatMessage} from '../../../winkyBridge/ollamaBridge';
 
 export abstract class LocalLLMBaseService implements BaseLLMService {
     protected readonly model: string;
-    protected readonly client: AxiosInstance;
 
     protected constructor(model: string) {
         this.model = model;
-        this.client = axios.create({baseURL: 'http://localhost:11434', timeout: 120_000});
     }
 
     protected abstract buildEndpoint(): string;
 
-    protected buildBody(text: string, prompt: string): unknown {
-        return {
-            model: this.model,
-            messages: [
-                {role: 'system', content: prompt},
-                {role: 'user', content: text}
-            ]
-        };
+    protected buildMessages(text: string, prompt: string): ChatMessage[] {
+        return [
+            {role: 'system', content: prompt},
+            {role: 'user', content: text}
+        ];
     }
 
     protected extractResult(response: any): string {
@@ -42,9 +37,8 @@ export abstract class LocalLLMBaseService implements BaseLLMService {
     }
 
     async process(text: string, prompt: string): Promise<string> {
-        const endpoint = this.buildEndpoint();
-        const body = this.buildBody(text, prompt);
-        const {data} = await this.client.post(endpoint, body);
+        const messages = this.buildMessages(text, prompt);
+        const data = await ollamaBridge.chatCompletions(this.model, messages);
         return this.extractResult(data);
     }
 }

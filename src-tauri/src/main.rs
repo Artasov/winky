@@ -290,6 +290,16 @@ async fn ollama_warmup_model(model: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn ollama_chat_completions(
+    model: String,
+    messages: Vec<ollama::ChatMessage>,
+) -> Result<serde_json::Value, String> {
+    ollama::chat_completions(&model, messages)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn action_hotkeys_register(
     app: tauri::AppHandle,
     hotkeys_state: State<'_, Arc<HotkeyState>>,
@@ -494,6 +504,7 @@ fn main() {
             ollama_list_models,
             ollama_pull_model,
             ollama_warmup_model,
+            ollama_chat_completions,
             action_hotkeys_register,
             action_hotkeys_clear,
             window_open_devtools,

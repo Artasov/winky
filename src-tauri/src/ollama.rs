@@ -1,5 +1,6 @@
 use std::io;
 use std::process::Stdio;
+use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -8,28 +9,65 @@ use tokio::process::Command;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-pub async fn check_installed() -> Result<bool> {
-    let mut cmd = Command::new("ollama");
-    cmd.arg("--version")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    let spawn_result = cmd.spawn();
+const OLLAMA_BASE_URL: &str = "http://localhost:11434";
 
-    let mut child = match spawn_result {
-        Ok(child) => child,
-        Err(error) => {
-            return if error.kind() == io::ErrorKind::NotFound {
-                Ok(false)
-            } else {
-                Err(error.into())
-            };
-        }
+/// Check if Ollama server is running by making an HTTP request
+pub async fn is_server_running() -> bool {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build();
+    
+    let client = match client {
+        Ok(c) => c,
+        Err(_) => return false,
     };
 
-    let status = child.wait().await?;
-    Ok(status.success())
+    // Try to get version from the API
+    let url = format!("{}/api/version", OLLAMA_BASE_URL);
+    match client.get(&url).send().await {
+        Ok(response) => response.status().is_success(),
+        Err(_) => false,
+    }
+}
+
+/// Check if Ollama CLI is installed (without starting the server)
+pub async fn check_installed() -> Result<bool> {
+    // First, check if server is already running
+    if is_server_running().await {
+        return Ok(true);
+    }
+
+    // If server is not running, check if CLI exists by looking for the executable
+    // We use `where` on Windows or `which` on Unix to find the executable
+    // without actually running ollama (which would start the server)
+    #[cfg(target_os = "windows")]
+    {
+        let mut cmd = Command::new("where");
+        cmd.arg("ollama")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        
+        match cmd.status().await {
+            Ok(status) => Ok(status.success()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut cmd = Command::new("which");
+        cmd.arg("ollama")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        
+        match cmd.status().await {
+            Ok(status) => Ok(status.success()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(e) => Err(e.into()),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -37,46 +75,46 @@ struct OllamaModel {
     name: String,
 }
 
+#[derive(Deserialize)]
+struct OllamaTagsResponse {
+    models: Option<Vec<OllamaModel>>,
+}
+
+/// List models using HTTP API (does not start Ollama server)
 pub async fn list_models() -> Result<Vec<String>> {
-    if !check_installed().await? {
+    // Only use HTTP API - never use CLI to avoid starting multiple instances
+    if !is_server_running().await {
         return Ok(Vec::new());
     }
 
-    // Prefer JSON output (available in recent ollama versions).
-    let mut cmd = Command::new("ollama");
-    cmd.args(["list", "--format", "json"]);
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    let json_output = cmd.output().await;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .map_err(|e| anyhow!("Failed to create HTTP client: {}", e))?;
 
-    if let Ok(output) = &json_output {
-        if output.status.success() {
-            if let Ok(models) = serde_json::from_slice::<Vec<OllamaModel>>(&output.stdout) {
-                return Ok(models.into_iter().map(|m| m.name).collect());
-            }
-        }
+    let url = format!("{}/api/tags", OLLAMA_BASE_URL);
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| anyhow!("Failed to connect to Ollama API: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(anyhow!("Ollama API returned error status: {}", response.status()));
     }
 
-    // Fallback to plain-text parsing.
-    let mut cmd = Command::new("ollama");
-    cmd.arg("list");
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    let output = cmd.output().await?;
-    if !output.status.success() {
-        return Err(anyhow!("ollama list failed"));
-    }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut names = Vec::new();
-    for line in stdout.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with("NAME") {
-            continue;
-        }
-        if let Some(name) = trimmed.split_whitespace().next() {
-            names.push(name.to_string());
-        }
-    }
+    let tags_response: OllamaTagsResponse = response
+        .json()
+        .await
+        .map_err(|e| anyhow!("Failed to parse Ollama response: {}", e))?;
+
+    let names = tags_response
+        .models
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| m.name)
+        .collect();
+
     Ok(names)
 }
 
@@ -84,10 +122,16 @@ pub async fn pull_model(model: &str) -> Result<()> {
     if model.trim().is_empty() {
         return Err(anyhow!("Model name is empty"));
     }
+    
+    // Check if server is running before trying to pull
+    if !is_server_running().await {
+        return Err(anyhow!("Ollama server is not running. Please start Ollama first."));
+    }
+    
     let mut cmd = Command::new("ollama");
     cmd.args(["pull", model])
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
     let status = cmd.status().await?;
@@ -98,6 +142,11 @@ pub async fn pull_model(model: &str) -> Result<()> {
 }
 
 pub async fn warmup_model(model: &str) -> Result<()> {
+    // Check if server is running before trying to warmup
+    if !is_server_running().await {
+        return Err(anyhow!("Ollama server is not running. Please start Ollama first."));
+    }
+    
     // A lightweight "warmup": ensure the model is pulled; actual prompt
     // warmup can be added later if needed.
     pull_model(model).await
@@ -113,8 +162,13 @@ pub async fn chat_completions(
     model: &str,
     messages: Vec<ChatMessage>,
 ) -> Result<serde_json::Value> {
+    // Check if server is running first
+    if !is_server_running().await {
+        return Err(anyhow!("Ollama server is not running. Please start Ollama first."));
+    }
+
     let client = reqwest::Client::new();
-    let url = "http://localhost:11434/v1/chat/completions";
+    let url = format!("{}/v1/chat/completions", OLLAMA_BASE_URL);
     
     let request = serde_json::json!({
         "model": model,
@@ -122,9 +176,9 @@ pub async fn chat_completions(
     });
 
     let response = client
-        .post(url)
+        .post(&url)
         .json(&request)
-        .timeout(std::time::Duration::from_secs(120))
+        .timeout(Duration::from_secs(120))
         .send()
         .await
         .map_err(|e| anyhow!("Failed to send request to Ollama: {}", e))?;

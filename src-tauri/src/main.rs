@@ -269,6 +269,11 @@ async fn ollama_check_installed() -> Result<bool, String> {
 }
 
 #[tauri::command]
+async fn ollama_is_server_running() -> Result<bool, String> {
+    Ok(ollama::is_server_running().await)
+}
+
+#[tauri::command]
 async fn ollama_list_models() -> Result<Vec<String>, String> {
     ollama::list_models()
         .await
@@ -501,6 +506,7 @@ fn main() {
             local_speech_stop,
             local_speech_check_model_downloaded,
             ollama_check_installed,
+            ollama_is_server_running,
             ollama_list_models,
             ollama_pull_model,
             ollama_warmup_model,
@@ -556,7 +562,11 @@ fn handle_config_effects(
         let manager = speech.clone();
         let app_handle = app.clone();
         tauri::async_runtime::spawn(async move {
-            let _ = manager.start_existing(&app_handle).await;
+            // Check if server is already healthy before attempting to start
+            // This prevents unnecessary restart cycles
+            if !manager.is_server_healthy().await {
+                let _ = manager.start_existing(&app_handle).await;
+            }
         });
     }
 

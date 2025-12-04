@@ -32,8 +32,8 @@ type UseOllamaStatusResult = {
     recheckInstall: () => void;
 };
 
-const DEFAULT_INSTALL_ATTEMPTS = 3;
-const DEFAULT_INSTALL_INTERVAL_MS = 5000;
+const DEFAULT_INSTALL_ATTEMPTS = 2;
+const DEFAULT_INSTALL_INTERVAL_MS = 3000;
 
 export const useOllamaStatus = ({
     enabled,
@@ -63,7 +63,7 @@ export const useOllamaStatus = ({
     }, []);
 
     const refreshModels = useCallback(
-        async (force: boolean = false, maxAttempts: number = 25, attemptInterval: number = 1000): Promise<string[]> => {
+        async (force: boolean = false, maxAttempts: number = 3, attemptInterval: number = 2000): Promise<string[]> => {
             if (!enabled || !installed) {
                 setModels([]);
                 setModelsLoaded(false);
@@ -75,10 +75,16 @@ export const useOllamaStatus = ({
             let lastError: any = null;
             for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
                 try {
+                    // First check if server is running (fast HTTP check, no CLI)
+                    const serverRunning = await ollamaBridge.isServerRunning();
+                    if (!serverRunning) {
+                        throw new Error('Ollama server is not running. Please start Ollama first.');
+                    }
+                    
                     const modelsList = await Promise.race([
                         ollamaBridge.listModels(force),
                         new Promise<string[]>((_, reject) => {
-                            setTimeout(() => reject(new Error('Timeout: Ollama service may not be running.')), attemptInterval);
+                            setTimeout(() => reject(new Error('Timeout: Ollama service may not be running.')), 5000);
                         })
                     ]);
                     if (!mountedRef.current) {

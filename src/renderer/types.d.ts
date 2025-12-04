@@ -159,6 +159,8 @@ declare global {
 
     interface WinkyOllamaAPI {
         checkInstalled(): Promise<boolean>;
+        
+        isServerRunning(): Promise<boolean>;
 
         listModels(force?: boolean): Promise<string[]>;
 

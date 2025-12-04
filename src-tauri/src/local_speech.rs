@@ -274,6 +274,26 @@ impl FastWhisperManager {
         self.status.lock().await.clone()
     }
 
+    /// Quick health check - returns true if server is responding
+    pub async fn is_server_healthy(&self) -> bool {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build();
+        
+        let client = match client {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+        
+        let health_url = self.health_endpoint();
+        client
+            .get(&health_url)
+            .send()
+            .await
+            .map(|response| response.status() == StatusCode::OK)
+            .unwrap_or(false)
+    }
+
     pub async fn check_health(self: &Arc<Self>, app: &AppHandle) -> FastWhisperStatus {
         let repo_exists = self.repo_path(app).exists();
         let health_url = self.health_endpoint();
@@ -329,6 +349,20 @@ impl FastWhisperManager {
 
     pub async fn start_existing(self: &Arc<Self>, app: &AppHandle) -> Result<FastWhisperStatus> {
         self.execute(app, |manager, handle| async move {
+            // First check if server is already running - don't restart if healthy
+            if manager.is_server_healthy().await {
+                // Update status to reflect running state
+                manager.update_status(&handle, |status| {
+                    status.phase = "running".into();
+                    status.running = true;
+                    status.installed = true;
+                    status.message = "Server is already running.".into();
+                    status.error = None;
+                })
+                .await;
+                return Ok(manager.get_status().await);
+            }
+            
             if !manager.repo_path(&handle).exists() {
                 manager.ensure_repository(&handle, false).await?;
             }

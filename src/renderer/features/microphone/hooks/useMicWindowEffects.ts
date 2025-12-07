@@ -65,10 +65,9 @@ export const useMicWindowEffects = ({
                 return;
             }
             autoStartPendingRef.current = true;
-            // Небольшая задержка, чтобы убедиться, что окно полностью готово
-            autoStartRetryTimeoutRef.current = window.setTimeout(() => {
-                attemptAutoStart();
-            }, 50);
+            // Сразу пытаемся запустить запись, при необходимости attemptAutoStart сам поставит повтор
+            clearAutoStartRetry();
+            attemptAutoStart();
         };
 
         const visibilityHandler = (first?: { visible?: boolean } | unknown, second?: { visible?: boolean }) => {

@@ -46,6 +46,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     const completionSoundRef = useRef<HTMLAudioElement | null>(null);
     const localServerAlertInFlightRef = useRef(false);
     const localServerAlertReleaseRef = useRef<number | null>(null);
+    const speechServiceReadyPromiseRef = useRef<Promise<boolean> | null>(null);
     const windowVisibleRef = useRef(true);
     const {
         volume,
@@ -285,6 +286,22 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         isMicOverlay
     });
 
+    const ensureSpeechServiceOnce = useCallback((): Promise<boolean> => {
+        if (speechServiceReadyPromiseRef.current) {
+            return speechServiceReadyPromiseRef.current;
+        }
+        const promise = ensureSpeechService()
+            .catch((error) => {
+                console.error('[useSpeechRecording] Speech service check failed:', error);
+                return false;
+            })
+            .finally(() => {
+                speechServiceReadyPromiseRef.current = null;
+            });
+        speechServiceReadyPromiseRef.current = promise;
+        return promise;
+    }, [ensureSpeechService]);
+
     const finishRecording = useCallback(async (resetUI: boolean = true): Promise<Blob | null> => {
         const recorder = recorderRef.current;
         if (!recorder) {
@@ -304,6 +321,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         } finally {
             if (resetUI) {
                 setIsRecording(false);
+                isRecordingRef.current = false;
                 stopVolumeMonitor();
             }
         }
@@ -318,19 +336,34 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     });
 
     const handleMicrophoneToggle = useCallback(async () => {
-        const ready = await ensureSpeechService();
-        if (!ready) {
-            return;
-        }
-
         if (!isRecording) {
             try {
-                const stream = await recorderRef.current?.startRecording();
+                const recorder = recorderRef.current;
+                if (!recorder) {
+                    return;
+                }
+                const stream = await recorder.startRecording();
                 setIsRecording(true);
+                isRecordingRef.current = true;
                 setActiveActionId(null);
                 if (stream) {
                     startVolumeMonitor(stream);
                 }
+                const readinessPromise = ensureSpeechServiceOnce();
+                void readinessPromise.then(async (ready) => {
+                    if (ready || !isRecordingRef.current) {
+                        return;
+                    }
+                    try {
+                        await finishRecording();
+                    } finally {
+                        setActiveActionId(null);
+                        resetInteractive();
+                        if (isMicOverlay && config?.micHideOnStopRecording !== false) {
+                            void micBridge.hide({reason: 'service-not-ready'});
+                        }
+                    }
+                });
             } catch (error: any) {
                 console.error(error);
                 
@@ -365,7 +398,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 void micBridge.hide({reason: 'action'});
             }
         }
-    }, [ensureSpeechService, finishRecording, isRecording, showToast, startVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
+    }, [ensureSpeechServiceOnce, finishRecording, isRecording, showToast, startVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 
     const handleActionClick = useCallback(async (action: ActionConfig) => {
         if (processingRef.current || processing || !isRecordingRef.current || !isRecording) {
@@ -378,7 +411,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         setProcessing(true);
 
         try {
-            const ready = await ensureSpeechService();
+            const ready = await ensureSpeechServiceOnce();
             if (!ready) {
                 // Если сервис не готов, сбрасываем состояние
                 processingRef.current = false;
@@ -409,7 +442,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
                 });
             }
         }
-    }, [processing, isRecording, ensureSpeechService, finishRecording, processAction, stopVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
+    }, [processing, isRecording, ensureSpeechServiceOnce, finishRecording, processAction, stopVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 
     const actions = useMemo<ActionConfig[]>(() => config?.actions ?? [], [config?.actions]);
     const activeActions = useMemo<ActionConfig[]>(() => actions.filter((action) => action.is_active !== false), [actions]);

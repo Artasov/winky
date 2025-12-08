@@ -140,7 +140,7 @@ const Sidebar: React.FC = () => {
                     );
                 })}
             </nav>
-            <div className="p-4 overflow-hidden">
+            <div className="p-4 pt-20 overflow-hidden">
                 {showAvatarVideo ? (
                     <video
                         ref={videoRef}
@@ -156,7 +156,7 @@ const Sidebar: React.FC = () => {
                             imageRendering: '-webkit-optimize-contrast',
                             WebkitFontSmoothing: 'antialiased',
                             MozOsxFontSmoothing: 'grayscale',
-                            transform: 'translateY(30px) scale(1.4)',
+                            transform: 'translateY(15px) scale(1.3)',
                             objectPosition: 'top',
                             backfaceVisibility: 'hidden',
                             perspective: 1000,

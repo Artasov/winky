@@ -154,7 +154,6 @@ const Sidebar: React.FC = () => {
                         src="./resources/avatar.mp4"
                         style={{
                             imageRendering: '-webkit-optimize-contrast',
-                            filter: 'blur(0.3px) contrast(1.05)',
                             WebkitFontSmoothing: 'antialiased',
                             MozOsxFontSmoothing: 'grayscale',
                             transform: 'translateY(30px) scale(1.4)',

@@ -148,7 +148,7 @@ export class AuthService {
     }
 
     async getCurrentUser(includeExtras: boolean = false): Promise<User> {
-        const url = includeExtras ? `${ME_ENDPOINT}?tiers_and_features=1` : ME_ENDPOINT;
+        const url = includeExtras ? `${ME_ENDPOINT}?tiers_and_features=winky` : ME_ENDPOINT;
         console.log('[AuthService] → [GET]', url);
         try {
             const result = await this.authenticatedRequest<User>({url, method: 'GET'});

@@ -426,7 +426,6 @@ const SettingsPage: React.FC = () => {
                             <Checkbox
                                 checked={autoStartLocalSpeech}
                                 onChange={handleLocalSpeechAutoStartChange}
-                                disabled={config?.speech.mode !== SPEECH_MODES.LOCAL}
                             />
                         }
                         label="Auto-start local Whisper server"

@@ -463,7 +463,7 @@ const SettingsPage: React.FC = () => {
                         label="Show sidebar avatar video"
                     />
                     <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
-                        Toggle the animated avatar (avatar.mp4) in the sidebar on or off.
+                        Toggle the animated avatar in the sidebar on or off.
                     </Typography>
                 </div>
             </Box>

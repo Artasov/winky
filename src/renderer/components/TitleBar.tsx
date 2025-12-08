@@ -25,8 +25,7 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose}) => {
     return (
         <div
             className="app-region-drag flex h-16 w-full items-center justify-between border-b border-primary-200/60 bg-white/95 px-4 text-xs uppercase tracking-[0.3em] text-text-tertiary backdrop-blur shadow-sm"
-            aria-label={title}
-            title={title}>
+            aria-label={title}>
             <div className="app-region-drag pointer-events-none select-none flex items-center">
                 <img src="./resources/winky-pink-signature.png" alt="Winky" className="h-10 pointer-events-none pt-1"
                      draggable="false"/>

@@ -140,7 +140,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const disableInputs = saving && !shouldAutoSave;
     const [modeInfoDialog, setModeInfoDialog] = useState<ModeInfoDialogType | null>(null);
     const [modeInfoDialogContentType, setModeInfoDialogContentType] = useState<ModeInfoDialogType>('transcribe');
-    const lastSelectedLocalLLMModelRef = useRef<string | null>(null);
     const [localModelDownloaded, setLocalModelDownloaded] = useState<boolean | null>(null);
     const [localModelVerifiedFor, setLocalModelVerifiedFor] = useState<string | null>(null);
     const [checkingLocalModel, setCheckingLocalModel] = useState(false);
@@ -198,17 +197,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const selectedLocalModelDescription = selectedLocalModelMeta
         ? `${selectedLocalModelMeta.label} (${selectedLocalModelMeta.size})`
         : null;
-
-    // Инициализируем ref последней выбранной локальной модели при монтировании
-    useEffect(() => {
-        if (values.llmMode === LLM_MODES.LOCAL) {
-            const localOptions = resolveLlmOptions(LLM_MODES.LOCAL, values.googleKey);
-            if (localOptions.includes(values.llmModel)) {
-                lastSelectedLocalLLMModelRef.current = values.llmModel;
-            }
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     useEffect(() => {
         const unsubscribe = subscribeToLocalTranscriptions((inProgress) => {
@@ -456,27 +444,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
 
         if (partial.llmMode && partial.llmModel === undefined) {
             const options = resolveLlmOptions(partial.llmMode, partial.googleKey ?? values.googleKey);
-            // При переключении на LOCAL, пытаемся использовать последнюю выбранную локальную модель
-            if (partial.llmMode === LLM_MODES.LOCAL && lastSelectedLocalLLMModelRef.current) {
-                const savedModel = lastSelectedLocalLLMModelRef.current;
-                const resolvedModel = options.includes(savedModel as LLMModel) ? (savedModel as LLMModel) : options[0];
-                nextValues.llmModel = resolvedModel;
-            } else {
-                const currentModel = nextValues.llmModel;
-                const resolvedModel = options.includes(currentModel) ? currentModel : options[0];
-                nextValues.llmModel = resolvedModel as LLMModel;
-            }
-        }
-
-        // Сохраняем последнюю выбранную локальную модель при её изменении
-        if (partial.llmModel) {
-            const currentMode = partial.llmMode ?? values.llmMode;
-            if (currentMode === LLM_MODES.LOCAL) {
-                const localOptions = resolveLlmOptions(LLM_MODES.LOCAL, values.googleKey);
-                if (localOptions.includes(partial.llmModel)) {
-                    lastSelectedLocalLLMModelRef.current = partial.llmModel;
-                }
-            }
+            const currentModel = nextValues.llmModel;
+            const resolvedModel = options.includes(currentModel) ? currentModel : options[0];
+            nextValues.llmModel = resolvedModel as LLMModel;
         }
 
         onChange(nextValues);
@@ -505,16 +475,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             emitChange({llmModel: safeLlmModel});
         }
     }, [values.llmModel, safeLlmModel, emitChange]);
-
-    // Сохраняем последнюю выбранную локальную модель при её изменении в локальном режиме
-    useEffect(() => {
-        if (values.llmMode === LLM_MODES.LOCAL) {
-            const localOptions = resolveLlmOptions(LLM_MODES.LOCAL, values.googleKey);
-            if (localOptions.includes(values.llmModel)) {
-                lastSelectedLocalLLMModelRef.current = values.llmModel;
-            }
-        }
-    }, [values.llmMode, values.llmModel, values.googleKey]);
 
     useEffect(() => {
         setOllamaModelError(null);
@@ -684,8 +644,8 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                     value={values.llmMode}
                                     onChange={(e) => {
                                         const llmMode = e.target.value as LLMMode;
-                                        // Передаем только режим, модель выберется в emitChange
-                                        emitChange({llmMode});
+                                        const llmModel = getDefaultLLMModel(llmMode);
+                                        emitChange({llmMode, llmModel});
                                     }}
                                     disabled={disableInputs}
                                     fullWidth

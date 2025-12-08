@@ -133,6 +133,7 @@ export interface AppConfig {
     autoStartLocalSpeechServer?: boolean;
     completionSoundVolume?: number;
     completionSoundEnabled?: boolean;
+    showAvatarVideo?: boolean;
 }
 
 export type MicAnchor = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';

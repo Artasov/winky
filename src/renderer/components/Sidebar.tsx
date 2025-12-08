@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useRef} from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import classNames from 'classnames';
+import {useConfig} from '../context/ConfigContext';
 
 interface NavItem {
     id: string;
@@ -20,6 +21,8 @@ const Sidebar: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const videoRef = useRef<HTMLVideoElement | null>(null);
+    const {config} = useConfig();
+    const showAvatarVideo = config?.showAvatarVideo !== false;
 
     const handleNavigation = (path: string) => {
         navigate(path);
@@ -28,6 +31,9 @@ const Sidebar: React.FC = () => {
     const shouldPlay = () => typeof document !== 'undefined' && !document.hidden;
 
     const ensurePlayback = useCallback(() => {
+        if (!showAvatarVideo) {
+            return;
+        }
         const video = videoRef.current;
         if (!video || !shouldPlay()) {
             return;
@@ -41,9 +47,16 @@ const Sidebar: React.FC = () => {
                 });
             }
         }
-    }, []);
+    }, [showAvatarVideo]);
 
     useEffect(() => {
+        if (!showAvatarVideo) {
+            const video = videoRef.current;
+            if (video) {
+                video.pause();
+            }
+            return;
+        }
         const video = videoRef.current;
         if (!video) {
             return;
@@ -100,7 +113,7 @@ const Sidebar: React.FC = () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             video.pause();
         };
-    }, [ensurePlayback]);
+    }, [ensurePlayback, showAvatarVideo]);
 
     return (
         <aside className="flex h-full w-64 flex-col border-r border-primary-200/60 bg-white/95 backdrop-blur shadow-sm">
@@ -128,28 +141,30 @@ const Sidebar: React.FC = () => {
                 })}
             </nav>
             <div className="p-4 overflow-hidden">
-                <video
-                    ref={videoRef}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    preload="auto"
-                    disablePictureInPicture
-                    className="w-full h-auto pointer-events-none select-none"
-                    src="./resources/avatar.mp4"
-                    style={{
-                        imageRendering: '-webkit-optimize-contrast',
-                        filter: 'blur(0.3px) contrast(1.05)',
-                        WebkitFontSmoothing: 'antialiased',
-                        MozOsxFontSmoothing: 'grayscale',
-                        transform: 'translateY(30px) scale(1.4)',
-                        objectPosition: 'top',
-                        backfaceVisibility: 'hidden',
-                        perspective: 1000,
-                        willChange: 'transform'
-                    }}
-                />
+                {showAvatarVideo ? (
+                    <video
+                        ref={videoRef}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        preload="auto"
+                        disablePictureInPicture
+                        className="w-full h-auto pointer-events-none select-none"
+                        src="./resources/avatar.mp4"
+                        style={{
+                            imageRendering: '-webkit-optimize-contrast',
+                            filter: 'blur(0.3px) contrast(1.05)',
+                            WebkitFontSmoothing: 'antialiased',
+                            MozOsxFontSmoothing: 'grayscale',
+                            transform: 'translateY(30px) scale(1.4)',
+                            objectPosition: 'top',
+                            backfaceVisibility: 'hidden',
+                            perspective: 1000,
+                            willChange: 'transform'
+                        }}
+                    />
+                ) : null}
             </div>
         </aside>
     );

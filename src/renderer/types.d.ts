@@ -20,6 +20,8 @@ declare global {
         reset(): Promise<AppConfig>;
 
         path(): Promise<string>;
+
+        subscribe(callback: (config: AppConfig) => void): () => void;
     }
 
     interface WinkyClipboardAPI {

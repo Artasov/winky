@@ -15,7 +15,6 @@ import {
     Typography
 } from '@mui/material';
 import {
-    LLM_API_MODELS,
     LLM_GEMINI_API_MODELS,
     LLM_LOCAL_MODELS,
     LLM_MODES,
@@ -58,9 +57,6 @@ export interface ModelConfigFormData {
     llmMode: LLMMode;
     llmModel: LLMModel;
 }
-
-const getDefaultLLMModel = (mode: LLMMode): LLMModel =>
-    (mode === LLM_MODES.API ? LLM_API_MODELS[0] : LLM_LOCAL_MODELS[0]) as LLMModel;
 
 const resolveTranscribeOptions = (mode: TranscribeMode, googleKey: string): TranscribeModel[] => {
     if (mode === SPEECH_MODES.API) {
@@ -149,6 +145,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const [localTranscriptionInProgress, setLocalTranscriptionInProgress] = useState(false);
     const checkingRef = useRef<string | null>(null);
     const warmupRequestRef = useRef<string | null>(null);
+    const transcribeSelectionByModeRef = useRef<Partial<Record<TranscribeMode, TranscribeModel>>>({
+        [values.transcribeMode]: values.transcribeModel
+    });
+    const llmSelectionByModeRef = useRef<Partial<Record<LLMMode, LLMModel>>>({
+        [values.llmMode]: values.llmModel
+    });
     const normalizedSpeechModel = useMemo(
         () => normalizeLocalSpeechModelName(values.transcribeModel),
         [values.transcribeModel]
@@ -197,6 +199,14 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const selectedLocalModelDescription = selectedLocalModelMeta
         ? `${selectedLocalModelMeta.label} (${selectedLocalModelMeta.size})`
         : null;
+
+    useEffect(() => {
+        transcribeSelectionByModeRef.current[values.transcribeMode] = values.transcribeModel;
+    }, [values.transcribeMode, values.transcribeModel]);
+
+    useEffect(() => {
+        llmSelectionByModeRef.current[values.llmMode] = values.llmModel;
+    }, [values.llmMode, values.llmModel]);
 
     useEffect(() => {
         const unsubscribe = subscribeToLocalTranscriptions((inProgress) => {
@@ -438,14 +448,24 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         if (partial.transcribeMode && partial.transcribeModel === undefined) {
             const options = resolveTranscribeOptions(partial.transcribeMode, partial.googleKey ?? values.googleKey);
             const currentModel = nextValues.transcribeModel;
-            const resolvedModel = options.includes(currentModel) ? currentModel : options[0];
+            const rememberedModel = transcribeSelectionByModeRef.current[partial.transcribeMode];
+            const resolvedModel =
+                (rememberedModel && options.includes(rememberedModel)) ? rememberedModel
+                    : options.includes(currentModel)
+                        ? currentModel
+                        : options[0];
             nextValues.transcribeModel = resolvedModel as TranscribeModel;
         }
 
         if (partial.llmMode && partial.llmModel === undefined) {
             const options = resolveLlmOptions(partial.llmMode, partial.googleKey ?? values.googleKey);
             const currentModel = nextValues.llmModel;
-            const resolvedModel = options.includes(currentModel) ? currentModel : options[0];
+            const rememberedModel = llmSelectionByModeRef.current[partial.llmMode];
+            const resolvedModel =
+                (rememberedModel && options.includes(rememberedModel)) ? rememberedModel
+                    : options.includes(currentModel)
+                        ? currentModel
+                        : options[0];
             nextValues.llmModel = resolvedModel as LLMModel;
         }
 
@@ -644,8 +664,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                     value={values.llmMode}
                                     onChange={(e) => {
                                         const llmMode = e.target.value as LLMMode;
-                                        const llmModel = getDefaultLLMModel(llmMode);
-                                        emitChange({llmMode, llmModel});
+                                        emitChange({llmMode});
                                     }}
                                     disabled={disableInputs}
                                     fullWidth

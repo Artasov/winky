@@ -33,6 +33,7 @@ const SettingsPage: React.FC = () => {
     const [autoStartLocalSpeech, setAutoStartLocalSpeech] = useState(false);
     const [completionSoundEnabled, setCompletionSoundEnabled] = useState(true);
     const [completionSoundVolume, setCompletionSoundVolume] = useState(1.0);
+    const [showAvatarVideo, setShowAvatarVideo] = useState(true);
 
     useEffect(() => {
         if (config) {
@@ -53,6 +54,7 @@ const SettingsPage: React.FC = () => {
             setCompletionSoundVolume(config.completionSoundVolume ?? 1.0);
             setLaunchOnSystemStartup(Boolean(config.launchOnSystemStartup));
             setAutoStartLocalSpeech(Boolean(config.autoStartLocalSpeechServer));
+            setShowAvatarVideo(config.showAvatarVideo !== false);
         }
     }, [config]);
 
@@ -365,6 +367,20 @@ const SettingsPage: React.FC = () => {
         }
     };
 
+    const handleAvatarVideoToggle = async (event: ChangeEvent<HTMLInputElement>) => {
+        const nextValue = event.target.checked;
+        const previousValue = showAvatarVideo;
+        setShowAvatarVideo(nextValue);
+        try {
+            await updateConfig({showAvatarVideo: nextValue});
+            showToast(nextValue ? 'Avatar video enabled.' : 'Avatar video hidden.', 'success');
+        } catch (error) {
+            console.error('[SettingsPage] Failed to toggle avatar video', error);
+            setShowAvatarVideo(previousValue);
+            showToast('Failed to update avatar video setting.', 'error');
+        }
+    };
+
     if (!isAuthorized) {
         return (
             <div className="fccc mx-auto h-full w-full max-w-md gap-4 px-8 py-12 text-center">
@@ -433,6 +449,21 @@ const SettingsPage: React.FC = () => {
                     <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
                         Winky will install (if needed) and launch the bundled fast-fast-whisper server whenever Local
                         speech mode is active and setup is complete.
+                    </Typography>
+                </div>
+
+                <div className={'fc gap-2'}>
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={showAvatarVideo}
+                                onChange={handleAvatarVideoToggle}
+                            />
+                        }
+                        label="Show sidebar avatar video"
+                    />
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
+                        Toggle the animated avatar (avatar.mp4) in the sidebar on or off.
                     </Typography>
                 </div>
             </Box>

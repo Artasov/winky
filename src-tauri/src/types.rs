@@ -118,6 +118,8 @@ pub struct AppConfig {
     pub completion_sound_volume: f32,
     #[serde(default = "default_true")]
     pub completion_sound_enabled: bool,
+    #[serde(default = "default_true")]
+    pub show_avatar_video: bool,
 }
 
 impl Default for AppConfig {
@@ -139,6 +141,7 @@ impl Default for AppConfig {
             auto_start_local_speech_server: false,
             completion_sound_volume: default_completion_volume(),
             completion_sound_enabled: default_true(),
+            show_avatar_video: default_true(),
         }
     }
 }

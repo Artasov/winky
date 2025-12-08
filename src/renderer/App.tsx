@@ -427,55 +427,53 @@ const AppContent: React.FC = () => {
         </Routes>
     );
 
-    if (loading) {
-        return renderPrimaryWindowState(
-            <div className="animate-pulse-soft text-primary">Loading...</div>
-        );
-    }
-
     // If we have a token and user data is loading, show a spinner instead of the Welcome view
     const isLoadingUser = userLoading && hasToken && !isAuthenticated;
-    
-    if (isLoadingUser) {
-        return renderPrimaryWindowState(
-            <div className="fccc gap-4">
-                <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-            </div>
-        );
-    }
 
-    if (preloadError || !window.winky) {
-        return renderPrimaryWindowState(
-            <div className="fccc gap-4 px-6 text-center">
-                <div className="text-2xl font-semibold">Failed to initialize the application</div>
-                <p className="max-w-md text-sm text-text-secondary">
-                    {preloadError ?? 'The renderer could not access the preload script.'}
-                </p>
-                <p className="text-xs text-text-tertiary">
-                    Restart the app. If the problem persists, verify the `dist/main/preload.js` build.
-                </p>
-            </div>
-        );
-    }
-
-        return (
-            <ToastContext.Provider value={toastContextValue}>
-                <ConfigContext.Provider value={configContextValue}>
-                    <StyleUsageSentinel/>
-                    {routes}
-                    {shouldRenderToasts ? (
-                    <ToastContainer
-                        position="top-right"
-                        theme="colored"
-                        newestOnTop
-                        closeOnClick
-                        pauseOnFocusLoss={false}
-                        pauseOnHover
-                        draggable={false}
-                        autoClose={false}
-                        limit={3}
-                    />
-                ) : null}
+    return (
+        <ToastContext.Provider value={toastContextValue}>
+            <ConfigContext.Provider value={configContextValue}>
+                {loading ? (
+                    renderPrimaryWindowState(
+                        <div className="animate-pulse-soft text-primary">Loading...</div>
+                    )
+                ) : isLoadingUser ? (
+                    renderPrimaryWindowState(
+                        <div className="fccc gap-4">
+                            <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                        </div>
+                    )
+                ) : preloadError || !window.winky ? (
+                    renderPrimaryWindowState(
+                        <div className="fccc gap-4 px-6 text-center">
+                            <div className="text-2xl font-semibold">Failed to initialize the application</div>
+                            <p className="max-w-md text-sm text-text-secondary">
+                                {preloadError ?? 'The renderer could not access the preload script.'}
+                            </p>
+                            <p className="text-xs text-text-tertiary">
+                                Restart the app. If the problem persists, verify the `dist/main/preload.js` build.
+                            </p>
+                        </div>
+                    )
+                ) : (
+                    <>
+                        <StyleUsageSentinel/>
+                        {routes}
+                        {shouldRenderToasts ? (
+                            <ToastContainer
+                                position="top-right"
+                                theme="colored"
+                                newestOnTop
+                                closeOnClick
+                                pauseOnFocusLoss={false}
+                                pauseOnHover
+                                draggable={false}
+                                autoClose={false}
+                                limit={3}
+                            />
+                        ) : null}
+                    </>
+                )}
             </ConfigContext.Provider>
         </ToastContext.Provider>
     );

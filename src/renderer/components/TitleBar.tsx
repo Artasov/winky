@@ -1,11 +1,25 @@
-import React from 'react';
+import React, {useCallback, useState} from 'react';
+import BugReportIcon from '@mui/icons-material/BugReport';
+import BugReportModal from './feedback/BugReportModal';
+import {submitBugReport} from '../services/bugReport';
+import {useConfig} from '../context/ConfigContext';
 
 interface TitleBarProps {
     title?: string;
     onClose?: () => void;
+    showBugReportButton?: boolean;
 }
 
-const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose}) => {
+const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugReportButton = false}) => {
+    const {config} = useConfig();
+    const accessToken = config?.auth?.access || config?.auth?.accessToken;
+    const [isBugModalOpen, setBugModalOpen] = useState(false);
+
+    const handleBugSubmit = useCallback(
+        (payload: Parameters<typeof submitBugReport>[0]) => submitBugReport(payload, accessToken),
+        [accessToken]
+    );
+
     const handleMinimize = () => {
         window.winky?.windowControls.minimize().catch((error) => {
             console.error('[TitleBar] Failed to minimize window', error);
@@ -31,6 +45,17 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose}) => {
                      draggable="false"/>
             </div>
             <div className="app-region-no-drag flex items-center gap-2 text-text-secondary">
+                {showBugReportButton ? (
+                    <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => setBugModalOpen(true)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+                        aria-label="Отправить отчёт о проблеме"
+                    >
+                        <BugReportIcon fontSize="small" />
+                    </button>
+                ) : null}
                 <button
                     type="button"
                     onClick={handleMinimize}
@@ -55,6 +80,13 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose}) => {
                     </svg>
                 </button>
             </div>
+            {showBugReportButton ? (
+                <BugReportModal
+                    open={isBugModalOpen}
+                    onClose={() => setBugModalOpen(false)}
+                    onSubmit={handleBugSubmit}
+                />
+            ) : null}
         </div>
     );
 };

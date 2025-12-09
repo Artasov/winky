@@ -58,6 +58,10 @@ const BugReportModal: React.FC<BugReportModalProps> = ({open, onClose, onSubmit}
                 <DialogContent dividers sx={{pt: 1, pb: 0, maxHeight: '70vh'}}>
                     {!success ? (
                         <Stack spacing={1.5}>
+                            <Typography variant="body2" color="text.secondary">
+                                Describe what happened. A contact is required so we can reply.
+                            </Typography>
+
                             <TextField
                                 required
                                 id="bug-report-subject"
@@ -78,13 +82,19 @@ const BugReportModal: React.FC<BugReportModalProps> = ({open, onClose, onSubmit}
                                 placeholder="Briefly describe the problem and steps to reproduce."
                             />
 
-                            <TextField
-                                id="bug-report-telegram"
-                                label="Telegram (optional)"
-                                value={telegram}
-                                onChange={(event) => setTelegram(event.target.value)}
-                                placeholder="@nickname for contact"
-                            />
+                            <Stack spacing={0.5}>
+                                <TextField
+                                    required
+                                    id="bug-report-telegram"
+                                    label="Contact for reply (Telegram or email)"
+                                    value={telegram}
+                                    onChange={(event) => setTelegram(event.target.value)}
+                                    placeholder="e.g. @nickname or mail@example.com"
+                                />
+                                <Typography variant="caption" color="text.secondary">
+                                    We need a contact to follow up on your report.
+                                </Typography>
+                            </Stack>
 
                             <Stack spacing={1}>
                                 <Button

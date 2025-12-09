@@ -40,9 +40,9 @@ export const useBugReportState = (
     }, [open]);
 
     const isSubmitDisabled = useMemo(() => {
-        if (!subject.trim() || !message.trim()) return true;
+        if (!subject.trim() || !message.trim() || !telegram.trim()) return true;
         return submitting;
-    }, [subject, message, submitting]);
+    }, [subject, message, telegram, submitting]);
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const nextFiles = Array.from(event.target.files ?? []).slice(0, 5);
@@ -61,10 +61,16 @@ export const useBugReportState = (
             return true;
         }
 
+        const contact = telegram.trim();
+        if (!contact) {
+            setError('Add a contact (Telegram or email) so we can reply.');
+            return false;
+        }
+
         const payload: BugReportFormPayload = {
             subject: subject.trim(),
             message: message.trim(),
-            telegram: telegram.trim() || undefined,
+            telegram: contact,
             files,
         };
 
@@ -81,7 +87,7 @@ export const useBugReportState = (
                     ? err.message
                     : typeof err === 'string'
                         ? err
-                        : 'Не удалось отправить отчёт. Повторите попытку.';
+                        : 'Failed to send the report. Please try again.';
             setError(messageText);
             return false;
         } finally {

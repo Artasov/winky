@@ -12,7 +12,7 @@ const buildMessage = (payload: BugReportPayload): string => {
     const base = payload.message.trim();
     const contact = payload.telegram?.trim();
     if (contact) {
-        return `${base}\n\nTelegram: ${contact}`;
+        return `${base}\n\nContact: ${contact}`;
     }
     return base;
 };
@@ -39,9 +39,9 @@ export const submitBugReport = async (payload: BugReportPayload, accessToken?: s
                 (typeof error.response?.data === 'string' && error.response.data) ||
                 error.response?.statusText ||
                 error.message ||
-                'Не удалось отправить отчёт.';
-            throw new Error(status ? `${message} (статус ${status})` : message);
+                'Failed to submit the report.';
+            throw new Error(status ? `${message} (status ${status})` : message);
         }
-        throw error instanceof Error ? error : new Error('Не удалось отправить отчёт.');
+        throw error instanceof Error ? error : new Error('Failed to submit the report.');
     }
 };

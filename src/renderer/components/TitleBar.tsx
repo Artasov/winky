@@ -51,7 +51,7 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
                         tabIndex={-1}
                         onClick={() => setBugModalOpen(true)}
                         className="flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
-                        aria-label="Отправить отчёт о проблеме"
+                        aria-label="Report a problem"
                     >
                         <BugReportIcon fontSize="small" />
                     </button>

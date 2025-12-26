@@ -50,7 +50,7 @@ export class MicWindowController {
     async warmup(): Promise<void> {
         try {
             const config = await this.configApi.get();
-            if (!this.hasAuthTokens(config)) {
+            if (!this.isUserAuthenticated(config)) {
                 return;
             }
             await this.ensure();
@@ -211,8 +211,8 @@ export class MicWindowController {
 
     async show(reason: string = 'system'): Promise<void> {
         const config = await this.configApi.get();
-        if (!this.hasAuthTokens(config)) {
-            console.warn('[MicWindowController] Rejecting mic show request: user is not authenticated');
+        if (!this.isUserAuthenticated(config)) {
+            console.warn('[MicWindowController] Rejecting mic show request: user is not authenticated or token not verified');
             return;
         }
         // Если идет процесс закрытия, ждем его завершения
@@ -395,6 +395,28 @@ export class MicWindowController {
         const access = typeof config.auth?.access === 'string' ? config.auth.access.trim() : '';
         const accessToken = typeof config.auth?.accessToken === 'string' ? config.auth.accessToken.trim() : '';
         return Boolean(access || accessToken);
+    }
+
+    /**
+     * Проверяет, что пользователь действительно авторизован (есть токены И закэшированный пользователь).
+     * Это предотвращает открытие микрофона с невалидным токеном.
+     */
+    private isUserAuthenticated(config: AppConfig): boolean {
+        if (!this.hasAuthTokens(config)) {
+            return false;
+        }
+        // Проверяем наличие закэшированного пользователя в localStorage
+        // Если пользователь есть в кэше — значит главное окно успешно проверило токен
+        try {
+            const cachedUser = window.localStorage?.getItem('winky.cachedUser');
+            if (!cachedUser) {
+                return false;
+            }
+            const parsed = JSON.parse(cachedUser);
+            return Boolean(parsed?.id);
+        } catch {
+            return false;
+        }
     }
 
     private async attachMoveListener(win: WebviewWindow): Promise<void> {

@@ -22,6 +22,9 @@
         "minHeight": 640,
         "resizable": true,
         "decorations": false,
+        "shadow": false,
+        "transparent": true,
+        "backgroundColor": "#00000000",
         "devtools": true,
         "userAgent": null
       }

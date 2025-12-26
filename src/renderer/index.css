@@ -54,9 +54,38 @@ body,
     overflow: hidden;
 }
 
+/* Закругление углов для окон без системных декораций (Windows) */
+/* html и body должны быть прозрачными, закругление на #root */
+html[data-window-type="main"],
+html[data-window-type="result"],
+html[data-window-type="error"] {
+    background: transparent !important;
+}
+
+html[data-window-type="main"] body,
+html[data-window-type="result"] body,
+html[data-window-type="error"] body {
+    background: transparent !important;
+}
+
+html[data-window-type="main"] #root,
+html[data-window-type="result"] #root,
+html[data-window-type="error"] #root {
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--color-bg-base);
+}
+
 body {
     margin: 0;
     @apply bg-bg-base text-text-primary font-sans;
+}
+
+/* Переопределяем фон для прозрачных окон */
+html[data-window-type="main"] body,
+html[data-window-type="result"] body,
+html[data-window-type="error"] body {
+    background: transparent !important;
 }
 
 body.body-transparent {
@@ -70,6 +99,7 @@ body.body-transparent #root {
 html[data-mic-window="true"] body,
 html[data-mic-window="true"] body #root {
     background: transparent !important;
+    border-radius: 0 !important;
 }
 
 .overflow-y-auto {

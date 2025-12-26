@@ -25,7 +25,9 @@ export class ResultWindowManager {
             width: 700,
             height: 600,
             resizable: true,
-            decorations: false
+            decorations: false,
+            shadow: false,
+            transparent: true
         });
 
         // Слушаем событие готовности окна

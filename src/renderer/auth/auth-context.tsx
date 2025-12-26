@@ -157,18 +157,22 @@ export function AuthProvider({children}: AuthProviderProps) {
                 }
 
                 const cachedUser = readCachedUser();
-                if (cachedUser) {
-                    setUser(cachedUser);
-                    setStatus('authenticated');
-                    setError(null);
-                } else {
-                    setStatus('checking');
-                }
 
+                // В auxiliary окнах (mic, result) доверяем кэшу
                 if (!isPrimaryWindow) {
+                    if (cachedUser) {
+                        setUser(cachedUser);
+                        setStatus('authenticated');
+                        setError(null);
+                    } else {
+                        // Нет кэша — ждём broadcast от главного окна
+                        setStatus('checking');
+                    }
                     return;
                 }
 
+                // В primary window — всегда проверяем токен на сервере, не доверяя кэшу
+                // Это предотвращает загрузку экшенов и показ микрофона с невалидным токеном
                 setStatus('checking');
                 const profile = await authClient.getCurrentUser(true);
                 if (cancelled) return;

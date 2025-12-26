@@ -21,6 +21,7 @@ use local_speech::{persist_install_dir_choice, FastWhisperManager};
 use once_cell::sync::Lazy;
 use serde_json::json;
 use tauri::{Emitter, Manager, State};
+use tauri::window::Color;
 use tauri_plugin_deep_link::DeepLinkExt;
 use types::{AppConfig, AuthDeepLinkPayload, AuthTokens, FastWhisperStatus};
 
@@ -425,6 +426,9 @@ async fn window_open_main(app: tauri::AppHandle) -> Result<(), String> {
             .min_inner_size(960.0, 640.0)
             .resizable(true)
             .decorations(false)
+            .shadow(false)
+            .transparent(true)
+            .background_color(Color(0, 0, 0, 0))
             .build()
             .map_err(|e| format!("Failed to create main window: {}", e))?;
         

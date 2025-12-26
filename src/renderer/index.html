@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Winky</title>
     <style>
-        /* Критически важные стили для окна микрофона - применяются до загрузки CSS */
+        /* Критически важные стили - применяются до загрузки CSS */
+        /* Прозрачный фон для окна микрофона */
         html[data-mic-window="true"],
         html[data-mic-window="true"] body,
         html[data-mic-window="true"] #root {
@@ -15,13 +16,40 @@
         body.body-transparent #root {
             background: transparent !important;
         }
+        /* Прозрачный html/body для закруглённых окон на Windows */
+        html[data-window-type="main"],
+        html[data-window-type="result"],
+        html[data-window-type="error"] {
+            background: transparent !important;
+        }
+        html[data-window-type="main"] body,
+        html[data-window-type="result"] body,
+        html[data-window-type="error"] body {
+            background: transparent !important;
+        }
+        html[data-window-type="main"] #root,
+        html[data-window-type="result"] #root,
+        html[data-window-type="error"] #root {
+            border-radius: 8px;
+            overflow: hidden;
+        }
     </style>
     <script>
         // Устанавливаем прозрачный фон СРАЗУ для окна микрофона до загрузки CSS и React
         (function() {
             try {
                 const params = new URLSearchParams(window.location.search);
-                const isMicWindow = params.get('window') === 'mic';
+                const windowType = params.get('window');
+                const isMicWindow = windowType === 'mic';
+                const isAuxWindow = windowType === 'mic' || windowType === 'result' || windowType === 'error';
+                
+                // Устанавливаем атрибут типа окна
+                if (windowType) {
+                    document.documentElement.setAttribute('data-window-type', windowType);
+                } else {
+                    document.documentElement.setAttribute('data-window-type', 'main');
+                }
+                
                 if (isMicWindow) {
                     // Устанавливаем data-атрибут для применения стилей из head
                     document.documentElement.setAttribute('data-mic-window', 'true');
@@ -53,7 +81,7 @@
     </script>
 </head>
 <body>
-<div id="root"></div>
+<div id="root" style="background: #ffffff;"></div>
 <script>
     // Дополнительная установка стилей после создания DOM
     (function() {

@@ -10,7 +10,9 @@ const currentWindow = getCurrentWindow();
 const errorWindow = new AuxWindowController('error', 'error', {
     width: 520,
     height: 360,
-    decorations: false
+    decorations: false,
+    shadow: false,
+    transparent: true
 });
 
 export const resultBridge = {

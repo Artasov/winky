@@ -1,13 +1,13 @@
 import {Components, Theme} from '@mui/material/styles';
 
-export const createBackdropOverrides = (theme: Theme): Components['MuiBackdrop'] => {
-    const backgroundColor = theme.palette.mode === 'dark' ? 'rgba(2, 6, 23, 0.65)' : 'rgba(2, 6, 23, 0.6)';
-
+export const createBackdropOverrides = (_theme: Theme): Components['MuiBackdrop'] => {
     return {
         styleOverrides: {
             root: {
-                backgroundColor,
-                backdropFilter: 'blur(2px)',
+                // Прозрачный backdrop без затемнения
+                backgroundColor: 'transparent',
+                backdropFilter: 'none',
+                transition: 'opacity 250ms cubic-bezier(0.4, 0, 0.2, 1) !important',
                 '&.MuiBackdrop-invisible': {
                     backgroundColor: 'transparent',
                     backdropFilter: 'none'

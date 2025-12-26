@@ -40,7 +40,7 @@ const DialogTransition = forwardRef(function DialogTransition(
     props: React.ComponentProps<typeof Fade>,
     ref: React.Ref<unknown>
 ) {
-    return <Fade timeout={200} ref={ref} {...props} />;
+    return <Fade timeout={280} ref={ref} {...props} easing="cubic-bezier(0.4, 0, 0.2, 1)" />;
 });
 
 const ActionForm: React.FC<Props> = ({
@@ -63,11 +63,17 @@ const ActionForm: React.FC<Props> = ({
             open={modal.isModalVisible}
             onClose={modal.closeModal}
             maxWidth="sm"
+            closeAfterTransition
             slots={{transition: DialogTransition}}
             slotProps={{
                 paper: {
                     component: 'form',
                     onSubmit
+                },
+                transition: {
+                    timeout: 280,
+                    unmountOnExit: true,
+                    mountOnEnter: true
                 }
             }}
         >

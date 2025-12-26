@@ -3,18 +3,34 @@ import {Components, Theme} from '@mui/material/styles';
 export const createDialogOverrides = (theme: Theme): Components['MuiDialog'] => ({
     defaultProps: {
         fullWidth: true,
+        closeAfterTransition: true,
         slotProps: {
-            transition: {timeout: 200},
-            backdrop: {timeout: 200}
+            transition: {
+                timeout: 280,
+                unmountOnExit: true,
+                mountOnEnter: true
+            },
+            backdrop: {
+                timeout: 280,
+                invisible: true
+            }
         }
     },
     styleOverrides: {
+        root: {
+            // Плавная анимация появления/исчезновения
+            '& .MuiDialog-container': {
+                transition: 'opacity 280ms cubic-bezier(0.4, 0, 0.2, 1), transform 280ms cubic-bezier(0.4, 0, 0.2, 1)'
+            }
+        },
         paper: {
             borderRadius: theme.spacing(3.5),
             border: '1px solid rgba(15, 23, 42, 0.08)',
             boxShadow: '0 30px 70px rgba(2, 6, 23, 0.55)',
             backgroundColor: '#ffffff',
-            color: '#0f172a'
+            color: '#0f172a',
+            // Плавная анимация для paper
+            transition: 'transform 280ms cubic-bezier(0.4, 0, 0.2, 1), opacity 280ms cubic-bezier(0.4, 0, 0.2, 1)'
         }
     }
 });

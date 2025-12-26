@@ -70,7 +70,10 @@ export const useActionForm = ({
             return;
         }
         setIsModalVisible(false);
-        resetForm();
+        // Откладываем сброс формы до завершения анимации закрытия (280ms)
+        setTimeout(() => {
+            resetForm();
+        }, 300);
     }, [isModalVisible, resetForm]);
 
     const openCreateModal = useCallback(() => {

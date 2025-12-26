@@ -1,5 +1,6 @@
-import React, {createContext, useCallback, useContext, useMemo, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
 import type {ActionIcon} from '@shared/types';
+import {onUnauthorized} from '@shared/api';
 
 interface IconsContextType {
     icons: ActionIcon[];
@@ -72,6 +73,15 @@ export const IconsProvider: React.FC<IconsProviderProps> = ({children}) => {
         setError(null);
         setLoading(false);
     }, []);
+
+    // При получении 401 Unauthorized очищаем кэш иконок
+    useEffect(() => {
+        const unsubscribe = onUnauthorized(() => {
+            console.log('[IconsContext] Received 401, clearing icons cache');
+            clearIcons();
+        });
+        return unsubscribe;
+    }, [clearIcons]);
 
     const value = useMemo(
         () => ({

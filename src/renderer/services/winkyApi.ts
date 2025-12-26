@@ -62,10 +62,10 @@ const withAuthClient = async <T>(operation: (client: AxiosInstance, config: AppC
 };
 
 export const fetchActions = async (): Promise<ActionConfig[]> => {
-    return withAuthClient(async (client, config) => {
+    return withAuthClient(async (client) => {
         const actions = await fetchAllPages<ActionConfig>(client, ACTIONS_API_PATH);
         await updateConfig({actions});
-        return actions.length ? actions : config.actions ?? [];
+        return actions;
     }).catch(async (error) => {
         if (error.message?.includes('Authentication is required')) {
             const config = await getConfig();

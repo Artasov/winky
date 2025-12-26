@@ -2,6 +2,7 @@ import React from 'react';
 import classNames from 'classnames';
 import type {ActionConfig} from '@shared/types';
 import {interactiveEnter, interactiveLeave} from '../utils/interactive';
+import GlassTooltip from './GlassTooltip';
 
 interface ActionButtonProps {
     action: ActionConfig;
@@ -23,23 +24,23 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     const iconSize = 15;
 
     return (
-        <button
-            type="button"
-            disabled={disabled || isLoading}
-            onClick={() => onClick(action)}
-            onMouseEnter={() => interactiveEnter()}
-            onMouseLeave={() => interactiveLeave()}
-            onFocus={() => interactiveEnter()}
-            onBlur={() => interactiveLeave()}
-            data-interactive="true"
-            className={classNames(
-                'app-region-no-drag',
-                baseClasses,
-                disabled && 'cursor-not-allowed opacity-50',
-                isActive && '...'
-            )}
-            title={action.name}
-        >
+        <GlassTooltip content={action.name}>
+            <button
+                type="button"
+                disabled={disabled || isLoading}
+                onClick={() => onClick(action)}
+                onMouseEnter={() => interactiveEnter()}
+                onMouseLeave={() => interactiveLeave()}
+                onFocus={() => interactiveEnter()}
+                onBlur={() => interactiveLeave()}
+                data-interactive="true"
+                className={classNames(
+                    'app-region-no-drag',
+                    baseClasses,
+                    disabled && 'cursor-not-allowed opacity-50',
+                    isActive && '...'
+                )}
+            >
             {isLoading ? (
                 <svg
                     className={classNames(
@@ -80,9 +81,9 @@ const ActionButton: React.FC<ActionButtonProps> = ({
                     )}
                 </>
             )}
-            <span className="sr-only">{action.name}</span>
-
-        </button>
+                <span className="sr-only">{action.name}</span>
+            </button>
+        </GlassTooltip>
     );
 };
 

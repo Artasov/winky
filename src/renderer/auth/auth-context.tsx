@@ -1,7 +1,18 @@
-import {createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState} from 'react';
+import {
+    createContext,
+    ReactNode,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from 'react';
 import {AuthClient, AuthError} from '../services/authClient';
 import {authBridge as appAuthBridge, configBridge} from '../services/winkyBridge';
 import type {AuthDeepLinkPayload, AuthProvider as OAuthProviderType, User} from '@shared/types';
+import {useWindowIdentity} from '../app/hooks/useWindowIdentity';
+import {onUnauthorized} from '@shared/api';
 
 type AuthStatus =
     | 'initializing'
@@ -27,6 +38,45 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 const authClient = new AuthClient();
 
+const AUTH_CHANNEL_NAME = 'winky-auth';
+const USER_CACHE_KEY = 'winky.cachedUser';
+
+type AuthBroadcastMessage = {
+    type: 'user';
+    payload: User | null;
+};
+
+const readCachedUser = (): User | null => {
+    if (typeof window === 'undefined' || !window.localStorage) {
+        return null;
+    }
+    try {
+        const raw = window.localStorage.getItem(USER_CACHE_KEY);
+        if (!raw) {
+            return null;
+        }
+        return JSON.parse(raw) as User;
+    } catch (error) {
+        console.warn('[auth] Failed to read cached user', error);
+        return null;
+    }
+};
+
+const persistCachedUser = (user: User | null): void => {
+    if (typeof window === 'undefined' || !window.localStorage) {
+        return;
+    }
+    try {
+        if (!user) {
+            window.localStorage.removeItem(USER_CACHE_KEY);
+        } else {
+            window.localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+        }
+    } catch (error) {
+        console.warn('[auth] Failed to persist cached user', error);
+    }
+};
+
 type AuthProviderProps = {
     children: ReactNode;
 };
@@ -38,9 +88,59 @@ function normalizeAuthError(error: unknown): AuthError {
 }
 
 export function AuthProvider({children}: AuthProviderProps) {
+    const windowIdentity = useWindowIdentity();
+    const isPrimaryWindow = !windowIdentity.isAuxWindow;
+    const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
     const [status, setStatus] = useState<AuthStatus>('initializing');
     const [user, setUser] = useState<User | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    const ensureBroadcastChannel = useCallback((): BroadcastChannel | null => {
+        if (typeof BroadcastChannel === 'undefined') {
+            return null;
+        }
+        if (!broadcastChannelRef.current) {
+            broadcastChannelRef.current = new BroadcastChannel(AUTH_CHANNEL_NAME);
+        }
+        return broadcastChannelRef.current;
+    }, []);
+
+    const broadcastUser = useCallback((nextUser: User | null) => {
+        persistCachedUser(nextUser);
+        const channel = ensureBroadcastChannel();
+        if (!channel) {
+            return;
+        }
+        try {
+            channel.postMessage({type: 'user', payload: nextUser} satisfies AuthBroadcastMessage);
+        } catch (err) {
+            console.warn('[auth] Failed to broadcast user update', err);
+        }
+    }, [ensureBroadcastChannel]);
+
+    useEffect(() => {
+        const channel = ensureBroadcastChannel();
+        if (!channel) {
+            return;
+        }
+        const handleMessage = (event: MessageEvent<AuthBroadcastMessage>) => {
+            const message = event.data;
+            if (!message || message.type !== 'user') {
+                return;
+            }
+            const nextUser = message.payload ?? null;
+            setUser(nextUser);
+            setStatus(nextUser ? 'authenticated' : 'unauthenticated');
+            setError(null);
+            persistCachedUser(nextUser);
+        };
+        channel.addEventListener('message', handleMessage as EventListener);
+        return () => {
+            channel.removeEventListener('message', handleMessage as EventListener);
+            channel.close();
+            broadcastChannelRef.current = null;
+        };
+    }, [ensureBroadcastChannel]);
 
     useEffect(() => {
         let cancelled = false;
@@ -51,6 +151,21 @@ export function AuthProvider({children}: AuthProviderProps) {
                 if (!tokens?.access) {
                     setStatus('unauthenticated');
                     setUser(null);
+                    persistCachedUser(null);
+                    broadcastUser(null);
+                    return;
+                }
+
+                const cachedUser = readCachedUser();
+                if (cachedUser) {
+                    setUser(cachedUser);
+                    setStatus('authenticated');
+                    setError(null);
+                } else {
+                    setStatus('checking');
+                }
+
+                if (!isPrimaryWindow) {
                     return;
                 }
 
@@ -60,6 +175,7 @@ export function AuthProvider({children}: AuthProviderProps) {
                 setUser(profile);
                 setStatus('authenticated');
                 setError(null);
+                broadcastUser(profile);
             } catch (err) {
                 if (cancelled) return;
                 const normalized = normalizeAuthError(err);
@@ -71,6 +187,8 @@ export function AuthProvider({children}: AuthProviderProps) {
                 setUser(null);
                 setStatus('unauthenticated');
                 setError(null);
+                persistCachedUser(null);
+                broadcastUser(null);
             }
         };
 
@@ -82,7 +200,7 @@ export function AuthProvider({children}: AuthProviderProps) {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [isPrimaryWindow, broadcastUser]);
 
     useEffect(() => {
         let cancelled = false;
@@ -103,6 +221,7 @@ export function AuthProvider({children}: AuthProviderProps) {
                     setStatus('unauthenticated');
                     setUser(null);
                     setError(normalized.message);
+                    broadcastUser(null);
                     return;
                 }
 
@@ -144,6 +263,7 @@ export function AuthProvider({children}: AuthProviderProps) {
                         setUser(profile);
                         setStatus('authenticated');
                         setError(null);
+                        broadcastUser(profile);
 
                         // НЕ навигируем здесь - пусть App.tsx сам обработает навигацию через useNavigationSync
                         // когда увидит что isAuthenticated === true и токены есть в config
@@ -157,6 +277,7 @@ export function AuthProvider({children}: AuthProviderProps) {
                         setUser(null);
                         setStatus('unauthenticated');
                         setError(normalized.message);
+                        broadcastUser(null);
                     });
             } else {
                 console.warn('[auth] OAuth flow returned error', {provider: payload.provider, error: payload.error});
@@ -164,6 +285,7 @@ export function AuthProvider({children}: AuthProviderProps) {
                 setUser(null);
                 setStatus('unauthenticated');
                 setError(payload.error || 'OAuth authorization failed');
+                broadcastUser(null);
             }
         };
 
@@ -209,6 +331,8 @@ export function AuthProvider({children}: AuthProviderProps) {
 
             setUser(profile);
             setStatus('authenticated');
+            persistCachedUser(profile);
+            broadcastUser(profile);
             return profile;
         } catch (err) {
             const normalized = normalizeAuthError(err);
@@ -218,7 +342,7 @@ export function AuthProvider({children}: AuthProviderProps) {
             console.error('[auth] Sign-in failed', {error: normalized.message, status: normalized.status});
             throw normalized;
         }
-    }, []);
+    }, [broadcastUser]);
 
     const startOAuth = useCallback(async (provider: OAuthProviderType) => {
         setError(null);
@@ -259,8 +383,30 @@ export function AuthProvider({children}: AuthProviderProps) {
         setUser(null);
         setStatus('unauthenticated');
         setError(null);
+        persistCachedUser(null);
+        broadcastUser(null);
+        try {
+            window.winky?.mic?.hide?.('sign-out');
+        } catch {
+            /* ignore */
+        }
         console.log('[auth] User signed out');
-    }, []);
+    }, [broadcastUser]);
+
+    // Подписываемся на глобальное событие 401 (Unauthorized) от API клиента
+    // При получении 401 автоматически разлогиниваем пользователя
+    useEffect(() => {
+        const unsubscribe = onUnauthorized(() => {
+            // Проверяем, авторизован ли пользователь, чтобы избежать лишних вызовов signOut
+            if (status === 'unauthenticated') {
+                console.log('[auth] Received 401 but already unauthenticated, ignoring');
+                return;
+            }
+            console.warn('[auth] Received 401 Unauthorized from API, signing out...');
+            signOut();
+        });
+        return unsubscribe;
+    }, [signOut, status]);
 
     const reloadUser = useCallback(async () => {
         console.log('[auth] reloadUser called');
@@ -269,6 +415,8 @@ export function AuthProvider({children}: AuthProviderProps) {
             authClient.clearTokens();
             setUser(null);
             setStatus('unauthenticated');
+            persistCachedUser(null);
+            broadcastUser(null);
             return null;
         }
 
@@ -280,6 +428,8 @@ export function AuthProvider({children}: AuthProviderProps) {
             setUser(profile);
             setStatus('authenticated');
             setError(null);
+            persistCachedUser(profile);
+            broadcastUser(profile);
             return profile;
         } catch (err) {
             const normalized = normalizeAuthError(err);
@@ -288,9 +438,11 @@ export function AuthProvider({children}: AuthProviderProps) {
             setUser(null);
             setStatus('unauthenticated');
             setError(normalized.message);
+            persistCachedUser(null);
+            broadcastUser(null);
             return null;
         }
-    }, []);
+    }, [broadcastUser]);
 
     const clearError = useCallback(() => setError(null), []);
 

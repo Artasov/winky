@@ -49,6 +49,10 @@ export class MicWindowController {
      */
     async warmup(): Promise<void> {
         try {
+            const config = await this.configApi.get();
+            if (!this.hasAuthTokens(config)) {
+                return;
+            }
             await this.ensure();
         } catch (error) {
             console.warn('[MicWindowController] warmup failed:', error);
@@ -206,6 +210,11 @@ export class MicWindowController {
     }
 
     async show(reason: string = 'system'): Promise<void> {
+        const config = await this.configApi.get();
+        if (!this.hasAuthTokens(config)) {
+            console.warn('[MicWindowController] Rejecting mic show request: user is not authenticated');
+            return;
+        }
         // Если идет процесс закрытия, ждем его завершения
         if (this.hideInProgress) {
             // Ждем завершения закрытия перед открытием
@@ -380,6 +389,12 @@ export class MicWindowController {
         } catch {
             /* ignore */
         }
+    }
+
+    private hasAuthTokens(config: AppConfig): boolean {
+        const access = typeof config.auth?.access === 'string' ? config.auth.access.trim() : '';
+        const accessToken = typeof config.auth?.accessToken === 'string' ? config.auth.accessToken.trim() : '';
+        return Boolean(access || accessToken);
     }
 
     private async attachMoveListener(win: WebviewWindow): Promise<void> {

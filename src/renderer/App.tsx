@@ -209,7 +209,14 @@ const AppContent: React.FC = () => {
     }, [config?.auth.access, config?.auth.accessToken]);
 
     useEffect(() => {
+        if (windowIdentity.isAuxWindow) {
+            return;
+        }
         if (userLoading) {
+            return;
+        }
+        if (user) {
+            userFetchAttempted.current = true;
             return;
         }
         if (userFetchAttempted.current) {
@@ -321,12 +328,13 @@ const AppContent: React.FC = () => {
             !windowIdentity.isAuxWindow &&
             config?.setupCompleted &&
             config.micShowOnLaunch === true &&
+            isAuthenticated &&
             !autoShowMicRef.current
         ) {
             autoShowMicRef.current = true;
             window.winky?.mic?.show?.('auto');
         }
-    }, [config?.setupCompleted, config?.micShowOnLaunch, windowIdentity.isAuxWindow]);
+    }, [config?.setupCompleted, config?.micShowOnLaunch, windowIdentity.isAuxWindow, isAuthenticated]);
 
     useEffect(() => {
         if (windowIdentity.isAuxWindow) {

@@ -52,8 +52,8 @@ jobs:
 
   package-tauri:
     name: Package Tauri (${{ matrix.os }})
-    needs: quality
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [quality]
+    if: always() && (needs.quality.result == 'success' || needs.quality.result == 'skipped') && ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_release == 'true'))
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

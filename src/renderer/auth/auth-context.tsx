@@ -390,7 +390,7 @@ export function AuthProvider({children}: AuthProviderProps) {
         persistCachedUser(null);
         broadcastUser(null);
         try {
-            window.winky?.mic?.hide?.('sign-out');
+            window.winky?.mic?.hide?.({reason: 'sign-out'});
         } catch {
             /* ignore */
         }

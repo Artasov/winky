@@ -27,7 +27,7 @@ export const useActionProcessing = ({
             return;
         }
         let abortController: AbortController | null = null;
-        let slowLogTimer: ReturnType<typeof setTimeout> | null = null;
+        let slowLogTimer: number | null = null;
         try {
             const arrayBuffer = await blob.arrayBuffer();
             const authToken = config.auth.access || config.auth.accessToken || undefined;

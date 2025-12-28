@@ -74,23 +74,35 @@ const GlassTooltip: React.FC<GlassTooltipProps> = ({
 
     const handleMouseEnter = useCallback((e: React.MouseEvent) => {
         showTooltip();
-        children.props.onMouseEnter?.(e);
-    }, [showTooltip, children.props]);
+        const props = children.props as any;
+        if (props?.onMouseEnter && typeof props.onMouseEnter === 'function') {
+            props.onMouseEnter(e);
+        }
+    }, [showTooltip, children]);
 
     const handleMouseLeave = useCallback((e: React.MouseEvent) => {
         hideTooltip();
-        children.props.onMouseLeave?.(e);
-    }, [hideTooltip, children.props]);
+        const props = children.props as any;
+        if (props?.onMouseLeave && typeof props.onMouseLeave === 'function') {
+            props.onMouseLeave(e);
+        }
+    }, [hideTooltip, children]);
 
     const handleFocus = useCallback((e: React.FocusEvent) => {
         showTooltip();
-        children.props.onFocus?.(e);
-    }, [showTooltip, children.props]);
+        const props = children.props as any;
+        if (props?.onFocus && typeof props.onFocus === 'function') {
+            props.onFocus(e);
+        }
+    }, [showTooltip, children]);
 
     const handleBlur = useCallback((e: React.FocusEvent) => {
         hideTooltip();
-        children.props.onBlur?.(e);
-    }, [hideTooltip, children.props]);
+        const props = children.props as any;
+        if (props?.onBlur && typeof props.onBlur === 'function') {
+            props.onBlur(e);
+        }
+    }, [hideTooltip, children]);
 
     const setRef = useCallback((node: HTMLElement | null) => {
         triggerRef.current = node;
@@ -103,7 +115,7 @@ const GlassTooltip: React.FC<GlassTooltipProps> = ({
         }
     }, [children]);
 
-    const child = React.cloneElement(children, {
+    const child = React.cloneElement(children as React.ReactElement<any>, {
         ref: setRef,
         onMouseEnter: handleMouseEnter,
         onMouseLeave: handleMouseLeave,

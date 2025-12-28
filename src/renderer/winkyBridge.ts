@@ -120,7 +120,7 @@ window.winky = {
         getCursorPosition: () => micController.getCursorPosition(),
         setAnchor: (anchor: MicAnchor) => micController.setAnchor(anchor),
         show: (reason?: string) => micController.show(reason),
-        hide: (reason?: string) => micController.hide(reason),
+        hide: (options?: {reason?: string; disableAutoShow?: boolean}) => micController.hide(options?.reason || 'system'),
         toggle: (reason?: string) => micController.toggle(reason),
         beginDrag: () => micController.beginDrag()
     },

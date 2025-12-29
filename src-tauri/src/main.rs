@@ -23,6 +23,7 @@ use serde_json::json;
 use tauri::{Emitter, Manager, State};
 use tauri::window::Color;
 use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_autostart::ManagerExt;
 use types::{AppConfig, AuthDeepLinkPayload, AuthTokens, FastWhisperStatus};
 
 static PENDING_DEEP_LINKS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
@@ -46,10 +47,23 @@ async fn config_update(
     speech: State<'_, Arc<FastWhisperManager>>,
     payload: serde_json::Value,
 ) -> Result<AppConfig, String> {
+    // Проверяем, изменяется ли настройка автозапуска
+    let autostart_changed = payload
+        .get("launchOnSystemStartup")
+        .and_then(|v| v.as_bool())
+        .is_some();
+    
     let updated = state
         .update(payload)
         .await
         .map_err(|error| error.to_string())?;
+    
+    // Обновляем автозапуск системы, если настройка изменилась
+    if autostart_changed {
+        update_autostart(&app, updated.launch_on_system_startup)
+            .map_err(|error| format!("Failed to update autostart: {}", error))?;
+    }
+    
     app.emit("config:updated", &updated)
         .map_err(|error| error.to_string())?;
     handle_config_effects(
@@ -446,6 +460,10 @@ fn main() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![]),
+        ))
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(url) = args.into_iter().find(|arg| arg.starts_with("winky://")) {
                 if let Some(state) = app.try_state::<Arc<AuthQueue>>() {
@@ -473,6 +491,12 @@ fn main() {
 
             setup_deep_link_listener(&app_handle, auth_queue);
             tray::setup(&app_handle)?;
+            
+            // Синхронизируем автозапуск с настройками при инициализации
+            if let Err(e) = update_autostart(&app_handle, initial_config.launch_on_system_startup) {
+                eprintln!("Failed to sync autostart on init: {}", e);
+            }
+            
             handle_config_effects(&app_handle, &initial_config, hotkeys, fast_whisper);
             
             // Обрабатываем закрытие главного окна - скрываем его вместо закрытия приложения
@@ -544,6 +568,16 @@ fn setup_deep_link_listener(app: &tauri::AppHandle, queue: Arc<AuthQueue>) {
             dispatch_deep_link(&app_listener, queue_listener.clone(), url.to_string());
         }
     });
+}
+
+fn update_autostart(app: &tauri::AppHandle, enabled: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let autostart_manager = app.autolaunch();
+    if enabled {
+        autostart_manager.enable()?;
+    } else {
+        autostart_manager.disable()?;
+    }
+    Ok(())
 }
 
 fn handle_config_effects(

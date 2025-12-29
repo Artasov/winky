@@ -160,6 +160,116 @@ async fn auth_start_oauth(app: tauri::AppHandle, provider: String) -> Result<(),
 }
 
 #[tauri::command]
+async fn open_file_path(_app: tauri::AppHandle, file_path: String) -> Result<(), String> {
+    use std::path::Path;
+    println!("[open_file_path] Received request to open file: {}", file_path);
+    
+    let path = Path::new(&file_path);
+    if !path.exists() {
+        let msg = format!("File does not exist: {}", file_path);
+        eprintln!("[open_file_path] Error: {}", msg);
+        return Err(msg);
+    }
+    
+    if !path.is_file() {
+        let msg = format!("Path is not a file: {}", file_path);
+        eprintln!("[open_file_path] Error: {}", msg);
+        return Err(msg);
+    }
+    
+    println!("[open_file_path] File exists, attempting to open: {}", file_path);
+    
+    let result = {
+        #[cfg(target_os = "windows")]
+        {
+            // На Windows используем explorer для открытия файлов
+            // explorer автоматически выберет правильное приложение для типа файла
+            println!("[open_file_path] Attempting to open with explorer: {}", file_path);
+            match std::process::Command::new("explorer")
+                .arg(&file_path)
+                .spawn()
+            {
+                Ok(mut child) => {
+                    // Даем процессу немного времени
+                    std::thread::sleep(std::time::Duration::from_millis(200));
+                    match child.try_wait() {
+                        Ok(Some(status)) => {
+                            if status.success() {
+                                println!("[open_file_path] Explorer command completed successfully");
+                            } else {
+                                eprintln!("[open_file_path] Explorer command failed with status: {:?}", status);
+                            }
+                        }
+                        Ok(None) => {
+                            println!("[open_file_path] Explorer process is running (expected behavior)");
+                        }
+                        Err(e) => {
+                            eprintln!("[open_file_path] Error checking explorer process: {}", e);
+                        }
+                    }
+                    println!("[open_file_path] Successfully spawned explorer command for file: {}", file_path);
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("[open_file_path] Failed to spawn explorer command: {}", e);
+                    // Пробуем альтернативный способ через start
+                    println!("[open_file_path] Trying alternative method with start command");
+                    match std::process::Command::new("cmd")
+                        .args(["/C", "start", "", &file_path])
+                        .spawn()
+                    {
+                        Ok(_) => {
+                            println!("[open_file_path] Successfully spawned start command for file: {}", file_path);
+                            Ok(())
+                        }
+                        Err(e2) => {
+                            let msg = format!("Failed to open file with both explorer and start. Explorer error: {}, Start error: {}", e, e2);
+                            eprintln!("[open_file_path] Error: {}", msg);
+                            Err(msg)
+                        }
+                    }
+                }
+            }
+        }
+        #[cfg(target_os = "macos")]
+        {
+            match std::process::Command::new("open")
+                .arg(&file_path)
+                .spawn()
+            {
+                Ok(_) => {
+                    println!("[open_file_path] Successfully spawned command to open file: {}", file_path);
+                    Ok(())
+                }
+                Err(e) => {
+                    let msg = format!("Failed to spawn command: {}", e);
+                    eprintln!("[open_file_path] Error: {}", msg);
+                    Err(msg)
+                }
+            }
+        }
+        #[cfg(target_os = "linux")]
+        {
+            match std::process::Command::new("xdg-open")
+                .arg(&file_path)
+                .spawn()
+            {
+                Ok(_) => {
+                    println!("[open_file_path] Successfully spawned command to open file: {}", file_path);
+                    Ok(())
+                }
+                Err(e) => {
+                    let msg = format!("Failed to spawn command: {}", e);
+                    eprintln!("[open_file_path] Error: {}", msg);
+                    Err(msg)
+                }
+            }
+        }
+    };
+    result
+}
+
+#[tauri::command]
 async fn local_speech_get_status(
     manager: State<'_, Arc<FastWhisperManager>>,
 ) -> Result<FastWhisperStatus, String> {
@@ -525,6 +635,7 @@ fn main() {
             resources_sound_data,
             auth_consume_pending,
             auth_start_oauth,
+            open_file_path,
             local_speech_get_status,
             local_speech_check_health,
             local_speech_install,

@@ -1,11 +1,13 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {open} from '@tauri-apps/plugin-dialog';
+import {invoke} from '@tauri-apps/api/core';
 import {Box, Button, CircularProgress, IconButton, Tooltip, Typography} from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SettingsBackupRestoreIcon from '@mui/icons-material/SettingsBackupRestore';
 import StopCircleIcon from '@mui/icons-material/StopCircle';
+import DescriptionIcon from '@mui/icons-material/Description';
 import type {FastWhisperStatus} from '@shared/types';
 import {useLocalSpeechStatus} from '../hooks/useLocalSpeechStatus';
 import {localSpeechBridge} from '../services/winkyBridge';
@@ -219,6 +221,33 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         }
     };
 
+    const handleOpenLogs = async () => {
+        if (!status?.installDir) {
+            console.warn('[LocalSpeechInstallControl] Cannot open logs: installDir is not available');
+            return;
+        }
+        // Нормализуем путь: убираем лишние слеши и используем правильные разделители для платформы
+        const isWindows = navigator.platform.toLowerCase().includes('win');
+        const pathSeparator = isWindows ? '\\' : '/';
+        let installDir = status.installDir.replace(/[/\\]+$/, ''); // Убираем завершающие слеши
+        // Нормализуем разделители в installDir
+        if (isWindows) {
+            installDir = installDir.replace(/\//g, '\\');
+        } else {
+            installDir = installDir.replace(/\\/g, '/');
+        }
+        const logPath = `${installDir}${pathSeparator}fast-fast-whisper${pathSeparator}fast-fast-whisper.log`;
+        console.log('[LocalSpeechInstallControl] Opening log file:', logPath);
+        console.log('[LocalSpeechInstallControl] Install dir:', installDir);
+        console.log('[LocalSpeechInstallControl] Platform:', navigator.platform);
+        try {
+            await invoke('open_file_path', {filePath: logPath});
+            console.log('[LocalSpeechInstallControl] Successfully requested to open log file:', logPath);
+        } catch (error) {
+            console.error('[LocalSpeechInstallControl] Failed to open log file:', logPath, error);
+        }
+    };
+
     const primaryDisabled = disabled || isBusy || showSuccessState;
     const reinstallDisabled = disabled || isBusy;
     const showPrimarySpinner = isBusy && !showSuccessState && loadingAction !== 'reinstall';
@@ -267,6 +296,18 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
                         </Typography>
                     </Box>
                     <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5}}>
+                        <Tooltip title="Open logs">
+                            <span>
+                                <IconButton
+                                    size="small"
+                                    color="success"
+                                    onClick={() => void handleOpenLogs()}
+                                    disabled={disabled || !status?.installDir}
+                                >
+                                    <DescriptionIcon fontSize="small"/>
+                                </IconButton>
+                            </span>
+                        </Tooltip>
                         <Tooltip title="Restart server">
                             <span>
                                 <IconButton

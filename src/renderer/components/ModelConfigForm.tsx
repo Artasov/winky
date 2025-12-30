@@ -351,13 +351,34 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         warmupRequestRef.current = normalized;
         const run = async () => {
             try {
-                await warmupLocalSpeechModel(normalized);
-            } catch (error) {
+                const result = await warmupLocalSpeechModel(normalized);
+                // Если модель была пропущена из-за занятости, сбрасываем ref чтобы 
+                // можно было попробовать снова позже (но не сразу)
+                if (result.device === 'busy' && result.compute_type === 'skipped') {
+                    // Не сбрасываем сразу - подождем 5 секунд чтобы избежать спама
+                    if (!cancelled) {
+                        setTimeout(() => {
+                            if (warmupRequestRef.current === normalized) {
+                                warmupRequestRef.current = null;
+                            }
+                        }, 5000);
+                    }
+                }
+            } catch (error: any) {
                 console.error('[ModelConfigForm] Failed to warmup model', error);
-                if (!cancelled) {
+                // Не показываем ошибку для 409 - это нормальная ситуация
+                const status = error?.response?.status;
+                if (!cancelled && status !== 409) {
                     setLocalModelError('Failed to warm up the model. Please try again later.');
                 }
-                warmupRequestRef.current = null;
+                // Сбрасываем ref с задержкой чтобы избежать бесконечного цикла
+                if (!cancelled) {
+                    setTimeout(() => {
+                        if (warmupRequestRef.current === normalized) {
+                            warmupRequestRef.current = null;
+                        }
+                    }, 5000);
+                }
             }
         };
         void run();

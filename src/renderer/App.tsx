@@ -168,9 +168,19 @@ const AppContent: React.FC = () => {
             const maxAttempts = 3;
             for (let attempt = 0; attempt < maxAttempts && !cancelled; attempt += 1) {
                 try {
-                    await warmupLocalSpeechModel(model);
+                    const result = await warmupLocalSpeechModel(model);
+                    // Если модель занята - это нормально, не пробуем снова
+                    if (result.device === 'busy' && result.compute_type === 'skipped') {
+                        console.log('[App] Модель занята, автопрогрев пропущен.');
+                    }
                     return;
-                } catch (error) {
+                } catch (error: any) {
+                    const status = error?.response?.status;
+                    // 409 означает модель занята - не ошибка, просто выходим
+                    if (status === 409) {
+                        console.log('[App] Модель занята (409), пропускаем автопрогрев.');
+                        return;
+                    }
                     console.error(
                         `[App] Автопрогрев модели не удался (попытка ${attempt + 1}/${maxAttempts}):`,
                         error

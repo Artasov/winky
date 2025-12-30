@@ -28,6 +28,15 @@ export const useActionProcessing = ({
         }
         let abortController: AbortController | null = null;
         let slowLogTimer: number | null = null;
+        const startTime = Date.now();
+        
+        const clearSlowLogTimer = () => {
+            if (slowLogTimer !== null) {
+                clearTimeout(slowLogTimer);
+                slowLogTimer = null;
+            }
+        };
+        
         try {
             const arrayBuffer = await blob.arrayBuffer();
             const authToken = config.auth.access || config.auth.accessToken || undefined;
@@ -41,10 +50,17 @@ export const useActionProcessing = ({
                         console.warn('[useActionProcessing] Transcription still in-flight', {
                             mode: config.speech.mode,
                             model: config.speech.model,
-                            actionId: action.id
+                            actionId: action.id,
+                            elapsedMs: Date.now() - startTime
                         });
                     }, TRANSCRIBE_SLOW_LOG_MS)
                     : null;
+
+            console.log('[useActionProcessing] Starting transcription request', {
+                mode: config.speech.mode,
+                model: config.speech.model,
+                audioSizeKB: (arrayBuffer.byteLength / 1024).toFixed(2)
+            });
 
             const transcription = await speechBridge.transcribe(arrayBuffer, {
                 mode: config.speech.mode,
@@ -58,9 +74,14 @@ export const useActionProcessing = ({
                 uiTimeoutMs: TRANSCRIBE_UI_TIMEOUT_MS
             });
 
-            if (slowLogTimer !== null) {
-                clearTimeout(slowLogTimer);
-            }
+            clearSlowLogTimer();
+            
+            const elapsedMs = Date.now() - startTime;
+            console.log('[useActionProcessing] Transcription completed', {
+                elapsedMs,
+                hasResult: !!transcription,
+                resultLength: transcription?.length ?? 0
+            });
 
             if (!transcription) {
                 showToast('Failed to transcribe speech for the action.', 'error');
@@ -146,8 +167,10 @@ export const useActionProcessing = ({
                 await openMainWindowWithToast(errorMessage);
             }
         } finally {
-            if (slowLogTimer !== null) {
-                clearTimeout(slowLogTimer);
+            clearSlowLogTimer();
+            // Отменяем запрос, если он еще в процессе
+            if (abortController && !abortController.signal.aborted) {
+                abortController.abort();
             }
         }
     }, [config, showToast, handleLocalSpeechServerFailure, openMainWindowWithToast, completionSoundRef]);

@@ -193,17 +193,36 @@ export const transcribeAudio = async (
             });
             return result;
         } catch (error: any) {
-            if (controller.signal.aborted) {
-                console.warn('[Transcribe] LOCAL request aborted or timed out.', {model: config.model});
-                throw new Error('Transcription request was cancelled or timed out.');
-            }
+            const wasAborted = controller.signal.aborted;
+            const errorCode = error?.code || 'UNKNOWN';
+            const errorStatus = error?.response?.status;
+            const errorMessage = error?.message || 'Unknown error';
+            
             console.error(`%cTranscribe ← %c[LOCAL] %c${config.model} %c[ERROR]`, 
                 'color: #ef4444; font-weight: bold',
                 'color: #3b82f6; font-weight: bold',
                 'color: #8b5cf6',
                 'color: #ef4444; font-weight: bold'
             );
-            console.error('  ❌ Error:', error.message);
+            console.error('  ❌ Error details:', {
+                code: errorCode,
+                status: errorStatus,
+                message: errorMessage,
+                wasAborted,
+                isNetworkError: axios.isAxiosError(error) && !error.response,
+                isTimeout: errorCode === 'ECONNABORTED' || errorCode === 'ETIMEDOUT'
+            });
+            
+            if (wasAborted) {
+                console.warn('[Transcribe] LOCAL request aborted or timed out.', {model: config.model});
+                throw new Error('Transcription request was cancelled or timed out.');
+            }
+            
+            // Сетевые ошибки (ECONNRESET, ECONNREFUSED и др.)
+            if (axios.isAxiosError(error) && !error.response) {
+                throw new Error(`Network error during transcription: ${errorMessage}`);
+            }
+            
             throw error;
         } finally {
             if (transcriptionToken !== null) {

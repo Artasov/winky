@@ -316,11 +316,22 @@ export const downloadLocalSpeechModel = async (model: string): Promise<LocalMode
     }
 };
 
+// Отслеживаем активные warmup запросы для предотвращения дубликатов
+const activeWarmupRequests = new Map<string, Promise<LocalModelWarmupResponse>>();
+
 export const warmupLocalSpeechModel = async (model: string, device?: string): Promise<LocalModelWarmupResponse> => {
     const trimmed = normalizeLocalSpeechModelName(model);
     if (!trimmed) {
         throw new Error('Model name is missing.');
     }
+    
+    // Проверяем, есть ли уже активный запрос для этой модели
+    const existingRequest = activeWarmupRequests.get(trimmed);
+    if (existingRequest) {
+        log(`Прогрев модели ${describeLocalSpeechModel(trimmed)} уже выполняется, ожидаем…`);
+        return existingRequest;
+    }
+    
     if (hasActiveTranscriptions()) {
         const idle = await waitForTranscriptionsToFinish();
         if (!idle) {
@@ -334,34 +345,55 @@ export const warmupLocalSpeechModel = async (model: string, device?: string): Pr
             };
         }
     }
+    
     const payload: Record<string, string> = {model: trimmed};
     if (device) {
         payload.device = device;
     }
     log(`Прогрев модели ${describeLocalSpeechModel(trimmed)} (device=${device ?? 'auto'})…`);
     setWarmupState(trimmed, true);
-    try {
-        const {data} = await localSpeechClient.post<LocalModelWarmupResponse>(
-            '/v1/models/warmup',
-            payload,
-            {
-                headers: {'Content-Type': 'application/json'},
-                timeout: 2 * 60 * 1000
+    
+    const warmupPromise = (async (): Promise<LocalModelWarmupResponse> => {
+        try {
+            const {data} = await localSpeechClient.post<LocalModelWarmupResponse>(
+                '/v1/models/warmup',
+                payload,
+                {
+                    headers: {'Content-Type': 'application/json'},
+                    timeout: 2 * 60 * 1000
+                }
+            );
+            log(
+                `Модель ${describeLocalSpeechModel(trimmed)} прогрета: device=${data.device}, compute=${
+                    data.compute_type
+                }, t=${data.load_time.toFixed(2)}s`
+            );
+            return data;
+        } catch (error: any) {
+            const status = error?.response?.status;
+            // 409 Conflict означает, что модель занята (транскрипция или другой warmup)
+            // Это не ошибка - просто модель уже используется
+            if (status === 409) {
+                log(`Модель ${describeLocalSpeechModel(trimmed)} занята (409 Conflict), пропускаем прогрев.`);
+                return {
+                    status: 'ready',
+                    model: trimmed,
+                    device: 'busy',
+                    compute_type: 'skipped',
+                    load_time: 0
+                };
             }
-        );
-        log(
-            `Модель ${describeLocalSpeechModel(trimmed)} прогрета: device=${data.device}, compute=${
-                data.compute_type
-            }, t=${data.load_time.toFixed(2)}s`
-        );
-        return data;
-    } catch (error: any) {
-        logError(
-            `Прогрев модели ${describeLocalSpeechModel(trimmed)} завершился ошибкой`,
-            error?.response?.data ?? error
-        );
-        throw error;
-    } finally {
-        setWarmupState(trimmed, false);
-    }
+            logError(
+                `Прогрев модели ${describeLocalSpeechModel(trimmed)} завершился ошибкой`,
+                error?.response?.data ?? error
+            );
+            throw error;
+        } finally {
+            setWarmupState(trimmed, false);
+            activeWarmupRequests.delete(trimmed);
+        }
+    })();
+    
+    activeWarmupRequests.set(trimmed, warmupPromise);
+    return warmupPromise;
 };

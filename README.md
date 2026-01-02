@@ -106,8 +106,7 @@ The examples below are implemented and tested on `Windows 11`. Steps may differ 
 
 3. In `Winky` settings choose `Local transcription device`: `GPU` (Graphics/NVIDIA) or `CPU` (Processor)
 
-4. ### Install and run [fast-fast-whisper](https://github.com/Artasov/fast-fast-whisper)
-   > It does not auto-start with Windows; you need to launch it manually so the local speech recognition server is running
+The local speech recognition server will be automatically installed and managed by Winky.
 
 ### Local LLM Processing
 

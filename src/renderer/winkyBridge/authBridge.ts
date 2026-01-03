@@ -21,5 +21,6 @@ export const authBridge = {
         listeners.add(callback);
         return () => listeners.delete(callback);
     },
-    consumePendingOAuthPayloads: (): Promise<AuthDeepLinkPayload[]> => invoke('auth_consume_pending')
+    consumePendingOAuthPayloads: (): Promise<AuthDeepLinkPayload[]> => invoke('auth_consume_pending'),
+    isRunningAsAdmin: (): Promise<boolean> => invoke('auth_is_admin')
 };

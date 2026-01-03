@@ -1,6 +1,6 @@
 import {useCallback, type RefObject} from 'react';
 import type {ActionConfig, AppConfig} from '@shared/types';
-import {clipboardBridge, llmBridge, resultBridge, speechBridge} from '../../../services/winkyBridge';
+import {clipboardBridge, llmBridge, resourcesBridge, resultBridge, speechBridge} from '../../../services/winkyBridge';
 
 type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
 
@@ -225,63 +225,74 @@ const playCompletionSound = async ({
                                        audioRef,
                                        debug = false
                                    }: PlayCompletionSoundParams): Promise<void> => {
-    const audio = audioRef.current;
     const completionSoundEnabled = config?.completionSoundEnabled !== false;
     const volumePreference = config?.completionSoundVolume ?? 1.0;
-    if (debug) {
-        console.log('[useActionProcessing] Checking sound playback:', {
-            sound_on_complete: action.sound_on_complete,
-            hasAudio: !!audio,
-            audioSrc: audio?.src,
-            audioReadyState: audio?.readyState,
-            completionSoundEnabled,
-            volumePreference
-        });
-    }
-    if (!action.sound_on_complete || !audio || !completionSoundEnabled) {
+    
+    if (!action.sound_on_complete || !completionSoundEnabled || !(volumePreference > 0)) {
         if (debug) {
             console.warn('[useActionProcessing] Sound playback skipped:', {
                 sound_on_complete: action.sound_on_complete,
-                hasAudio: !!audio,
-                completionSoundEnabled
+                completionSoundEnabled,
+                volumePreference
             });
         }
         return;
     }
-    if (!(volumePreference > 0) || !audio.src) {
-        if (debug) {
-            console.warn('[useActionProcessing] Cannot play sound due to missing volume or source:', {
-                volumePreference,
-                hasSrc: !!audio.src
-            });
+    
+    const audio = audioRef.current;
+    
+    // Сначала пробуем HTML Audio API (поддерживает громкость)
+    if (audio && audio.src) {
+        audio.volume = volumePreference;
+        try {
+            audio.currentTime = 0;
+        } catch {
+            /* ignore */
         }
-        return;
+        
+        const playHtmlAudio = (): Promise<boolean> => new Promise((resolve) => {
+            const onSuccess = () => {
+                if (debug) {
+                    console.log('[useActionProcessing] Sound played via HTML Audio, volume:', volumePreference);
+                }
+                resolve(true);
+            };
+            const onError = (error: unknown) => {
+                if (debug) {
+                    console.warn('[useActionProcessing] HTML Audio failed:', error);
+                }
+                resolve(false);
+            };
+            
+            if (audio.readyState >= 2) {
+                audio.play().then(onSuccess).catch(onError);
+            } else {
+                audio.load();
+                audio.addEventListener('canplay', () => {
+                    audio.play().then(onSuccess).catch(onError);
+                }, {once: true});
+                audio.addEventListener('error', () => onError('load error'), {once: true});
+                // Таймаут на случай если аудио не загрузится
+                setTimeout(() => onError('timeout'), 3000);
+            }
+        });
+        
+        const htmlSuccess = await playHtmlAudio();
+        if (htmlSuccess) {
+            return;
+        }
     }
-    audio.volume = volumePreference;
+    
+    // Fallback на native API (не поддерживает громкость, но работает без прав админа)
+    if (debug) {
+        console.log('[useActionProcessing] Falling back to native API (volume not supported)');
+    }
     try {
-        audio.currentTime = 0;
-    } catch {
-        /* ignore */
-    }
-    const play = () => audio.play().catch((error) => {
-        console.error('[useActionProcessing] Error playing completion sound:', error);
-    });
-    if (audio.readyState >= 2) {
+        await resourcesBridge.playSound('completion.wav');
         if (debug) {
-            console.log('[useActionProcessing] Audio ready, playing immediately');
+            console.log('[useActionProcessing] Sound played via native API');
         }
-        await play();
-    } else {
-        if (debug) {
-            console.log('[useActionProcessing] Audio not ready, loading before play');
-        }
-        audio.load();
-        audio.addEventListener(
-            'canplay',
-            () => {
-                void play();
-            },
-            {once: true}
-        );
+    } catch (nativeError) {
+        console.error('[useActionProcessing] Both HTML Audio and native API failed:', nativeError);
     }
 };

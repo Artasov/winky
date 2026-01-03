@@ -348,6 +348,102 @@ export function AuthProvider({children}: AuthProviderProps) {
         }
     }, [broadcastUser]);
 
+    // Ref для хранения интервала polling
+    const oauthPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    
+    // Очистка polling при размонтировании или успешной авторизации
+    const stopOAuthPolling = useCallback(() => {
+        if (oauthPollingRef.current) {
+            clearInterval(oauthPollingRef.current);
+            oauthPollingRef.current = null;
+            console.log('[auth] OAuth polling stopped');
+        }
+    }, []);
+    
+    // Запуск polling для проверки токенов после OAuth
+    const startOAuthPolling = useCallback(() => {
+        stopOAuthPolling();
+        
+        console.log('[auth] Starting OAuth polling...');
+        let attempts = 0;
+        const maxAttempts = 60; // 60 * 2 секунды = 2 минуты
+        
+        oauthPollingRef.current = setInterval(async () => {
+            attempts++;
+            console.log(`[auth] OAuth polling attempt ${attempts}/${maxAttempts}`);
+            
+            try {
+                // Проверяем, появились ли токены в config
+                const config = await configBridge.get();
+                const hasToken = config.auth.access || config.auth.accessToken;
+                
+                if (hasToken) {
+                    console.log('[auth] OAuth polling: tokens found in config!');
+                    stopOAuthPolling();
+                    
+                    // Сохраняем токены в authClient
+                    authClient.storeTokens({
+                        access: config.auth.access || config.auth.accessToken || '',
+                        refresh: config.auth.refresh || config.auth.refreshToken || null,
+                    });
+                    
+                    // Получаем профиль пользователя
+                    setStatus('checking');
+                    try {
+                        const profile = await authClient.getCurrentUser(true);
+                        setUser(profile);
+                        setStatus('authenticated');
+                        setError(null);
+                        broadcastUser(profile);
+                        console.log('[auth] OAuth polling: user authenticated successfully');
+                    } catch (err) {
+                        const normalized = normalizeAuthError(err);
+                        console.error('[auth] OAuth polling: failed to fetch user', normalized.message);
+                        authClient.clearTokens();
+                        setUser(null);
+                        setStatus('unauthenticated');
+                        setError(normalized.message);
+                        broadcastUser(null);
+                    }
+                    return;
+                }
+                
+                // Также проверяем pending OAuth payloads
+                const payloads = await appAuthBridge.consumePendingOAuthPayloads();
+                if (Array.isArray(payloads) && payloads.length > 0) {
+                    console.log('[auth] OAuth polling: found pending payloads');
+                    stopOAuthPolling();
+                    // Payloads будут обработаны в useEffect выше
+                    return;
+                }
+            } catch (err) {
+                console.warn('[auth] OAuth polling error:', err);
+            }
+            
+            // Прекращаем polling после maxAttempts
+            if (attempts >= maxAttempts) {
+                console.log('[auth] OAuth polling timeout');
+                stopOAuthPolling();
+                setStatus('unauthenticated');
+                setError('OAuth timeout. Please try again.');
+            }
+        }, 2000); // Каждые 2 секунды
+    }, [stopOAuthPolling, broadcastUser]);
+    
+    // Очистка при размонтировании
+    useEffect(() => {
+        return () => {
+            stopOAuthPolling();
+        };
+    }, [stopOAuthPolling]);
+    
+    // Останавливаем polling при успешной авторизации
+    useEffect(() => {
+        if (status === 'authenticated') {
+            stopOAuthPolling();
+        }
+    }, [status, stopOAuthPolling]);
+
     const startOAuth = useCallback(async (provider: OAuthProviderType) => {
         setError(null);
         setStatus('oauth');
@@ -360,6 +456,8 @@ export function AuthProvider({children}: AuthProviderProps) {
         }
         try {
             await appAuthBridge.startOAuth(provider);
+            // Запускаем polling для проверки токенов
+            startOAuthPolling();
         } catch (err) {
             const normalized = normalizeAuthError(err);
             console.error('[auth] Failed to initiate OAuth', {provider, error: normalized.message});
@@ -367,7 +465,7 @@ export function AuthProvider({children}: AuthProviderProps) {
             setError(normalized.message);
             throw normalized;
         }
-    }, []);
+    }, [startOAuthPolling]);
 
     const signOut = useCallback(() => {
         authClient.clearTokens();

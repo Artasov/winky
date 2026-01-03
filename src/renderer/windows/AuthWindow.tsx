@@ -51,12 +51,14 @@ const AuthWindow: React.FC = () => {
     const handleOAuth = async (provider: AuthProvider) => {
         try {
             await auth.startOAuth(provider);
-            showToast(`Opening ${provider} for authentication…`, 'info');
+            showToast(`Opening ${provider}... Complete authorization in browser and return here.`, 'info', {durationMs: 10000});
         } catch (error) {
             console.error('[AuthWindow] OAuth failed', error);
             showToast(`Failed to start OAuth via ${provider}.`, 'error');
         }
     };
+    
+    const isOAuthPending = auth.status === 'oauth' || auth.status === 'checking';
 
     return (
         <div className="flex h-full flex-col">
@@ -92,11 +94,23 @@ const AuthWindow: React.FC = () => {
                 </form>
 
                 <div className="mt-6">
+                    {isOAuthPending && (
+                        <div className="mb-4 rounded-lg bg-blue-50 p-4 text-center">
+                            <div className="mb-2 flex items-center justify-center gap-2">
+                                <svg className="h-5 w-5 animate-spin text-blue-500" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                </svg>
+                                <span className="text-sm font-medium text-blue-700">Waiting for authorization...</span>
+                            </div>
+                            <p className="text-xs text-blue-600">Complete authorization in your browser, then return here.</p>
+                        </div>
+                    )}
                     <div className="grid grid-cols-3 gap-3">
                         <button
                             type="button"
                             onClick={() => handleOAuth('google')}
-                            disabled={auth.isBusy}
+                            disabled={auth.isBusy || isOAuthPending}
                             className="frcc w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -114,7 +128,7 @@ const AuthWindow: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => handleOAuth('github')}
-                            disabled={auth.isBusy}
+                            disabled={auth.isBusy || isOAuthPending}
                             className="frcc w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
@@ -127,7 +141,7 @@ const AuthWindow: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => handleOAuth('discord')}
-                            disabled={auth.isBusy}
+                            disabled={auth.isBusy || isOAuthPending}
                             className="frcc w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <svg className="h-5 w-5" fill="#5865F2" viewBox="0 0 24 24">

@@ -29,6 +29,11 @@ export const useNavigationSync = ({config, loading, windowIdentity, isAuthentica
         const hasToken = config.auth.access || config.auth.accessToken;
         if (!hasToken) {
             if (!authRoutes.includes(currentPath)) {
+                // Если на главной странице и нет токенов, показываем Welcome или Auth
+                if (currentPath === '/') {
+                    // Остаёмся на "/" - там будет показан Welcome или Auth
+                    return;
+                }
                 navigate('/');
             }
             return;

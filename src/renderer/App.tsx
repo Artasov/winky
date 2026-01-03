@@ -10,6 +10,7 @@ import {useConfigController} from './app/hooks/useConfigController';
 import {useNavigationSync} from './app/hooks/useNavigationSync';
 import {useToastBridge} from './app/hooks/useToastBridge';
 import {useWindowChrome} from './app/hooks/useWindowChrome';
+import {configBridge} from './services/winkyBridge';
 import {Slide, ToastContainer, toast} from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './styles/ReactToastify.sass';
@@ -237,27 +238,52 @@ const AppContent: React.FC = () => {
             console.log('[App] No token found, requiring authentication');
             userFetchAttempted.current = true;
             if (!windowIdentity.isAuxWindow) {
-                navigate('/auth', {replace: true});
+                navigate('/', {replace: true});
             }
             return;
         }
         console.log('[App] Token found, fetching user from server...');
         userFetchAttempted.current = true;
+        
+        // Таймаут для очистки токенов если авторизация не завершена
+        const timeoutId = setTimeout(() => {
+            if (!user && !userLoading) {
+                console.warn('[App] User fetch timeout, clearing tokens');
+                void configBridge.reset().then(() => {
+                    if (!windowIdentity.isAuxWindow) {
+                        navigate('/', {replace: true});
+                    }
+                });
+            }
+        }, 10000); // 10 секунд
+        
         void fetchUser()
             .then((userData) => {
+                clearTimeout(timeoutId);
                 if (!userData && !windowIdentity.isAuxWindow) {
-                    console.warn('[App] Failed to fetch user, redirecting to auth');
-                    navigate('/auth', {replace: true});
+                    console.warn('[App] Failed to fetch user, clearing tokens and redirecting to auth');
+                    // Очищаем токены если пользователь не найден
+                    void configBridge.reset().then(() => {
+                        navigate('/', {replace: true});
+                    });
                 }
             })
             .catch((error) => {
-                console.error('[App] Failed to fetch user', error);
+                clearTimeout(timeoutId);
+                console.error('[App] Failed to fetch user, clearing tokens', error);
                 userFetchAttempted.current = false;
-                if (!windowIdentity.isAuxWindow) {
-                    navigate('/auth', {replace: true});
-                }
+                // Очищаем токены при ошибке
+                void configBridge.reset().then(() => {
+                    if (!windowIdentity.isAuxWindow) {
+                        navigate('/', {replace: true});
+                    }
+                });
             });
-    }, [config?.auth.access, config?.auth.accessToken, userLoading, fetchUser, navigate, windowIdentity.isAuxWindow]);
+            
+        return () => {
+            clearTimeout(timeoutId);
+        };
+    }, [config?.auth.access, config?.auth.accessToken, userLoading, fetchUser, navigate, windowIdentity.isAuxWindow, user]);
 
     useEffect(() => {
         if (windowIdentity.isAuxWindow) {
@@ -409,9 +435,7 @@ const AppContent: React.FC = () => {
     const routes = (
         <Routes>
             <Route element={<StandaloneWindow/>}>
-                {shouldShowWelcome ? (
-                    <Route path="/" element={<WelcomeWindow/>}/>
-                ) : null}
+                <Route path="/" element={shouldShowWelcome ? <WelcomeWindow/> : <AuthWindow/>}/>
                 <Route path="/auth" element={<AuthWindow/>}/>
                 <Route path="/setup" element={<SetupWindow/>}/>
             </Route>

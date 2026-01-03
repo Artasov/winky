@@ -1,11 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod audio;
 mod auth;
 mod config;
 mod constants;
+mod deep_link_file;
 mod hotkeys;
 mod local_speech;
+mod logging;
 mod oauth;
+mod oauth_server;
 mod ollama;
 mod resources;
 mod tray;
@@ -18,6 +22,7 @@ use serde::Deserialize;
 use config::{should_auto_start_local_speech, ConfigState};
 use hotkeys::{ActionHotkeyInput, HotkeyState};
 use local_speech::{persist_install_dir_choice, FastWhisperManager};
+use oauth_server::OAuthServerState;
 use once_cell::sync::Lazy;
 use serde_json::json;
 use tauri::{Emitter, Manager, State};
@@ -144,6 +149,14 @@ async fn resources_sound_data(
 }
 
 #[tauri::command]
+async fn resources_play_sound(
+    app: tauri::AppHandle,
+    sound_name: String,
+) -> Result<(), String> {
+    audio::play_sound_sync(&app, &sound_name)
+}
+
+#[tauri::command]
 async fn auth_consume_pending(
     queue: State<'_, Arc<AuthQueue>>,
 ) -> Result<Vec<AuthDeepLinkPayload>, String> {
@@ -151,12 +164,65 @@ async fn auth_consume_pending(
 }
 
 #[tauri::command]
-async fn auth_start_oauth(app: tauri::AppHandle, provider: String) -> Result<(), String> {
+async fn auth_start_oauth(
+    app: tauri::AppHandle,
+    queue: State<'_, Arc<AuthQueue>>,
+    oauth_state: State<'_, Arc<OAuthServerState>>,
+    provider: String,
+) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
+    
+    // Если работаем от админа и OAuth сервер еще не запущен - запускаем
+    if oauth::is_running_as_admin() {
+        logging::log_message("[auth_start_oauth] Running as admin, starting OAuth server...");
+        let app_clone = app.clone();
+        let queue_clone = queue.inner().clone();
+        let state_clone = oauth_state.inner().clone();
+        
+        // Запускаем сервер если еще не запущен
+        match oauth_server::start_oauth_server(
+            app_clone,
+            queue_clone,
+            state_clone.clone(),
+        ).await {
+            Ok(_) => {
+                logging::log_message("[auth_start_oauth] OAuth server started successfully, waiting for listener...");
+                // Ждём пока сервер будет готов принимать соединения (с таймаутом 2 секунды)
+                tokio::select! {
+                    _ = state_clone.wait_until_ready() => {
+                        logging::log_message("[auth_start_oauth] OAuth server is ready");
+                    }
+                    _ = tokio::time::sleep(tokio::time::Duration::from_secs(2)) => {
+                        logging::log_message("[auth_start_oauth] OAuth server ready timeout, continuing anyway");
+                    }
+                }
+            }
+            Err(e) => {
+                logging::log_message(&format!("[auth_start_oauth] Failed to start OAuth server: {}", e));
+                return Err(format!("Failed to start OAuth server: {}", e));
+            }
+        }
+    } else {
+        logging::log_message("[auth_start_oauth] Not running as admin, using deep link");
+    }
+    
     let url = oauth::build_oauth_start_url(&provider).map_err(|error| error.to_string())?;
+    logging::log_message(&format!("[auth_start_oauth] Opening OAuth URL: {}", url));
     app.opener()
         .open_url(url, None::<String>)
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn auth_is_admin() -> Result<bool, String> {
+    Ok(oauth::is_running_as_admin())
+}
+
+#[tauri::command]
+async fn get_log_file_path(app: tauri::AppHandle) -> Result<String, String> {
+    Ok(logging::get_log_file_path(&app)
+        .and_then(|p| p.to_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| "Log file path not available".to_string()))
 }
 
 #[tauri::command]
@@ -564,6 +630,20 @@ async fn window_open_main(app: tauri::AppHandle) -> Result<(), String> {
 
 
 fn main() {
+    // Проверяем, запущены ли мы с deep link аргументом
+    // Если да - записываем в файл для главного процесса (обход UIPI)
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(url) = args.iter().find(|arg| arg.starts_with("winky://")) {
+        println!("[Main] Started with deep link argument: {}", url);
+        // Записываем URL в файл для главного процесса
+        if let Err(e) = deep_link_file::write_deep_link_to_file(url) {
+            eprintln!("[Main] Failed to write deep link to file: {}", e);
+        } else {
+            println!("[Main] Deep link written to file successfully");
+        }
+        // Не выходим - пусть single-instance попробует передать через IPC тоже
+    }
+    
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
@@ -576,9 +656,11 @@ fn main() {
         ))
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(url) = args.into_iter().find(|arg| arg.starts_with("winky://")) {
+                logging::log_message(&format!("[SingleInstance] Received deep link: {}", url));
                 if let Some(state) = app.try_state::<Arc<AuthQueue>>() {
                     dispatch_deep_link(app, state.inner().clone(), url);
                 } else {
+                    logging::log_message("[SingleInstance] AuthQueue not ready, saving to pending");
                     PENDING_DEEP_LINKS.lock().unwrap().push(url);
                 }
             }
@@ -586,6 +668,11 @@ fn main() {
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             let app_handle = app.handle();
+            
+            // Инициализируем логирование в файл (безопасно, не падаем если не получилось)
+            let _ = logging::init_logging(&app_handle);
+            logging::log_message("Winky application started");
+            
             let config_state =
                 Arc::new(tauri::async_runtime::block_on(ConfigState::initialize(&app_handle))?);
             let initial_config = tauri::async_runtime::block_on(config_state.get());
@@ -593,14 +680,40 @@ fn main() {
             let hotkeys = Arc::new(HotkeyState::new());
             let fast_whisper = Arc::new(FastWhisperManager::new());
             let auth_queue = Arc::new(AuthQueue::new());
+            let oauth_server_state = Arc::new(OAuthServerState::new());
 
             app.manage(config_state);
             app.manage(hotkeys.clone());
             app.manage(fast_whisper.clone());
             app.manage(auth_queue.clone());
+            app.manage(oauth_server_state.clone());
 
-            setup_deep_link_listener(&app_handle, auth_queue);
+            setup_deep_link_listener(&app_handle, auth_queue.clone());
             tray::setup(&app_handle)?;
+            
+            // Проверяем файл deep link при старте
+            deep_link_file::check_deep_link_file_on_startup(&app_handle, &auth_queue);
+            
+            // Запускаем polling для чтения deep link из файла (обход UIPI при запуске от админа)
+            deep_link_file::start_deep_link_file_polling(app_handle.clone(), auth_queue.clone());
+            
+            // Запускаем OAuth HTTP сервер при работе от администратора
+            // Это нужно потому что deep link не работает из-за UIPI
+            if oauth::is_running_as_admin() {
+                logging::log_message("[Main] Running as admin, starting OAuth HTTP server...");
+                let app_for_oauth = app_handle.clone();
+                let queue_for_oauth = auth_queue.clone();
+                let state_for_oauth = oauth_server_state.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = oauth_server::start_oauth_server(
+                        app_for_oauth,
+                        queue_for_oauth,
+                        state_for_oauth,
+                    ).await {
+                        logging::log_message(&format!("[Main] Failed to start OAuth server: {}", e));
+                    }
+                });
+            }
             
             // Синхронизируем автозапуск с настройками при инициализации
             if let Err(e) = update_autostart(&app_handle, initial_config.launch_on_system_startup) {
@@ -633,8 +746,11 @@ fn main() {
             config_path,
             resources_sound_path,
             resources_sound_data,
+            resources_play_sound,
             auth_consume_pending,
             auth_start_oauth,
+            auth_is_admin,
+            get_log_file_path,
             open_file_path,
             local_speech_get_status,
             local_speech_check_health,
@@ -724,7 +840,7 @@ fn handle_config_effects(
     }
 }
 
-fn dispatch_deep_link(app: &tauri::AppHandle, queue: Arc<AuthQueue>, url: String) {
+pub(crate) fn dispatch_deep_link(app: &tauri::AppHandle, queue: Arc<AuthQueue>, url: String) {
     tauri::async_runtime::spawn(auth::handle_deep_link(
         app.clone(),
         queue,

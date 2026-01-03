@@ -78,19 +78,25 @@ export const ModelTranscribeSection: React.FC<ModelTranscribeSectionProps> = ({
                 </Collapse>
             </div>
             <div className={'fc gap-1'}>
-                <TextField
-                    select
-                    label="Transcribe Model"
-                    value={values.transcribeModel}
-                    onChange={(e) => emitChange({transcribeModel: e.target.value as TranscribeModel})}
-                    disabled={disableInputs || (values.transcribeMode === SPEECH_MODES.LOCAL && (!localServerInstalled || !localServerRunning))}
-                >
-                    {transcribeModelOptions.map((model) => (
-                        <MenuItem key={model} value={model}>
-                            {formatTranscribeLabel(model)}
-                        </MenuItem>
-                    ))}
-                </TextField>
+                {values.transcribeMode === SPEECH_MODES.API && transcribeModelOptions.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" sx={{fontStyle: 'italic', py: 1}}>
+                        No API keys configured. Add a key below or switch to Local mode.
+                    </Typography>
+                ) : (
+                    <TextField
+                        select
+                        label="Transcribe Model"
+                        value={values.transcribeModel}
+                        onChange={(e) => emitChange({transcribeModel: e.target.value as TranscribeModel})}
+                        disabled={disableInputs || (values.transcribeMode === SPEECH_MODES.LOCAL && (!localServerInstalled || !localServerRunning))}
+                    >
+                        {transcribeModelOptions.map((model) => (
+                            <MenuItem key={model} value={model}>
+                                {formatTranscribeLabel(model)}
+                            </MenuItem>
+                        ))}
+                    </TextField>
+                )}
                 {values.transcribeMode === SPEECH_MODES.LOCAL && localServerInstalled && localServerRunning && (
                     <div className={'fc w-full flex-grow'}>
                         {(checkingLocalModel || localModelDownloaded === null) && (

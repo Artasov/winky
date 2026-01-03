@@ -64,23 +64,32 @@ export const ModelLlmSection: React.FC<ModelLlmSectionProps> = ({
         }
     }, [isLocalLLMMode, ollamaModelsLoaded, ollamaModelChecking, refreshOllamaModels]);
 
+    const isApiMode = !isLocalLLMMode;
+    const hasNoApiModels = isApiMode && llmModelOptions.length === 0;
+
     return (
         <>
             <div className={'fc gap-1'}>
-                <TextField
-                    select
-                    label="LLM Model"
-                    value={values.llmModel}
-                    onChange={(e) => emitChange({llmModel: e.target.value as LLMModel})}
-                    disabled={disableLlmModelSelect}
-                >
-                    {llmModelOptions.map((model) => (
-                        <MenuItem key={model} value={model}>
-                            {formatLLMLabel(model)}
-                        </MenuItem>
-                    ))}
-                </TextField>
-                {selectedLocalLLMDescription && (
+                {hasNoApiModels ? (
+                    <Typography variant="body2" color="text.secondary" sx={{fontStyle: 'italic', py: 1}}>
+                        No API keys configured. Add a key below or switch to Local mode.
+                    </Typography>
+                ) : (
+                    <TextField
+                        select
+                        label="LLM Model"
+                        value={values.llmModel}
+                        onChange={(e) => emitChange({llmModel: e.target.value as LLMModel})}
+                        disabled={disableLlmModelSelect}
+                    >
+                        {llmModelOptions.map((model) => (
+                            <MenuItem key={model} value={model}>
+                                {formatLLMLabel(model)}
+                            </MenuItem>
+                        ))}
+                    </TextField>
+                )}
+                {selectedLocalLLMDescription && !hasNoApiModels && (
                     <Typography variant="body2" color="text.secondary">
                         {selectedLocalLLMDescription}
                     </Typography>

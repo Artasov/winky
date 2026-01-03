@@ -58,23 +58,35 @@ export interface ModelConfigFormData {
     llmModel: LLMModel;
 }
 
-const resolveTranscribeOptions = (mode: TranscribeMode, googleKey: string): TranscribeModel[] => {
+const resolveTranscribeOptions = (mode: TranscribeMode, openaiKey: string, googleKey: string): TranscribeModel[] => {
     if (mode === SPEECH_MODES.API) {
-        const options: string[] = [...SPEECH_OPENAI_API_MODELS];
+        const options: string[] = [];
+        // Добавляем OpenAI модели только если есть ключ
+        if (openaiKey.trim().length > 0) {
+            options.push(...SPEECH_OPENAI_API_MODELS);
+        }
+        // Добавляем Google модели только если есть ключ
         if (googleKey.trim().length > 0) {
             options.push(...SPEECH_GOOGLE_API_MODELS);
         }
+        // Если нет ключей - возвращаем пустой массив (пользователь должен выбрать Local или добавить ключ)
         return options as TranscribeModel[];
     }
     return [...SPEECH_LOCAL_MODELS] as TranscribeModel[];
 };
 
-const resolveLlmOptions = (mode: LLMMode, googleKey: string): LLMModel[] => {
+const resolveLlmOptions = (mode: LLMMode, openaiKey: string, googleKey: string): LLMModel[] => {
     if (mode === LLM_MODES.API) {
-        const options: string[] = [...LLM_OPENAI_API_MODELS];
+        const options: string[] = [];
+        // Добавляем OpenAI модели только если есть ключ
+        if (openaiKey.trim().length > 0) {
+            options.push(...LLM_OPENAI_API_MODELS);
+        }
+        // Добавляем Google модели только если есть ключ
         if (googleKey.trim().length > 0) {
             options.push(...LLM_GEMINI_API_MODELS);
         }
+        // Если нет ключей - возвращаем пустой массив (пользователь должен выбрать Local или добавить ключ)
         return options as LLMModel[];
     }
     return [...LLM_LOCAL_MODELS] as LLMModel[];
@@ -156,19 +168,56 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         [values.transcribeModel]
     );
     const transcribeModelOptions = useMemo<TranscribeModel[]>(
-        () => resolveTranscribeOptions(values.transcribeMode, values.googleKey),
-        [values.transcribeMode, values.googleKey]
+        () => resolveTranscribeOptions(values.transcribeMode, values.openaiKey, values.googleKey),
+        [values.transcribeMode, values.openaiKey, values.googleKey]
     );
     const llmModelOptions = useMemo<LLMModel[]>(
-        () => resolveLlmOptions(values.llmMode, values.googleKey),
-        [values.llmMode, values.googleKey]
+        () => resolveLlmOptions(values.llmMode, values.openaiKey, values.googleKey),
+        [values.llmMode, values.openaiKey, values.googleKey]
     );
     const safeLlmModel = useMemo<LLMModel>(() => {
+        if (llmModelOptions.length === 0) {
+            // Если нет доступных моделей - возвращаем текущую (будет ошибка, но не сломаем UI)
+            return values.llmModel;
+        }
         if (llmModelOptions.includes(values.llmModel)) {
             return values.llmModel;
         }
+        // Автоматически переключаем на первую доступную модель
         return llmModelOptions[0];
     }, [llmModelOptions, values.llmModel]);
+    
+    // Автоматически переключаем модель если она недоступна
+    useEffect(() => {
+        if (values.llmMode === LLM_MODES.API) {
+            if (llmModelOptions.length === 0) {
+                // Нет доступных моделей - НЕ переключаем автоматически, показываем сообщение
+                // Пользователь может добавить ключ или переключиться вручную
+                console.log(`[ModelConfigForm] No API models available (no API keys) for LLM mode`);
+            } else if (!llmModelOptions.includes(values.llmModel)) {
+                // Выбранная модель недоступна - переключаем на первую доступную
+                const newModel = llmModelOptions[0];
+                console.log(`[ModelConfigForm] Auto-switching LLM model from ${values.llmModel} to ${newModel} (selected model not available with current API keys)`);
+                onChange({llmModel: newModel});
+            }
+        }
+    }, [values.llmMode, values.llmModel, llmModelOptions, onChange]);
+    
+    // Автоматически переключаем модель транскрибации если она недоступна
+    useEffect(() => {
+        if (values.transcribeMode === SPEECH_MODES.API) {
+            if (transcribeModelOptions.length === 0) {
+                // Нет доступных моделей - НЕ переключаем автоматически, показываем сообщение
+                // Пользователь может добавить ключ или переключиться вручную
+                console.log(`[ModelConfigForm] No API models available (no API keys) for transcribe mode`);
+            } else if (!transcribeModelOptions.includes(values.transcribeModel)) {
+                // Выбранная модель недоступна - переключаем на первую доступную
+                const newModel = transcribeModelOptions[0];
+                console.log(`[ModelConfigForm] Auto-switching transcribe model from ${values.transcribeModel} to ${newModel} (selected model not available with current API keys)`);
+                onChange({transcribeModel: newModel});
+            }
+        }
+    }, [values.transcribeMode, values.transcribeModel, transcribeModelOptions, onChange]);
     const {status: localServerStatus} = useLocalSpeechStatus({
         checkHealthOnMount: true,
         pollIntervalMs: 0
@@ -457,17 +506,20 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         }
     }, [values.llmMode, safeLlmModel, ollamaDownloadingModel, refreshOllamaModels]);
 
-    const selectedLocalLLMDescription = useMemo(
-        () => formatLLMLabel(safeLlmModel),
-        [safeLlmModel]
-    );
+    const selectedLocalLLMDescription = useMemo(() => {
+        // Не показываем описание если нет доступных моделей (нет ключей)
+        if (values.llmMode === LLM_MODES.API && llmModelOptions.length === 0) {
+            return null;
+        }
+        return formatLLMLabel(safeLlmModel);
+    }, [safeLlmModel, values.llmMode, llmModelOptions.length]);
 
     const emitChange = useCallback((partial: Partial<ModelConfigFormData>) => {
         const nextValues = {...values, ...partial};
 
         // Подхватываем корректную модель сразу при смене режима, чтобы Select не мигал пустым значением.
         if (partial.transcribeMode && partial.transcribeModel === undefined) {
-            const options = resolveTranscribeOptions(partial.transcribeMode, partial.googleKey ?? values.googleKey);
+            const options = resolveTranscribeOptions(partial.transcribeMode, partial.openaiKey ?? values.openaiKey, partial.googleKey ?? values.googleKey);
             const currentModel = nextValues.transcribeModel;
             const rememberedModel = transcribeSelectionByModeRef.current[partial.transcribeMode];
             const resolvedModel =
@@ -479,7 +531,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         }
 
         if (partial.llmMode && partial.llmModel === undefined) {
-            const options = resolveLlmOptions(partial.llmMode, partial.googleKey ?? values.googleKey);
+            const options = resolveLlmOptions(partial.llmMode, partial.openaiKey ?? values.openaiKey, partial.googleKey ?? values.googleKey);
             const currentModel = nextValues.llmModel;
             const rememberedModel = llmSelectionByModeRef.current[partial.llmMode];
             const resolvedModel =
@@ -506,16 +558,24 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     }, [values.transcribeMode, values.transcribeModel, selectedLocalModelMeta, emitChange]);
 
     useEffect(() => {
+        // Не меняем модель если нет доступных опций (нет ключей) - показываем сообщение
+        if (values.transcribeMode === SPEECH_MODES.API && transcribeModelOptions.length === 0) {
+            return;
+        }
         if (!transcribeModelOptions.includes(values.transcribeModel)) {
             emitChange({transcribeModel: transcribeModelOptions[0] as TranscribeModel});
         }
-    }, [transcribeModelOptions, values.transcribeModel, emitChange]);
+    }, [transcribeModelOptions, values.transcribeModel, values.transcribeMode, emitChange]);
 
     useEffect(() => {
+        // Не меняем модель если нет доступных опций (нет ключей) - показываем сообщение
+        if (values.llmMode === LLM_MODES.API && llmModelOptions.length === 0) {
+            return;
+        }
         if (values.llmModel !== safeLlmModel) {
             emitChange({llmModel: safeLlmModel});
         }
-    }, [values.llmModel, safeLlmModel, emitChange]);
+    }, [values.llmModel, safeLlmModel, values.llmMode, llmModelOptions.length, emitChange]);
 
     useEffect(() => {
         setOllamaModelError(null);

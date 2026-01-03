@@ -32,26 +32,34 @@ export const ModelApiKeysSection: React.FC<ModelApiKeysSectionProps> = ({
                     API Keys
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                    Visit{' '}
-                    <a
-                        href="https://platform.openai.com/api-keys"
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="text-primary font-semibold"
-                    >
-                        OpenAI
-                    </a>{' '}
-                    or{' '}
-                    <a
-                        href="https://aistudio.google.com/"
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="text-primary font-semibold flex items-center gap-1 inline-flex"
-                    >
-                        GoogleAI
-                        <span style={{color: '#16a34a', fontWeight: 300}}>free</span>
-                    </a>{' '}
-                    to generate these keys.
+                    {requireApiKeys ? (
+                        <>
+                            Add at least one API key to use cloud models. Visit{' '}
+                            <a
+                                href="https://platform.openai.com/api-keys"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="text-primary font-semibold"
+                            >
+                                OpenAI
+                            </a>{' '}
+                            or{' '}
+                            <a
+                                href="https://aistudio.google.com/"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="text-primary font-semibold flex items-center gap-1 inline-flex"
+                            >
+                                GoogleAI
+                                <span style={{color: '#16a34a', fontWeight: 300}}>free</span>
+                            </a>{' '}
+                            to generate keys. You can also use Local mode without any keys.
+                        </>
+                    ) : (
+                        <>
+                            Optional: Add API keys to use cloud models, or use Local mode without keys.
+                        </>
+                    )}
                 </Typography>
             </div>
             <div className="fc gap-2 mt-1">
@@ -62,10 +70,10 @@ export const ModelApiKeysSection: React.FC<ModelApiKeysSectionProps> = ({
                     value={values.googleKey}
                     onChange={(e) => emitChange({googleKey: e.target.value})}
                     placeholder="AIza..."
-                    required={requireApiKeys && requiresGoogleKey}
+                    required={false}
                     disabled={disableInputs}
                 />
-                {requireApiKeys && requiresGoogleKey && (
+                {requiresGoogleKey && (
                     <Typography variant="caption" color="text.secondary">
                         Required for {googleKeyReasons.join(' + ')}.
                     </Typography>
@@ -81,10 +89,10 @@ export const ModelApiKeysSection: React.FC<ModelApiKeysSectionProps> = ({
                         value={values.openaiKey}
                         onChange={(e) => emitChange({openaiKey: e.target.value})}
                         placeholder="sk-..."
-                        required={requireApiKeys && requiresOpenAIKey}
+                        required={false}
                         disabled={disableInputs}
                     />
-                    {requireApiKeys && requiresOpenAIKey && (
+                    {requiresOpenAIKey && (
                         <Typography variant="caption" color="text.secondary">
                             Required for {openaiKeyReasons.join(' + ')}.
                         </Typography>

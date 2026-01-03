@@ -56,25 +56,22 @@ const SetupWindow: React.FC = () => {
         const needsOpenAiKey = requiresOpenAiTranscribeKey || requiresOpenAiLlmKey;
         const needsGoogleKey = requiresGoogleTranscribeKey || requiresGoogleAiLlmKey;
 
+        // Если выбрана модель без ключа - предлагаем переключиться на Local или добавить ключ
         if (needsOpenAiKey && !formData.openaiKey.trim()) {
-            const reason = [
-                requiresOpenAiTranscribeKey ? 'API-based speech recognition' : null,
-                requiresOpenAiLlmKey ? 'the selected OpenAI LLM model' : null
-            ]
-                .filter(Boolean)
-                .join(' and ');
-            showToast(`OpenAI API Key is required for ${reason}.`, 'error');
+            const hasGoogleKey = !!formData.googleKey.trim();
+            const message = hasGoogleKey
+                ? 'OpenAI key is missing. Switch to Local mode or Google models, or add OpenAI key.'
+                : 'OpenAI key is missing. Switch to Local mode or add OpenAI key.';
+            showToast(message, 'info', {durationMs: 8000});
             return;
         }
 
         if (needsGoogleKey && !formData.googleKey.trim()) {
-            const reason = [
-                requiresGoogleTranscribeKey ? 'the selected Google Gemini speech model' : null,
-                requiresGoogleAiLlmKey ? 'the selected Google Gemini LLM model' : null
-            ]
-                .filter(Boolean)
-                .join(' and ');
-            showToast(`Google AI API Key is required for ${reason}.`, 'error');
+            const hasOpenAiKey = !!formData.openaiKey.trim();
+            const message = hasOpenAiKey
+                ? 'Google key is missing. Switch to Local mode or OpenAI models, or add Google key.'
+                : 'Google key is missing. Switch to Local mode or add Google key.';
+            showToast(message, 'info', {durationMs: 8000});
             return;
         }
 

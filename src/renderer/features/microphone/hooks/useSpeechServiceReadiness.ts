@@ -43,18 +43,26 @@ export const useSpeechServiceReadiness = ({
         if (config.speech.mode === SPEECH_MODES.API) {
             const speechModel = config.speech.model;
             if (isOpenAiTranscribeModel(speechModel) && !openaiKey) {
-                const message = 'Add your OpenAI key to use the selected speech model.';
+                // Вместо ошибки предлагаем переключиться на доступную модель
+                const hasGoogleKey = !!googleKey;
+                const message = hasGoogleKey
+                    ? 'OpenAI key is missing. Switch to Local mode or add OpenAI key in Settings.'
+                    : 'OpenAI key is missing. Switch to Local mode or add API key in Settings.';
                 await openMainWindowWithToast(message);
-                showToast(message, 'error', {durationMs: 6000});
+                showToast(message, 'info', {durationMs: 8000});
                 if (isMicOverlay) {
                     void micBridge.hide({reason: 'missing-openai-key'});
                 }
                 return false;
             }
             if (isGoogleTranscribeModel(speechModel) && !googleKey) {
-                const message = 'Add your Google key to use the selected speech model.';
+                // Вместо ошибки предлагаем переключиться на доступную модель
+                const hasOpenAiKey = !!openaiKey;
+                const message = hasOpenAiKey
+                    ? 'Google key is missing. Switch to Local mode or add Google key in Settings.'
+                    : 'Google key is missing. Switch to Local mode or add API key in Settings.';
                 await openMainWindowWithToast(message);
-                showToast(message, 'error', {durationMs: 6000});
+                showToast(message, 'info', {durationMs: 8000});
                 if (isMicOverlay) {
                     void micBridge.hide({reason: 'missing-google-key'});
                 }
@@ -65,18 +73,26 @@ export const useSpeechServiceReadiness = ({
         if (config.llm.mode === LLM_MODES.API) {
             const llmModel = config.llm.model;
             if (isOpenAiApiModel(llmModel) && !openaiKey) {
-                const message = 'Add your OpenAI key to use the selected LLM model.';
+                // Вместо ошибки предлагаем переключиться на доступную модель
+                const hasGoogleKey = !!googleKey;
+                const message = hasGoogleKey
+                    ? 'OpenAI key is missing. Switch to Local mode or add OpenAI key in Settings.'
+                    : 'OpenAI key is missing. Switch to Local mode or add API key in Settings.';
                 await openMainWindowWithToast(message);
-                showToast(message, 'error', {durationMs: 6000});
+                showToast(message, 'info', {durationMs: 8000});
                 if (isMicOverlay) {
                     void micBridge.hide({reason: 'missing-openai-key'});
                 }
                 return false;
             }
             if (isGeminiApiModel(llmModel) && !googleKey) {
-                const message = 'Add your Google key to use the selected LLM model.';
+                // Вместо ошибки предлагаем переключиться на доступную модель
+                const hasOpenAiKey = !!openaiKey;
+                const message = hasOpenAiKey
+                    ? 'Google key is missing. Switch to Local mode or add Google key in Settings.'
+                    : 'Google key is missing. Switch to Local mode or add API key in Settings.';
                 await openMainWindowWithToast(message);
-                showToast(message, 'error', {durationMs: 6000});
+                showToast(message, 'info', {durationMs: 8000});
                 if (isMicOverlay) {
                     void micBridge.hide({reason: 'missing-google-key'});
                 }

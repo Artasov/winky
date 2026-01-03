@@ -145,12 +145,22 @@ export const useActionProcessing = ({
                 const errorData = error?.response?.data?.error;
                 if (errorData?.message) {
                     if (errorData.message.includes('API key')) {
-                        errorMessage = 'The OpenAI API key is missing or invalid. Check your settings.';
+                        const hasGoogleKey = !!config?.apiKeys.google?.trim();
+                        const hasOpenAiKey = !!config?.apiKeys.openai?.trim();
+                        if (error.message?.includes('Google') || error.message?.includes('Gemini')) {
+                            errorMessage = hasOpenAiKey
+                                ? 'Google API key is missing or invalid. Switch to OpenAI models or Local mode, or add Google key in Settings.'
+                                : 'Google API key is missing or invalid. Switch to Local mode or add API key in Settings.';
+                        } else {
+                            errorMessage = hasGoogleKey
+                                ? 'OpenAI API key is missing or invalid. Switch to Google models or Local mode, or add OpenAI key in Settings.'
+                                : 'OpenAI API key is missing or invalid. Switch to Local mode or add API key in Settings.';
+                        }
                     } else {
                         errorMessage = `Authentication error: ${errorData.message}`;
                     }
                 } else {
-                    errorMessage = 'OpenAI authentication error. Check the API key in settings.';
+                    errorMessage = 'API authentication error. Check your API keys in Settings or switch to Local mode.';
                 }
             } else if (error?.response?.status) {
                 const errorData = error?.response?.data?.error;
@@ -160,7 +170,24 @@ export const useActionProcessing = ({
                     errorMessage = `Request error (status ${error.response.status})`;
                 }
             } else if (error?.message) {
-                errorMessage = error.message;
+                // Улучшаем сообщения об ошибках связанных с ключами
+                if (error.message.includes('API key') || error.message.includes('key')) {
+                    const hasGoogleKey = !!config?.apiKeys.google?.trim();
+                    const hasOpenAiKey = !!config?.apiKeys.openai?.trim();
+                    if (error.message.includes('Google') || error.message.includes('Gemini')) {
+                        errorMessage = hasOpenAiKey
+                            ? 'Google API key is missing. Switch to OpenAI models or Local mode, or add Google key in Settings.'
+                            : 'Google API key is missing. Switch to Local mode or add API key in Settings.';
+                    } else if (error.message.includes('OpenAI')) {
+                        errorMessage = hasGoogleKey
+                            ? 'OpenAI API key is missing. Switch to Google models or Local mode, or add OpenAI key in Settings.'
+                            : 'OpenAI API key is missing. Switch to Local mode or add API key in Settings.';
+                    } else {
+                        errorMessage = error.message;
+                    }
+                } else {
+                    errorMessage = error.message;
+                }
             }
 
             if (!handleLocalSpeechServerFailure(errorMessage)) {

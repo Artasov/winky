@@ -33,10 +33,10 @@ export const LLM_OPENAI_API_MODELS = [
 ] as const;
 
 export const LLM_GEMINI_API_MODELS = [
+    'gemini-2.5-flash',
     'gemini-3.0-pro',
     'gemini-3.0-flash',
     'gemini-2.5-pro',
-    'gemini-2.5-flash',
     'gemini-2.0-pro',
     'gemini-2.0-flash',
     'gemini-1.5-pro',

@@ -186,38 +186,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         // Автоматически переключаем на первую доступную модель
         return llmModelOptions[0];
     }, [llmModelOptions, values.llmModel]);
-    
-    // Автоматически переключаем модель если она недоступна
-    useEffect(() => {
-        if (values.llmMode === LLM_MODES.API) {
-            if (llmModelOptions.length === 0) {
-                // Нет доступных моделей - НЕ переключаем автоматически, показываем сообщение
-                // Пользователь может добавить ключ или переключиться вручную
-                console.log(`[ModelConfigForm] No API models available (no API keys) for LLM mode`);
-            } else if (!llmModelOptions.includes(values.llmModel)) {
-                // Выбранная модель недоступна - переключаем на первую доступную
-                const newModel = llmModelOptions[0];
-                console.log(`[ModelConfigForm] Auto-switching LLM model from ${values.llmModel} to ${newModel} (selected model not available with current API keys)`);
-                onChange({llmModel: newModel});
-            }
-        }
-    }, [values.llmMode, values.llmModel, llmModelOptions, onChange]);
-    
-    // Автоматически переключаем модель транскрибации если она недоступна
-    useEffect(() => {
-        if (values.transcribeMode === SPEECH_MODES.API) {
-            if (transcribeModelOptions.length === 0) {
-                // Нет доступных моделей - НЕ переключаем автоматически, показываем сообщение
-                // Пользователь может добавить ключ или переключиться вручную
-                console.log(`[ModelConfigForm] No API models available (no API keys) for transcribe mode`);
-            } else if (!transcribeModelOptions.includes(values.transcribeModel)) {
-                // Выбранная модель недоступна - переключаем на первую доступную
-                const newModel = transcribeModelOptions[0];
-                console.log(`[ModelConfigForm] Auto-switching transcribe model from ${values.transcribeModel} to ${newModel} (selected model not available with current API keys)`);
-                onChange({transcribeModel: newModel});
-            }
-        }
-    }, [values.transcribeMode, values.transcribeModel, transcribeModelOptions, onChange]);
     const {status: localServerStatus} = useLocalSpeechStatus({
         checkHealthOnMount: true,
         pollIntervalMs: 0

@@ -13,6 +13,7 @@ import {actionHotkeysBridge} from '../winkyBridge/actionHotkeysBridge';
 import {localSpeechBridge} from '../winkyBridge/localSpeechBridge';
 import {ollamaBridge} from '../winkyBridge/ollamaBridge';
 import {micBridge} from '../winkyBridge/micBridge';
+import {historyBridge} from '../winkyBridge/historyBridge';
 
 export type {ResultPayload} from './windows/ResultWindowManager';
 
@@ -33,5 +34,6 @@ export {
     actionHotkeysBridge,
     localSpeechBridge,
     ollamaBridge,
-    micBridge
+    micBridge,
+    historyBridge
 };

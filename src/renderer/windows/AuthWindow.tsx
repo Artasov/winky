@@ -58,7 +58,9 @@ const AuthWindow: React.FC = () => {
         }
     };
     
-    const isOAuthPending = auth.status === 'oauth' || auth.status === 'checking';
+    // Показываем "Waiting for authorization" только когда явно запущен OAuth процесс
+    // Не показываем при 'checking' статусе, так как он может быть при инициализации
+    const isOAuthPending = auth.status === 'oauth';
 
     return (
         <div className="flex h-full flex-col">

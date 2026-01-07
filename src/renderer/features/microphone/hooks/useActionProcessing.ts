@@ -1,6 +1,6 @@
 import {useCallback, type RefObject} from 'react';
 import type {ActionConfig, AppConfig} from '@shared/types';
-import {clipboardBridge, llmBridge, resourcesBridge, resultBridge, speechBridge} from '../../../services/winkyBridge';
+import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, resultBridge, speechBridge} from '../../../services/winkyBridge';
 
 type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
 
@@ -37,6 +37,21 @@ export const useActionProcessing = ({
             }
         };
         
+        const recordHistory = async (payload: {
+            action_id: string;
+            action_name: string;
+            action_prompt?: string | null;
+            transcription: string;
+            llm_response?: string | null;
+            result_text: string;
+        }) => {
+            try {
+                await historyBridge.add(payload);
+            } catch (error) {
+                console.warn('[useActionProcessing] Failed to save history', error);
+            }
+        };
+
         try {
             const arrayBuffer = await blob.arrayBuffer();
             const authToken = config.auth.access || config.auth.accessToken || undefined;
@@ -108,6 +123,14 @@ export const useActionProcessing = ({
                         failureMessage: 'Failed to copy the result to the clipboard.'
                     });
                 }
+                await recordHistory({
+                    action_id: action.id,
+                    action_name: action.name,
+                    action_prompt: action.prompt?.trim() || null,
+                    transcription,
+                    llm_response: null,
+                    result_text: transcription
+                });
                 await playCompletionSound({action, config, audioRef: completionSoundRef});
                 return;
             }
@@ -135,6 +158,15 @@ export const useActionProcessing = ({
                 });
             }
 
+            const trimmedResponse = response?.trim() || '';
+            await recordHistory({
+                action_id: action.id,
+                action_name: action.name,
+                action_prompt: action.prompt?.trim() || null,
+                transcription,
+                llm_response: response ?? null,
+                result_text: trimmedResponse.length > 0 ? response : transcription
+            });
             await playCompletionSound({action, config, audioRef: completionSoundRef, debug: true});
         } catch (error: any) {
             console.error(error);

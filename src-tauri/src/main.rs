@@ -6,6 +6,7 @@ mod config;
 mod constants;
 mod deep_link_file;
 mod hotkeys;
+mod history;
 mod local_speech;
 mod logging;
 mod oauth;
@@ -21,6 +22,7 @@ use auth::AuthQueue;
 use serde::Deserialize;
 use config::{should_auto_start_local_speech, ConfigState};
 use hotkeys::{ActionHotkeyInput, HotkeyState};
+use history::{append_history, clear_history, read_history, ActionHistoryEntry, ActionHistoryInput};
 use local_speech::{persist_install_dir_choice, FastWhisperManager};
 use oauth_server::OAuthServerState;
 use once_cell::sync::Lazy;
@@ -128,6 +130,36 @@ async fn config_reset(
 #[tauri::command]
 async fn config_path(state: State<'_, Arc<ConfigState>>) -> Result<String, String> {
     Ok(state.path().await.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn history_get(app: tauri::AppHandle) -> Result<Vec<ActionHistoryEntry>, String> {
+    read_history(&app)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn history_add(
+    app: tauri::AppHandle,
+    payload: ActionHistoryInput,
+) -> Result<ActionHistoryEntry, String> {
+    let entry = append_history(&app, payload)
+        .await
+        .map_err(|error| error.to_string())?;
+    app.emit("history:updated", json!({"type": "added", "entry": &entry}))
+        .map_err(|error| error.to_string())?;
+    Ok(entry)
+}
+
+#[tauri::command]
+async fn history_clear(app: tauri::AppHandle) -> Result<(), String> {
+    clear_history(&app)
+        .await
+        .map_err(|error| error.to_string())?;
+    app.emit("history:updated", json!({"type": "cleared"}))
+        .map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -744,6 +776,9 @@ fn main() {
             config_set_auth,
             config_reset,
             config_path,
+            history_get,
+            history_add,
+            history_clear,
             resources_sound_path,
             resources_sound_data,
             resources_play_sound,

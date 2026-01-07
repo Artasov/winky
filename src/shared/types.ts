@@ -95,6 +95,17 @@ export interface ActionConfig {
     is_active?: boolean;
 }
 
+export interface ActionHistoryEntry {
+    id: string;
+    created_at: string;
+    action_id: string;
+    action_name: string;
+    action_prompt?: string | null;
+    transcription: string;
+    llm_response?: string | null;
+    result_text: string;
+}
+
 export interface WinkyProfile {
     id: string;
     user: number;

@@ -1,6 +1,7 @@
 import type {
     ActionConfig,
     ActionIcon,
+    ActionHistoryEntry,
     AppConfig,
     AuthDeepLinkPayload,
     AuthProvider,
@@ -191,6 +192,23 @@ declare global {
         clear(): Promise<void>;
     }
 
+    interface WinkyHistoryAPI {
+        get(): Promise<ActionHistoryEntry[]>;
+
+        add(payload: {
+            action_id: string;
+            action_name: string;
+            action_prompt?: string | null;
+            transcription: string;
+            llm_response?: string | null;
+            result_text: string;
+        }): Promise<ActionHistoryEntry>;
+
+        clear(): Promise<void>;
+
+        subscribe(callback: (event: { type: 'added'; entry: ActionHistoryEntry } | { type: 'cleared' }) => void): () => void;
+    }
+
     interface WinkyPreload {
         config: WinkyConfigAPI;
         clipboard: WinkyClipboardAPI;
@@ -209,6 +227,7 @@ declare global {
         windowControls: WinkyWindowControlsAPI;
         mic: WinkyMicAPI;
         actionHotkeys: WinkyActionHotkeysAPI;
+        history: WinkyHistoryAPI;
 
         on(channel: string, callback: (...args: any[]) => void): () => void;
 

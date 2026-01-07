@@ -12,7 +12,7 @@ interface NavigationSyncParams {
 
 const authRoutes = ['/', '/auth'];
 const setupRoutes = ['/setup'];
-const appRoutes = ['/me', '/actions', '/settings', '/info'];
+const appRoutes = ['/me', '/actions', '/settings', '/history', '/info'];
 
 export const useNavigationSync = ({config, loading, windowIdentity, isAuthenticated}: NavigationSyncParams): void => {
     const navigate = useNavigate();

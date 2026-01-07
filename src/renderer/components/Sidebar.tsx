@@ -14,6 +14,7 @@ const navItems: NavItem[] = [
     {id: 'me', label: 'Me', icon: '👤', path: '/me'},
     {id: 'actions', label: 'Actions', icon: '⚡', path: '/actions'},
     {id: 'settings', label: 'Settings', icon: '⚙️', path: '/settings'},
+    {id: 'history', label: 'History', icon: '🕘', path: '/history'},
     {id: 'info', label: 'Info', icon: 'ℹ️', path: '/info'}
 ];
 

@@ -389,7 +389,7 @@ const NotesPage: React.FC = () => {
 
             <Dialog open={Boolean(editingNote)} onClose={handleEditClose} maxWidth="sm" fullWidth>
                 <DialogTitle>
-                    <div className="flex flex-col gap-1">
+                    <div className="frsc gap-1">
                         <span className="text-xs uppercase tracking-[0.22em] text-text-tertiary">Note</span>
                         <span className="font-mono text-xs text-text-secondary">{editingNote?.id ?? ''}</span>
                     </div>

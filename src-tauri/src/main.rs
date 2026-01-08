@@ -7,6 +7,7 @@ mod constants;
 mod deep_link_file;
 mod hotkeys;
 mod history;
+mod notes;
 mod local_speech;
 mod logging;
 mod oauth;
@@ -23,6 +24,20 @@ use serde::Deserialize;
 use config::{should_auto_start_local_speech, ConfigState};
 use hotkeys::{ActionHotkeyInput, HotkeyState};
 use history::{append_history, clear_history, read_history, ActionHistoryEntry, ActionHistoryInput};
+use notes::{
+    bulk_delete_notes,
+    create_note,
+    delete_note,
+    list_notes,
+    update_note,
+    NoteBulkDeleteInput,
+    NoteBulkDeleteResponse,
+    NoteCreateInput,
+    NoteDeleteInput,
+    NoteEntry,
+    NoteListResponse,
+    NoteUpdateInput,
+};
 use local_speech::{persist_install_dir_choice, FastWhisperManager};
 use oauth_server::OAuthServerState;
 use once_cell::sync::Lazy;
@@ -39,6 +54,13 @@ static PENDING_DEEP_LINKS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Ve
 struct InstallArgs {
     #[serde(alias = "targetDir", alias = "target_dir")]
     target_dir: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct NotesListArgs {
+    page: Option<u32>,
+    #[serde(alias = "pageSize", alias = "page_size")]
+    page_size: Option<u32>,
 }
 
 #[tauri::command]
@@ -160,6 +182,60 @@ async fn history_clear(app: tauri::AppHandle) -> Result<(), String> {
     app.emit("history:updated", json!({"type": "cleared"}))
         .map_err(|error| error.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+async fn notes_get(app: tauri::AppHandle, args: NotesListArgs) -> Result<NoteListResponse, String> {
+    let page = args.page.unwrap_or(1).max(1);
+    let page_size = args.page_size.unwrap_or(20).max(1);
+    list_notes(&app, page, page_size)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn notes_create(app: tauri::AppHandle, payload: NoteCreateInput) -> Result<NoteEntry, String> {
+    let entry = create_note(&app, payload)
+        .await
+        .map_err(|error| error.to_string())?;
+    app.emit("notes:updated", json!({"type": "added", "mode": "local", "entry": &entry}))
+        .map_err(|error| error.to_string())?;
+    Ok(entry)
+}
+
+#[tauri::command]
+async fn notes_update(app: tauri::AppHandle, payload: NoteUpdateInput) -> Result<NoteEntry, String> {
+    let entry = update_note(&app, payload)
+        .await
+        .map_err(|error| error.to_string())?;
+    app.emit("notes:updated", json!({"type": "updated", "mode": "local", "entry": &entry}))
+        .map_err(|error| error.to_string())?;
+    Ok(entry)
+}
+
+#[tauri::command]
+async fn notes_delete(app: tauri::AppHandle, payload: NoteDeleteInput) -> Result<(), String> {
+    let deleted_id = payload.id.clone();
+    delete_note(&app, payload)
+        .await
+        .map_err(|error| error.to_string())?;
+    app.emit("notes:updated", json!({"type": "deleted", "mode": "local", "id": deleted_id}))
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn notes_bulk_delete(
+    app: tauri::AppHandle,
+    payload: NoteBulkDeleteInput,
+) -> Result<NoteBulkDeleteResponse, String> {
+    let ids = payload.ids.clone();
+    let response = bulk_delete_notes(&app, payload)
+        .await
+        .map_err(|error| error.to_string())?;
+    app.emit("notes:updated", json!({"type": "bulk-deleted", "mode": "local", "ids": ids}))
+        .map_err(|error| error.to_string())?;
+    Ok(response)
 }
 
 #[tauri::command]
@@ -779,6 +855,11 @@ fn main() {
             history_get,
             history_add,
             history_clear,
+            notes_get,
+            notes_create,
+            notes_update,
+            notes_delete,
+            notes_bulk_delete,
             resources_sound_path,
             resources_sound_data,
             resources_play_sound,

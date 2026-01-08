@@ -1,5 +1,6 @@
 import {useCallback, type RefObject} from 'react';
 import type {ActionConfig, AppConfig} from '@shared/types';
+import {createNoteForMode, deriveNoteTitle, resolveNotesStorageMode} from '../../../services/notesService';
 import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, resultBridge, speechBridge} from '../../../services/winkyBridge';
 
 type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
@@ -49,6 +50,31 @@ export const useActionProcessing = ({
                 await historyBridge.add(payload);
             } catch (error) {
                 console.warn('[useActionProcessing] Failed to save history', error);
+            }
+        };
+
+        const isQuickNoteAction = Boolean(action.is_default) && action.name === 'Quick note';
+        const completionAction = isQuickNoteAction
+            ? {...action, sound_on_complete: true}
+            : action;
+
+        const saveQuickNote = async (text: string) => {
+            if (!isQuickNoteAction) {
+                return;
+            }
+            const trimmed = text.trim();
+            if (!trimmed) {
+                return;
+            }
+            try {
+                const mode = resolveNotesStorageMode(config);
+                await createNoteForMode(mode, {
+                    title: deriveNoteTitle(trimmed),
+                    description: trimmed
+                });
+            } catch (error) {
+                console.warn('[useActionProcessing] Failed to save quick note', error);
+                showToast('Failed to save the note.', 'error');
             }
         };
 
@@ -131,7 +157,8 @@ export const useActionProcessing = ({
                     llm_response: null,
                     result_text: transcription
                 });
-                await playCompletionSound({action, config, audioRef: completionSoundRef});
+                await saveQuickNote(transcription);
+                await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef});
                 return;
             }
 
@@ -167,7 +194,8 @@ export const useActionProcessing = ({
                 llm_response: response ?? null,
                 result_text: trimmedResponse.length > 0 ? response : transcription
             });
-            await playCompletionSound({action, config, audioRef: completionSoundRef, debug: true});
+            await saveQuickNote(trimmedResponse.length > 0 ? response ?? '' : transcription);
+            await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef, debug: true});
         } catch (error: any) {
             console.error(error);
 

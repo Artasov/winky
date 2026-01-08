@@ -14,6 +14,7 @@ import {localSpeechBridge} from '../winkyBridge/localSpeechBridge';
 import {ollamaBridge} from '../winkyBridge/ollamaBridge';
 import {micBridge} from '../winkyBridge/micBridge';
 import {historyBridge} from '../winkyBridge/historyBridge';
+import {notesBridge} from '../winkyBridge/notesBridge';
 
 export type {ResultPayload} from './windows/ResultWindowManager';
 
@@ -35,5 +36,6 @@ export {
     localSpeechBridge,
     ollamaBridge,
     micBridge,
-    historyBridge
+    historyBridge,
+    notesBridge
 };

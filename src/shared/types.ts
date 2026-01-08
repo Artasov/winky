@@ -93,6 +93,7 @@ export interface ActionConfig {
     sound_on_complete?: boolean;
     auto_copy_result?: boolean;
     is_active?: boolean;
+    is_default?: boolean;
 }
 
 export interface ActionHistoryEntry {
@@ -104,6 +105,15 @@ export interface ActionHistoryEntry {
     transcription: string;
     llm_response?: string | null;
     result_text: string;
+}
+
+export interface WinkyNote {
+    id: string;
+    profile: string;
+    title: string;
+    description: string;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface WinkyProfile {
@@ -145,6 +155,7 @@ export interface AppConfig {
     completionSoundVolume?: number;
     completionSoundEnabled?: boolean;
     showAvatarVideo?: boolean;
+    notesStorageMode?: 'api' | 'local';
 }
 
 export type MicAnchor = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';

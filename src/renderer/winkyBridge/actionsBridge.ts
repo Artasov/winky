@@ -5,13 +5,14 @@ import {
     updateAction,
     deleteAction,
     fetchIcons,
-    ActionPayload
+    ActionCreatePayload,
+    ActionUpdatePayload
 } from '../services/winkyApi';
 
 export const actionsBridge = {
     fetch: (): Promise<ActionConfig[]> => fetchActions(),
-    create: (payload: ActionPayload): Promise<ActionConfig[]> => createAction(payload),
-    update: (id: string, payload: ActionPayload): Promise<ActionConfig[]> => updateAction(id, payload),
+    create: (payload: ActionCreatePayload): Promise<ActionConfig[]> => createAction(payload),
+    update: (id: string, payload: ActionUpdatePayload): Promise<ActionConfig[]> => updateAction(id, payload),
     delete: (id: string): Promise<ActionConfig[]> => deleteAction(id)
 };
 

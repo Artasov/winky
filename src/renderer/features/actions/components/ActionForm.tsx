@@ -33,6 +33,7 @@ type Props = {
     mode: 'create' | 'edit';
     saving: boolean;
     editingActionId: string | null;
+    editingActionIsDefault: boolean;
     onSubmit: (event: React.FormEvent) => Promise<void>;
 };
 
@@ -52,9 +53,11 @@ const ActionForm: React.FC<Props> = ({
                                          mode,
                                          saving,
                                          editingActionId,
+                                         editingActionIsDefault,
                                          onSubmit
                                      }) => {
     const isEditMode = mode === 'edit';
+    const isNameLocked = isEditMode && editingActionIsDefault;
     const selectedIconName = icons.find((icon) => icon.id === values.iconId)?.name;
 
     return (
@@ -99,6 +102,8 @@ const ActionForm: React.FC<Props> = ({
                         placeholder="Send daily standup"
                         fullWidth
                         required
+                        disabled={isNameLocked}
+                        helperText={isNameLocked ? 'Default action name cannot be changed.' : undefined}
                         sx={{mb: 1}}
                     />
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import {Box, Chip, IconButton, Stack, Typography} from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import StarsRoundedIcon from '@mui/icons-material/StarsRounded';
 import type {ActionConfig} from '@shared/types';
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
 };
 
 const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disabled = false}) => {
+    const isDefaultAction = Boolean(action.is_default);
     const truncate = (value: string, limit = 170) => {
         if (!value) {
             return '';
@@ -81,30 +83,32 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                 </div>
             )}
             <div className={'action-card'} style={{filter: action.is_active ? 'none' : 'blur(2px)'}}>
-                <IconButton
-                    className="action-card__delete"
-                    size="small"
-                    color="error"
-                    disabled={isDeleting}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        onDelete(action.id, action.name);
-                    }}
-                    sx={{
-                        position: 'absolute',
-                        top: 12,
-                        right: 12,
-                        bgcolor: 'rgba(244,63,94,0.06)',
-                        '&:hover': {bgcolor: 'rgba(244,63,94,0.15)'},
-                        transition: 'opacity 260ms ease, transform 260ms ease, background-color 260ms ease',
-                        opacity: disabled ? 0.6 : 0,
-                        pointerEvents: disabled ? 'auto' : 'none',
-                        transform: disabled ? 'translateY(0)' : 'translateY(-4px)'
-                    }}
-                    aria-label="Delete action"
-                >
-                    <DeleteOutlineIcon fontSize="small"/>
-                </IconButton>
+                {!isDefaultAction && (
+                    <IconButton
+                        className="action-card__delete"
+                        size="small"
+                        color="error"
+                        disabled={isDeleting}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onDelete(action.id, action.name);
+                        }}
+                        sx={{
+                            position: 'absolute',
+                            top: 12,
+                            right: 12,
+                            bgcolor: 'rgba(244,63,94,0.06)',
+                            '&:hover': {bgcolor: 'rgba(244,63,94,0.15)'},
+                            transition: 'opacity 260ms ease, transform 260ms ease, background-color 260ms ease',
+                            opacity: disabled ? 0.6 : 0,
+                            pointerEvents: disabled ? 'auto' : 'none',
+                            transform: disabled ? 'translateY(0)' : 'translateY(-4px)'
+                        }}
+                        aria-label="Delete action"
+                    >
+                        <DeleteOutlineIcon fontSize="small"/>
+                    </IconButton>
+                )}
 
                 <Stack direction="row" spacing={2} alignItems="center">
                     <Box
@@ -132,9 +136,20 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                     </Box>
 
                     <Box flexGrow={1} minWidth={0}>
-                        <Typography variant="subtitle1" fontWeight={600} noWrap>
-                            {action.name}
-                        </Typography>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{minWidth: 0}}>
+                            <Typography variant="subtitle1" fontWeight={600} noWrap sx={{minWidth: 0}}>
+                                {action.name}
+                            </Typography>
+                            {isDefaultAction && (
+                                <Chip
+                                    size="small"
+                                    icon={<StarsRoundedIcon fontSize="small"/>}
+                                    label="System"
+                                    variant="outlined"
+                                    color="secondary"
+                                />
+                            )}
+                        </Stack>
                         {action.hotkey && (
                             <Typography variant="caption" color="text.secondary">
                                 Hotkey: {action.hotkey}

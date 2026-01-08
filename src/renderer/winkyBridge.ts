@@ -24,6 +24,7 @@ import {localSpeechBridge as localSpeechApi} from './winkyBridge/localSpeechBrid
 import {ollamaBridge as ollamaApi} from './winkyBridge/ollamaBridge';
 import {attachMicBridgeEvents} from './winkyBridge/micBridgeEvents';
 import {historyBridge as historyApi} from './winkyBridge/historyBridge';
+import {notesBridge as notesApi} from './winkyBridge/notesBridge';
 
 const resolveWindowKind = (): 'main' | 'mic' | 'result' | 'error' => {
     if (typeof window === 'undefined') {
@@ -129,6 +130,7 @@ window.winky = {
     localSpeech: localSpeechApi,
     ollama: ollamaApi,
     history: historyApi,
+    notes: notesApi,
     auxWindows: auxWindowsBridge,
     on: eventsBridge.on,
     removeListener: eventsBridge.removeListener

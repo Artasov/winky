@@ -15,6 +15,7 @@ const navItems: NavItem[] = [
     {id: 'actions', label: 'Actions', icon: '⚡', path: '/actions'},
     {id: 'settings', label: 'Settings', icon: '⚙️', path: '/settings'},
     {id: 'history', label: 'History', icon: '🕘', path: '/history'},
+    {id: 'notes', label: 'Notes', icon: '📝', path: '/notes'},
     {id: 'info', label: 'Info', icon: 'ℹ️', path: '/info'}
 ];
 
@@ -118,7 +119,7 @@ const Sidebar: React.FC = () => {
 
     return (
         <aside className="flex h-full w-64 flex-col border-r border-primary-200/60 bg-white/95 backdrop-blur shadow-sm">
-            <nav className="flex flex-1 flex-col gap-1 px-3 pb-6 mt-4">
+            <nav className="flex flex-1 flex-col gap-1 px-3 mt-4">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path;
                     return (
@@ -127,7 +128,7 @@ const Sidebar: React.FC = () => {
                             type="button"
                             onClick={() => handleNavigation(item.path)}
                             className={classNames(
-                                'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium duration-base outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
+                                'flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-medium duration-base outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
                                 'transition-[background-color,border-color,box-shadow]',
                                 isActive
                                     ? 'active bg-primary-50 text-primary shadow-primary-sm ring-1 ring-primary-200'
@@ -141,7 +142,7 @@ const Sidebar: React.FC = () => {
                     );
                 })}
             </nav>
-            <div className="p-4 pt-20 overflow-hidden">
+            <div className="p-4 overflow-hidden">
                 {showAvatarVideo ? (
                     <video
                         ref={videoRef}

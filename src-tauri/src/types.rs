@@ -120,6 +120,8 @@ pub struct AppConfig {
     pub completion_sound_enabled: bool,
     #[serde(default = "default_true")]
     pub show_avatar_video: bool,
+    #[serde(default = "default_notes_storage_mode")]
+    pub notes_storage_mode: String,
 }
 
 impl Default for AppConfig {
@@ -142,6 +144,7 @@ impl Default for AppConfig {
             completion_sound_volume: default_completion_volume(),
             completion_sound_enabled: default_true(),
             show_avatar_video: default_true(),
+            notes_storage_mode: default_notes_storage_mode(),
         }
     }
 }
@@ -166,6 +169,10 @@ fn default_mic_hotkey() -> String {
     "Alt+Q".to_string()
 }
 
+fn default_notes_storage_mode() -> String {
+    "api".to_string()
+}
+
 impl AppConfig {
     pub fn normalize(&mut self) {
         if self.speech.mode.trim().is_empty() {
@@ -188,6 +195,9 @@ impl AppConfig {
         }
         if self.api_keys.google.trim().is_empty() {
             self.api_keys.google = String::new();
+        }
+        if self.notes_storage_mode.trim().is_empty() {
+            self.notes_storage_mode = default_notes_storage_mode();
         }
         if self.auth.access.is_empty() && !self.auth.access_token.is_empty() {
             self.auth.access = self.auth.access_token.clone();

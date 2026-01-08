@@ -21,15 +21,39 @@ const GlassTooltip: React.FC<GlassTooltipProps> = ({
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const updatePosition = useCallback(() => {
-        if (!triggerRef.current) return;
-        
-        const rect = triggerRef.current.getBoundingClientRect();
-        
-        // Показываем тултип снизу от элемента, по центру
-        const top = rect.bottom + offset;
-        const left = rect.left + rect.width / 2;
+        if (!triggerRef.current) {
+            return;
+        }
 
-        setPosition({top, left});
+        const rect = triggerRef.current.getBoundingClientRect();
+        let top = rect.bottom + offset;
+        let left = rect.left + rect.width / 2;
+        const margin = 12;
+
+        if (tooltipRef.current) {
+            const tooltipRect = tooltipRef.current.getBoundingClientRect();
+            const fitsBelow = top + tooltipRect.height + margin <= window.innerHeight;
+            const fitsAbove = rect.top - offset - tooltipRect.height - margin >= 0;
+
+            if (!fitsBelow && fitsAbove) {
+                top = rect.top - offset - tooltipRect.height;
+            }
+
+            const minLeft = margin + tooltipRect.width / 2;
+            const maxLeft = window.innerWidth - margin - tooltipRect.width / 2;
+            if (minLeft > maxLeft) {
+                left = window.innerWidth / 2;
+            } else {
+                left = Math.min(Math.max(left, minLeft), maxLeft);
+            }
+        }
+
+        setPosition((prev) => {
+            if (Math.abs(prev.left - left) < 0.5 && Math.abs(prev.top - top) < 0.5) {
+                return prev;
+            }
+            return {top, left};
+        });
     }, [offset]);
 
     const showTooltip = useCallback(() => {
@@ -51,14 +75,18 @@ const GlassTooltip: React.FC<GlassTooltipProps> = ({
 
     useEffect(() => {
         if (!visible) return;
-        
+
         updatePosition();
-        
+        const rafId = window.requestAnimationFrame(() => {
+            updatePosition();
+        });
+
         // Обновляем позицию при скролле или ресайзе
         window.addEventListener('scroll', updatePosition, true);
         window.addEventListener('resize', updatePosition);
         
         return () => {
+            window.cancelAnimationFrame(rafId);
             window.removeEventListener('scroll', updatePosition, true);
             window.removeEventListener('resize', updatePosition);
         };

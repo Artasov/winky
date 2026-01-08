@@ -7,6 +7,7 @@ import type {
     AuthProvider,
     AuthTokens,
     FastWhisperStatus,
+    WinkyNote,
     WinkyProfile
 } from '@shared/types';
 
@@ -52,11 +53,11 @@ declare global {
         }): Promise<ActionConfig[]>;
 
         update(actionId: string, action: {
-            name: string;
-            prompt: string;
+            name?: string;
+            prompt?: string;
             prompt_recognizing?: string;
             hotkey?: string;
-            icon: string;
+            icon?: string;
             show_results?: boolean;
             sound_on_complete?: boolean;
             auto_copy_result?: boolean
@@ -209,6 +210,28 @@ declare global {
         subscribe(callback: (event: { type: 'added'; entry: ActionHistoryEntry } | { type: 'cleared' }) => void): () => void;
     }
 
+    interface WinkyNotesAPI {
+        get(page?: number, pageSize?: number): Promise<{
+            count: number;
+            next_page: number | null;
+            previous_page: number | null;
+            results: WinkyNote[];
+        }>;
+
+        create(payload: { title: string; description?: string }): Promise<WinkyNote>;
+
+        update(payload: { id: string; title?: string; description?: string }): Promise<WinkyNote>;
+
+        delete(id: string): Promise<void>;
+
+        bulkDelete(ids: string[]): Promise<{deleted_count: number}>;
+
+        subscribe(callback: (event: { type: 'added'; entry: WinkyNote } | {
+            type: 'updated';
+            entry: WinkyNote
+        } | { type: 'deleted'; id: string } | { type: 'bulk-deleted'; ids: string[] }) => void): () => void;
+    }
+
     interface WinkyPreload {
         config: WinkyConfigAPI;
         clipboard: WinkyClipboardAPI;
@@ -228,6 +251,7 @@ declare global {
         mic: WinkyMicAPI;
         actionHotkeys: WinkyActionHotkeysAPI;
         history: WinkyHistoryAPI;
+        notes: WinkyNotesAPI;
 
         on(channel: string, callback: (...args: any[]) => void): () => void;
 

@@ -69,6 +69,7 @@ const ActionsPage: React.FC = () => {
                 mode={form.mode}
                 saving={form.saving}
                 editingActionId={form.editingActionId}
+                editingActionIsDefault={form.editingActionIsDefault}
                 onSubmit={form.handleSubmit}
             />
             <Dialog open={Boolean(form.pendingDelete)} onClose={form.cancelDelete} maxWidth="xs" fullWidth>

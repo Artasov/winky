@@ -23,6 +23,7 @@ import MePage from './windows/MePage';
 import ActionsPage from './windows/ActionsPage';
 import SettingsPage from './windows/SettingsPage';
 import HistoryPage from './windows/HistoryPage';
+import NotesPage from './windows/NotesPage';
 import InfoPage from './windows/InfoPage';
 import ResultWindowPage from './windows/ResultWindowPage';
 import ErrorWindow from './windows/ErrorWindow';
@@ -452,6 +453,7 @@ const AppContent: React.FC = () => {
                         <Route path="/actions" element={<ActionsPage/>}/>
                         <Route path="/settings" element={<SettingsPage/>}/>
                         <Route path="/history" element={<HistoryPage/>}/>
+                        <Route path="/notes" element={<NotesPage/>}/>
                         <Route path="/info" element={<InfoPage/>}/>
                     </Route>
                 </>

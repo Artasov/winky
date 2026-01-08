@@ -8,16 +8,27 @@ import {
     ME_ENDPOINT,
     SPEECH_MODES
 } from '@shared/constants';
-import type {ActionConfig, ActionIcon, AppConfig, User, WinkyProfile} from '@shared/types';
+import type {ActionConfig, ActionIcon, AppConfig, User, WinkyNote, WinkyProfile} from '@shared/types';
 import {createLLMService} from '../services/llm/factory';
 import {markLocalTranscriptionFinish, markLocalTranscriptionStart} from './localSpeechModels';
 
-export type ActionPayload = {
+export type ActionCreatePayload = {
     name: string;
     prompt: string;
     prompt_recognizing?: string;
     hotkey?: string;
     icon: string;
+    show_results?: boolean;
+    sound_on_complete?: boolean;
+    auto_copy_result?: boolean;
+};
+
+export type ActionUpdatePayload = {
+    name?: string;
+    prompt?: string;
+    prompt_recognizing?: string;
+    hotkey?: string;
+    icon?: string;
     show_results?: boolean;
     sound_on_complete?: boolean;
     auto_copy_result?: boolean;
@@ -43,6 +54,7 @@ const SLOW_TRANSCRIBE_WARNING_MS = 15_000;
 const ACTIONS_API_PATH = 'winky/actions/';
 const ICONS_API_PATH = 'winky/icons/';
 const PROFILE_API_PATH = 'winky/profile/';
+const NOTES_API_PATH = 'winky/notes/';
 
 const GEMINI_MODEL_SET = new Set<string>([...LLM_GEMINI_API_MODELS]);
 
@@ -75,7 +87,7 @@ export const fetchActions = async (): Promise<ActionConfig[]> => {
     });
 };
 
-export const createAction = async (payload: ActionPayload): Promise<ActionConfig[]> => {
+export const createAction = async (payload: ActionCreatePayload): Promise<ActionConfig[]> => {
     return withAuthClient(async (client, config) => {
         const {data} = await client.post<ActionConfig>(ACTIONS_API_PATH, payload);
         const updated = [...(config.actions ?? []).filter(({id}) => id !== data.id), data];
@@ -84,7 +96,7 @@ export const createAction = async (payload: ActionPayload): Promise<ActionConfig
     });
 };
 
-export const updateAction = async (actionId: string, payload: ActionPayload): Promise<ActionConfig[]> => {
+export const updateAction = async (actionId: string, payload: ActionUpdatePayload): Promise<ActionConfig[]> => {
     return withAuthClient(async (client, config) => {
         const {data} = await client.patch<ActionConfig>(`${ACTIONS_API_PATH}${actionId}/`, payload);
         const updated = (config.actions ?? []).map((existing) => (existing.id === actionId ? data : existing));
@@ -110,6 +122,55 @@ export const fetchProfile = async (): Promise<WinkyProfile> => {
     return withAuthClient(async (client) => {
         const {data} = await client.get<WinkyProfile>(PROFILE_API_PATH);
         return data;
+    });
+};
+
+export type NotesListResponse = {
+    count: number;
+    next: string | null;
+    previous: string | null;
+    results: WinkyNote[];
+};
+
+export const fetchNotesPage = async (page: number = 1, pageSize: number = 20): Promise<NotesListResponse> => {
+    return withAuthClient(async (client) => {
+        const {data} = await client.get<NotesListResponse>(NOTES_API_PATH, {
+            params: {
+                page,
+                page_size: pageSize
+            }
+        });
+        return data;
+    });
+};
+
+export const createNote = async (payload: {title: string; description?: string}): Promise<WinkyNote> => {
+    return withAuthClient(async (client) => {
+        const {data} = await client.post<WinkyNote>(NOTES_API_PATH, payload);
+        return data;
+    });
+};
+
+export const updateNote = async (
+    noteId: string,
+    payload: {title?: string; description?: string}
+): Promise<WinkyNote> => {
+    return withAuthClient(async (client) => {
+        const {data} = await client.patch<WinkyNote>(`${NOTES_API_PATH}${noteId}/`, payload);
+        return data;
+    });
+};
+
+export const deleteNote = async (noteId: string): Promise<void> => {
+    return withAuthClient(async (client) => {
+        await client.delete(`${NOTES_API_PATH}${noteId}/`);
+    });
+};
+
+export const bulkDeleteNotes = async (ids: string[]): Promise<number> => {
+    return withAuthClient(async (client) => {
+        const {data} = await client.post<{deleted_count: number}>(`${NOTES_API_PATH}bulk-delete/`, {ids});
+        return data.deleted_count ?? 0;
     });
 };
 

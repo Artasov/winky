@@ -39,6 +39,7 @@ export const useActionForm = ({
     const [saving, setSaving] = useState(false);
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
     const [pendingDelete, setPendingDelete] = useState<{id: string; name: string} | null>(null);
+    const [editingActionIsDefault, setEditingActionIsDefault] = useState(false);
 
     const [values, setValues] = useState<ActionFormValues>({
         name: '',
@@ -63,6 +64,7 @@ export const useActionForm = ({
             autoCopyResult: false
         });
         setEditingActionId(null);
+        setEditingActionIsDefault(false);
     }, []);
 
     const closeModal = useCallback(() => {
@@ -79,6 +81,7 @@ export const useActionForm = ({
     const openCreateModal = useCallback(() => {
         setMode('create');
         resetForm();
+        setEditingActionIsDefault(false);
         setIsModalVisible(true);
     }, [resetForm]);
 
@@ -89,6 +92,7 @@ export const useActionForm = ({
         }
         setMode('edit');
         setEditingActionId(action.id);
+        setEditingActionIsDefault(Boolean(action.is_default));
         setValues({
             name: action.name,
             prompt: action.prompt,
@@ -143,20 +147,42 @@ export const useActionForm = ({
 
         setSaving(true);
         try {
-            const payload = {
-                name: validation.data.name.trim(),
-                prompt: validation.data.prompt?.trim() ?? '',
-                prompt_recognizing: validation.data.promptRecognizing?.trim() ?? '',
-                hotkey: validation.data.hotkey?.trim() ?? '',
-                icon: validation.data.iconId,
-                show_results: validation.data.showResults,
-                sound_on_complete: validation.data.soundOnComplete,
-                auto_copy_result: validation.data.autoCopyResult
-            };
-
             if (editingActionId) {
+                const payload: {
+                    name?: string;
+                    prompt?: string;
+                    prompt_recognizing?: string;
+                    hotkey?: string;
+                    icon?: string;
+                    show_results?: boolean;
+                    sound_on_complete?: boolean;
+                    auto_copy_result?: boolean;
+                } = {
+                    name: validation.data.name.trim(),
+                    prompt: validation.data.prompt?.trim() ?? '',
+                    prompt_recognizing: validation.data.promptRecognizing?.trim() ?? '',
+                    hotkey: validation.data.hotkey?.trim() ?? '',
+                    icon: validation.data.iconId,
+                    show_results: validation.data.showResults,
+                    sound_on_complete: validation.data.soundOnComplete,
+                    auto_copy_result: validation.data.autoCopyResult
+                };
+
+                if (editingActionIsDefault) {
+                    delete payload.name;
+                }
                 await window.winky?.actions.update(editingActionId, payload);
             } else {
+                const payload = {
+                    name: validation.data.name.trim(),
+                    prompt: validation.data.prompt?.trim() ?? '',
+                    prompt_recognizing: validation.data.promptRecognizing?.trim() ?? '',
+                    hotkey: validation.data.hotkey?.trim() ?? '',
+                    icon: validation.data.iconId,
+                    show_results: validation.data.showResults,
+                    sound_on_complete: validation.data.soundOnComplete,
+                    auto_copy_result: validation.data.autoCopyResult
+                };
                 await window.winky?.actions.create(payload);
             }
 
@@ -170,7 +196,7 @@ export const useActionForm = ({
         } finally {
             setSaving(false);
         }
-    }, [values, editingActionId, closeModal, refreshConfig, showToast]);
+    }, [values, editingActionId, editingActionIsDefault, closeModal, refreshConfig, showToast]);
 
     const handleDeleteConfirmed = useCallback(async (actionId: string, actionName: string) => {
         if (deletingIds.has(actionId)) {
@@ -224,6 +250,7 @@ export const useActionForm = ({
         openCreateModal,
         openEditModal,
         editingActionId,
+        editingActionIsDefault,
         saving,
         deletingIds,
         pendingDelete,

@@ -54,9 +54,7 @@ export const useActionProcessing = ({
         };
 
         const isQuickNoteAction = Boolean(action.is_default) && action.name === 'Quick note';
-        const completionAction = isQuickNoteAction
-            ? {...action, sound_on_complete: true}
-            : action;
+        const completionAction = action;
 
         const saveQuickNote = async (text: string) => {
             if (!isQuickNoteAction) {

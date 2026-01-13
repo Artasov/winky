@@ -454,7 +454,8 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         return activeActions.slice(0, MAX_FLOATING_ACTIONS);
     }, [activeActions, isRecording]);
 
-    const normalizedVolume = Math.min(volume * 2.5, 1);
+    // Увеличиваем чувствительность - умножаем на больший коэффициент
+    const normalizedVolume = Math.min(volume * 5.0, 1);
 
     useEffect(() => {
         isRecordingRef.current = isRecording;

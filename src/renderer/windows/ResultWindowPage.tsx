@@ -1,4 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
+import ReactMarkdown from 'react-markdown';
 import TitleBar from '../components/TitleBar';
 import {clipboardBridge, resultBridge} from '../services/winkyBridge';
 import {emit, listen} from '@tauri-apps/api/event';
@@ -177,8 +178,10 @@ const ResultWindowPage: React.FC = () => {
                                 </button>
                             </div>
                             <div
-                                className='rounded-lg border border-primary-200 bg-white shadow-primary-sm p-4 text-sm leading-relaxed text-text-primary whitespace-pre-wrap min-h-48'>
-                                {llmResponse}
+                                className='rounded-lg border border-primary-200 bg-white shadow-primary-sm p-4 text-text-primary min-h-48'>
+                                <div className='markdown-compact'>
+                                    <ReactMarkdown>{llmResponse}</ReactMarkdown>
+                                </div>
                                 {isStreaming && <span className='inline-block w-2 h-4 ml-1 bg-primary animate-pulse'/>}
                             </div>
                         </div>

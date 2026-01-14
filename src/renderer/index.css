@@ -102,6 +102,97 @@ html[data-mic-window="true"] body #root {
     border-radius: 0 !important;
 }
 
+.markdown-compact {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.markdown-compact > :first-child {
+    margin-top: 0;
+}
+
+.markdown-compact > :last-child {
+    margin-bottom: 0;
+}
+
+.markdown-compact p {
+    margin: 0;
+}
+
+.markdown-compact p + p {
+    margin-top: 0.5rem;
+}
+
+.markdown-compact h1,
+.markdown-compact h2,
+.markdown-compact h3,
+.markdown-compact h4,
+.markdown-compact h5,
+.markdown-compact h6 {
+    margin: 0.75rem 0 0.35rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.markdown-compact h1 {
+    font-size: 1.1rem;
+}
+
+.markdown-compact h2 {
+    font-size: 1.05rem;
+}
+
+.markdown-compact h3 {
+    font-size: 1rem;
+}
+
+.markdown-compact ul,
+.markdown-compact ol {
+    margin: 0.5rem 0;
+    padding-left: 1.25rem;
+}
+
+.markdown-compact li {
+    margin: 0.2rem 0;
+}
+
+.markdown-compact a {
+    color: var(--color-primary-600);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+}
+
+.markdown-compact code {
+    padding: 0.1rem 0.3rem;
+    border-radius: 6px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-light);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.markdown-compact pre {
+    margin: 0.6rem 0;
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-light);
+    overflow-x: auto;
+}
+
+.markdown-compact pre code {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.markdown-compact blockquote {
+    margin: 0.6rem 0;
+    padding-left: 0.75rem;
+    border-left: 2px solid var(--color-border-base);
+    color: var(--color-text-secondary);
+}
+
 .overflow-y-auto {
     scrollbar-width: thin;
     scrollbar-color: var(--color-primary-400) rgba(244, 63, 94, 0.12);

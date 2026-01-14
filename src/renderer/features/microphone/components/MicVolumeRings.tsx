@@ -5,8 +5,8 @@ interface MicVolumeRingsProps {
     normalizedVolume: number;
 }
 
-// Уменьшаем количество кругов - оставляем только 2 круга для более сдержанной анимации
-const ringMultipliers = [2, 1];
+// Используем 4 круга: большие круги видны при максимальном звуке, маленькие - при среднем
+const ringMultipliers = [4, 3, 2, 1];
 
 const MicVolumeRingsComponent: React.FC<MicVolumeRingsProps> = ({isRecording, normalizedVolume}) => {
     // Размер микрофона: default = 80px (h-20), compact = 56px (h-14)

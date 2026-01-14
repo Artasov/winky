@@ -15,7 +15,7 @@ const InfoPage: React.FC = () => {
     }, []);
 
     return (
-        <div className="fc mx-auto h-full w-full max-w-4xl gap-8 px-8 py-6">
+        <div className="fc mx-auto h-full w-full max-w-4xl gap-4 px-8 py-6">
             <div className="fc gap-1">
                 <h1 className="text-3xl font-semibold text-text-primary">Information</h1>
                 <p className="text-sm text-text-secondary">Help and information about {APP_NAME}.</p>

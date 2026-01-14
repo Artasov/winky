@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from '@mui/material';
 import type {ActionHistoryEntry} from '@shared/types';
 import GlassTooltip from '../components/GlassTooltip';
+import LoadingSpinner from '../components/LoadingSpinner';
 import {useToast} from '../context/ToastContext';
 import {historyBridge} from '../services/winkyBridge';
 import type {HistoryUpdateEvent} from '../winkyBridge/historyBridge';
@@ -152,7 +153,7 @@ const HistoryPage: React.FC = () => {
 
             {loading ? (
                 <div className="flex flex-1 items-center justify-center">
-                    <div className="animate-pulse-soft text-primary">Loading history...</div>
+                    <LoadingSpinner size="medium"/>
                 </div>
             ) : entries.length === 0 ? (
                 <div className="flex flex-1 items-center justify-center">
@@ -222,7 +223,7 @@ const HistoryPage: React.FC = () => {
                                         {transcriptionPreview && (
                                             <p className="text-xs text-text-tertiary/80">
                                                 {transcriptionPreview}
-                                                {entry.transcription.length > 100 ? '…' : ''}
+                                                {entry.transcription.length > 100 ? '...' : ''}
                                             </p>
                                         )}
                                     </div>

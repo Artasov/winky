@@ -16,6 +16,7 @@ import type {WinkyNote} from '@shared/types';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
 import GlassTooltip from '../components/GlassTooltip';
+import LoadingSpinner from '../components/LoadingSpinner';
 import {
     bulkDeleteNotesForMode,
     deleteNoteForMode,
@@ -314,7 +315,7 @@ const NotesPage: React.FC = () => {
                 <div className="h-full overflow-y-auto pr-2">
                     {loading ? (
                         <div className="flex min-h-[240px] items-center justify-center">
-                            <div className="animate-pulse-soft text-primary">Loading notes...</div>
+                            <LoadingSpinner size="medium"/>
                         </div>
                     ) : (data?.results.length ?? 0) === 0 ? (
                         <div className="flex min-h-[240px] items-center justify-center">

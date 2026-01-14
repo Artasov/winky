@@ -326,11 +326,11 @@ const NotesPage: React.FC = () => {
                             </div>
                         </div>
                     ) : (
-                        <div className="grid gap-4 pb-6 pt-2">
+                        <div className="grid gap-2 pb-6 pt-2">
                             {data?.results.map((note) => (
                                 <section
                                     key={note.id}
-                                    className="card-animated relative rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-3 animate-fade-in-up cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+                                    className="relative rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-3 animate-fade-in-up cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
                                     role="button"
                                     tabIndex={0}
                                     onClick={() => handleCardActivate(note)}

@@ -155,26 +155,18 @@ const HistoryPage: React.FC = () => {
             ) : (
                 <div className="grid gap-4 pb-6">
                     {entries.map((entry) => {
-                        const prompt = entry.action_prompt?.trim();
                         const llmResponse = entry.llm_response?.trim();
                         return (
                             <section
                                 key={entry.id}
-                                className="card-animated rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6 animate-fade-in-up"
+                                className="rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6 animate-fade-in-up"
                             >
-                                <div className="flex flex-wrap items-start justify-between gap-4">
-                                    <div className="min-w-[240px]">
-                                        <p className="text-xs uppercase tracking-[0.22em] text-text-tertiary">Action</p>
+                                <div className="flex flex-wrap items-center justify-between gap-4">
+                                    <div className="flex items-center gap-2">
                                         <h2 className="text-lg font-semibold text-text-primary">{entry.action_name}</h2>
-                                        {prompt ? (
-                                            <p className="mt-1 text-xs text-text-secondary">
-                                                Prompt: {prompt}
-                                            </p>
-                                        ) : (
-                                            <p className="mt-1 text-xs text-text-tertiary">
-                                                Prompt not used for this action.
-                                            </p>
-                                        )}
+                                        <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary">
+                                            Action
+                                        </span>
                                     </div>
                                     <div className="text-xs text-text-tertiary">
                                         {formatTimestamp(entry.created_at)}
@@ -186,7 +178,7 @@ const HistoryPage: React.FC = () => {
                                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
                                             Transcription
                                         </p>
-                                        <div className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-sm text-text-primary">
+                                        <div className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-sm text-text-primary history-scrollbar">
                                             {entry.transcription}
                                         </div>
                                     </div>
@@ -195,17 +187,8 @@ const HistoryPage: React.FC = () => {
                                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
                                             LLM response
                                         </p>
-                                        <div className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-sm text-text-primary">
+                                        <div className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-sm text-text-primary history-scrollbar">
                                             {llmResponse || 'No LLM output for this action.'}
-                                        </div>
-                                    </div>
-
-                                    <div className="rounded-xl border border-primary-200 bg-primary-50/70 p-4 md:col-span-2">
-                                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-700">
-                                            Executed result
-                                        </p>
-                                        <div className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-sm text-text-primary">
-                                            {entry.result_text}
                                         </div>
                                     </div>
                                 </div>

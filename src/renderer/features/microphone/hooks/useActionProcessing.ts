@@ -168,31 +168,46 @@ export const useActionProcessing = ({
                 accessToken: authToken
             };
 
-            const response = await llmBridge.process(transcription, action.prompt, llmConfig);
+            let streamedResponse = '';
+            const onChunk = action.show_results
+                ? (chunk: string) => {
+                    streamedResponse += chunk;
+                    void resultBridge.update({llmResponse: streamedResponse, isStreaming: true});
+                }
+                : undefined;
+
+            const response = await llmBridge.process(
+                transcription,
+                action.prompt,
+                llmConfig,
+                onChunk ? {onChunk} : undefined
+            );
+
+            const finalResponse = response?.trim().length ? response : streamedResponse;
 
             if (action.show_results) {
-                await resultBridge.update({llmResponse: response, isStreaming: false});
+                await resultBridge.update({llmResponse: finalResponse, isStreaming: false});
             }
 
             if (action.auto_copy_result) {
                 await copyWithRetries({
-                    text: response ?? '',
+                    text: finalResponse ?? '',
                     showToast,
                     successMessage: 'Response copied.',
                     failureMessage: 'Failed to copy the response to the clipboard.'
                 });
             }
 
-            const trimmedResponse = response?.trim() || '';
+            const trimmedResponse = finalResponse?.trim() || '';
             await recordHistory({
                 action_id: action.id,
                 action_name: action.name,
                 action_prompt: action.prompt?.trim() || null,
                 transcription,
-                llm_response: response ?? null,
-                result_text: trimmedResponse.length > 0 ? response : transcription
+                llm_response: finalResponse ?? null,
+                result_text: trimmedResponse.length > 0 ? finalResponse : transcription
             });
-            await saveQuickNote(trimmedResponse.length > 0 ? response ?? '' : transcription);
+            await saveQuickNote(trimmedResponse.length > 0 ? finalResponse ?? '' : transcription);
             await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef, debug: true});
         } catch (error: any) {
             console.error(error);

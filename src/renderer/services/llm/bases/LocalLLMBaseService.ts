@@ -3,6 +3,7 @@ import {ollamaBridge, type ChatMessage} from '../../../winkyBridge/ollamaBridge'
 
 export abstract class LocalLLMBaseService implements BaseLLMService {
     protected readonly model: string;
+    public supportsStreaming: boolean = false;
 
     protected constructor(model: string) {
         this.model = model;

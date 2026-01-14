@@ -558,10 +558,11 @@ export const processLLM = async (text: string, prompt: string, config: {
     openaiKey?: string;
     googleKey?: string;
     accessToken?: string;
-}): Promise<string> => {
+}, options: { onChunk?: (chunk: string) => void } = {}): Promise<string> => {
     const provider = config.mode === 'api' 
         ? (config.googleKey ? 'Google Gemini' : 'OpenAI')
         : 'Local';
+    const shouldStream = typeof options.onChunk === 'function';
     
     console.log(`%cLLM → %c[${provider}] %c${config.model}`, 
         'color: #10b981; font-weight: bold',
@@ -574,7 +575,8 @@ export const processLLM = async (text: string, prompt: string, config: {
         text: text,
         prompt: prompt,
         textLength: text.length,
-        promptLength: prompt.length
+        promptLength: prompt.length,
+        streaming: shouldStream
     });
     
     try {
@@ -583,7 +585,10 @@ export const processLLM = async (text: string, prompt: string, config: {
             googleKey: config.googleKey,
             accessToken: config.accessToken
         });
-        const result = await service.process(text, prompt);
+        const canStream = shouldStream && service.supportsStreaming && typeof service.processStream === 'function';
+        const result = canStream
+            ? await service.processStream!(text, prompt, options.onChunk!)
+            : await service.process(text, prompt);
         
         console.log(`%cLLM ← %c[${provider}] %c${config.model} %c[200]`, 
             'color: #10b981; font-weight: bold',

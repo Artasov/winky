@@ -3,8 +3,10 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
+use tauri::{AppHandle, Emitter};
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -199,4 +201,118 @@ pub async fn chat_completions(
         .map_err(|e| anyhow!("Failed to parse Ollama response: {}", e))?;
 
     Ok(json)
+}
+
+pub async fn chat_completions_stream(
+    app: AppHandle,
+    model: &str,
+    messages: Vec<ChatMessage>,
+    stream_id: &str,
+) -> Result<String> {
+    if !is_server_running().await {
+        return Err(anyhow!("Ollama server is not running. Please start Ollama first."));
+    }
+
+    let client = reqwest::Client::new();
+    let url = format!("{}/v1/chat/completions", OLLAMA_BASE_URL);
+
+    let request = serde_json::json!({
+        "model": model,
+        "messages": messages,
+        "stream": true
+    });
+
+    let response = client
+        .post(&url)
+        .json(&request)
+        .timeout(Duration::from_secs(120))
+        .send()
+        .await
+        .map_err(|e| anyhow!("Failed to send request to Ollama: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(anyhow!(
+            "Ollama API returned error status {}: {}",
+            status,
+            error_text
+        ));
+    }
+
+    let mut full_text = String::new();
+    let mut buffer = String::new();
+    let mut stream = response.bytes_stream();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| anyhow!("Ollama stream error: {}", e))?;
+        let text = String::from_utf8_lossy(&chunk);
+        buffer.push_str(&text);
+
+        while let Some(pos) = buffer.find('\n') {
+            let mut line = buffer[..pos].to_string();
+            buffer = buffer[pos + 1..].to_string();
+            if line.ends_with('\r') {
+                line.pop();
+            }
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let data = if let Some(rest) = line.strip_prefix("data:") {
+                rest.trim()
+            } else {
+                line
+            };
+
+            if data == "[DONE]" {
+                let _ = app.emit(
+                    "ollama:stream",
+                    serde_json::json!({"streamId": stream_id, "done": true}),
+                );
+                return Ok(full_text);
+            }
+
+            let parsed: serde_json::Value = match serde_json::from_str(data) {
+                Ok(value) => value,
+                Err(_) => continue,
+            };
+
+            let delta = parsed
+                .get("choices")
+                .and_then(|value| value.get(0))
+                .and_then(|value| value.get("delta"))
+                .and_then(|value| value.get("content"))
+                .and_then(|value| value.as_str())
+                .or_else(|| {
+                    parsed
+                        .get("choices")
+                        .and_then(|value| value.get(0))
+                        .and_then(|value| value.get("message"))
+                        .and_then(|value| value.get("content"))
+                        .and_then(|value| value.as_str())
+                })
+                .or_else(|| {
+                    parsed
+                        .get("message")
+                        .and_then(|value| value.get("content"))
+                        .and_then(|value| value.as_str())
+                });
+
+            if let Some(delta) = delta {
+                full_text.push_str(delta);
+                let _ = app.emit(
+                    "ollama:stream",
+                    serde_json::json!({"streamId": stream_id, "delta": delta}),
+                );
+            }
+        }
+    }
+
+    let _ = app.emit(
+        "ollama:stream",
+        serde_json::json!({"streamId": stream_id, "done": true}),
+    );
+    Ok(full_text)
 }

@@ -10,5 +10,7 @@ export const ollamaBridge = {
     isServerRunning: (): Promise<boolean> => invoke('ollama_is_server_running'),
     listModels: (_force?: boolean): Promise<string[]> => invoke('ollama_list_models'),
     chatCompletions: (model: string, messages: ChatMessage[]): Promise<any> =>
-        invoke('ollama_chat_completions', {model, messages})
+        invoke('ollama_chat_completions', {model, messages}),
+    chatCompletionsStream: (model: string, messages: ChatMessage[], streamId: string): Promise<string> =>
+        invoke('ollama_chat_completions_stream', {model, messages, streamId})
 };

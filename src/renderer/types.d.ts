@@ -158,7 +158,7 @@ declare global {
             openaiKey?: string;
             googleKey?: string;
             accessToken?: string
-        }): Promise<string>;
+        }, options?: { onChunk?: (chunk: string) => void }): Promise<string>;
     }
 
     interface WinkyOllamaAPI {

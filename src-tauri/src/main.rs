@@ -7,12 +7,14 @@ mod constants;
 mod deep_link_file;
 mod hotkeys;
 mod history;
+mod gemini;
 mod notes;
 mod local_speech;
 mod logging;
 mod oauth;
 mod oauth_server;
 mod ollama;
+mod openai;
 mod resources;
 mod tray;
 mod types;
@@ -604,6 +606,53 @@ async fn ollama_chat_completions(
 }
 
 #[tauri::command]
+async fn ollama_chat_completions_stream(
+    app: tauri::AppHandle,
+    model: String,
+    messages: Vec<ollama::ChatMessage>,
+    stream_id: String,
+) -> Result<String, String> {
+    ollama::chat_completions_stream(app, &model, messages, &stream_id)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn openai_chat_completions(
+    api_key: String,
+    body: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    openai::chat_completions(&api_key, body)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn openai_chat_completions_stream(
+    app: tauri::AppHandle,
+    api_key: String,
+    body: serde_json::Value,
+    stream_id: String,
+) -> Result<String, String> {
+    openai::chat_completions_stream(app, &api_key, body, &stream_id)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn gemini_generate_content_stream(
+    app: tauri::AppHandle,
+    api_key: String,
+    model: String,
+    body: serde_json::Value,
+    stream_id: String,
+) -> Result<String, String> {
+    gemini::stream_generate_content(app, &api_key, &model, body, &stream_id)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn action_hotkeys_register(
     app: tauri::AppHandle,
     hotkeys_state: State<'_, Arc<HotkeyState>>,
@@ -882,6 +931,10 @@ fn main() {
             ollama_pull_model,
             ollama_warmup_model,
             ollama_chat_completions,
+            ollama_chat_completions_stream,
+            openai_chat_completions,
+            openai_chat_completions_stream,
+            gemini_generate_content_stream,
             action_hotkeys_register,
             action_hotkeys_clear,
             window_open_devtools,

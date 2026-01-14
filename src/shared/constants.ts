@@ -1,5 +1,5 @@
 export const APP_NAME = 'Winky';
-export const API_BASE_URL = 'https://xldev.ru/api/v1';
+export const API_BASE_URL = 'https://xlartas.com/api/v1';
 export const AUTH_ENDPOINT = `${API_BASE_URL}/auth/login/`;
 export const AUTH_REFRESH_ENDPOINT = `${API_BASE_URL}/auth/refresh/`;
 export const ME_ENDPOINT = `${API_BASE_URL}/me/`;

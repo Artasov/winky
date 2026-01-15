@@ -65,56 +65,28 @@ const InfoPage: React.FC = () => {
 
     return (
         <div className="fc mx-auto h-full w-full max-w-4xl gap-4 px-8 py-6">
-            <div className="fc gap-1">
-                <h1 className="text-3xl font-semibold text-text-primary">Information</h1>
-                <p className="text-sm text-text-secondary">Help and information about {APP_NAME}.</p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-                <section className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6">
-
-                    <h2 className="text-2xl font-bold text-text-primary mb-2">{APP_NAME}</h2>
-                    <dl className="fc text-sm">
-                        <div className="frbc border-b border-primary-100 py-2">
-                            <dt className="text-text-secondary">Version</dt>
-                            <dd className="font-mono text-text-primary">{version}</dd>
-                        </div>
-                        <div className="frbc border-b border-primary-100 py-2">
-                            <dt className="text-text-secondary">Platform</dt>
-                            <dd className="text-text-primary">Tauri + React</dd>
-                        </div>
-                        <div className="frbc py-2">
-                            <dt className="text-text-secondary">Status</dt>
-                            <dd className="flex items-center gap-2 text-primary">
-                                <span className="inline-flex h-2 w-2 rounded-full bg-primary animate-pulse-soft"
-                                      aria-hidden="true"/>
-                                Running
-                            </dd>
-                        </div>
-                    </dl>
-                </section>
-
-                <section className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6">
-                    <h3 className="mb-4 text-lg font-semibold text-text-primary">Community</h3>
-                    <div className="flex flex-wrap gap-3">
+            <section className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-4">
+                <div className="flex items-center gap-4">
+                    <h3 className="text-lg font-semibold text-text-primary">Community</h3>
+                    <div className="flex flex-nowrap gap-2">
                         {COMMUNITY_LINKS.map((link) => (
                             <button
                                 key={link.id}
                                 type="button"
                                 onClick={() => void open(link.href)}
-                                className="community-link group flex h-11 w-11 items-center justify-center rounded-xl border border-primary-100 bg-bg-secondary/70 shadow-primary-sm hover:border-primary-200 hover:bg-primary-50"
+                                className="community-link group flex h-9 w-9 items-center justify-center rounded-lg border border-primary-100 bg-bg-secondary/70 shadow-primary-sm hover:border-primary-200 hover:bg-primary-50"
                                 aria-label={`Open ${link.label}`}
                             >
                                 <img
                                     src={link.icon}
                                     alt={link.label}
-                                    className={`community-link-icon h-6 w-6 object-contain ${link.invert ? 'invert' : ''}`}
+                                    className={`community-link-icon h-5 w-5 object-contain ${link.invert ? 'invert' : ''}`}
                                 />
                             </button>
                         ))}
                     </div>
-                </section>
-            </div>
+                </div>
+            </section>
 
             <section className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6">
                 <div className="markdown-compact text-text-primary">

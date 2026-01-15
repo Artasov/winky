@@ -1,4 +1,5 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
+import {getVersion} from '@tauri-apps/api/app';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import BugReportModal from './feedback/BugReportModal';
 import {submitBugReport} from '../services/bugReport';
@@ -14,6 +15,7 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
     const {config} = useConfig();
     const accessToken = config?.auth?.access || config?.auth?.accessToken;
     const [isBugModalOpen, setBugModalOpen] = useState(false);
+    const [version, setVersion] = useState<string>('');
 
     const handleBugSubmit = useCallback(
         (payload: Parameters<typeof submitBugReport>[0]) => submitBugReport(payload, accessToken),
@@ -36,13 +38,27 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
         }
     };
 
+    useEffect(() => {
+        getVersion()
+            .then(setVersion)
+            .catch(() => setVersion(''));
+    }, []);
+
     return (
         <div
             className="app-region-drag flex h-16 w-full items-center justify-between border-b border-primary-200/60 bg-white/95 px-4 text-xs uppercase tracking-[0.3em] text-text-tertiary backdrop-blur shadow-sm"
             aria-label={title}>
-            <div className="app-region-drag pointer-events-none select-none flex items-center">
+            <div className="app-region-drag pointer-events-none select-none flex items-center gap-2">
                 <img src="./resources/winky-pink-signature.png" alt="Winky" className="h-10 pointer-events-none pt-1"
                      draggable="false"/>
+                {version ? (
+                    <span style={{
+                        marginBottom: -12,
+                        marginLeft: -7,
+                    }} className="text-[10px] font-light normal-case tracking-normal text-text-tertiary/80">
+                        {version}
+                    </span>
+                ) : null}
             </div>
             <div className="app-region-no-drag flex items-center gap-2 text-text-secondary">
                 {showBugReportButton ? (

@@ -87,8 +87,7 @@ const SetupWindow: React.FC = () => {
                 }
             });
             showToast('Settings saved successfully', 'success');
-            // Actions будут загружены автоматически при навигации на /main, если пользователь авторизован
-            navigate('/actions');
+            navigate('/info');
         } catch (error) {
             console.error(error);
             showToast('Failed to save settings.', 'error');

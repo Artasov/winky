@@ -9,6 +9,7 @@ const formSchema = z.object({
     promptRecognizing: z.string().optional(),
     hotkey: z.string().optional(),
     iconId: z.string().min(1, 'Choose an icon.'),
+    priority: z.number().int().min(1, 'Enter a priority of 1 or higher.'),
     showResults: z.boolean(),
     soundOnComplete: z.boolean(),
     autoCopyResult: z.boolean()
@@ -47,6 +48,7 @@ export const useActionForm = ({
         promptRecognizing: '',
         hotkey: '',
         iconId: '',
+        priority: 1,
         showResults: false,
         soundOnComplete: false,
         autoCopyResult: false
@@ -59,6 +61,7 @@ export const useActionForm = ({
             promptRecognizing: '',
             hotkey: '',
             iconId: '',
+            priority: 1,
             showResults: false,
             soundOnComplete: false,
             autoCopyResult: false
@@ -99,6 +102,7 @@ export const useActionForm = ({
             promptRecognizing: action.prompt_recognizing ?? '',
             hotkey: action.hotkey ?? '',
             iconId: action.icon_details?.id ?? action.icon,
+            priority: action.priority ?? 1,
             showResults: action.show_results ?? false,
             soundOnComplete: action.sound_on_complete ?? false,
             autoCopyResult: action.auto_copy_result ?? false
@@ -154,6 +158,7 @@ export const useActionForm = ({
                     prompt_recognizing?: string;
                     hotkey?: string;
                     icon?: string;
+                    priority?: number;
                     show_results?: boolean;
                     sound_on_complete?: boolean;
                     auto_copy_result?: boolean;
@@ -163,6 +168,7 @@ export const useActionForm = ({
                     prompt_recognizing: validation.data.promptRecognizing?.trim() ?? '',
                     hotkey: validation.data.hotkey?.trim() ?? '',
                     icon: validation.data.iconId,
+                    priority: validation.data.priority,
                     show_results: validation.data.showResults,
                     sound_on_complete: validation.data.soundOnComplete,
                     auto_copy_result: validation.data.autoCopyResult
@@ -179,6 +185,7 @@ export const useActionForm = ({
                     prompt_recognizing: validation.data.promptRecognizing?.trim() ?? '',
                     hotkey: validation.data.hotkey?.trim() ?? '',
                     icon: validation.data.iconId,
+                    priority: validation.data.priority,
                     show_results: validation.data.showResults,
                     sound_on_complete: validation.data.soundOnComplete,
                     auto_copy_result: validation.data.autoCopyResult

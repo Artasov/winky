@@ -47,6 +47,7 @@ declare global {
             prompt_recognizing?: string;
             hotkey?: string;
             icon: string;
+            priority?: number;
             show_results?: boolean;
             sound_on_complete?: boolean;
             auto_copy_result?: boolean
@@ -58,6 +59,7 @@ declare global {
             prompt_recognizing?: string;
             hotkey?: string;
             icon?: string;
+            priority?: number;
             show_results?: boolean;
             sound_on_complete?: boolean;
             auto_copy_result?: boolean

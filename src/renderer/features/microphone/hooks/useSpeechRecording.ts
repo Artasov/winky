@@ -445,7 +445,21 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
     }, [processing, isRecording, ensureSpeechServiceOnce, finishRecording, processAction, stopVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 
     const actions = useMemo<ActionConfig[]>(() => config?.actions ?? [], [config?.actions]);
-    const activeActions = useMemo<ActionConfig[]>(() => actions.filter((action) => action.is_active !== false), [actions]);
+    const sortedActions = useMemo<ActionConfig[]>(
+        () =>
+            [...actions].sort((first, second) => {
+                const priorityDelta = (first.priority ?? 1) - (second.priority ?? 1);
+                if (priorityDelta !== 0) {
+                    return priorityDelta;
+                }
+                return first.name.localeCompare(second.name);
+            }),
+        [actions]
+    );
+    const activeActions = useMemo<ActionConfig[]>(
+        () => sortedActions.filter((action) => action.is_active !== false),
+        [sortedActions]
+    );
     const displayedActions = useMemo<ActionConfig[]>(() => {
         if (!isRecording || activeActions.length === 0) {
             return [];

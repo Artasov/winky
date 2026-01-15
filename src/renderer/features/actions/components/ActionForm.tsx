@@ -106,6 +106,19 @@ const ActionForm: React.FC<Props> = ({
                         helperText={isNameLocked ? 'Default action name cannot be changed.' : undefined}
                         sx={{mb: 1}}
                     />
+                    <TextField
+                        label="Priority"
+                        type="number"
+                        value={values.priority}
+                        onChange={(event) => {
+                            const nextValue = Number.parseInt(event.target.value, 10);
+                            setField('priority', Number.isNaN(nextValue) ? 1 : Math.max(1, nextValue));
+                        }}
+                        inputProps={{min: 1, step: 1}}
+                        helperText="Lower numbers mean higher priority. 1 goes first, 4 goes last."
+                        fullWidth
+                        sx={{mb: 1}}
+                    />
 
                     <TextField
                         label="Prompt"

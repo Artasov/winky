@@ -5,72 +5,50 @@ import {APP_NAME} from '@shared/constants';
 import ReactMarkdown from 'react-markdown';
 
 const COMMUNITY_LINKS = [
-    {id: 'discord', label: 'Discord', icon: '/resources/community/discrod.svg', href: 'https://discord.gg/'},
-    {id: 'telegram', label: 'Telegram', icon: '/resources/community/telegram.svg', href: 'https://t.me/'},
-    {id: 'github', label: 'GitHub', icon: '/resources/community/github.svg', href: 'https://github.com/', invert: true},
-    {id: 'x', label: 'X', icon: '/resources/community/x.svg', href: 'https://x.com/', invert: true},
-    {id: 'youtube', label: 'YouTube', icon: '/resources/community/youtube.svg', href: 'https://youtube.com/'},
-    {id: 'linkedin', label: 'LinkedIn', icon: '/resources/community/linkedin.svg', href: 'https://www.linkedin.com/', invert: true},
-    {id: 'dexscreener', label: 'Dexscreener', icon: '/resources/community/dexscreener.svg', href: 'https://dexscreener.com/', invert: true},
-    {id: 'pumpfun', label: 'Pump.fun', icon: '/resources/community/pumpfun.webp', href: 'https://pump.fun/'}
+    {id: 'x', label: 'X', icon: '/resources/community/x.svg', href: 'https://x.com/winky_ai', invert: true},
+    {id: 'github', label: 'GitHub', icon: '/resources/community/github.svg', href: 'https://github.com/Artasov/winky', invert: true},
+    {id: 'telegram', label: 'Telegram', icon: '/resources/community/telegram.svg', href: 'https://t.me/winky_ai'},
+    {id: 'discord', label: 'Discord', icon: '/resources/community/discrod.svg', href: 'https://discord.com/invite/QRgh2zxJX2'},
+    {id: 'linkedin', label: 'LinkedIn', icon: '/resources/community/linkedin.svg', href: 'https://www.linkedin.com/in/xlartas/', invert: true},
+    {id: 'dexscreener', label: 'Dexscreener', icon: '/resources/community/dexscreener.svg', href: 'https://dexscreener.com/solana/8ARxY7YrVBNhSGkSjQjgzbU9uCRyX67vBfM6mAuMpump', invert: true},
+    {id: 'pumpfun', label: 'Pump.fun', icon: '/resources/community/pumpfun.webp', href: 'https://pump.fun/coin/8ARxY7YrVBNhSGkSjQjgzbU9uCRyX67vBfM6mAuMpump'}
 ] as const;
 
 const USAGE_GUIDE_MARKDOWN = `
 ## Usage Guide
 
-### Самое важное — как запустить запись
-1. **Открой микрофон**: в трее нажми Mic или используй горячую клавишу (по умолчанию Alt+Q).
-2. **Начни/останови запись**: кликни по круглой кнопке микрофона в оверлее.
-3. **Если запись не стартует сама**: проверь в Settings → Mic Overlay пункт Start recording automatically.
+### The most important thing - how to start recording
+1. **Open the mic**: click \`Mic\` in the system tray or use the hotkey (default \`Alt+Q\`).
+2. **Start/stop recording**: click the mic button in the overlay.
 
-### Что ты увидишь в оверлее
-- Вокруг микрофона есть иконки действий (Actions).
-- По умолчанию создано два действия:
-  - **Default**: отвечает на твой вопрос.
-  - **Translator**: переводит речь на китайский и копирует в буфер обмена.
-- Эти два действия демонстрируют базовые возможности Actions.
+### What you will see in the overlay
+- There are action icons around the mic (Actions).
+- By default there are 3 example actions:
+  - **Question**: answers your question and shows the result in a separate window.
+  - **Translator**: translates your speech to Chinese and copies it to the clipboard without opening the result window.
+  - **Literally**: transcribes your speech and copies the raw text to the clipboard without opening the result window.
+- These actions demonstrate the core capabilities of Actions. We strongly recommend trying them and tweaking the default Actions to fit your workflow on the Actions tab.
+- Each action has its own HotKey.
+ 
+### What is an Action
+- An Action is a scenario for processing your speech.
+- Press the mic hotkey, say what you want, then press the action hotkey to get the result.
+- This helps you speed up small recurring tasks.
+- Each Action decides whether to show the \`Result\` window, copy the response, and play a completion sound based on its settings.
 
-### Что такое Action
-- Action — сценарий обработки твоей речи.
-- Выбираешь действие перед записью (иконка вокруг микрофона) или запускаешь его горячей клавишей.
-- Action решает, будет ли окно Result, копия ответа и звук по завершению.
+### Microphone hotkey
+- Change it in Settings -> Mic Overlay -> Toggle Hotkey.
+- When you enable the mic, recording can start automatically. Check \`Settings -> Mic Overlay\` and the \`Start recording automatically\` option.
 
-### Поля Action
-- Action name: название сценария, видно в списке и в History.
-- Prompt: основная инструкция для LLM — что делать с текстом.
-- Prompt Recognizing: подсказки для распознавания и контекста (тематика, термины, язык).
-- Hotkey: опционально; запускает action напрямую.
-- Icon: отображается вокруг микрофона для быстрого выбора.
-- Options:
-  - Show result window ? показывать окно Result.
-  - Play completion sound ? звук по завершению.
-  - Copy result to clipboard ? копировать ответ.
-- Создание и редактирование доступны в разделе Actions (нужен вход в аккаунт).
-
-### Где появляется результат
-- Результат зависит от выбранного Action и его Options.
-- Если включен Show result window — появится окно Result.
-- Если включен Copy result to clipboard — ответ сразу в буфере обмена.
-- Если включен Play completion sound — услышишь сигнал завершения.
-
-### Горячая клавиша микрофона
-- Меняется в Settings → Mic Overlay → Toggle Hotkey.
-- Чтобы сбросить — нажми Esc или кнопку Clear рядом с полем.
-
-### History
-- Сохраняет выполненные действия и их результаты.
-- Карточки раскрываются по клику.
+### History tab
+- Stores completed actions and results **locally** and fully private.
 
 ### Notes
-- Режим хранения Local / API переключается вверху страницы Notes.
-- Клик по карточке открывает редактор; можно выделять и удалять пачкой.
+- The storage mode \`Local / API\` is toggled at the top of the **Notes** page. You can keep notes private/locally or store them on the server - whatever is convenient for you.
 
-### Настройка моделей
-- В Settings укажи ключи API и выбери режимы Speech / LLM.
-- Для локального Speech включи Auto-start local Whisper server или запускай сервер вручную.
-
-### Доступ
-- Управление Actions и Settings доступно после входа в аккаунт.
+### Model setup
+- In Settings, set API keys for \`OpenAi\` and/or \`GoogleAi\`, and choose \`Speech / LLM\` modes.
+- For local **Speech**, enable \`Auto-start local Whisper server\` or start the server manually.
 `;
 
 const InfoPage: React.FC = () => {
@@ -124,13 +102,13 @@ const InfoPage: React.FC = () => {
                                 key={link.id}
                                 type="button"
                                 onClick={() => void open(link.href)}
-                                className="group flex h-11 w-11 items-center justify-center rounded-xl border border-primary-100 bg-bg-secondary/70 shadow-primary-sm transition-[transform,background-color,border-color] duration-base hover:-translate-y-0.5 hover:border-primary-200 hover:bg-primary-50"
+                                className="community-link group flex h-11 w-11 items-center justify-center rounded-xl border border-primary-100 bg-bg-secondary/70 shadow-primary-sm hover:border-primary-200 hover:bg-primary-50"
                                 aria-label={`Open ${link.label}`}
                             >
                                 <img
                                     src={link.icon}
                                     alt={link.label}
-                                    className={`h-6 w-6 object-contain transition-transform duration-base group-hover:scale-105 ${link.invert ? 'invert' : ''}`}
+                                    className={`community-link-icon h-6 w-6 object-contain ${link.invert ? 'invert' : ''}`}
                                 />
                             </button>
                         ))}

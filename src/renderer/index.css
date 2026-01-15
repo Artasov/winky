@@ -120,6 +120,25 @@ html[data-mic-window="true"] body #root {
     margin: 0;
 }
 
+.community-link {
+    transition:
+        transform var(--transition-duration-base) var(--transition-timing-function-smooth),
+        background-color var(--transition-duration-base) var(--transition-timing-function-smooth),
+        border-color var(--transition-duration-base) var(--transition-timing-function-smooth);
+}
+
+.community-link:hover {
+    transform: translateY(-2px);
+}
+
+.community-link-icon {
+    transition: transform var(--transition-duration-base) var(--transition-timing-function-smooth);
+}
+
+.community-link:hover .community-link-icon {
+    transform: scale(1.05);
+}
+
 .markdown-compact p + p {
     margin-top: 0.5rem;
 }

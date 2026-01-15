@@ -189,55 +189,65 @@ const ActionForm: React.FC<Props> = ({
                                 No icons available.
                             </Box>
                         ) : (
-                            <div className={'frsc gap-1 flex-wrap'}>
-                                {icons.map((icon) => {
-                                    const isSelected = values.iconId === icon.id;
-                                    return (
-                                        <IconButton
-                                            key={icon.id}
-                                            size={'small'}
-                                            aria-pressed={isSelected}
-                                            onClick={() => setField('iconId', icon.id)}
-                                            sx={(theme) => ({
-                                                width: 48,
-                                                height: 48,
-                                                aspectRatio: '1 / 1',
-                                                minHeight: 0,
-                                                padding: 0,
-                                                borderStyle: 'solid',
-                                                borderWidth: 2,
-                                                borderColor: isSelected
-                                                    ? theme.palette.primary.main
-                                                    : theme.palette.primary.main + '00',
-                                                backgroundColor: isSelected
-                                                    ? 'rgba(244, 63, 94, 0.18)'
-                                                    : 'rgba(15, 23, 42, 0.03)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                transition: 'all 260ms ease',
-                                                '&:hover': {
-                                                    backgroundColor: 'rgba(244, 63, 94, 0.18)',
-                                                    borderColor: theme.palette.primary.main
-                                                }
-                                            })}
-                                        >
-                                            {icon.emoji ? (
-                                                <Typography variant="h5" component="span">
-                                                    {icon.emoji}
-                                                </Typography>
-                                            ) : (
-                                                <Box
-                                                    component="img"
-                                                    src={icon.svg}
-                                                    alt={icon.name}
-                                                    sx={{width: 24, height: 24}}
-                                                />
-                                            )}
-                                        </IconButton>
-                                    );
-                                })}
-                            </div>
+                            <Box
+                                className="overflow-y-auto"
+                                sx={{
+                                    maxHeight: 155,
+                                    overflowY: 'auto',
+                                    pr: 0.5
+                                }}
+                            >
+                                <div className={'frsc gap-1 flex-wrap'}>
+                                    {icons.map((icon) => {
+                                        const isSelected = values.iconId === icon.id;
+                                        return (
+                                            <IconButton
+                                                key={icon.id}
+                                                size={'small'}
+                                                aria-pressed={isSelected}
+                                                onClick={() => setField('iconId', icon.id)}
+                                                sx={(theme) => ({
+                                                    width: 48,
+                                                    height: 48,
+                                                    aspectRatio: '1 / 1',
+                                                    minHeight: 0,
+                                                    padding: 0,
+                                                    borderStyle: 'solid',
+                                                    borderWidth: 2,
+                                                    borderColor: isSelected
+                                                        ? theme.palette.primary.main
+                                                        : theme.palette.primary.main + '00',
+                                                    backgroundColor: isSelected
+                                                        ? 'rgba(244, 63, 94, 0.18)'
+                                                        : 'rgba(15, 23, 42, 0.03)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    transition: 'all 260ms ease',
+                                                    '&:hover': {
+                                                        backgroundColor: 'rgba(244, 63, 94, 0.18)',
+                                                        borderColor: theme.palette.primary.main
+                                                    },
+                                                    boxShadow: 'none'
+                                                })}
+                                            >
+                                                {icon.emoji ? (
+                                                    <Typography variant="h5" component="span">
+                                                        {icon.emoji}
+                                                    </Typography>
+                                                ) : (
+                                                    <Box
+                                                        component="img"
+                                                        src={icon.svg}
+                                                        alt={icon.name}
+                                                        sx={{width: 24, height: 24}}
+                                                    />
+                                                )}
+                                            </IconButton>
+                                        );
+                                    })}
+                                </div>
+                            </Box>
                         )}
                     </Stack>
 

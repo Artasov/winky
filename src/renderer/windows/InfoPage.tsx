@@ -4,7 +4,13 @@ import {open} from '@tauri-apps/plugin-shell';
 import {APP_NAME} from '@shared/constants';
 import ReactMarkdown from 'react-markdown';
 
-const COMMUNITY_LINKS = [
+const COMMUNITY_LINKS: Array<{
+    id: string;
+    label: string;
+    icon: string;
+    href: string;
+    invert?: boolean;
+}> = [
     {id: 'x', label: 'X', icon: '/resources/community/x.svg', href: 'https://x.com/winky_ai', invert: true},
     {id: 'github', label: 'GitHub', icon: '/resources/community/github.svg', href: 'https://github.com/Artasov/winky', invert: true},
     {id: 'telegram', label: 'Telegram', icon: '/resources/community/telegram.svg', href: 'https://t.me/winky_ai'},
@@ -12,7 +18,7 @@ const COMMUNITY_LINKS = [
     {id: 'linkedin', label: 'LinkedIn', icon: '/resources/community/linkedin.svg', href: 'https://www.linkedin.com/in/xlartas/', invert: true},
     {id: 'dexscreener', label: 'Dexscreener', icon: '/resources/community/dexscreener.svg', href: 'https://dexscreener.com/solana/8ARxY7YrVBNhSGkSjQjgzbU9uCRyX67vBfM6mAuMpump', invert: true},
     {id: 'pumpfun', label: 'Pump.fun', icon: '/resources/community/pumpfun.webp', href: 'https://pump.fun/coin/8ARxY7YrVBNhSGkSjQjgzbU9uCRyX67vBfM6mAuMpump'}
-] as const;
+];
 
 const USAGE_GUIDE_MARKDOWN = `
 ## Usage Guide

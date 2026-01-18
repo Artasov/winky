@@ -1,7 +1,10 @@
 type TrimSilenceOptions = {
     threshold?: number;
+    thresholdRatio?: number;
+    minThreshold?: number;
     paddingMs?: number;
     minDurationMs?: number;
+    minSegmentMs?: number;
 };
 
 type TrimResult = {
@@ -11,8 +14,11 @@ type TrimResult = {
 };
 
 const DEFAULT_THRESHOLD = 0.015;
-const DEFAULT_PADDING_MS = 120;
-const DEFAULT_MIN_DURATION_MS = 200;
+const DEFAULT_THRESHOLD_RATIO = 0.05;
+const DEFAULT_MIN_THRESHOLD = 0.01;
+const DEFAULT_PADDING_MS = 300;
+const DEFAULT_MIN_DURATION_MS = 120;
+const DEFAULT_MIN_SEGMENT_MS = 80;
 
 const resolveAudioContext = () => {
     const AudioContextCtor = (window as typeof window & {webkitAudioContext?: typeof AudioContext}).AudioContext
@@ -36,38 +42,68 @@ const decodeAudioBuffer = async (data: ArrayBuffer): Promise<AudioBuffer | null>
     }
 };
 
-const findTrimRange = (buffer: AudioBuffer, threshold: number, paddingMs: number) => {
+const findTrimSegments = (
+    buffer: AudioBuffer,
+    threshold: number,
+    paddingMs: number,
+    minSegmentMs: number
+) => {
     const channelData = buffer.getChannelData(0);
     const sampleRate = buffer.sampleRate;
     const windowSize = Math.max(256, Math.floor(sampleRate * 0.02));
     const paddingSamples = Math.floor((paddingMs / 1000) * sampleRate);
-    let startIndex = -1;
-    let endIndex = -1;
+    const minSegmentSamples = Math.max(1, Math.floor((minSegmentMs / 1000) * sampleRate));
+    const segments: Array<{start: number; end: number}> = [];
+    let currentStart = -1;
+    let currentEnd = -1;
 
     for (let offset = 0; offset < channelData.length; offset += windowSize) {
-        let peak = 0;
         const end = Math.min(channelData.length, offset + windowSize);
+        let sumSquares = 0;
         for (let i = offset; i < end; i += 1) {
-            const value = Math.abs(channelData[i]);
-            if (value > peak) {
-                peak = value;
-            }
+            const value = channelData[i];
+            sumSquares += value * value;
         }
-        if (peak >= threshold) {
-            if (startIndex === -1) {
-                startIndex = offset;
+        const rms = Math.sqrt(sumSquares / Math.max(1, end - offset));
+        if (rms >= threshold) {
+            if (currentStart === -1) {
+                currentStart = offset;
             }
-            endIndex = end;
+            currentEnd = end;
+        } else if (currentStart !== -1) {
+            segments.push({start: currentStart, end: currentEnd});
+            currentStart = -1;
+            currentEnd = -1;
         }
     }
 
-    if (startIndex === -1 || endIndex === -1) {
-        return {start: 0, end: buffer.length};
+    if (currentStart !== -1 && currentEnd !== -1) {
+        segments.push({start: currentStart, end: currentEnd});
     }
 
-    const start = Math.max(0, startIndex - paddingSamples);
-    const end = Math.min(buffer.length, endIndex + paddingSamples);
-    return {start, end};
+    const expanded = segments
+        .map(({start, end}) => ({
+            start: Math.max(0, start - paddingSamples),
+            end: Math.min(buffer.length, end + paddingSamples)
+        }))
+        .filter(({start, end}) => (end - start) >= minSegmentSamples);
+
+    if (expanded.length === 0) {
+        return [];
+    }
+
+    const merged: Array<{start: number; end: number}> = [expanded[0]];
+    for (let i = 1; i < expanded.length; i += 1) {
+        const last = merged[merged.length - 1];
+        const current = expanded[i];
+        if (current.start <= last.end) {
+            last.end = Math.max(last.end, current.end);
+        } else {
+            merged.push(current);
+        }
+    }
+
+    return merged;
 };
 
 const sliceAudioBuffer = (buffer: AudioBuffer, start: number, end: number) => {
@@ -85,6 +121,40 @@ const sliceAudioBuffer = (buffer: AudioBuffer, start: number, end: number) => {
         trimmed.getChannelData(channel).set(source);
     }
     return trimmed;
+};
+
+const concatAudioSegments = (buffer: AudioBuffer, segments: Array<{start: number; end: number}>) => {
+    const totalLength = segments.reduce((acc, segment) => acc + Math.max(0, segment.end - segment.start), 0);
+    if (totalLength <= 0) {
+        return null;
+    }
+    const combined = new AudioBuffer({
+        length: totalLength,
+        numberOfChannels: buffer.numberOfChannels,
+        sampleRate: buffer.sampleRate
+    });
+    let offset = 0;
+    for (const segment of segments) {
+        const length = Math.max(0, segment.end - segment.start);
+        if (length <= 0) {
+            continue;
+        }
+        for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+            const source = buffer.getChannelData(channel).subarray(segment.start, segment.end);
+            combined.getChannelData(channel).set(source, offset);
+        }
+        offset += length;
+    }
+    return combined;
+};
+
+const createSilentBuffer = (sampleRate: number, durationMs: number, channels = 1) => {
+    const length = Math.max(1, Math.floor((durationMs / 1000) * sampleRate));
+    return new AudioBuffer({
+        length,
+        numberOfChannels: channels,
+        sampleRate
+    });
 };
 
 const writeString = (view: DataView, offset: number, value: string) => {
@@ -137,32 +207,64 @@ export const trimSilenceFromAudioBlob = async (
     blob: Blob,
     options: TrimSilenceOptions = {}
 ): Promise<TrimResult> => {
-    const threshold = options.threshold ?? DEFAULT_THRESHOLD;
     const paddingMs = options.paddingMs ?? DEFAULT_PADDING_MS;
     const minDurationMs = options.minDurationMs ?? DEFAULT_MIN_DURATION_MS;
+    const minSegmentMs = options.minSegmentMs ?? DEFAULT_MIN_SEGMENT_MS;
+    const thresholdRatio = options.thresholdRatio ?? DEFAULT_THRESHOLD_RATIO;
+    const minThreshold = options.minThreshold ?? DEFAULT_MIN_THRESHOLD;
+    const explicitThreshold = options.threshold ?? DEFAULT_THRESHOLD;
     const originalBuffer = await blob.arrayBuffer();
 
     try {
         const decoded = await decodeAudioBuffer(originalBuffer);
         if (!decoded) {
-            return {audioData: originalBuffer, mimeType: blob.type || 'audio/webm', trimmed: false};
+            const silentBuffer = createSilentBuffer(16000, minDurationMs);
+            return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true};
         }
 
-        const {start, end} = findTrimRange(decoded, threshold, paddingMs);
-        const trimmedBuffer = sliceAudioBuffer(decoded, start, end);
-        if (!trimmedBuffer) {
-            return {audioData: originalBuffer, mimeType: blob.type || 'audio/webm', trimmed: false};
+        const channelData = decoded.getChannelData(0);
+        let maxRms = 0;
+        const sampleRate = decoded.sampleRate;
+        const windowSize = Math.max(256, Math.floor(sampleRate * 0.02));
+        for (let offset = 0; offset < channelData.length; offset += windowSize) {
+            const end = Math.min(channelData.length, offset + windowSize);
+            let sumSquares = 0;
+            for (let i = offset; i < end; i += 1) {
+                const value = channelData[i];
+                sumSquares += value * value;
+            }
+            const rms = Math.sqrt(sumSquares / Math.max(1, end - offset));
+            if (rms > maxRms) {
+                maxRms = rms;
+            }
         }
 
-        const trimmedDurationMs = (trimmedBuffer.length / trimmedBuffer.sampleRate) * 1000;
+        const dynamicThreshold = Math.max(minThreshold, maxRms * thresholdRatio);
+        const threshold = Math.max(explicitThreshold, dynamicThreshold);
+        const segments = findTrimSegments(decoded, threshold, paddingMs, minSegmentMs);
+
+        if (segments.length === 0) {
+            const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
+            return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true};
+        }
+
+        const combined = concatAudioSegments(decoded, segments);
+        if (!combined) {
+            const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
+            return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true};
+        }
+
+        const trimmedDurationMs = (combined.length / combined.sampleRate) * 1000;
         if (trimmedDurationMs < minDurationMs) {
-            return {audioData: originalBuffer, mimeType: blob.type || 'audio/webm', trimmed: false};
+            const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
+            return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true};
         }
 
-        const wavData = encodeWav(trimmedBuffer);
+        const wavData = encodeWav(combined);
         return {audioData: wavData, mimeType: 'audio/wav', trimmed: true};
     } catch (error) {
-        console.warn('[audioProcessing] Failed to trim silence, using original audio', error);
-        return {audioData: originalBuffer, mimeType: blob.type || 'audio/webm', trimmed: false};
+        console.warn('[audioProcessing] Failed to trim silence, sending minimal audio', error);
+        const silentBuffer = createSilentBuffer(16000, minDurationMs);
+        return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true};
     }
 };

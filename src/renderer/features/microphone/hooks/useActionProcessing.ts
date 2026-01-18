@@ -88,8 +88,10 @@ export const useActionProcessing = ({
 
         try {
             const {audioData, mimeType} = await trimSilenceFromAudioBlob(blob, {
-                threshold: 0.015,
-                paddingMs: 140
+                thresholdRatio: 0.05,
+                minThreshold: 0.01,
+                paddingMs: 300,
+                minSegmentMs: 80
             });
             const authToken = config.auth.access || config.auth.accessToken || undefined;
 

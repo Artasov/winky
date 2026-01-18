@@ -33,7 +33,7 @@ const MicOverlay: React.FC<MicOverlayProps> = ({contextTextRef: contextTextRefPr
 
     const contextTextRef = contextTextRefProp || useRef<string>('');
     const orbitSize = 140;
-    const contextOffset = 2;
+    const contextOffset = -4;
     const recording = useSpeechRecording({config, showToast, isMicOverlay, contextTextRef});
     const interactions = useMicOverlayInteractions({isMicOverlay});
     const {view, refs, handlers} = recording;

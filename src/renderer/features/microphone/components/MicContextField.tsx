@@ -4,7 +4,7 @@ import {interactiveEnter, interactiveLeave} from '../../../utils/interactive';
 const STORAGE_KEY = 'mic_context_text';
 const MIN_WIDTH = 170;
 const MAX_WIDTH = 460; // Шире, чтобы было больше места
-const FOCUSED_MIN_HEIGHT = 37; // Компактнее по высоте
+const FOCUSED_MIN_HEIGHT = 34; // Компактнее по высоте
 
 interface MicContextFieldProps {
     onContextChange?: (text: string) => void;
@@ -17,7 +17,8 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
     const [fieldWidth, setFieldWidth] = useState<number>(MIN_WIDTH);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
-    const padding = '8px 12px 6px 12px';
+    const padding = '7px 12px';
+    const hasValue = Boolean(value.trim());
     const shouldWrap = fieldWidth >= MAX_WIDTH;
 
     // Загружаем сохраненный текст при монтировании
@@ -98,6 +99,14 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
         interactiveLeave();
     }, []);
 
+    const handleClear = useCallback(() => {
+        setValue('');
+        if (textareaRef.current) {
+            textareaRef.current.scrollTop = 0;
+            textareaRef.current.focus();
+        }
+    }, []);
+
     const handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setValue(event.target.value);
     }, []);
@@ -170,10 +179,38 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
             style={{
                 width: `${fieldWidth}px`,
                 maxWidth: 'calc(100vw - 64px)',
+                position: 'relative',
                 transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                 willChange: 'width',
             }}
         >
+            {hasValue ? (
+                <button
+                    type="button"
+                    aria-label="Clear context"
+                    className="app-region-no-drag"
+                    onClick={handleClear}
+                    onMouseEnter={() => interactiveEnter()}
+                    onMouseLeave={() => interactiveLeave()}
+                    onFocus={() => interactiveEnter()}
+                    onBlur={() => interactiveLeave()}
+                    style={{
+                        position: 'absolute',
+                        top: '-18px',
+                        right: '10px',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: 'rgba(225, 29, 72, 0.95)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        letterSpacing: '0.02em',
+                        cursor: 'pointer',
+                        padding: 0
+                    }}
+                >
+                    Clear
+                </button>
+            ) : null}
             <textarea
                 ref={textareaRef}
                 rows={1}
@@ -181,7 +218,7 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
                 onChange={handleChange}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
-                placeholder={value.trim() ? '' : 'Add context...'}
+                placeholder={hasValue ? '' : 'Add context...'}
                 className="mic-context-scrollbar"
                 wrap={shouldWrap ? 'soft' : 'off'}
                 style={{

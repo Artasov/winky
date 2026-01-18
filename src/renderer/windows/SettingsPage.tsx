@@ -34,6 +34,8 @@ const SettingsPage: React.FC = () => {
     const [completionSoundEnabled, setCompletionSoundEnabled] = useState(true);
     const [completionSoundVolume, setCompletionSoundVolume] = useState(1.0);
     const [showAvatarVideo, setShowAvatarVideo] = useState(true);
+    const [saveAudioHistory, setSaveAudioHistory] = useState(false);
+    const [trimSilenceOnActions, setTrimSilenceOnActions] = useState(false);
 
     useEffect(() => {
         if (config) {
@@ -55,6 +57,8 @@ const SettingsPage: React.FC = () => {
             setLaunchOnSystemStartup(Boolean(config.launchOnSystemStartup));
             setAutoStartLocalSpeech(Boolean(config.autoStartLocalSpeechServer));
             setShowAvatarVideo(config.showAvatarVideo !== false);
+            setSaveAudioHistory(Boolean(config.saveAudioHistory));
+            setTrimSilenceOnActions(Boolean(config.trimSilenceOnActions));
         }
     }, [config]);
 
@@ -381,6 +385,40 @@ const SettingsPage: React.FC = () => {
         }
     };
 
+    const handleSaveAudioHistoryToggle = async (event: ChangeEvent<HTMLInputElement>) => {
+        const nextValue = event.target.checked;
+        const previousValue = saveAudioHistory;
+        setSaveAudioHistory(nextValue);
+        try {
+            await updateConfig({saveAudioHistory: nextValue});
+            showToast(
+                nextValue ? 'Audio will be saved to history.' : 'Audio history storage disabled.',
+                'success'
+            );
+        } catch (error) {
+            console.error('[SettingsPage] Failed to toggle audio history storage', error);
+            setSaveAudioHistory(previousValue);
+            showToast('Failed to update audio history setting.', 'error');
+        }
+    };
+
+    const handleTrimSilenceToggle = async (event: ChangeEvent<HTMLInputElement>) => {
+        const nextValue = event.target.checked;
+        const previousValue = trimSilenceOnActions;
+        setTrimSilenceOnActions(nextValue);
+        try {
+            await updateConfig({trimSilenceOnActions: nextValue});
+            showToast(
+                nextValue ? 'Silence trimming enabled.' : 'Silence trimming disabled.',
+                'success'
+            );
+        } catch (error) {
+            console.error('[SettingsPage] Failed to toggle silence trimming', error);
+            setTrimSilenceOnActions(previousValue);
+            showToast('Failed to update silence trimming setting.', 'error');
+        }
+    };
+
     if (!isAuthorized) {
         return (
             <div className="fccc mx-auto h-full w-full max-w-md gap-4 px-8 py-12 text-center">
@@ -600,6 +638,47 @@ const SettingsPage: React.FC = () => {
                     />
                     <Typography variant="caption" color="text.secondary">
                         Adjust the volume of the sound that plays when an action completes. Set to 0% to disable.
+                    </Typography>
+                </div>
+            </Box>
+
+            <Box
+                className={'fc gap-1'}
+                component="section"
+                sx={{
+                    borderRadius: 4,
+                    border: '1px solid rgba(244,63,94,0.15)',
+                    backgroundColor: '#fff',
+                    p: {xs: 3, md: 4},
+                    boxShadow: '0 30px 60px rgba(255, 255, 255, 0.03)'
+                }}
+            >
+                <div className={'fc'}>
+                    <Typography variant="h6" color="text.primary" fontWeight={600}>
+                        Audio Processing
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        Decide how action audio is stored and prepared before transcription.
+                    </Typography>
+                </div>
+
+                <div className={'fc gap-2'}>
+                    <FormControlLabel
+                        control={<Checkbox checked={saveAudioHistory} onChange={handleSaveAudioHistoryToggle}/>}
+                        label="Save audio in history"
+                    />
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
+                        Stores the recorded audio file locally for each action so you can replay it in History.
+                    </Typography>
+                </div>
+
+                <div className={'fc gap-2'}>
+                    <FormControlLabel
+                        control={<Checkbox checked={trimSilenceOnActions} onChange={handleTrimSilenceToggle}/>}
+                        label="Trim silence before transcription"
+                    />
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
+                        Removes long pauses before sending audio for transcription. Disabled by default.
                     </Typography>
                 </div>
             </Box>

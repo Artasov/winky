@@ -25,7 +25,15 @@ use auth::AuthQueue;
 use serde::Deserialize;
 use config::{should_auto_start_local_speech, ConfigState};
 use hotkeys::{ActionHotkeyInput, HotkeyState};
-use history::{append_history, clear_history, read_history, ActionHistoryEntry, ActionHistoryInput};
+use history::{
+    append_history,
+    clear_history,
+    read_history,
+    read_history_audio,
+    save_history_audio,
+    ActionHistoryEntry,
+    ActionHistoryInput,
+};
 use notes::{
     bulk_delete_notes,
     create_note,
@@ -63,6 +71,19 @@ struct NotesListArgs {
     page: Option<u32>,
     #[serde(alias = "pageSize", alias = "page_size")]
     page_size: Option<u32>,
+}
+
+#[derive(Deserialize)]
+struct HistoryAudioInput {
+    audio: Vec<u8>,
+    #[serde(alias = "mimeType", alias = "mime_type")]
+    mime_type: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct HistoryReadAudioInput {
+    #[serde(alias = "audioPath", alias = "audio_path")]
+    audio_path: String,
 }
 
 #[tauri::command]
@@ -184,6 +205,26 @@ async fn history_clear(app: tauri::AppHandle) -> Result<(), String> {
     app.emit("history:updated", json!({"type": "cleared"}))
         .map_err(|error| error.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+async fn history_save_audio(
+    app: tauri::AppHandle,
+    payload: HistoryAudioInput,
+) -> Result<String, String> {
+    save_history_audio(&app, payload.audio, payload.mime_type)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn history_read_audio(
+    app: tauri::AppHandle,
+    payload: HistoryReadAudioInput,
+) -> Result<Vec<u8>, String> {
+    read_history_audio(&app, payload.audio_path)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -904,6 +945,8 @@ fn main() {
             history_get,
             history_add,
             history_clear,
+            history_save_audio,
+            history_read_audio,
             notes_get,
             notes_create,
             notes_update,

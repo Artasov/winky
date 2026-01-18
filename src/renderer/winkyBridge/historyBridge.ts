@@ -13,12 +13,19 @@ type HistoryAddPayload = {
     transcription: string;
     llm_response?: string | null;
     result_text: string;
+    audio_path?: string | null;
 };
 
 export const historyBridge = {
     get: (): Promise<ActionHistoryEntry[]> => invoke('history_get'),
     add: (payload: HistoryAddPayload): Promise<ActionHistoryEntry> =>
         invoke('history_add', {payload}),
+    saveAudio: (audioData: ArrayBuffer, mimeType?: string): Promise<string> => {
+        const audio = new Uint8Array(audioData);
+        return invoke('history_save_audio', {payload: {audio, mimeType}});
+    },
+    readAudio: (audioPath: string): Promise<Uint8Array> =>
+        invoke('history_read_audio', {payload: {audioPath}}),
     clear: (): Promise<void> => invoke('history_clear'),
     subscribe: (callback: (event: HistoryUpdateEvent) => void): (() => void) => {
         let stopped = false;

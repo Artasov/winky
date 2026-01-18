@@ -122,6 +122,10 @@ pub struct AppConfig {
     pub show_avatar_video: bool,
     #[serde(default = "default_notes_storage_mode")]
     pub notes_storage_mode: String,
+    #[serde(default = "default_false")]
+    pub save_audio_history: bool,
+    #[serde(default = "default_false")]
+    pub trim_silence_on_actions: bool,
 }
 
 impl Default for AppConfig {
@@ -145,6 +149,8 @@ impl Default for AppConfig {
             completion_sound_enabled: default_true(),
             show_avatar_video: default_true(),
             notes_storage_mode: default_notes_storage_mode(),
+            save_audio_history: default_false(),
+            trim_silence_on_actions: default_false(),
         }
     }
 }

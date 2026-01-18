@@ -205,7 +205,12 @@ declare global {
             transcription: string;
             llm_response?: string | null;
             result_text: string;
+            audio_path?: string | null;
         }): Promise<ActionHistoryEntry>;
+
+        saveAudio(audioData: ArrayBuffer, mimeType?: string): Promise<string>;
+
+        readAudio(audioPath: string): Promise<Uint8Array>;
 
         clear(): Promise<void>;
 

@@ -106,6 +106,7 @@ export interface ActionHistoryEntry {
     transcription: string;
     llm_response?: string | null;
     result_text: string;
+    audio_path?: string | null;
 }
 
 export interface WinkyNote {
@@ -157,6 +158,8 @@ export interface AppConfig {
     completionSoundEnabled?: boolean;
     showAvatarVideo?: boolean;
     notesStorageMode?: 'api' | 'local';
+    saveAudioHistory?: boolean;
+    trimSilenceOnActions?: boolean;
 }
 
 export type MicAnchor = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';

@@ -55,6 +55,7 @@ export const useActionProcessing = ({
             transcription: string;
             llm_response?: string | null;
             result_text: string;
+            audio_path?: string | null;
         }) => {
             try {
                 await historyBridge.add(payload);
@@ -87,12 +88,52 @@ export const useActionProcessing = ({
         };
 
         try {
-            const {audioData, mimeType} = await trimSilenceFromAudioBlob(blob, {
-                thresholdRatio: 0.05,
-                minThreshold: 0.01,
-                paddingMs: 300,
-                minSegmentMs: 80
-            });
+            const shouldTrimSilence = config.trimSilenceOnActions === true;
+            const shouldSaveAudio = config.saveAudioHistory === true;
+            let audioData: ArrayBuffer;
+            let mimeType = blob.type || 'audio/webm';
+            let audioForSave: ArrayBuffer | null = null;
+            let saveMimeType: string | undefined = undefined;
+
+            if (shouldTrimSilence) {
+                const trimmed = await trimSilenceFromAudioBlob(blob, {
+                    thresholdRatio: 0.05,
+                    minThreshold: 0.01,
+                    paddingMs: 300,
+                    minSegmentMs: 80
+                });
+                audioData = trimmed.audioData;
+                mimeType = trimmed.mimeType;
+                if (shouldSaveAudio) {
+                    audioForSave = trimmed.audioData;
+                    saveMimeType = trimmed.mimeType;
+                }
+            } else {
+                const originalAudioData = await blob.arrayBuffer();
+                audioData = originalAudioData;
+                if (shouldSaveAudio) {
+                    audioForSave = originalAudioData;
+                    saveMimeType = mimeType;
+                }
+            }
+
+            let savedAudioPath: string | null | undefined = undefined;
+            const ensureAudioSaved = async (): Promise<string | null> => {
+                if (!shouldSaveAudio || !audioForSave) {
+                    return null;
+                }
+                if (savedAudioPath !== undefined) {
+                    return savedAudioPath;
+                }
+                try {
+                    savedAudioPath = await historyBridge.saveAudio(audioForSave, saveMimeType);
+                } catch (error) {
+                    console.warn('[useActionProcessing] Failed to save audio history', error);
+                    savedAudioPath = null;
+                }
+                return savedAudioPath;
+            };
+
             const authToken = config.auth.access || config.auth.accessToken || undefined;
 
             const transcriptionPrompt = action.prompt_recognizing?.trim() || undefined;
@@ -179,7 +220,8 @@ export const useActionProcessing = ({
                     action_prompt: action.prompt?.trim() || null,
                     transcription: transcriptionForOutput,
                     llm_response: null,
-                    result_text: transcriptionForOutput
+                    result_text: transcriptionForOutput,
+                    audio_path: await ensureAudioSaved()
                 });
                 await saveQuickNote(transcriptionForOutput);
                 clearContext();
@@ -235,7 +277,8 @@ export const useActionProcessing = ({
                 action_prompt: action.prompt?.trim() || null,
                 transcription: transcriptionForOutput,
                 llm_response: finalResponse ?? null,
-                result_text: trimmedResponse.length > 0 ? finalResponse : transcriptionForOutput
+                result_text: trimmedResponse.length > 0 ? finalResponse : transcriptionForOutput,
+                audio_path: await ensureAudioSaved()
             });
             await saveQuickNote(trimmedResponse.length > 0 ? finalResponse ?? '' : transcriptionForOutput);
             clearContext();

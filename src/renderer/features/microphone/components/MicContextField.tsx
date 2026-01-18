@@ -5,7 +5,6 @@ const STORAGE_KEY = 'mic_context_text';
 const MIN_WIDTH = 170;
 const MAX_WIDTH = 460; // Шире, чтобы было больше места
 const FOCUSED_MIN_HEIGHT = 37; // Компактнее по высоте
-const EXPANDED_WIDTH = MAX_WIDTH;
 
 interface MicContextFieldProps {
     onContextChange?: (text: string) => void;
@@ -15,10 +14,11 @@ interface MicContextFieldProps {
 const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, containerRef}) => {
     const [value, setValue] = useState<string>('');
     const [isFocused, setIsFocused] = useState<boolean>(false);
+    const [fieldWidth, setFieldWidth] = useState<number>(MIN_WIDTH);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-    const hasValue = Boolean(value.trim());
-    const isExpanded = isFocused || hasValue;
+    const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const padding = '8px 12px 6px 12px';
+    const shouldWrap = fieldWidth >= MAX_WIDTH;
 
     // Загружаем сохраненный текст при монтировании
     useEffect(() => {
@@ -72,6 +72,22 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
         };
     }, []);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const handleClear = () => {
+            setValue('');
+            if (textareaRef.current) {
+                textareaRef.current.scrollTop = 0;
+            }
+        };
+        window.addEventListener('mic:clear-context', handleClear);
+        return () => {
+            window.removeEventListener('mic:clear-context', handleClear);
+        };
+    }, []);
+
     const handleFocus = useCallback(() => {
         setIsFocused(true);
         interactiveEnter();
@@ -102,12 +118,57 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
         textarea.style.height = `${newHeight}px`;
     }, [value, isFocused]);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const textarea = textareaRef.current;
+        if (!textarea) {
+            return;
+        }
+        if (!value) {
+            if (fieldWidth !== MIN_WIDTH) {
+                setFieldWidth(MIN_WIDTH);
+            }
+            return;
+        }
+        const style = window.getComputedStyle(textarea);
+        const canvas = measureCanvasRef.current || document.createElement('canvas');
+        measureCanvasRef.current = canvas;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            return;
+        }
+        const font = style.font
+            || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        ctx.font = font;
+        const lines = value.split('\n');
+        let maxLineWidth = 0;
+        for (const line of lines) {
+            const metrics = ctx.measureText(line || ' ');
+            if (metrics.width > maxLineWidth) {
+                maxLineWidth = metrics.width;
+            }
+        }
+        const paddingLeft = parseFloat(style.paddingLeft || '0');
+        const paddingRight = parseFloat(style.paddingRight || '0');
+        const borderLeft = parseFloat(style.borderLeftWidth || '0');
+        const borderRight = parseFloat(style.borderRightWidth || '0');
+        const nextWidth = Math.min(
+            MAX_WIDTH,
+            Math.max(MIN_WIDTH, Math.ceil(maxLineWidth + paddingLeft + paddingRight + borderLeft + borderRight))
+        );
+        if (Math.abs(nextWidth - fieldWidth) >= 1) {
+            setFieldWidth(nextWidth);
+        }
+    }, [value, fieldWidth]);
+
     return (
         <div
             ref={containerRef}
             className="pointer-events-auto"
             style={{
-                width: `${isExpanded ? EXPANDED_WIDTH : MIN_WIDTH}px`,
+                width: `${fieldWidth}px`,
                 maxWidth: 'calc(100vw - 64px)',
                 transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                 willChange: 'width',
@@ -122,6 +183,7 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
                 onBlur={handleBlur}
                 placeholder={value.trim() ? '' : 'Add context...'}
                 className="mic-context-scrollbar"
+                wrap={shouldWrap ? 'soft' : 'off'}
                 style={{
                     width: '100%',
                     fontSize: '13px',
@@ -132,6 +194,8 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
                     height: 'auto',
                     resize: 'none',
                     transition: 'padding 0.2s ease, border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease',
+                    whiteSpace: shouldWrap ? 'pre-wrap' : 'pre',
+                    overflowX: 'hidden',
                     overflowY: 'auto',
                     color: 'rgba(255, 255, 255, 0.9)',
                     backgroundColor: 'rgba(0, 0, 0, 0.5)',

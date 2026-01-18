@@ -2,6 +2,7 @@ import {useCallback, type RefObject} from 'react';
 import type {ActionConfig, AppConfig} from '@shared/types';
 import {createNoteForMode, deriveNoteTitle, resolveNotesStorageMode} from '../../../services/notesService';
 import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, resultBridge, speechBridge} from '../../../services/winkyBridge';
+import {trimSilenceFromAudioBlob} from '../services/audioProcessing';
 
 type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
 
@@ -32,6 +33,13 @@ export const useActionProcessing = ({
         let abortController: AbortController | null = null;
         let slowLogTimer: number | null = null;
         const startTime = Date.now();
+
+        const clearContext = () => {
+            contextTextRef.current = '';
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('mic:clear-context'));
+            }
+        };
         
         const clearSlowLogTimer = () => {
             if (slowLogTimer !== null) {
@@ -79,7 +87,10 @@ export const useActionProcessing = ({
         };
 
         try {
-            const arrayBuffer = await blob.arrayBuffer();
+            const {audioData, mimeType} = await trimSilenceFromAudioBlob(blob, {
+                threshold: 0.015,
+                paddingMs: 140
+            });
             const authToken = config.auth.access || config.auth.accessToken || undefined;
 
             const transcriptionPrompt = action.prompt_recognizing?.trim() || undefined;
@@ -100,10 +111,10 @@ export const useActionProcessing = ({
             console.log('[useActionProcessing] Starting transcription request', {
                 mode: config.speech.mode,
                 model: config.speech.model,
-                audioSizeKB: (arrayBuffer.byteLength / 1024).toFixed(2)
+                audioSizeKB: (audioData.byteLength / 1024).toFixed(2)
             });
 
-            const transcription = await speechBridge.transcribe(arrayBuffer, {
+            const transcription = await speechBridge.transcribe(audioData, {
                 mode: config.speech.mode,
                 model: config.speech.model,
                 openaiKey: config.apiKeys.openai,
@@ -112,7 +123,8 @@ export const useActionProcessing = ({
                 prompt: transcriptionPrompt
             }, {
                 signal: abortController?.signal,
-                uiTimeoutMs: TRANSCRIBE_UI_TIMEOUT_MS
+                uiTimeoutMs: TRANSCRIBE_UI_TIMEOUT_MS,
+                mimeType
             });
 
             clearSlowLogTimer();
@@ -124,23 +136,28 @@ export const useActionProcessing = ({
                 resultLength: transcription?.length ?? 0
             });
 
-            if (!transcription) {
+            const transcriptionText = transcription?.trim() ?? '';
+            const contextText = contextTextRef.current?.trim() || '';
+            const hasSpeech = transcriptionText.length > 0;
+            const hasContext = contextText.length > 0;
+
+            if (!hasSpeech && !hasContext) {
                 showToast('Failed to transcribe speech for the action.', 'error');
                 return;
             }
 
-            const contextText = contextTextRef.current?.trim() || '';
-            const llmInput = contextText
-                ? `${transcription}\n\nAdditional context:\n${contextText}`.trim()
-                : transcription;
+            const transcriptionForOutput = hasSpeech ? transcriptionText : contextText;
+            const llmInput = hasSpeech
+                ? (hasContext ? `${transcriptionText}\n\nAdditional context:\n${contextText}`.trim() : transcriptionText)
+                : contextText;
 
             const needsLLM = Boolean(action.prompt && action.prompt.trim());
 
             if (action.show_results) {
                 await resultBridge.open();
                 await resultBridge.update({
-                    transcription,
-                    llmResponse: needsLLM ? '' : transcription,
+                    transcription: transcriptionForOutput,
+                    llmResponse: needsLLM ? '' : transcriptionForOutput,
                     isStreaming: needsLLM
                 });
             }
@@ -148,7 +165,7 @@ export const useActionProcessing = ({
             if (!needsLLM) {
                 if (action.auto_copy_result) {
                     await copyWithRetries({
-                        text: transcription,
+                        text: transcriptionForOutput,
                         showToast,
                         successMessage: 'Result copied.',
                         failureMessage: 'Failed to copy the result to the clipboard.'
@@ -158,11 +175,12 @@ export const useActionProcessing = ({
                     action_id: action.id,
                     action_name: action.name,
                     action_prompt: action.prompt?.trim() || null,
-                    transcription,
+                    transcription: transcriptionForOutput,
                     llm_response: null,
-                    result_text: transcription
+                    result_text: transcriptionForOutput
                 });
-                await saveQuickNote(transcription);
+                await saveQuickNote(transcriptionForOutput);
+                clearContext();
                 await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef});
                 return;
             }
@@ -213,11 +231,12 @@ export const useActionProcessing = ({
                 action_id: action.id,
                 action_name: action.name,
                 action_prompt: action.prompt?.trim() || null,
-                transcription,
+                transcription: transcriptionForOutput,
                 llm_response: finalResponse ?? null,
-                result_text: trimmedResponse.length > 0 ? finalResponse : transcription
+                result_text: trimmedResponse.length > 0 ? finalResponse : transcriptionForOutput
             });
-            await saveQuickNote(trimmedResponse.length > 0 ? finalResponse ?? '' : transcription);
+            await saveQuickNote(trimmedResponse.length > 0 ? finalResponse ?? '' : transcriptionForOutput);
+            clearContext();
             await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef, debug: true});
         } catch (error: any) {
             console.error(error);

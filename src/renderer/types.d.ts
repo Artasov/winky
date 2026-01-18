@@ -130,7 +130,7 @@ declare global {
             googleKey?: string;
             accessToken?: string;
             prompt?: string;
-        }, options?: { signal?: AbortSignal; uiTimeoutMs?: number }): Promise<string>;
+        }, options?: { signal?: AbortSignal; uiTimeoutMs?: number; mimeType?: string; fileName?: string }): Promise<string>;
     }
 
     interface WinkyLocalSpeechAPI {

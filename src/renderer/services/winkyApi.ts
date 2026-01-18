@@ -48,6 +48,8 @@ export type SpeechTranscribeConfig = {
 export type SpeechTranscribeOptions = {
     signal?: AbortSignal;
     uiTimeoutMs?: number;
+    mimeType?: string;
+    fileName?: string;
 };
 
 const DEFAULT_TRANSCRIBE_UI_TIMEOUT_MS = 120_000;
@@ -181,10 +183,13 @@ export const transcribeAudio = async (
     config: SpeechTranscribeConfig,
     options: SpeechTranscribeOptions = {}
 ): Promise<string> => {
-    const blob = new Blob([audioData], {type: 'audio/webm'});
+    const resolvedMimeType = options.mimeType || 'audio/webm';
+    const resolvedFileName = options.fileName
+        || (resolvedMimeType.includes('wav') ? 'audio.wav' : 'audio.webm');
+    const blob = new Blob([audioData], {type: resolvedMimeType});
     const buildFormData = (extraFields: Record<string, string> = {}) => {
         const formData = new FormData();
-        formData.append('file', blob, 'audio.webm');
+        formData.append('file', blob, resolvedFileName);
         formData.append('model', config.model);
         Object.entries(extraFields).forEach(([key, value]) => formData.append(key, value));
         return formData;

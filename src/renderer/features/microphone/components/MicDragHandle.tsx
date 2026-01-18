@@ -16,17 +16,14 @@ const MicDragHandleComponent: React.FC<MicDragHandleProps> = ({interactions, isR
     };
 
     const handleMouseEnter = () => {
-        console.log('[mic-drag] mouse enter handle');
         interactions.handleHandleMouseEnter();
     };
 
     const handleMouseLeave = () => {
-        console.log('[mic-drag] mouse leave handle');
         interactions.handleHandleMouseLeave();
     };
 
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-        console.log('[mic-drag] pointer down', {pointerType: event.pointerType, button: event.button});
         interactions.handleHandlePointerDown(event);
     };
 

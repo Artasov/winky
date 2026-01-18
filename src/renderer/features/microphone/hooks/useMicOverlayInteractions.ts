@@ -23,7 +23,6 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
             suppressedHandleLeaveRef.current = false;
             return;
         }
-        console.log('[mic-overlay] handle hover enter');
         interactiveEnter();
     }, []);
 
@@ -36,7 +35,6 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
             return;
         }
         handleHoveringRef.current = false;
-        console.log('[mic-overlay] handle hover leave');
         interactiveLeave();
     }, []);
 
@@ -45,7 +43,6 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
             return;
         }
 
-        console.log('[mic-overlay] pointer down', {pointerType: event.pointerType, button: event.button});
         dragPointerCleanupRef.current?.();
 
         const pointerId = event.pointerId;
@@ -65,12 +62,10 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
             if (pointerEvent.pointerId !== pointerId) {
                 return;
             }
-            console.log('[mic-overlay] pointer end', {pointerId});
             cleanupPointerListeners();
         }
 
         function cleanupPointerListeners() {
-            console.log('[mic-overlay] cleanup pointer listeners');
             window.removeEventListener('pointerup', handlePointerEnd, true);
             window.removeEventListener('pointercancel', handlePointerEnd, true);
             if (dragPointerIdRef.current === pointerId) {
@@ -110,7 +105,6 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
     }, [handleHandleMouseEnter]);
 
     useEffect(() => () => {
-        console.log('[mic-overlay] effect cleanup');
         dragPointerCleanupRef.current?.();
         if (dragResetTimeoutRef.current !== null) {
             window.clearTimeout(dragResetTimeoutRef.current);
@@ -135,11 +129,9 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
                 : second;
             if (payload?.visible) {
                 windowVisibleRef.current = true;
-                console.log('[mic-overlay] window visible');
                 return;
             }
             windowVisibleRef.current = false;
-            console.log('[mic-overlay] window hidden');
             dragPointerCleanupRef.current?.();
             handleHoveringRef.current = false;
             suppressedHandleLeaveRef.current = false;
@@ -195,10 +187,8 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
                 const bottom = (window.screenY || 0) + rect.bottom + padding;
                 const inside = cursor.x >= left && cursor.x <= right && cursor.y >= top && cursor.y <= bottom;
                 if (inside) {
-                    console.log('[mic-overlay] cursor near handle', {cursor});
                     handleHandleMouseEnter();
                 } else if (handleHoveringRef.current) {
-                    console.log('[mic-overlay] cursor left handle', {cursor});
                     handleHandleMouseLeave();
                 }
             } catch {

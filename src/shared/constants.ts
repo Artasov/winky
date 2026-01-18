@@ -99,6 +99,6 @@ export const SPEECH_LOCAL_MODEL_ALIASES = {
     'large-v2': 'large-v3'
 } as const;
 
-export const MIC_WINDOW_WIDTH = 300;
-export const MIC_WINDOW_HEIGHT = 300;
+export const MIC_WINDOW_WIDTH = 520;
+export const MIC_WINDOW_HEIGHT = 1080;
 export const MIC_WINDOW_MARGIN = 24;

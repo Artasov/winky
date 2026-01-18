@@ -10,11 +10,16 @@ import {useMicInteractiveProximity} from '../hooks/useMicInteractiveProximity';
 import MicDragHandle from './MicDragHandle';
 import MicVolumeRings from './MicVolumeRings';
 import MicActionOrbit from './MicActionOrbit';
+import MicContextField from './MicContextField';
 import {resetInteractive} from '../../../utils/interactive';
 import {resourcesBridge} from '../../../services/winkyBridge';
 
 
-const MicOverlay: React.FC = () => {
+interface MicOverlayProps {
+    contextTextRef?: React.MutableRefObject<string>;
+}
+
+const MicOverlay: React.FC<MicOverlayProps> = ({contextTextRef: contextTextRefProp}) => {
     const {config} = useConfig();
     const {showToast} = useToast();
 
@@ -26,7 +31,10 @@ const MicOverlay: React.FC = () => {
         return params.get('window') === 'mic';
     }, []);
 
-    const recording = useSpeechRecording({config, showToast, isMicOverlay});
+    const contextTextRef = contextTextRefProp || useRef<string>('');
+    const orbitSize = 140;
+    const contextOffset = 2;
+    const recording = useSpeechRecording({config, showToast, isMicOverlay, contextTextRef});
     const interactions = useMicOverlayInteractions({isMicOverlay});
     const {view, refs, handlers} = recording;
     const {
@@ -54,9 +62,14 @@ const MicOverlay: React.FC = () => {
 
     const micButtonRef = useRef<HTMLDivElement | null>(null);
     const actionsContainerRef = useRef<HTMLDivElement | null>(null);
+    const contextFieldRef = useRef<HTMLDivElement | null>(null);
 
     const [completionEnabled, setCompletionEnabled] = useState<boolean>(true);
     const [soundPath, setSoundPath] = useState<string>('');
+
+    const handleContextChange = useCallback((text: string) => {
+        contextTextRef.current = text;
+    }, [contextTextRef]);
 
     useEffect(() => {
         const enabled = config?.completionSoundEnabled !== false;
@@ -140,7 +153,8 @@ const MicOverlay: React.FC = () => {
         isMicOverlay,
         micButtonRef,
         actionsContainerRef,
-        actionsEnabled: actionsVisible && displayedActions.length > 0 && !processing
+        actionsEnabled: actionsVisible && displayedActions.length > 0 && !processing,
+        contextFieldRef
     });
 
     // Сбрасываем состояние интерактивности при монтировании компонента
@@ -210,31 +224,39 @@ const MicOverlay: React.FC = () => {
                 <audio ref={completionSoundRef} />
             )}
             <MicDragHandle interactions={interactions} isRecording={isRecording} disabled={processing}/>
-            <div className="pointer-events-none relative flex h-full w-full items-center justify-center">
-                <MicVolumeRings isRecording={isRecording} normalizedVolume={normalizedVolume}/>
+            <div className="pointer-events-none relative flex h-full w-full flex-col items-center pt-2">
                 <div
-                    className="relative"
-                    style={{pointerEvents: processing ? 'none' : 'auto'}}
-                    ref={micButtonRef}
+                    className="relative flex items-center justify-center"
+                    style={{width: `${orbitSize}px`, height: `${orbitSize}px`}}
                 >
-                    <MicrophoneButton
-                        isRecording={isRecording}
-                        onToggle={handleMicrophoneToggle}
-                        disabled={processing}
-                        size={isRecording ? 'compact' : 'default'}
-                    />
+                    <MicVolumeRings isRecording={isRecording} normalizedVolume={normalizedVolume}/>
+                    <div
+                        className="relative"
+                        style={{pointerEvents: processing ? 'none' : 'auto'}}
+                        ref={micButtonRef}
+                    >
+                        <MicrophoneButton
+                            isRecording={isRecording}
+                            onToggle={handleMicrophoneToggle}
+                            disabled={processing}
+                            size={isRecording ? 'compact' : 'default'}
+                        />
+                    </div>
+                    <div
+                        ref={actionsContainerRef}
+                        className="pointer-events-none absolute inset-0"
+                    >
+                        <MicActionOrbit
+                            actions={displayedActions}
+                            actionsVisible={actionsVisible}
+                            processing={processing}
+                            activeActionId={activeActionId}
+                            onActionClick={handleActionClick}
+                        />
+                    </div>
                 </div>
-                <div
-                    ref={actionsContainerRef}
-                    className="pointer-events-none absolute inset-0"
-                >
-                    <MicActionOrbit
-                        actions={displayedActions}
-                        actionsVisible={actionsVisible}
-                        processing={processing}
-                        activeActionId={activeActionId}
-                        onActionClick={handleActionClick}
-                    />
+                <div className="pointer-events-auto" style={{marginTop: `${contextOffset}px`}}>
+                    <MicContextField onContextChange={handleContextChange} containerRef={contextFieldRef} />
                 </div>
             </div>
         </>

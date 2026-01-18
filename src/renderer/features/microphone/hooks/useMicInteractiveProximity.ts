@@ -7,6 +7,7 @@ type MicInteractiveProximityParams = {
     micButtonRef: RefObject<HTMLDivElement | null>;
     actionsContainerRef: RefObject<HTMLDivElement | null>;
     actionsEnabled: boolean;
+    contextFieldRef?: RefObject<HTMLDivElement | null>;
 };
 
 const isPointInsideRect = (
@@ -26,7 +27,8 @@ export const useMicInteractiveProximity = ({
     isMicOverlay,
     micButtonRef,
     actionsContainerRef,
-    actionsEnabled
+    actionsEnabled,
+    contextFieldRef
 }: MicInteractiveProximityParams) => {
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
@@ -37,8 +39,10 @@ export const useMicInteractiveProximity = ({
         let cancelled = false;
         let timeoutId: number | null = null;
         let proximityActive = false;
+        let lingerUntil = 0;
+        const lingerMs = 450;
 
-        const schedule = (delay = 60) => {
+        const schedule = (delay = 140) => {
             if (cancelled) {
                 return;
             }
@@ -61,6 +65,7 @@ export const useMicInteractiveProximity = ({
                     y: window.screenY || 0
                 };
                 const buttonRect = micButtonRef.current?.getBoundingClientRect() ?? null;
+                const contextRect = contextFieldRef?.current?.getBoundingClientRect() ?? null;
                 const actionRects: DOMRect[] = [];
                 if (actionsEnabled && actionsContainerRef.current) {
                     const elements = actionsContainerRef.current.querySelectorAll<HTMLElement>('.action-btn-container');
@@ -82,21 +87,36 @@ export const useMicInteractiveProximity = ({
                         }
                     }
                 }
+                if (!inside && contextRect) {
+                    inside = isPointInsideRect(cursor, contextRect, 12, windowOffset);
+                }
 
-                if (inside && !proximityActive) {
-                    proximityActive = true;
-                    setProximityInteractive(true);
-                } else if (!inside && proximityActive) {
+                const windowWidth = typeof window.innerWidth === 'number' ? window.innerWidth : 0;
+                const windowHeight = typeof window.innerHeight === 'number' ? window.innerHeight : 0;
+                const nearMargin = 90;
+                const nearWindow = cursor.x >= windowOffset.x - nearMargin
+                    && cursor.x <= windowOffset.x + windowWidth + nearMargin
+                    && cursor.y >= windowOffset.y - nearMargin
+                    && cursor.y <= windowOffset.y + windowHeight + nearMargin;
+
+                const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+                if (inside) {
+                    lingerUntil = now + lingerMs;
+                    if (!proximityActive) {
+                        proximityActive = true;
+                        setProximityInteractive(true);
+                    }
+                } else if (proximityActive && now > lingerUntil) {
                     proximityActive = false;
                     setProximityInteractive(false);
                 }
-                schedule(inside ? 30 : 80);
+                schedule(inside ? 60 : (nearWindow ? 120 : 260));
             } catch {
-                schedule(120);
+                schedule(320);
             }
         };
 
-        schedule(60);
+        schedule(120);
 
         return () => {
             cancelled = true;
@@ -107,5 +127,5 @@ export const useMicInteractiveProximity = ({
                 setProximityInteractive(false);
             }
         };
-    }, [isMicOverlay, micButtonRef, actionsContainerRef, actionsEnabled]);
+    }, [isMicOverlay, micButtonRef, actionsContainerRef, actionsEnabled, contextFieldRef]);
 };

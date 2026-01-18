@@ -2,6 +2,7 @@ let hoverCounter = 0;
 let dragActive = false;
 let recordingActive = false;
 let proximityInteractive = false;
+let forceInteractive = false;
 
 const applyState = () => {
     // Проверяем что мы действительно в окне микрофона перед выполнением
@@ -21,13 +22,7 @@ const applyState = () => {
     // 3. Курсор рядом с интерактивной зоной (proximityInteractive)
     // recordingActive не влияет напрямую чтобы прозрачные области оставались кликабельными насквозь
     const shouldBeInteractive = hoverCounter > 0 || dragActive || proximityInteractive;
-    console.log('[interactive] applyState', {
-        hoverCounter,
-        dragActive,
-        recordingActive,
-        proximityInteractive,
-        shouldBeInteractive
-    });
+    const desiredInteractive = forceInteractive || shouldBeInteractive;
     // Проверяем что API доступен перед вызовом
     if (!window.winky?.mic?.setInteractive) {
         return;
@@ -35,7 +30,7 @@ const applyState = () => {
     // Явно вызываем setInteractive для гарантии интерактивности окна
     // Особенно важно при автоматическом старте записи
     // Используем Promise с обработкой ошибок чтобы не блокировать выполнение
-    if (shouldBeInteractive) {
+    if (desiredInteractive) {
         Promise.resolve(window.winky.mic.setInteractive(true)).catch((error) => {
             // Игнорируем ошибки - окно может быть еще не создано или уже закрыто
             console.debug('[interactive] Failed to set interactive true:', error);
@@ -109,5 +104,13 @@ export const setProximityInteractive = (enabled: boolean) => {
         return;
     }
     proximityInteractive = enabled;
+    applyState();
+};
+
+export const setForceInteractive = (enabled: boolean) => {
+    if (forceInteractive === enabled) {
+        return;
+    }
+    forceInteractive = enabled;
     applyState();
 };

@@ -1,5 +1,5 @@
 import {invoke} from '@tauri-apps/api/core';
-import {cursorPosition, LogicalPosition} from '@tauri-apps/api/window';
+import {cursorPosition, LogicalPosition, LogicalSize} from '@tauri-apps/api/window';
 import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
 import {emit, UnlistenFn} from '@tauri-apps/api/event';
 import type {AppConfig, MicAnchor} from '@shared/types';
@@ -96,7 +96,10 @@ export class MicWindowController {
         const positionPromise = this.ensureInitialPosition();
 
         if (this.window) {
-            await positionPromise;
+            await Promise.all([
+                positionPromise,
+                this.syncSize(this.window)
+            ]);
             return this.window;
         }
 
@@ -105,6 +108,7 @@ export class MicWindowController {
             this.window = existing;
             await Promise.all([
                 positionPromise,
+                this.syncSize(existing),
                 this.attachMoveListener(existing),
                 this.syncIgnoreCursorEvents(existing, true)
             ]);
@@ -149,11 +153,16 @@ export class MicWindowController {
         await Promise.all([
             positionPromise,
             setPositionPromise,
+            this.syncSize(win),
             this.attachMoveListener(win),
             this.syncIgnoreCursorEvents(win, true)
         ]);
 
         return win;
+    }
+
+    private async syncSize(win: WebviewWindow): Promise<void> {
+        await win.setSize(new LogicalSize(this.width, this.height)).catch(() => {});
     }
 
     async moveWindow(x: number, y: number): Promise<void> {

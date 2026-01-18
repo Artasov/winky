@@ -11,7 +11,8 @@ export const useVolumeMonitor = ({windowVisibleRef}: UseVolumeMonitorParams) => 
     const analyserRef = useRef<AnalyserNode | null>(null);
     const animationFrameRef = useRef<number | undefined>(undefined);
     const currentStreamRef = useRef<MediaStream | null>(null);
-    const lastCommittedVolumeRef = useRef<{value: number; timestamp: number}>({value: 0, timestamp: 0});
+        const lastCommittedVolumeRef = useRef<{value: number; timestamp: number}>({value: 0, timestamp: 0});
+        const lastSampleTimeRef = useRef(0);
     const [volume, setVolume] = useState(0);
 
     const stopVolumeMonitor = useCallback(() => {
@@ -41,7 +42,7 @@ export const useVolumeMonitor = ({windowVisibleRef}: UseVolumeMonitorParams) => 
             try {
                 const audioContext = new AudioContext();
                 const analyser = audioContext.createAnalyser();
-                analyser.fftSize = 512;
+                analyser.fftSize = 256;
                 const source = audioContext.createMediaStreamSource(stream);
                 source.connect(analyser);
                 const buffer = new Uint8Array(analyser.fftSize);
@@ -50,7 +51,7 @@ export const useVolumeMonitor = ({windowVisibleRef}: UseVolumeMonitorParams) => 
                     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
                     const previous = lastCommittedVolumeRef.current;
                     const difference = Math.abs(nextValue - previous.value);
-                    if (difference < 0.025 && now - previous.timestamp < 48) {
+                    if (difference < 0.04 && now - previous.timestamp < 80) {
                         return;
                     }
                     lastCommittedVolumeRef.current = {value: nextValue, timestamp: now};
@@ -62,6 +63,12 @@ export const useVolumeMonitor = ({windowVisibleRef}: UseVolumeMonitorParams) => 
                         animationFrameRef.current = undefined;
                         return;
                     }
+                    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+                    if (now - lastSampleTimeRef.current < 40) {
+                        animationFrameRef.current = requestAnimationFrame(update);
+                        return;
+                    }
+                    lastSampleTimeRef.current = now;
                     analyser.getByteTimeDomainData(buffer);
                     let sumSquares = 0;
                     for (let i = 0; i < buffer.length; i += 1) {

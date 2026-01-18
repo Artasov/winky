@@ -21,6 +21,7 @@ type UseSpeechRecordingParams = {
     config: AppConfig | null;
     showToast: ToastFn;
     isMicOverlay: boolean;
+    contextTextRef: React.MutableRefObject<string>;
 };
 
 const isLocalServerUnavailableMessage = (message?: string): boolean => {
@@ -35,7 +36,7 @@ const isLocalServerUnavailableMessage = (message?: string): boolean => {
         || (normalized.includes('локал') && normalized.includes('сервер'));
 };
 
-export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechRecordingParams) => {
+export const useSpeechRecording = ({config, showToast, isMicOverlay, contextTextRef}: UseSpeechRecordingParams) => {
     const recorderRef = useRef<SpeechRecorder | null>(null);
     const autoStartPendingRef = useRef(false);
     const isRecordingRef = useRef(false);
@@ -332,7 +333,8 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay}: UseSpeechR
         showToast,
         handleLocalSpeechServerFailure,
         openMainWindowWithToast,
-        completionSoundRef
+        completionSoundRef,
+        contextTextRef
     });
 
     const handleMicrophoneToggle = useCallback(async () => {

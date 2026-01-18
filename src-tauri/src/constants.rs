@@ -25,8 +25,8 @@ pub const DEFAULT_LLM_MODEL: &str = "o4-mini";
 pub const DEFAULT_MIC_ANCHOR: &str = "bottom-right";
 
 #[allow(dead_code)]
-pub const MIC_WINDOW_WIDTH: f64 = 300.0;
+pub const MIC_WINDOW_WIDTH: f64 = 520.0;
 #[allow(dead_code)]
-pub const MIC_WINDOW_HEIGHT: f64 = 300.0;
+pub const MIC_WINDOW_HEIGHT: f64 = 1080.0;
 #[allow(dead_code)]
 pub const MIC_WINDOW_MARGIN: f64 = 24.0;

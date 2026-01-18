@@ -276,6 +276,30 @@ html[data-mic-window="true"] body #root {
     box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.5), 0 0 6px rgba(244, 63, 94, 0.15) !important;
 }
 
+.mic-context-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(244, 63, 94, 0.85) rgba(244, 63, 94, 0.15);
+}
+
+.mic-context-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.mic-context-scrollbar::-webkit-scrollbar-track {
+    background: rgba(244, 63, 94, 0.12);
+    border-radius: 9999px;
+}
+
+.mic-context-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(244, 63, 94, 0.95), rgba(225, 29, 72, 0.95));
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.mic-context-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(244, 63, 94, 1), rgba(190, 18, 60, 0.95));
+}
+
 /* Стили скроллбара для меню MUI Select */
 .MuiMenu-paper,
 .MuiPopover-paper,

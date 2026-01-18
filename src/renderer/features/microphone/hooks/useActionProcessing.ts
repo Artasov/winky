@@ -14,6 +14,7 @@ type UseActionProcessingParams = {
     handleLocalSpeechServerFailure: (message?: string) => boolean;
     openMainWindowWithToast: (message: string) => Promise<void>;
     completionSoundRef: RefObject<HTMLAudioElement | null>;
+    contextTextRef: React.MutableRefObject<string>;
 };
 
 export const useActionProcessing = ({
@@ -21,7 +22,8 @@ export const useActionProcessing = ({
                                         showToast,
                                         handleLocalSpeechServerFailure,
                                         openMainWindowWithToast,
-                                        completionSoundRef
+                                        completionSoundRef,
+                                        contextTextRef
                                     }: UseActionProcessingParams) => {
     const processAction = useCallback(async (action: ActionConfig, blob: Blob) => {
         if (!config) {
@@ -127,6 +129,11 @@ export const useActionProcessing = ({
                 return;
             }
 
+            const contextText = contextTextRef.current?.trim() || '';
+            const llmInput = contextText
+                ? `${transcription}\n\nAdditional context:\n${contextText}`.trim()
+                : transcription;
+
             const needsLLM = Boolean(action.prompt && action.prompt.trim());
 
             if (action.show_results) {
@@ -176,9 +183,12 @@ export const useActionProcessing = ({
                 }
                 : undefined;
 
+            // Используем объединенный запрос (транскрипция + текст из поля) для LLM
+            const llmPrompt = action.prompt?.trim() || undefined;
+
             const response = await llmBridge.process(
-                transcription,
-                action.prompt,
+                llmInput,
+                llmPrompt,
                 llmConfig,
                 onChunk ? {onChunk} : undefined
             );
@@ -273,7 +283,7 @@ export const useActionProcessing = ({
                 abortController.abort();
             }
         }
-    }, [config, showToast, handleLocalSpeechServerFailure, openMainWindowWithToast, completionSoundRef]);
+    }, [config, showToast, handleLocalSpeechServerFailure, openMainWindowWithToast, completionSoundRef, contextTextRef]);
 
     return {processAction};
 };

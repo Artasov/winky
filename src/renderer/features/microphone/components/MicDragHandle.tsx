@@ -10,9 +10,9 @@ interface MicDragHandleProps {
 const MicDragHandleComponent: React.FC<MicDragHandleProps> = ({interactions, isRecording, disabled}) => {
     const style: React.CSSProperties = {
         pointerEvents: disabled ? 'none' : 'auto',
-        top: isRecording ? 'calc(50% - 35px)' : 'calc(50% - 56px)',
+        top: '36px',
         opacity: isRecording ? 1 : 0.92,
-        transition: 'top 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease'
+        transition: 'opacity 200ms ease'
     };
 
     const handleMouseEnter = () => {

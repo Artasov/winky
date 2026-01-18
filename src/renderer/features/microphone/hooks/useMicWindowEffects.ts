@@ -1,6 +1,6 @@
 import {useEffect, useRef} from 'react';
 import {emit as emitEvent} from '@tauri-apps/api/event';
-import {resetInteractive} from '../../../utils/interactive';
+import {resetInteractive, setForceInteractive} from '../../../utils/interactive';
 
 type MutableRef<T> = {current: T};
 
@@ -26,6 +26,7 @@ export const useMicWindowEffects = ({
     warmUpRecorder
 }: MicWindowEffectsParams) => {
     const autoStartRetryTimeoutRef = useRef<number | null>(null);
+    const interactiveWarmupTimeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
@@ -41,6 +42,13 @@ export const useMicWindowEffects = ({
             if (autoStartRetryTimeoutRef.current !== null) {
                 window.clearTimeout(autoStartRetryTimeoutRef.current);
                 autoStartRetryTimeoutRef.current = null;
+            }
+        };
+
+        const clearInteractiveWarmup = () => {
+            if (interactiveWarmupTimeoutRef.current !== null) {
+                window.clearTimeout(interactiveWarmupTimeoutRef.current);
+                interactiveWarmupTimeoutRef.current = null;
             }
         };
 
@@ -75,6 +83,12 @@ export const useMicWindowEffects = ({
                 ? (first as { visible?: boolean })
                 : second;
             if (data?.visible) {
+                clearInteractiveWarmup();
+                setForceInteractive(true);
+                interactiveWarmupTimeoutRef.current = window.setTimeout(() => {
+                    setForceInteractive(false);
+                    interactiveWarmupTimeoutRef.current = null;
+                }, 700);
                 // При открытии окна очищаем любые pending состояния и прогреваем рекордер
                 clearAutoStartRetry();
                 autoStartPendingRef.current = false;
@@ -90,6 +104,8 @@ export const useMicWindowEffects = ({
                 clearAutoStartRetry();
                 autoStartPendingRef.current = false;
             }
+            clearInteractiveWarmup();
+            setForceInteractive(false);
             resetInteractive();
             if (isRecordingRef.current && !processingRef.current) {
                 (async () => {
@@ -121,6 +137,8 @@ export const useMicWindowEffects = ({
 
         return () => {
             clearAutoStartRetry();
+            clearInteractiveWarmup();
+            setForceInteractive(false);
             api.removeListener?.('mic:prepare-recording', prepareHandler);
             api.removeListener?.('mic:start-recording', startHandler);
             api.removeListener?.('mic:visibility-change', visibilityHandler);

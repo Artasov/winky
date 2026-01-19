@@ -50,6 +50,14 @@ const AppContent: React.FC = () => {
     const isAuthenticated = Boolean(user);
     const navigate = useNavigate();
     const warmupRequestedModelRef = useRef<string | null>(null);
+    const clearAuthTokens = useCallback(async () => {
+        await configBridge.setAuth({
+            access: '',
+            refresh: null,
+            accessToken: '',
+            refreshToken: ''
+        });
+    }, []);
 
     const showToast = useCallback(
         (message: string, type: ToastType = 'info', options?: { durationMs?: number }) => {
@@ -251,7 +259,7 @@ const AppContent: React.FC = () => {
         const timeoutId = setTimeout(() => {
             if (!user && !userLoading) {
                 console.warn('[App] User fetch timeout, clearing tokens');
-                void configBridge.reset().then(() => {
+                void clearAuthTokens().then(() => {
                     if (!windowIdentity.isAuxWindow) {
                         navigate('/', {replace: true});
                     }
@@ -265,7 +273,7 @@ const AppContent: React.FC = () => {
                 if (!userData && !windowIdentity.isAuxWindow) {
                     console.warn('[App] Failed to fetch user, clearing tokens and redirecting to auth');
                     // Очищаем токены если пользователь не найден
-                    void configBridge.reset().then(() => {
+                    void clearAuthTokens().then(() => {
                         navigate('/', {replace: true});
                     });
                 }
@@ -275,7 +283,7 @@ const AppContent: React.FC = () => {
                 console.error('[App] Failed to fetch user, clearing tokens', error);
                 userFetchAttempted.current = false;
                 // Очищаем токены при ошибке
-                void configBridge.reset().then(() => {
+                void clearAuthTokens().then(() => {
                     if (!windowIdentity.isAuxWindow) {
                         navigate('/', {replace: true});
                     }
@@ -285,7 +293,16 @@ const AppContent: React.FC = () => {
         return () => {
             clearTimeout(timeoutId);
         };
-    }, [config?.auth.access, config?.auth.accessToken, userLoading, fetchUser, navigate, windowIdentity.isAuxWindow, user]);
+    }, [
+        config?.auth.access,
+        config?.auth.accessToken,
+        userLoading,
+        fetchUser,
+        navigate,
+        windowIdentity.isAuxWindow,
+        user,
+        clearAuthTokens
+    ]);
 
     useEffect(() => {
         if (windowIdentity.isAuxWindow) {
@@ -413,7 +430,7 @@ const AppContent: React.FC = () => {
 
     // Do not show WelcomeWindow when a token already exists (even if the user is still loading)
     const hasToken = config?.auth.access || config?.auth.accessToken;
-    const shouldShowWelcome = !hasToken && !isAuthenticated && !userLoading;
+    const shouldShowWelcome = !config?.setupCompleted && !hasToken && !isAuthenticated && !userLoading;
 
     const renderPrimaryWindowState = (content: React.ReactNode) => {
         const showPrimaryChrome = !windowIdentity.isMicWindow && !windowIdentity.isResultWindow && !windowIdentity.isErrorWindow;

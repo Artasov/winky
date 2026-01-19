@@ -38,7 +38,9 @@ export const createApiClient = (accessToken?: string, sendToRenderer?: (message:
         (config) => {
             const method = config.method?.toUpperCase() || 'GET';
             const url = config.url || '';
-            const fullUrl = url.startsWith('http') ? url : `${config.baseURL}${url}`;
+            const fullUrl = url.startsWith('http')
+                ? url
+                : new URL(url, config.baseURL).toString();
 
             console.log(`%cAPI → %c[${method}] %c${fullUrl}`,
                 'color: #10b981; font-weight: bold',
@@ -71,7 +73,9 @@ export const createApiClient = (accessToken?: string, sendToRenderer?: (message:
         (response) => {
             const method = response.config.method?.toUpperCase() || 'GET';
             const url = response.config.url || '';
-            const fullUrl = url.startsWith('http') ? url : `${response.config.baseURL}${url}`;
+            const fullUrl = url.startsWith('http')
+                ? url
+                : new URL(url, response.config.baseURL).toString();
             const status = response.status;
 
             console.log(`%cAPI ← %c[${method}] %c${fullUrl} %c[${status}]`,
@@ -93,7 +97,11 @@ export const createApiClient = (accessToken?: string, sendToRenderer?: (message:
         (error) => {
             const method = error.config?.method?.toUpperCase() || 'GET';
             const url = error.config?.url || 'unknown';
-            const fullUrl = url.startsWith('http') ? url : `${error.config?.baseURL}${url}`;
+            const fullUrl = url.startsWith('http')
+                ? url
+                : url !== 'unknown' && error.config?.baseURL
+                    ? new URL(url, error.config.baseURL).toString()
+                    : url;
             const status = error.response?.status || 'N/A';
 
             console.error(`%cAPI ← %c[${method}] %c${fullUrl} %c[${status}]`,

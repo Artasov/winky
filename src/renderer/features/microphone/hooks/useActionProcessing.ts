@@ -246,7 +246,7 @@ export const useActionProcessing = ({
                 : undefined;
 
             // Используем объединенный запрос (транскрипция + текст из поля) для LLM
-            const llmPrompt = action.prompt?.trim() || undefined;
+            const llmPrompt = action.prompt?.trim() || '';
 
             const response = await llmBridge.process(
                 llmInput,

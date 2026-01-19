@@ -44,7 +44,20 @@ const resolveMimeType = (audioPath: string): string => {
 
 const toArrayBuffer = (data: Uint8Array): ArrayBuffer => {
     const start = data.byteOffset;
-    return data.buffer.slice(start, start + data.byteLength);
+    const sliced = data.buffer.slice(start, start + data.byteLength);
+    if (sliced instanceof SharedArrayBuffer) {
+        const arrayBuffer = new ArrayBuffer(sliced.byteLength);
+        new Uint8Array(arrayBuffer).set(new Uint8Array(sliced));
+        return arrayBuffer;
+    }
+    return sliced;
+};
+
+const ensureUint8Array = (data: Uint8Array): Uint8Array<ArrayBuffer> => {
+    const arrayBuffer = new ArrayBuffer(data.byteLength);
+    const result = new Uint8Array(arrayBuffer);
+    result.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+    return result;
 };
 
 const writeString = (view: DataView, offset: number, value: string) => {
@@ -533,14 +546,14 @@ const HistoryPage: React.FC = () => {
                                 setWaveDurations((prev) => ({...prev, [entryId]: result.duration}));
                                 setAudioUrls((prev) => ({...prev, [entryId]: wavUrl}));
                             } else {
-                                const fallbackBlob = new Blob([typedData], {type: resolveMimeType(audioPath)});
+                                const fallbackBlob = new Blob([ensureUint8Array(typedData)], {type: resolveMimeType(audioPath)});
                                 const fallbackUrl = URL.createObjectURL(fallbackBlob);
                                 setAudioUrls((prev) => ({...prev, [entryId]: fallbackUrl}));
                             }
                         })
                         .catch((error) => {
                             console.warn('[HistoryPage] Failed to build waveform', error);
-                            const fallbackBlob = new Blob([typedData], {type: resolveMimeType(audioPath)});
+                            const fallbackBlob = new Blob([ensureUint8Array(typedData)], {type: resolveMimeType(audioPath)});
                             const fallbackUrl = URL.createObjectURL(fallbackBlob);
                             setAudioUrls((prev) => ({...prev, [entryId]: fallbackUrl}));
                         })
@@ -558,7 +571,7 @@ const HistoryPage: React.FC = () => {
                             setAudioLoading((prev) => ({...prev, [entryId]: false}));
                         });
                 } else {
-                    const fallbackBlob = new Blob([typedData], {type: resolveMimeType(audioPath)});
+                    const fallbackBlob = new Blob([ensureUint8Array(typedData)], {type: resolveMimeType(audioPath)});
                     const fallbackUrl = URL.createObjectURL(fallbackBlob);
                     setAudioUrls((prev) => ({...prev, [entryId]: fallbackUrl}));
                     setAudioLoading((prev) => ({...prev, [entryId]: false}));

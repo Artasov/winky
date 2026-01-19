@@ -1,6 +1,6 @@
 {
   "name": "winky",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "Winky - cute girl assistant.",
   "main": "dist/main/main.js",
   "scripts": {

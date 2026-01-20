@@ -11,6 +11,8 @@ import {
     FormControlLabel,
     FormGroup,
     IconButton,
+    ListSubheader,
+    MenuItem,
     Stack,
     TextField,
     Typography
@@ -18,6 +20,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import type {ActionFormValues} from '../hooks/useActionForm';
 import HotkeyInput from '../../../components/HotkeyInput';
+import {LLM_GEMINI_API_MODELS, LLM_LOCAL_MODELS, LLM_OPENAI_API_MODELS} from '@shared/constants';
 
 type ModalProps = {
     isModalVisible: boolean;
@@ -41,7 +44,7 @@ const DialogTransition = forwardRef(function DialogTransition(
     props: React.ComponentProps<typeof Fade>,
     ref: React.Ref<unknown>
 ) {
-    return <Fade timeout={280} ref={ref} {...props} easing="cubic-bezier(0.4, 0, 0.2, 1)" />;
+    return <Fade timeout={280} ref={ref} {...props} easing="cubic-bezier(0.4, 0, 0.2, 1)"/>;
 });
 
 const ActionForm: React.FC<Props> = ({
@@ -136,11 +139,73 @@ const ActionForm: React.FC<Props> = ({
                         label="Prompt Recognizing"
                         value={values.promptRecognizing}
                         onChange={(event) => setField('promptRecognizing', event.target.value)}
-                        placeholder="Optional: mention domain, key terms, language mix (e.g. “Fintech, legal jargon, speech mostly RU with EN words and tenses”)."
+                        placeholder="Optional: mention domain, key terms, language mix (e.g. 'Fintech, legal jargon, speech mostly RU with EN words and tenses')."
                         fullWidth
                         multiline
                         minRows={3}
                     />
+
+                    <TextField
+                        label="LLM Model"
+                        value={values.llmModel ?? ''}
+                        onChange={(event) => setField('llmModel', event.target.value)}
+                        select
+                        fullWidth
+                        helperText="Optional: override the default LLM model for this action"
+                        sx={{my: 1}}
+                    >
+                        <MenuItem value="">
+                            <em>Use default from settings</em>
+                        </MenuItem>
+                        <ListSubheader
+                            sx={{
+                                backgroundColor: '#fff',
+                                fontWeight: 600,
+                                fontSize: '0.875rem',
+                                color: 'text.primary',
+                                lineHeight: '36px'
+                            }}
+                        >
+                            OpenAI
+                        </ListSubheader>
+                        {LLM_OPENAI_API_MODELS.map((model) => (
+                            <MenuItem key={model} value={model}>
+                                {model}
+                            </MenuItem>
+                        ))}
+                        <ListSubheader
+                            sx={{
+                                backgroundColor: '#fff',
+                                fontWeight: 600,
+                                fontSize: '0.875rem',
+                                color: 'text.primary',
+                                lineHeight: '36px'
+                            }}
+                        >
+                            Google Gemini
+                        </ListSubheader>
+                        {LLM_GEMINI_API_MODELS.map((model) => (
+                            <MenuItem key={model} value={model}>
+                                {model}
+                            </MenuItem>
+                        ))}
+                        <ListSubheader
+                            sx={{
+                                backgroundColor: '#fff',
+                                fontWeight: 600,
+                                fontSize: '0.875rem',
+                                color: 'text.primary',
+                                lineHeight: '36px'
+                            }}
+                        >
+                            Ollama (Local)
+                        </ListSubheader>
+                        {LLM_LOCAL_MODELS.map((model) => (
+                            <MenuItem key={model} value={model}>
+                                {model}
+                            </MenuItem>
+                        ))}
+                    </TextField>
 
                     <Stack spacing={1}>
                         <Typography variant="body2" color="text.primary" fontWeight={600}>

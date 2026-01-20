@@ -12,7 +12,8 @@ const formSchema = z.object({
     priority: z.number().int().min(1, 'Enter a priority of 1 or higher.'),
     showResults: z.boolean(),
     soundOnComplete: z.boolean(),
-    autoCopyResult: z.boolean()
+    autoCopyResult: z.boolean(),
+    llmModel: z.string().optional()
 });
 
 export type ActionFormValues = z.infer<typeof formSchema>;
@@ -51,7 +52,8 @@ export const useActionForm = ({
         priority: 1,
         showResults: false,
         soundOnComplete: false,
-        autoCopyResult: false
+        autoCopyResult: false,
+        llmModel: ''
     });
 
     const resetForm = useCallback(() => {
@@ -64,7 +66,8 @@ export const useActionForm = ({
             priority: 1,
             showResults: false,
             soundOnComplete: false,
-            autoCopyResult: false
+            autoCopyResult: false,
+            llmModel: ''
         });
         setEditingActionId(null);
         setEditingActionIsDefault(false);
@@ -105,7 +108,8 @@ export const useActionForm = ({
             priority: action.priority ?? 1,
             showResults: action.show_results ?? false,
             soundOnComplete: action.sound_on_complete ?? false,
-            autoCopyResult: action.auto_copy_result ?? false
+            autoCopyResult: action.auto_copy_result ?? false,
+            llmModel: action.llm_model ?? ''
         });
         setIsModalVisible(true);
     }, [showToast]);
@@ -162,6 +166,7 @@ export const useActionForm = ({
                     show_results?: boolean;
                     sound_on_complete?: boolean;
                     auto_copy_result?: boolean;
+                    llm_model?: string;
                 } = {
                     name: validation.data.name.trim(),
                     prompt: validation.data.prompt?.trim() ?? '',
@@ -171,7 +176,8 @@ export const useActionForm = ({
                     priority: validation.data.priority,
                     show_results: validation.data.showResults,
                     sound_on_complete: validation.data.soundOnComplete,
-                    auto_copy_result: validation.data.autoCopyResult
+                    auto_copy_result: validation.data.autoCopyResult,
+                    llm_model: validation.data.llmModel?.trim() || undefined
                 };
 
                 if (editingActionIsDefault) {
@@ -188,7 +194,8 @@ export const useActionForm = ({
                     priority: validation.data.priority,
                     show_results: validation.data.showResults,
                     sound_on_complete: validation.data.soundOnComplete,
-                    auto_copy_result: validation.data.autoCopyResult
+                    auto_copy_result: validation.data.autoCopyResult,
+                    llm_model: validation.data.llmModel?.trim() || undefined
                 };
                 await window.winky?.actions.create(payload);
             }

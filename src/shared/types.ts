@@ -95,6 +95,7 @@ export interface ActionConfig {
     auto_copy_result?: boolean;
     is_active?: boolean;
     is_default?: boolean;
+    llm_model?: string | null;
 }
 
 export interface ActionHistoryEntry {

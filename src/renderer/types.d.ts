@@ -50,7 +50,8 @@ declare global {
             priority?: number;
             show_results?: boolean;
             sound_on_complete?: boolean;
-            auto_copy_result?: boolean
+            auto_copy_result?: boolean;
+            llm_model?: string;
         }): Promise<ActionConfig[]>;
 
         update(actionId: string, action: {
@@ -62,7 +63,8 @@ declare global {
             priority?: number;
             show_results?: boolean;
             sound_on_complete?: boolean;
-            auto_copy_result?: boolean
+            auto_copy_result?: boolean;
+            llm_model?: string;
         }): Promise<ActionConfig[]>;
 
         delete(actionId: string): Promise<ActionConfig[]>;

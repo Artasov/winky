@@ -234,9 +234,10 @@ export const useActionProcessing = ({
                 return;
             }
 
+            const llmModel = action.llm_model?.trim() || config.llm.model;
             const llmConfig = {
                 mode: config.llm.mode,
-                model: config.llm.model,
+                model: llmModel,
                 openaiKey: config.apiKeys.openai,
                 googleKey: config.apiKeys.google,
                 accessToken: authToken

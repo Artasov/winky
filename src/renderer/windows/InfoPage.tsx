@@ -1,7 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {getVersion} from '@tauri-apps/api/app';
 import {open} from '@tauri-apps/plugin-shell';
-import {APP_NAME} from '@shared/constants';
 import ReactMarkdown from 'react-markdown';
 
 const COMMUNITY_LINKS: Array<{
@@ -12,16 +11,50 @@ const COMMUNITY_LINKS: Array<{
     invert?: boolean;
 }> = [
     {id: 'x', label: 'X', icon: '/resources/community/x.svg', href: 'https://x.com/winky_ai', invert: true},
-    {id: 'github', label: 'GitHub', icon: '/resources/community/github.svg', href: 'https://github.com/Artasov/winky', invert: true},
+    {
+        id: 'github',
+        label: 'GitHub',
+        icon: '/resources/community/github.svg',
+        href: 'https://github.com/Artasov/winky',
+        invert: true
+    },
     {id: 'telegram', label: 'Telegram', icon: '/resources/community/telegram.svg', href: 'https://t.me/winky_ai'},
-    {id: 'discord', label: 'Discord', icon: '/resources/community/discrod.svg', href: 'https://discord.com/invite/QRgh2zxJX2'},
-    {id: 'linkedin', label: 'LinkedIn', icon: '/resources/community/linkedin.svg', href: 'https://www.linkedin.com/in/xlartas/', invert: true},
-    {id: 'dexscreener', label: 'Dexscreener', icon: '/resources/community/dexscreener.svg', href: 'https://dexscreener.com/solana/8ARxY7YrVBNhSGkSjQjgzbU9uCRyX67vBfM6mAuMpump', invert: true},
-    {id: 'pumpfun', label: 'Pump.fun', icon: '/resources/community/pumpfun.webp', href: 'https://pump.fun/coin/8ARxY7YrVBNhSGkSjQjgzbU9uCRyX67vBfM6mAuMpump'}
+    {
+        id: 'discord',
+        label: 'Discord',
+        icon: '/resources/community/discrod.svg',
+        href: 'https://discord.com/invite/QRgh2zxJX2'
+    },
+    {
+        id: 'linkedin',
+        label: 'LinkedIn',
+        icon: '/resources/community/linkedin.svg',
+        href: 'https://www.linkedin.com/in/xlartas/',
+        invert: true
+    },
+    {
+        id: 'dexscreener',
+        label: 'Dexscreener',
+        icon: '/resources/community/dexscreener.svg',
+        href: 'https://dexscreener.com/solana/8ARxY7YrVBNhSGkSjQjgzbU9uCRyX67vBfM6mAuMpump',
+        invert: true
+    },
+    {
+        id: 'pumpfun',
+        label: 'Pump.fun',
+        icon: '/resources/community/pumpfun.webp',
+        href: 'https://pump.fun/coin/8ARxY7YrVBNhSGkSjQjgzbU9uCRyX67vBfM6mAuMpump'
+    }
 ];
 
 const USAGE_GUIDE_MARKDOWN = `
 ## Usage Guide
+
+This guide covers the essential features and explains things that might not be immediately obvious. **Keep in mind** that the app offers more functionality than what's described here, so we recommend exploring all sections - especially the Settings tab to discover everything available.
+
+### Model setup
+- In Settings, set API keys for [OpenAI](https://platform.openai.com/api-keys) and/or [Google AI](https://aistudio.google.com/app/apikey), and choose \`Speech / LLM\` modes.
+- For local **Speech**, enable \`Auto-start local Whisper server\` or start the server manually.
 
 ### The most important thing - how to start recording
 1. **Open the mic**: click \`Mic\` in the system tray or use the hotkey (default \`Alt+Q\`).
@@ -51,10 +84,6 @@ const USAGE_GUIDE_MARKDOWN = `
 
 ### Notes
 - The storage mode \`Local / API\` is toggled at the top of the **Notes** page. You can keep notes private/locally or store them on the server - whatever is convenient for you.
-
-### Model setup
-- In Settings, set API keys for \`OpenAi\` and/or \`GoogleAi\`, and choose \`Speech / LLM\` modes.
-- For local **Speech**, enable \`Auto-start local Whisper server\` or start the server manually.
 `;
 
 const InfoPage: React.FC = () => {
@@ -70,8 +99,9 @@ const InfoPage: React.FC = () => {
     }, []);
 
     return (
-        <div className="fc mx-auto h-full w-full max-w-4xl gap-4 px-8 py-6">
-            <section className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-4">
+        <div className="fc mx-auto w-full max-w-4xl gap-1 px-8 py-6">
+            <section
+                className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-4">
                 <div className="flex items-center gap-4">
                     <h3 className="text-lg font-semibold text-text-primary">Community</h3>
                     <div className="flex flex-nowrap gap-2">
@@ -94,9 +124,44 @@ const InfoPage: React.FC = () => {
                 </div>
             </section>
 
-            <section className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6">
+            <section className="fc rounded-2xl py-1 px-3">
+                <div className="frec gap-4 text-sm">
+                    <button
+                        type="button"
+                        onClick={() => void open('https://winky.pro/winky/privacy-policy')}
+                        className="text-primary-600 hover:text-primary-700 hover:underline underline-offset-2 transition-colors"
+                    >
+                        Privacy Policy
+                    </button>
+                    <span className="text-text-tertiary">•</span>
+                    <button
+                        type="button"
+                        onClick={() => void open('https://winky.pro/winky/terms-of-service')}
+                        className="text-primary-600 hover:text-primary-700 hover:underline underline-offset-2 transition-colors"
+                    >
+                        Terms and Conditions
+                    </button>
+                </div>
+            </section>
+
+            <section
+                className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6">
                 <div className="markdown-compact text-text-primary">
-                    <ReactMarkdown>{USAGE_GUIDE_MARKDOWN}</ReactMarkdown>
+                    <ReactMarkdown
+                        components={{
+                            a: ({href, children}) => (
+                                <button
+                                    type="button"
+                                    onClick={() => href && void open(href)}
+                                    className="text-primary-600 hover:text-primary-700 underline underline-offset-2 cursor-pointer transition-colors"
+                                >
+                                    {children}
+                                </button>
+                            )
+                        }}
+                    >
+                        {USAGE_GUIDE_MARKDOWN}
+                    </ReactMarkdown>
                 </div>
             </section>
         </div>

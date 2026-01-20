@@ -15,13 +15,13 @@ const applyState = () => {
         // Не выполняем если мы не в окне микрофона
         return;
     }
-    
+
     // Окно интерактивно когда:
     // 1. Есть наведение на элементы (hoverCounter > 0)
     // 2. Активно перетаскивание (dragActive)
     // 3. Курсор рядом с интерактивной зоной (proximityInteractive)
-    // recordingActive не влияет напрямую чтобы прозрачные области оставались кликабельными насквозь
-    const shouldBeInteractive = hoverCounter > 0 || dragActive || proximityInteractive;
+    // 4. Идет запись (recordingActive) - необходимо для приема событий клавиатуры (хоткеев)
+    const shouldBeInteractive = hoverCounter > 0 || dragActive || proximityInteractive || recordingActive;
     const desiredInteractive = forceInteractive || shouldBeInteractive;
     // Проверяем что API доступен перед вызовом
     if (!window.winky?.mic?.setInteractive) {

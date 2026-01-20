@@ -352,6 +352,17 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
                 if (stream) {
                     startVolumeMonitor(stream);
                 }
+                // Устанавливаем фокус на окно микрофона для надежного получения событий клавиатуры
+                if (isMicOverlay) {
+                    try {
+                        const micWindow = await WebviewWindow.getByLabel('mic').catch(() => null);
+                        if (micWindow) {
+                            await micWindow.setFocus().catch(() => {});
+                        }
+                    } catch {
+                        // Игнорируем ошибки установки фокуса
+                    }
+                }
                 const readinessPromise = ensureSpeechServiceOnce();
                 void readinessPromise.then(async (ready) => {
                     if (ready || !isRecordingRef.current) {

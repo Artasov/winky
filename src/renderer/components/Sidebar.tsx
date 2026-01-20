@@ -3,21 +3,23 @@ import {useLocation, useNavigate} from 'react-router-dom';
 import classNames from 'classnames';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
+import BubbleChartRoundedIcon from '@mui/icons-material/BubbleChartRounded';
+import BookmarkBorderRoundedIcon from '@mui/icons-material/BookmarkBorderRounded';
+import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 
 interface NavItem {
     id: string;
     label: string;
-    icon: string;
+    Icon: React.ComponentType;
     path: string;
 }
 
 const navItems: NavItem[] = [
-    {id: 'me', label: 'Me', icon: '👤', path: '/me'},
-    {id: 'actions', label: 'Actions', icon: '⚡', path: '/actions'},
-    {id: 'settings', label: 'Settings', icon: '⚙️', path: '/settings'},
-    {id: 'history', label: 'History', icon: '🕘', path: '/history'},
-    {id: 'notes', label: 'Notes', icon: '📝', path: '/notes'},
-    {id: 'info', label: 'Info', icon: 'ℹ️', path: '/info'}
+    {id: 'me', label: 'Me', Icon: PersonRoundedIcon, path: '/me'},
+    {id: 'actions', label: 'Actions', Icon: BubbleChartRoundedIcon, path: '/actions'},
+    {id: 'history', label: 'History', Icon: MenuBookRoundedIcon, path: '/history'},
+    {id: 'notes', label: 'Notes', Icon: BookmarkBorderRoundedIcon, path: '/notes'}
 ];
 
 const Sidebar: React.FC = () => {
@@ -150,7 +152,7 @@ const Sidebar: React.FC = () => {
                                     />
                                 </div>
                             ) : (
-                                <span className="text-xl">{item.icon}</span>
+                                <item.Icon sx={{fontSize: 24}} />
                             )}
                             <span className="truncate">{item.label}</span>
                         </button>

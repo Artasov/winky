@@ -1,9 +1,15 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {getVersion} from '@tauri-apps/api/app';
+import {useNavigate, useLocation} from 'react-router-dom';
+import classNames from 'classnames';
+import {Collapse} from '@mui/material';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import SettingsIcon from '@mui/icons-material/Settings';
+import InfoIcon from '@mui/icons-material/Info';
 import BugReportModal from './feedback/BugReportModal';
 import {submitBugReport} from '../services/bugReport';
 import {useConfig} from '../context/ConfigContext';
+import {useUser} from '../context/UserContext';
 
 interface TitleBarProps {
     title?: string;
@@ -13,9 +19,40 @@ interface TitleBarProps {
 
 const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugReportButton = false}) => {
     const {config} = useConfig();
+    const {user, loading: userLoading} = useUser();
+    const navigate = useNavigate();
+    const location = useLocation();
     const accessToken = config?.auth?.access || config?.auth?.accessToken;
     const [isBugModalOpen, setBugModalOpen] = useState(false);
     const [version, setVersion] = useState<string>('');
+    const [showLabels, setShowLabels] = useState(false);
+
+    const isSettingsPage = location.pathname === '/settings';
+    const isInfoPage = location.pathname === '/info';
+    const isAuthorized = Boolean(accessToken && user);
+
+    useEffect(() => {
+        // Запускаем анимацию только когда пользователь авторизован и загружен
+        if (!isAuthorized || userLoading) {
+            setShowLabels(false);
+            return;
+        }
+
+        // Задержка 200ms перед началом показа надписей
+        const showTimer = setTimeout(() => {
+            setShowLabels(true);
+        }, 200);
+
+        // Скрываем через 2 секунды после показа (200 + 2000 = 2200ms)
+        const hideTimer = setTimeout(() => {
+            setShowLabels(false);
+        }, 2200);
+
+        return () => {
+            clearTimeout(showTimer);
+            clearTimeout(hideTimer);
+        };
+    }, [isAuthorized, userLoading]);
 
     const handleBugSubmit = useCallback(
         (payload: Parameters<typeof submitBugReport>[0]) => submitBugReport(payload, accessToken),
@@ -61,6 +98,68 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
                 ) : null}
             </div>
             <div className="app-region-no-drag flex items-center gap-2 text-text-secondary">
+                {isAuthorized && (
+                    <>
+                        <button
+                            type="button"
+                            tabIndex={-1}
+                            onClick={() => navigate('/settings')}
+                            className={classNames(
+                                'flex h-8 items-center justify-center rounded-lg transition-all duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
+                                isSettingsPage && 'bg-primary-100 text-primary'
+                            )}
+                            style={{
+                                paddingLeft: '8px',
+                                paddingRight: '8px'
+                            }}
+                            aria-label="Settings"
+                        >
+                            <SettingsIcon fontSize="small" sx={{flexShrink: 0}} />
+                            <Collapse orientation="horizontal" in={showLabels} timeout={500}>
+                                <span
+                                    className="whitespace-nowrap"
+                                    style={{
+                                        marginLeft: '6px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 500,
+                                        letterSpacing: '-0.02em'
+                                    }}
+                                >
+                                    Settings
+                                </span>
+                            </Collapse>
+                        </button>
+                        <button
+                            type="button"
+                            tabIndex={-1}
+                            onClick={() => navigate('/info')}
+                            className={classNames(
+                                'flex h-8 items-center justify-center rounded-lg transition-all duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
+                                isInfoPage && 'bg-primary-100 text-primary'
+                            )}
+                            style={{
+                                paddingLeft: '8px',
+                                paddingRight: '8px'
+                            }}
+                            aria-label="Info"
+                        >
+                            <InfoIcon fontSize="small" sx={{flexShrink: 0}} />
+                            <Collapse orientation="horizontal" in={showLabels} timeout={500}>
+                                <span
+                                    className="whitespace-nowrap"
+                                    style={{
+                                        marginLeft: '6px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 500,
+                                        letterSpacing: '-0.02em'
+                                    }}
+                                >
+                                    Info
+                                </span>
+                            </Collapse>
+                        </button>
+                    </>
+                )}
                 {showBugReportButton ? (
                     <button
                         type="button"

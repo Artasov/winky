@@ -31,6 +31,13 @@ const ActionsPage: React.FC = () => {
         showToast('Please sign in to manage actions.', 'error');
     };
 
+    const handleClone = () => {
+        if (!form.editingActionId) return;
+        const actionToClone = actions.find((a) => a.id === form.editingActionId);
+        if (!actionToClone) return;
+        form.openCloneModal(actionToClone);
+    };
+
     const content = !isAuthorized ? (
         <ActionEmptyState
             title="Sign in to manage actions"
@@ -71,6 +78,7 @@ const ActionsPage: React.FC = () => {
                 editingActionId={form.editingActionId}
                 editingActionIsDefault={form.editingActionIsDefault}
                 onSubmit={form.handleSubmit}
+                onClone={handleClone}
             />
             <Dialog open={Boolean(form.pendingDelete)} onClose={form.cancelDelete} maxWidth="xs" fullWidth>
                 <DialogTitle>Delete action?</DialogTitle>

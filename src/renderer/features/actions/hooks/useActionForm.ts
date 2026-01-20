@@ -114,6 +114,29 @@ export const useActionForm = ({
         setIsModalVisible(true);
     }, [showToast]);
 
+    const openCloneModal = useCallback((action: ActionConfig) => {
+        if (action.is_active === false) {
+            showToast('This action is inactive and cannot be cloned.', 'info');
+            return;
+        }
+        setMode('create');
+        setEditingActionId(null);
+        setEditingActionIsDefault(false);
+        setValues({
+            name: `${action.name} (copy)`,
+            prompt: action.prompt,
+            promptRecognizing: action.prompt_recognizing ?? '',
+            hotkey: '',
+            iconId: action.icon_details?.id ?? action.icon,
+            priority: action.priority ?? 1,
+            showResults: action.show_results ?? false,
+            soundOnComplete: action.sound_on_complete ?? false,
+            autoCopyResult: action.auto_copy_result ?? false,
+            llmModel: action.llm_model ?? ''
+        });
+        setIsModalVisible(true);
+    }, [showToast]);
+
     const setField = useCallback(<K extends keyof ActionFormValues>(key: K, value: ActionFormValues[K]) => {
         setValues((prev) => ({
             ...prev,
@@ -263,6 +286,7 @@ export const useActionForm = ({
         mode,
         openCreateModal,
         openEditModal,
+        openCloneModal,
         editingActionId,
         editingActionIsDefault,
         saving,

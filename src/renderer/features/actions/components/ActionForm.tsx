@@ -18,6 +18,7 @@ import {
     Typography
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import type {ActionFormValues} from '../hooks/useActionForm';
 import HotkeyInput from '../../../components/HotkeyInput';
 import {LLM_GEMINI_API_MODELS, LLM_LOCAL_MODELS, LLM_OPENAI_API_MODELS} from '@shared/constants';
@@ -38,6 +39,7 @@ type Props = {
     editingActionId: string | null;
     editingActionIsDefault: boolean;
     onSubmit: (event: React.FormEvent) => Promise<void>;
+    onClone?: () => void;
 };
 
 const DialogTransition = forwardRef(function DialogTransition(
@@ -57,7 +59,8 @@ const ActionForm: React.FC<Props> = ({
                                          saving,
                                          editingActionId,
                                          editingActionIsDefault,
-                                         onSubmit
+                                         onSubmit,
+                                         onClone
                                      }) => {
     const isEditMode = mode === 'edit';
     const isNameLocked = isEditMode && editingActionIsDefault;
@@ -88,9 +91,16 @@ const ActionForm: React.FC<Props> = ({
                     <Typography variant="h5" fontWeight={600}>
                         {isEditMode ? 'Edit Action' : 'Create Action'}
                     </Typography>
-                    <IconButton onClick={modal.closeModal} size="small">
-                        <CloseIcon fontSize="small"/>
-                    </IconButton>
+                    <div className={'fr gap-1'}>
+                        {isEditMode && onClone && (
+                            <IconButton onClick={onClone} size="small" title="Clone action">
+                                <ContentCopyIcon fontSize="small"/>
+                            </IconButton>
+                        )}
+                        <IconButton onClick={modal.closeModal} size="small">
+                            <CloseIcon fontSize="small"/>
+                        </IconButton>
+                    </div>
                 </div>
                 <Typography variant="body2" color="text.secondary">
                     Configure how Winky should react to this shortcut.

@@ -32,6 +32,13 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
         } catch (error) {
             console.warn('[MicContextField] Failed to load saved context', error);
         }
+
+        // Автофокус при монтировании с небольшой задержкой
+        const timer = setTimeout(() => {
+            textareaRef.current?.focus();
+        }, 200);
+
+        return () => clearTimeout(timer);
     }, [onContextChange]);
 
     // Сохраняем текст при изменении
@@ -64,6 +71,11 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
             if (data?.visible === false) {
                 textareaRef.current?.blur();
                 setIsFocused(false);
+            } else if (data?.visible === true) {
+                // Автофокус при открытии окна с небольшой задержкой
+                setTimeout(() => {
+                    textareaRef.current?.focus();
+                }, 150);
             }
         };
 

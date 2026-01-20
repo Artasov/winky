@@ -150,6 +150,27 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const disableInputs = saving && !shouldAutoSave;
     const [modeInfoDialog, setModeInfoDialog] = useState<ModeInfoDialogType | null>(null);
     const [modeInfoDialogContentType, setModeInfoDialogContentType] = useState<ModeInfoDialogType>('transcribe');
+    const [localGlobalTranscribePrompt, setLocalGlobalTranscribePrompt] = useState(values.globalTranscribePrompt);
+    const [localGlobalLlmPrompt, setLocalGlobalLlmPrompt] = useState(values.globalLlmPrompt);
+    const promptDebounceTimerRef = useRef<number | null>(null);
+
+    // Синхронизируем локальное состояние с props при изменении извне
+    useEffect(() => {
+        setLocalGlobalTranscribePrompt(values.globalTranscribePrompt);
+    }, [values.globalTranscribePrompt]);
+
+    useEffect(() => {
+        setLocalGlobalLlmPrompt(values.globalLlmPrompt);
+    }, [values.globalLlmPrompt]);
+
+    // Очищаем таймер при размонтировании
+    useEffect(() => {
+        return () => {
+            if (promptDebounceTimerRef.current !== null) {
+                clearTimeout(promptDebounceTimerRef.current);
+            }
+        };
+    }, []);
     const [localModelDownloaded, setLocalModelDownloaded] = useState<boolean | null>(null);
     const [localModelVerifiedFor, setLocalModelVerifiedFor] = useState<string | null>(null);
     const [checkingLocalModel, setCheckingLocalModel] = useState(false);
@@ -513,7 +534,10 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         }
 
         onChange(nextValues);
-        if (shouldAutoSave && onAutoSave) {
+
+        // Для промптов не вызываем автосохранение сразу - оно будет через дебаунс
+        const isPromptChange = 'globalTranscribePrompt' in partial || 'globalLlmPrompt' in partial;
+        if (shouldAutoSave && onAutoSave && !isPromptChange) {
             void onAutoSave(nextValues);
         }
     }, [values, onChange, shouldAutoSave, onAutoSave]);
@@ -831,8 +855,22 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                     </Typography>
                     <TextField
                         label="Global Transcribe Prompt"
-                        value={values.globalTranscribePrompt}
-                        onChange={(e) => emitChange({globalTranscribePrompt: e.target.value})}
+                        value={localGlobalTranscribePrompt}
+                        onChange={(e) => {
+                            const newValue = e.target.value;
+                            setLocalGlobalTranscribePrompt(newValue);
+
+                            if (promptDebounceTimerRef.current !== null) {
+                                clearTimeout(promptDebounceTimerRef.current);
+                            }
+
+                            promptDebounceTimerRef.current = window.setTimeout(() => {
+                                emitChange({globalTranscribePrompt: newValue});
+                                if (shouldAutoSave && onAutoSave) {
+                                    void onAutoSave({...values, globalTranscribePrompt: newValue});
+                                }
+                            }, 800);
+                        }}
                         disabled={disableInputs}
                         multiline
                         rows={3}
@@ -841,8 +879,22 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                     />
                     <TextField
                         label="Global LLM Prompt"
-                        value={values.globalLlmPrompt}
-                        onChange={(e) => emitChange({globalLlmPrompt: e.target.value})}
+                        value={localGlobalLlmPrompt}
+                        onChange={(e) => {
+                            const newValue = e.target.value;
+                            setLocalGlobalLlmPrompt(newValue);
+
+                            if (promptDebounceTimerRef.current !== null) {
+                                clearTimeout(promptDebounceTimerRef.current);
+                            }
+
+                            promptDebounceTimerRef.current = window.setTimeout(() => {
+                                emitChange({globalLlmPrompt: newValue});
+                                if (shouldAutoSave && onAutoSave) {
+                                    void onAutoSave({...values, globalLlmPrompt: newValue});
+                                }
+                            }, 800);
+                        }}
                         disabled={disableInputs}
                         multiline
                         rows={3}

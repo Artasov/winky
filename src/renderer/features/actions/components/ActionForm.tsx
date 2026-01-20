@@ -1,4 +1,4 @@
-import React, {forwardRef} from 'react';
+import React, {forwardRef, useState} from 'react';
 import {
     Box,
     Button,
@@ -19,9 +19,13 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import MicIcon from '@mui/icons-material/Mic';
 import type {ActionFormValues} from '../hooks/useActionForm';
 import HotkeyInput from '../../../components/HotkeyInput';
 import {LLM_GEMINI_API_MODELS, LLM_LOCAL_MODELS, LLM_OPENAI_API_MODELS} from '@shared/constants';
+import VoiceActionModal from './VoiceActionModal';
+import {useConfig} from '../../../context/ConfigContext';
+import {useToast} from '../../../context/ToastContext';
 
 type ModalProps = {
     isModalVisible: boolean;
@@ -65,6 +69,17 @@ const ActionForm: React.FC<Props> = ({
     const isEditMode = mode === 'edit';
     const isNameLocked = isEditMode && editingActionIsDefault;
     const selectedIconName = icons.find((icon) => icon.id === values.iconId)?.name;
+    const {config} = useConfig();
+    const {showToast} = useToast();
+    const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+
+    const handleVoiceActionGenerated = (generatedValues: Partial<ActionFormValues>) => {
+        Object.entries(generatedValues).forEach(([key, value]) => {
+            if (value !== undefined) {
+                setField(key as keyof ActionFormValues, value as any);
+            }
+        });
+    };
 
     return (
         <Dialog
@@ -105,6 +120,19 @@ const ActionForm: React.FC<Props> = ({
                 <Typography variant="body2" color="text.secondary">
                     Configure how Winky should react to this shortcut.
                 </Typography>
+                {!isEditMode && (
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        startIcon={<MicIcon/>}
+                        onClick={() => setVoiceModalOpen(true)}
+                        sx={{mt: 2}}
+                        fullWidth
+                        size="large"
+                    >
+                        Create by Voice
+                    </Button>
+                )}
             </DialogTitle>
             <DialogContent>
                 <div className={'fc gap-2 pt-2'}>
@@ -369,6 +397,14 @@ const ActionForm: React.FC<Props> = ({
                     {saving ? 'Saving…' : isEditMode ? 'Save changes' : 'Create action'}
                 </Button>
             </DialogActions>
+
+            <VoiceActionModal
+                open={voiceModalOpen}
+                onClose={() => setVoiceModalOpen(false)}
+                onActionGenerated={handleVoiceActionGenerated}
+                config={config}
+                showToast={showToast}
+            />
         </Dialog>
     );
 };

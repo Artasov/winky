@@ -3,7 +3,6 @@ import {Box, Button, Checkbox, FormControlLabel, MenuItem, Slider, TextField, Ty
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
 import {LLM_API_MODELS, LLM_MODES, SPEECH_API_MODELS, SPEECH_MODES} from '@shared/constants';
-import type {MicAnchor} from '@shared/types';
 import ModelConfigForm, {ModelConfigFormData} from '../components/ModelConfigForm';
 import HotkeyInput from '../components/HotkeyInput';
 import theme from "@renderer/theme/muiTheme";
@@ -27,7 +26,6 @@ const SettingsPage: React.FC = () => {
 
     const [saving, setSaving] = useState(false);
     const [micHotkey, setMicHotkey] = useState(DEFAULT_MIC_HOTKEY);
-    const [micAnchor, setMicAnchor] = useState<MicAnchor>('bottom-right');
     const [micAutoStart, setMicAutoStart] = useState(true);
     const [micHideOnStop, setMicHideOnStop] = useState(true);
     const [micShowOnLaunch, setMicShowOnLaunch] = useState(false);
@@ -53,7 +51,6 @@ const SettingsPage: React.FC = () => {
                 globalLlmPrompt: config.globalLlmPrompt ?? ''
             });
             setMicHotkey(config.micHotkey && config.micHotkey.trim().length > 0 ? config.micHotkey : DEFAULT_MIC_HOTKEY);
-            setMicAnchor((config.micAnchor as MicAnchor) ?? 'bottom-right');
             setMicAutoStart(config.micAutoStartRecording !== false);
             setMicHideOnStop(config.micHideOnStopRecording ?? true);
             setMicShowOnLaunch(config.micShowOnLaunch === true);
@@ -216,26 +213,6 @@ const SettingsPage: React.FC = () => {
             setSaving(false);
         }
     };
-
-    const handleAnchorSelect = async (anchor: MicAnchor) => {
-        setMicAnchor(anchor);
-        try {
-            const position = await window.winky?.mic?.setAnchor(anchor);
-            if (position) {
-                showToast(`Mic docked to ${anchor.replace('-', ' ')} (${position.x}, ${position.y})`, 'success');
-            }
-        } catch (error) {
-            console.error('[SettingsPage] Failed to set mic anchor', error);
-            showToast('Failed to move microphone. Try again.', 'error');
-        }
-    };
-
-    const anchorOptions: { value: MicAnchor; label: string }[] = [
-        {value: 'top-left', label: 'Top Left'},
-        {value: 'top-right', label: 'Top Right'},
-        {value: 'bottom-left', label: 'Bottom Left'},
-        {value: 'bottom-right', label: 'Bottom Right'}
-    ];
 
     const handleHotkeyChange = async (nextValue: string) => {
         isUserChangingHotkeyRef.current = true;
@@ -580,43 +557,6 @@ const SettingsPage: React.FC = () => {
                     />
                     <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
                         Press the desired key combination. Press Escape or use Clear to remove the shortcut.
-                    </Typography>
-                </div>
-
-                <div className={'fc gap-2'}>
-                    <Typography variant="body2" fontWeight={600} color="text.primary">
-                        Default Position
-                    </Typography>
-                    <Box
-                        sx={{
-                            display: 'grid',
-                            gridTemplateColumns: {xs: 'repeat(2, 1fr)', sm: 'repeat(4, minmax(0, 1fr))'},
-                            gap: 1
-                        }}
-                    >
-                        {anchorOptions.map((option) => {
-                            const isSelected = micAnchor === option.value;
-                            return (
-                                <Button
-                                    key={option.value}
-                                    variant={isSelected ? 'contained' : 'outlined'}
-                                    color="primary"
-                                    size="small"
-                                    onClick={() => handleAnchorSelect(option.value)}
-                                    sx={{
-                                        backgroundColor: theme.palette.primary.main + '11',
-                                        borderRadius: 2,
-                                        textTransform: 'none',
-                                        fontWeight: 600
-                                    }}
-                                >
-                                    {option.label}
-                                </Button>
-                            );
-                        })}
-                    </Box>
-                    <Typography variant="caption" color="text.secondary">
-                        Select one of the corners to dock the microphone overlay. The overlay moves immediately.
                     </Typography>
                 </div>
 

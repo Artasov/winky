@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useRef} from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import classNames from 'classnames';
 import {useConfig} from '../context/ConfigContext';
+import {useUser} from '../context/UserContext';
 
 interface NavItem {
     id: string;
@@ -24,6 +25,7 @@ const Sidebar: React.FC = () => {
     const location = useLocation();
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const {config} = useConfig();
+    const {user} = useUser();
     const showAvatarVideo = config?.showAvatarVideo !== false;
 
     const handleNavigation = (path: string) => {
@@ -122,6 +124,9 @@ const Sidebar: React.FC = () => {
             <nav className="flex flex-1 flex-col gap-1 px-3 mt-4">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path;
+                    const isMeTab = item.id === 'me';
+                    const hasAvatar = isMeTab && user?.avatar;
+
                     return (
                         <button
                             key={item.id}
@@ -136,7 +141,17 @@ const Sidebar: React.FC = () => {
                             )}
                             aria-current={isActive ? 'page' : undefined}
                         >
-                            <span className="text-xl">{item.icon}</span>
+                            {hasAvatar ? (
+                                <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
+                                    <img
+                                        src={user.avatar}
+                                        alt="Avatar"
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                            ) : (
+                                <span className="text-xl">{item.icon}</span>
+                            )}
                             <span className="truncate">{item.label}</span>
                         </button>
                     );

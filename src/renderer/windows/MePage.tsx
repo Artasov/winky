@@ -77,11 +77,28 @@ const MePage: React.FC = () => {
     }
 
     return (
-        <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-8 px-8 py-6">
+        <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 px-8 py-6">
             <div className="frbc gap-4">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-3xl font-semibold text-text-primary">My Profile</h1>
-                    <p className="text-sm text-text-secondary">Information about the currently connected account.</p>
+                <div className="frcc gap-3">
+                    <div className="fcc h-12 w-12 rounded-full bg-primary text-white text-lg font-semibold overflow-hidden">
+                        {user?.avatar ? (
+                            <img
+                                src={user.avatar}
+                                alt="Avatar"
+                                className="h-full w-full object-cover"
+                            />
+                        ) : (
+                            <span>{user?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}</span>
+                        )}
+                    </div>
+                    <div className="fc gap-0.5">
+                        <h1 className="text-xl font-semibold text-text-primary">
+                            {user?.username || user?.email?.split('@')[0] || 'User'}
+                        </h1>
+                        {user?.email && (
+                            <p className="text-sm text-text-secondary">{user.email}</p>
+                        )}
+                    </div>
                 </div>
                 {isAuthorized && (
                     <button
@@ -113,38 +130,9 @@ const MePage: React.FC = () => {
                     <p className="text-sm text-text-secondary">Please sign in to view profile data.</p>
                 </div>
             ) : (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="fc gap-4">
                     <section
-                        className="card-animated rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6">
-                        <h2 className="mb-4 text-lg font-semibold text-text-primary">Authorization Status</h2>
-                        <div className="flex items-center gap-3 text-sm text-text-primary">
-                            <span
-                                className="inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-primary animate-pulse-soft"
-                                aria-hidden="true"/>
-                            <span>Authorized</span>
-                        </div>
-                    </section>
-
-                    {user && (
-                        <section
-                            className="card-animated rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6">
-                            <h2 className="mb-2 text-lg font-semibold text-text-primary">User Information</h2>
-                            <div className="flex flex-col gap-2 text-sm text-text-primary">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-text-secondary">Email:</span>
-                                    <span className="font-medium">{user.email}</span>
-                                </div>
-                                {user.username && (
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-text-secondary">Username:</span>
-                                        <span className="font-medium">{user.username}</span>
-                                    </div>
-                                )}
-                            </div>
-                        </section>
-                    )}
-                    <section
-                        className="card-animated rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 via-white to-primary-100 shadow-primary-sm p-6 md:col-span-2">
+                        className="card-animated rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 via-white to-primary-100 shadow-primary-sm p-6">
                         <div className="mb-3 flex items-center justify-between gap-4">
                             <div>
                                 <p className="text-xs uppercase tracking-[0.24em] text-primary-700">WINKY access</p>

@@ -827,7 +827,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             llmWarmupWarningMessage={llmWarmupWarningMessage}
                             llmDownloadedMessage={llmDownloadedMessage}
                             llmDownloadButtonLabel={llmDownloadButtonLabel}
-                            selectedLocalLLMDescription={selectedLocalLLMDescription}
                         />
                     </Box>
                 </Stack>

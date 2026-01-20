@@ -29,7 +29,6 @@ type ModelLlmSectionProps = {
     llmWarmupWarningMessage: string;
     llmDownloadedMessage: string;
     llmDownloadButtonLabel: string;
-    selectedLocalLLMDescription: string | null;
 };
 
 export const ModelLlmSection: React.FC<ModelLlmSectionProps> = ({
@@ -53,8 +52,7 @@ export const ModelLlmSection: React.FC<ModelLlmSectionProps> = ({
                                                                     llmCheckingMessage,
                                                                     llmWarmupWarningMessage,
                                                                     llmDownloadedMessage,
-    llmDownloadButtonLabel,
-    selectedLocalLLMDescription
+    llmDownloadButtonLabel
                                                                   }) => {
     const disableLlmModelSelect = disableInputs || (isLocalLLMMode && (ollamaChecking || !ollamaInstalled));
 
@@ -88,11 +86,6 @@ export const ModelLlmSection: React.FC<ModelLlmSectionProps> = ({
                             </MenuItem>
                         ))}
                     </TextField>
-                )}
-                {selectedLocalLLMDescription && !hasNoApiModels && (
-                    <Typography variant="body2" color="text.secondary">
-                        {selectedLocalLLMDescription}
-                    </Typography>
                 )}
                 {isLocalLLMMode && ollamaInstalled && (
                     <Box sx={{width: '100%'}}>

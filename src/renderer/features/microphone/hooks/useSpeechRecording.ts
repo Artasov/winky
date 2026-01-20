@@ -145,12 +145,13 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
     }, []);
 
     useEffect(() => {
-        recorderRef.current = createSpeechRecorder();
+        const selectedDeviceId = config?.selectedMicrophoneId;
+        recorderRef.current = createSpeechRecorder(selectedDeviceId);
         return () => {
             recorderRef.current?.dispose();
             recorderRef.current = null;
         };
-    }, []);
+    }, [config?.selectedMicrophoneId]);
 
     useEffect(() => {
         if (!isMicOverlay) {

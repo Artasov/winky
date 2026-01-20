@@ -1,5 +1,5 @@
 import React, {ChangeEvent, useEffect, useRef, useState} from 'react';
-import {Box, Button, Checkbox, FormControlLabel, Slider, Typography} from '@mui/material';
+import {Box, Button, Checkbox, FormControlLabel, MenuItem, Slider, TextField, Typography} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
 import {LLM_API_MODELS, LLM_MODES, SPEECH_API_MODELS, SPEECH_MODES} from '@shared/constants';
@@ -20,7 +20,9 @@ const SettingsPage: React.FC = () => {
         transcribeMode: SPEECH_MODES.API,
         transcribeModel: SPEECH_API_MODELS[0],
         llmMode: LLM_MODES.API,
-        llmModel: LLM_API_MODELS[0]
+        llmModel: LLM_API_MODELS[0],
+        globalTranscribePrompt: '',
+        globalLlmPrompt: ''
     });
 
     const [saving, setSaving] = useState(false);
@@ -36,6 +38,7 @@ const SettingsPage: React.FC = () => {
     const [showAvatarVideo, setShowAvatarVideo] = useState(true);
     const [saveAudioHistory, setSaveAudioHistory] = useState(false);
     const [trimSilenceOnActions, setTrimSilenceOnActions] = useState(false);
+    const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
 
     useEffect(() => {
         if (config) {
@@ -45,7 +48,9 @@ const SettingsPage: React.FC = () => {
                 transcribeMode: config.speech.mode,
                 transcribeModel: config.speech.model,
                 llmMode: config.llm.mode,
-                llmModel: config.llm.model
+                llmModel: config.llm.model,
+                globalTranscribePrompt: config.globalTranscribePrompt ?? '',
+                globalLlmPrompt: config.globalLlmPrompt ?? ''
             });
             setMicHotkey(config.micHotkey && config.micHotkey.trim().length > 0 ? config.micHotkey : DEFAULT_MIC_HOTKEY);
             setMicAnchor((config.micAnchor as MicAnchor) ?? 'bottom-right');
@@ -61,6 +66,29 @@ const SettingsPage: React.FC = () => {
             setTrimSilenceOnActions(Boolean(config.trimSilenceOnActions));
         }
     }, [config]);
+
+    useEffect(() => {
+        const loadAudioDevices = async () => {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioInputs = devices.filter(device => device.kind === 'audioinput');
+                setAudioDevices(audioInputs);
+            } catch (error) {
+                console.error('[SettingsPage] Failed to enumerate audio devices', error);
+            }
+        };
+
+        void loadAudioDevices();
+
+        const handleDeviceChange = () => {
+            void loadAudioDevices();
+        };
+
+        navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
+        return () => {
+            navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
+        };
+    }, []);
 
     const previousHotkeyRef = useRef<string | null>(null);
     const isInitialMountRef = useRef(true);
@@ -177,7 +205,9 @@ const SettingsPage: React.FC = () => {
                 llm: {
                     mode: nextValues.llmMode,
                     model: nextValues.llmModel
-                }
+                },
+                globalTranscribePrompt: nextValues.globalTranscribePrompt.trim(),
+                globalLlmPrompt: nextValues.globalLlmPrompt.trim()
             });
         } catch (error) {
             console.error('[SettingsPage] Failed to save model config', error);
@@ -416,6 +446,18 @@ const SettingsPage: React.FC = () => {
             console.error('[SettingsPage] Failed to toggle silence trimming', error);
             setTrimSilenceOnActions(previousValue);
             showToast('Failed to update silence trimming setting.', 'error');
+        }
+    };
+
+    const handleMicrophoneChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const nextValue = event.target.value;
+        try {
+            await updateConfig({selectedMicrophoneId: nextValue});
+            const deviceName = audioDevices.find(d => d.deviceId === nextValue)?.label || 'Default';
+            showToast(`Microphone changed to: ${deviceName}`, 'success');
+        } catch (error) {
+            console.error('[SettingsPage] Failed to update microphone', error);
+            showToast('Failed to update microphone setting.', 'error');
         }
     };
 
@@ -679,6 +721,28 @@ const SettingsPage: React.FC = () => {
                     />
                     <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
                         Removes long pauses before sending audio for transcription. Disabled by default.
+                    </Typography>
+                </div>
+
+                <div className={'fc gap-2'}>
+                    <Typography variant="body2" fontWeight={600} color="text.primary">
+                        Microphone Device
+                    </Typography>
+                    <TextField
+                        select
+                        value={config?.selectedMicrophoneId || 'default'}
+                        onChange={handleMicrophoneChange}
+                        fullWidth
+                    >
+                        <MenuItem value="default">Default</MenuItem>
+                        {audioDevices.map(device => (
+                            <MenuItem key={device.deviceId} value={device.deviceId}>
+                                {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
+                            </MenuItem>
+                        ))}
+                    </TextField>
+                    <Typography variant="caption" color="text.secondary">
+                        Select which microphone to use for recording. Changes take effect immediately.
                     </Typography>
                 </div>
             </Box>

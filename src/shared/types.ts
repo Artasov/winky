@@ -160,6 +160,9 @@ export interface AppConfig {
     notesStorageMode?: 'api' | 'local';
     saveAudioHistory?: boolean;
     trimSilenceOnActions?: boolean;
+    globalTranscribePrompt?: string;
+    globalLlmPrompt?: string;
+    selectedMicrophoneId?: string;
 }
 
 export type MicAnchor = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';

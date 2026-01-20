@@ -34,6 +34,11 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
     private streamPromise: Promise<MediaStream> | null = null;
     private releaseTimer: number | null = null;
     private readonly STREAM_KEEP_ALIVE_MS = 5 * 60 * 1000;
+    private readonly deviceId?: string;
+
+    constructor(deviceId?: string) {
+        this.deviceId = deviceId;
+    }
 
     async startRecording(): Promise<MediaStream> {
         if (!navigator.mediaDevices?.getUserMedia) {
@@ -116,7 +121,11 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
             return this.streamPromise;
         }
 
-        this.streamPromise = navigator.mediaDevices.getUserMedia({audio: true})
+        const audioConstraints: boolean | MediaTrackConstraints = this.deviceId && this.deviceId !== 'default'
+            ? {deviceId: {exact: this.deviceId}}
+            : true;
+
+        this.streamPromise = navigator.mediaDevices.getUserMedia({audio: audioConstraints})
             .then((stream) => {
                 this.mediaStream = stream;
                 this.streamPromise = null;
@@ -127,7 +136,7 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
                 // Если это ошибка разрешения, очищаем состояние чтобы можно было попробовать снова
                 const errorName = error?.name || '';
                 const errorMessage = error?.message || '';
-                if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError' || 
+                if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError' ||
                     errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
                     // Очищаем mediaStream чтобы при следующем вызове getUserMedia попытался запросить доступ снова
                     // getUserMedia покажет диалог запроса разрешения при следующем вызове
@@ -177,4 +186,4 @@ export class BrowserSpeechRecorder implements SpeechRecorder {
     }
 }
 
-export const createSpeechRecorder = (): SpeechRecorder => new BrowserSpeechRecorder();
+export const createSpeechRecorder = (deviceId?: string): SpeechRecorder => new BrowserSpeechRecorder(deviceId);

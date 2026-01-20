@@ -38,7 +38,9 @@ const SetupWindow: React.FC = () => {
         transcribeMode: config?.speech.mode ?? SPEECH_MODES.API,
         transcribeModel: config?.speech.model ?? SPEECH_API_MODELS[0],
         llmMode: config?.llm.mode ?? LLM_MODES.API,
-        llmModel: config?.llm.model ?? LLM_API_MODELS[0]
+        llmModel: config?.llm.model ?? LLM_API_MODELS[0],
+        globalTranscribePrompt: config?.globalTranscribePrompt ?? '',
+        globalLlmPrompt: config?.globalLlmPrompt ?? ''
     });
 
     const [saving, setSaving] = useState(false);

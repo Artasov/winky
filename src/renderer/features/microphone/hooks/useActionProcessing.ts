@@ -136,7 +136,12 @@ export const useActionProcessing = ({
 
             const authToken = config.auth.access || config.auth.accessToken || undefined;
 
-            const transcriptionPrompt = action.prompt_recognizing?.trim() || undefined;
+            const actionTranscribePrompt = action.prompt_recognizing?.trim() || '';
+            const globalTranscribePrompt = config.globalTranscribePrompt?.trim() || '';
+            const transcriptionPrompt = [globalTranscribePrompt, actionTranscribePrompt]
+                .filter(p => p.length > 0)
+                .join('\n\n')
+                .trim() || undefined;
 
             abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
             slowLogTimer =
@@ -246,7 +251,12 @@ export const useActionProcessing = ({
                 : undefined;
 
             // Используем объединенный запрос (транскрипция + текст из поля) для LLM
-            const llmPrompt = action.prompt?.trim() || '';
+            const actionLlmPrompt = action.prompt?.trim() || '';
+            const globalLlmPrompt = config.globalLlmPrompt?.trim() || '';
+            const llmPrompt = [globalLlmPrompt, actionLlmPrompt]
+                .filter(p => p.length > 0)
+                .join('\n\n')
+                .trim();
 
             const response = await llmBridge.process(
                 llmInput,

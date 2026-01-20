@@ -56,6 +56,8 @@ export interface ModelConfigFormData {
     transcribeModel: TranscribeModel;
     llmMode: LLMMode;
     llmModel: LLMModel;
+    globalTranscribePrompt: string;
+    globalLlmPrompt: string;
 }
 
 const resolveTranscribeOptions = (mode: TranscribeMode, openaiKey: string, googleKey: string): TranscribeModel[] => {
@@ -819,6 +821,35 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         emitChange={emitChange}
                     />
                 ) : null}
+
+                <div className={'fc gap-2'}>
+                    <Typography variant="h6" color="text.primary" fontWeight={600}>
+                        Global Prompts
+                    </Typography>
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
+                        These prompts will be automatically added to all your actions.
+                    </Typography>
+                    <TextField
+                        label="Global Transcribe Prompt"
+                        value={values.globalTranscribePrompt}
+                        onChange={(e) => emitChange({globalTranscribePrompt: e.target.value})}
+                        disabled={disableInputs}
+                        multiline
+                        rows={3}
+                        placeholder="Global instructions for speech recognition..."
+                        fullWidth
+                    />
+                    <TextField
+                        label="Global LLM Prompt"
+                        value={values.globalLlmPrompt}
+                        onChange={(e) => emitChange({globalLlmPrompt: e.target.value})}
+                        disabled={disableInputs}
+                        multiline
+                        rows={3}
+                        placeholder="Global instructions for LLM processing..."
+                        fullWidth
+                    />
+                </div>
 
                 {!shouldAutoSave && onSubmit && (
                     <Box display="flex" justifyContent="flex-end" mt={2}>

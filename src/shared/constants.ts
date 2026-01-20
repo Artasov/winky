@@ -29,6 +29,7 @@ export const LLM_OPENAI_API_MODELS = [
     'chatgpt-4o-latest',
     'gpt-3.5-turbo',
     'gpt-5',
+    'gpt-5-mini',
     'gpt-5-nano',
 ] as const;
 

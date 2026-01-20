@@ -126,6 +126,12 @@ pub struct AppConfig {
     pub save_audio_history: bool,
     #[serde(default = "default_false")]
     pub trim_silence_on_actions: bool,
+    #[serde(default)]
+    pub global_transcribe_prompt: Option<String>,
+    #[serde(default)]
+    pub global_llm_prompt: Option<String>,
+    #[serde(default)]
+    pub selected_microphone_id: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -151,6 +157,9 @@ impl Default for AppConfig {
             notes_storage_mode: default_notes_storage_mode(),
             save_audio_history: default_false(),
             trim_silence_on_actions: default_false(),
+            global_transcribe_prompt: None,
+            global_llm_prompt: None,
+            selected_microphone_id: None,
         }
     }
 }

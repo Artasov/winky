@@ -126,7 +126,7 @@ const ActionForm: React.FC<Props> = ({
                         color="primary"
                         startIcon={<MicIcon/>}
                         onClick={() => setVoiceModalOpen(true)}
-                        sx={{mt: 2}}
+                        sx={{mt: 2, pt: '8px', pb: '6px'}}
                         fullWidth
                         size="large"
                     >

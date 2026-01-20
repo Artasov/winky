@@ -170,8 +170,8 @@ const VoiceActionModal: React.FC<VoiceActionModalProps> = ({
             </IconButton>
 
             <DialogContent sx={{pt: 4, pb: 2}}>
-                <div className="fc gap-3 items-center">
-                    <div style={{width: '140px', height: '140px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                <div className="fc gap-2 items-center">
+                    <div style={{width: '140px', height: '120px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
                         {/* Volume rings */}
                         <div className="pointer-events-none absolute inset-0 flex items-center justify-center" style={{overflow: 'visible'}}>
                             {ringMultipliers.map((multiplier) => (
@@ -283,18 +283,28 @@ const VoiceActionModal: React.FC<VoiceActionModalProps> = ({
                     )}
 
                     {!hasError && !isProcessing && !isReady && !isRecording && (
-                        <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            textAlign="center"
-                        >
-                            Describe your action
-                        </Typography>
+                        <div className="fc gap-1 items-center">
+                            <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                textAlign="center"
+                            >
+                                Describe your action
+                            </Typography>
+                            <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                textAlign="center"
+                                sx={{opacity: 0.8}}
+                            >
+                                Quality depends on your LLM model in Settings. Use stronger models for better results.
+                            </Typography>
+                        </div>
                     )}
                 </div>
             </DialogContent>
 
-            <DialogActions sx={{px: 2, pb: 2, justifyContent: 'center'}}>
+            <DialogActions sx={{px: 2, pb: 2, pt: 0, justifyContent: 'center'}}>
                 {hasError ? (
                     <div className="fr gap-2 w-full">
                         <Button onClick={handleClose} variant="outlined" fullWidth>

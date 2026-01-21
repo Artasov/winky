@@ -7,6 +7,8 @@ import BubbleChartRoundedIcon from '@mui/icons-material/BubbleChartRounded';
 import BookmarkBorderRoundedIcon from '@mui/icons-material/BookmarkBorderRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
+import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 
 interface NavItem {
     id: string;
@@ -16,10 +18,15 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-    {id: 'me', label: 'Me', Icon: PersonRoundedIcon, path: '/me'},
     {id: 'actions', label: 'Actions', Icon: BubbleChartRoundedIcon, path: '/actions'},
     {id: 'history', label: 'History', Icon: MenuBookRoundedIcon, path: '/history'},
     {id: 'notes', label: 'Notes', Icon: BookmarkBorderRoundedIcon, path: '/notes'}
+];
+
+const iconOnlyItems: NavItem[] = [
+    {id: 'me', label: 'Me', Icon: PersonRoundedIcon, path: '/me'},
+    {id: 'settings', label: 'Settings', Icon: SettingsRoundedIcon, path: '/settings'},
+    {id: 'info', label: 'Info', Icon: InfoRoundedIcon, path: '/info'}
 ];
 
 const Sidebar: React.FC = () => {
@@ -126,9 +133,6 @@ const Sidebar: React.FC = () => {
             <nav className="flex flex-1 flex-col gap-1 px-3 mt-4">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path;
-                    const isMeTab = item.id === 'me';
-                    const hasAvatar = isMeTab && user?.avatar;
-
                     return (
                         <button
                             key={item.id}
@@ -139,25 +143,54 @@ const Sidebar: React.FC = () => {
                                 'transition-[background-color,border-color,box-shadow]',
                                 isActive
                                     ? 'active bg-primary-50 text-primary shadow-primary-sm ring-1 ring-primary-200'
-                                    : 'text-text-secondary hover:bg-bg-tertiary'
-                            )}
-                            aria-current={isActive ? 'page' : undefined}
+                                    : 'text-text-secondary hover:bg-bg-tertiary',
+                            )} aria-current={isActive ? 'page' : undefined}
                         >
-                            {hasAvatar ? (
-                                <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
-                                    <img
-                                        src={user.avatar}
-                                        alt="Avatar"
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                            ) : (
-                                <item.Icon sx={{fontSize: 24}} />
-                            )}
+                            <item.Icon sx={{
+                                fontSize: 24,
+                                transform: (item.id === 'actions' || item.id === 'notes')
+                                    ? 'scale(1.12)' : 'none'
+                            }}/>
                             <span className="truncate">{item.label}</span>
                         </button>
                     );
                 })}
+                <div className="my-3 mx-4 border-t border-primary-200/60"></div>
+                <div className="frcc gap-2 pb-2">
+                    {iconOnlyItems.map((item) => {
+                        const isActive = location.pathname === item.path;
+                        const isMeTab = item.id === 'me';
+                        const hasAvatar = isMeTab && user?.avatar;
+
+                        return (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => handleNavigation(item.path)}
+                                className={classNames(
+                                    'flex h-10 w-10 items-center justify-center rounded-full transition-all duration-base focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
+                                    isActive
+                                        ? 'bg-primary-100 text-primary'
+                                        : 'text-text-secondary hover:bg-bg-tertiary hover:text-primary',
+                                )}
+                                aria-label={item.label}
+                                aria-current={isActive ? 'page' : undefined}
+                            >
+                                {hasAvatar ? (
+                                    <div className="w-7 h-7 rounded-full overflow-hidden">
+                                        <img
+                                            src={user.avatar}
+                                            alt="Avatar"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                ) : (
+                                    <item.Icon sx={{fontSize: 22}}/>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
             </nav>
             <div className="p-4 overflow-hidden">
                 {showAvatarVideo ? (

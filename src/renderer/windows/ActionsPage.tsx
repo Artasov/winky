@@ -1,5 +1,5 @@
 import React, {useMemo} from 'react';
-import {Button, Container, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Stack} from '@mui/material';
+import {Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useIcons} from '../context/IconsContext';
 import {useToast} from '../context/ToastContext';
@@ -62,11 +62,11 @@ const ActionsPage: React.FC = () => {
     );
 
     return (
-        <Container maxWidth="lg" sx={{py: 4}}>
-            <Stack spacing={4}>
+        <div className="fr mx-auto w-full max-w-5xl flex-col px-8 py-6 overflow-hidden">
+            <div className="fc gap-4">
                 <ActionToolbar actionsCount={actions.length} onCreate={handleCreateAction}/>
                 {content}
-            </Stack>
+            </div>
             <ActionForm
                 icons={icons}
                 iconsLoading={iconsLoading}
@@ -98,7 +98,7 @@ const ActionsPage: React.FC = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
-        </Container>
+        </div>
     );
 };
 

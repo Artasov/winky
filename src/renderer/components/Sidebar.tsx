@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useRef} from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import classNames from 'classnames';
+import type {SvgIconProps} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
 import BubbleChartRoundedIcon from '@mui/icons-material/BubbleChartRounded';
@@ -13,7 +14,7 @@ import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 interface NavItem {
     id: string;
     label: string;
-    Icon: React.ComponentType;
+    Icon: React.ComponentType<SvgIconProps>;
     path: string;
 }
 
@@ -176,7 +177,7 @@ const Sidebar: React.FC = () => {
                                 aria-label={item.label}
                                 aria-current={isActive ? 'page' : undefined}
                             >
-                                {hasAvatar ? (
+                                {hasAvatar && user?.avatar ? (
                                     <div className="w-7 h-7 rounded-full overflow-hidden">
                                         <img
                                             src={user.avatar}

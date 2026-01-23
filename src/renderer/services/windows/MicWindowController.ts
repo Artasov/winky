@@ -414,8 +414,15 @@ export class MicWindowController {
                 return;
             }
 
-            // Используем внутреннее состояние, а не реальную видимость окна
-            // Если fade-out в процессе, this.visible уже false, поэтому вызовется show()
+            // Синхронизируем состояние с реальной видимостью окна,
+            // если нет активного fade-out (окно могло быть скрыто извне)
+            if (this.fadeOutHideTimeout === null && !this.hideInProgress) {
+                const actuallyVisible = await win.isVisible().catch(() => false);
+                if (this.visible !== actuallyVisible) {
+                    this.visible = actuallyVisible;
+                }
+            }
+
             if (this.visible) {
                 await this.hide(reason);
             } else {

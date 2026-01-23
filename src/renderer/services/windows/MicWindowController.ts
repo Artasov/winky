@@ -30,6 +30,8 @@ export class MicWindowController {
     private pendingAutoStartReason: string | null = null;
     private positionSaveTimeout: ReturnType<typeof setTimeout> | null = null;
     private fadeOutHideTimeout: ReturnType<typeof setTimeout> | null = null;
+    private lastToggleTime = 0;
+    private readonly TOGGLE_COOLDOWN_MS = 150;
     private readonly AUTO_START_CONFIG_CACHE_MS = 5000;
     private readonly POSITION_SAVE_DEBOUNCE_MS = 300;
     private readonly width: number;
@@ -395,15 +397,17 @@ export class MicWindowController {
         if (this.toggleInProgress) {
             return;
         }
+
+        // Защита от key repeat — игнорируем повторные вызовы в течение cooldown
+        const now = Date.now();
+        if (now - this.lastToggleTime < this.TOGGLE_COOLDOWN_MS) {
+            return;
+        }
+        this.lastToggleTime = now;
+
         this.toggleInProgress = true;
 
         try {
-            // Если есть отложенное скрытие (fade-out в процессе), показываем окно
-            if (this.fadeOutHideTimeout !== null) {
-                await this.show(reason);
-                return;
-            }
-
             const win = this.window ?? (await WebviewWindow.getByLabel('mic').catch(() => null));
             if (!win) {
                 await this.show(reason);
@@ -411,6 +415,7 @@ export class MicWindowController {
             }
 
             // Используем внутреннее состояние, а не реальную видимость окна
+            // Если fade-out в процессе, this.visible уже false, поэтому вызовется show()
             if (this.visible) {
                 await this.hide(reason);
             } else {

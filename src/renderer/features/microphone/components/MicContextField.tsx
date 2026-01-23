@@ -17,7 +17,7 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
     const [fieldWidth, setFieldWidth] = useState<number>(MIN_WIDTH);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
-    const padding = '7px 12px';
+    const padding = '7px 12px 12px 12px';
     const hasValue = Boolean(value.trim());
     const shouldWrap = fieldWidth >= MAX_WIDTH;
 

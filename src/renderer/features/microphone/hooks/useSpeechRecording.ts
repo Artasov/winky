@@ -467,7 +467,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
         if (!isRecording || activeActions.length === 0) {
             return [];
         }
-        const MAX_FLOATING_ACTIONS = 6;
+        const MAX_FLOATING_ACTIONS = 7;
         return activeActions.slice(0, MAX_FLOATING_ACTIONS);
     }, [activeActions, isRecording]);
 

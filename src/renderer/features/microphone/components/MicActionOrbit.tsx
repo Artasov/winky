@@ -67,9 +67,13 @@ const MicActionOrbitComponent: React.FC<MicActionOrbitProps> = ({
                 radius = 44;
                 maxSpanPerSide = 110;
                 break;
+            case 7:
+                radius = 46;
+                maxSpanPerSide = 130;
+                break;
             default:
-                radius = 44;
-                maxSpanPerSide = 90;
+                radius = 46;
+                maxSpanPerSide = 130;
         }
         const stepDegrees = 36;
         const totalSpan = Math.min(maxSpanPerSide, stepDegrees * (total - 1));

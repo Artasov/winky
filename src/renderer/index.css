@@ -435,3 +435,14 @@ body.fade-out {
 .animate-tooltip-fade-in {
     animation: tooltip-fade-in 0.15s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+
+/* Глобальные стили для выделения текста (белый текст на красном фоне) */
+::selection {
+    background-color: var(--color-primary);
+    color: white;
+}
+
+::-moz-selection {
+    background-color: var(--color-primary);
+    color: white;
+}

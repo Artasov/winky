@@ -103,12 +103,10 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
 
     const handleFocus = useCallback(() => {
         setIsFocused(true);
-        interactiveEnter();
     }, []);
 
     const handleBlur = useCallback(() => {
         setIsFocused(false);
-        interactiveLeave();
     }, []);
 
     const handleClear = useCallback(() => {
@@ -204,8 +202,6 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
                     onClick={handleClear}
                     onMouseEnter={() => interactiveEnter()}
                     onMouseLeave={() => interactiveLeave()}
-                    onFocus={() => interactiveEnter()}
-                    onBlur={() => interactiveLeave()}
                     style={{
                         position: 'absolute',
                         top: '-18px',
@@ -230,6 +226,8 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
                 onChange={handleChange}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
+                onMouseEnter={() => interactiveEnter()}
+                onMouseLeave={() => interactiveLeave()}
                 placeholder={hasValue ? '' : 'Add context...'}
                 className="mic-context-scrollbar"
                 wrap={shouldWrap ? 'soft' : 'off'}

@@ -2,7 +2,7 @@ import React from 'react';
 import {Outlet} from 'react-router-dom';
 
 const MicShell: React.FC = () => (
-    <div className="frcc h-full w-full bg-transparent text-white">
+    <div className="pointer-events-none frcc h-full w-full bg-transparent text-white">
         <Outlet/>
     </div>
 );

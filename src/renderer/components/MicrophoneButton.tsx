@@ -30,8 +30,6 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
             data-mic-button="true"
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            onFocus={handleMouseEnter}
-            onBlur={handleMouseLeave}
             onClick={disabled ? undefined : onToggle}
             className={classNames(
                 'pointer-events-auto relative z-10 touch-none select-none app-region-no-drag',

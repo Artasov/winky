@@ -16,33 +16,15 @@ const applyState = () => {
         return;
     }
 
-    // Окно интерактивно когда:
-    // 1. Есть наведение на элементы (hoverCounter > 0)
-    // 2. Активно перетаскивание (dragActive)
-    // 3. Курсор рядом с интерактивной зоной (proximityInteractive)
-    // 4. Идет запись (recordingActive) - необходимо для приема событий клавиатуры (хоткеев)
-    const shouldBeInteractive = hoverCounter > 0 || dragActive || proximityInteractive || recordingActive;
-    const desiredInteractive = forceInteractive || shouldBeInteractive;
     // Проверяем что API доступен перед вызовом
     if (!window.winky?.mic?.setInteractive) {
         return;
     }
-    // Явно вызываем setInteractive для гарантии интерактивности окна
-    // Особенно важно при автоматическом старте записи
-    // Используем Promise с обработкой ошибок чтобы не блокировать выполнение
-    if (desiredInteractive) {
-        Promise.resolve(window.winky.mic.setInteractive(true)).catch((error) => {
-            // Игнорируем ошибки - окно может быть еще не создано или уже закрыто
-            console.debug('[interactive] Failed to set interactive true:', error);
-        });
-    } else {
-        // КРИТИЧНО: Когда нет наведения и перетаскивания, окно должно быть неинтерактивным
-        // чтобы клики проходили сквозь прозрачные области
-        Promise.resolve(window.winky.mic.setInteractive(false)).catch((error) => {
-            // Игнорируем ошибки - окно может быть еще не создано или уже закрыто
-            console.debug('[interactive] Failed to set interactive false:', error);
-        });
-    }
+
+    const shouldBeInteractive = hoverCounter > 0 || dragActive || proximityInteractive;
+    const interactive = forceInteractive || shouldBeInteractive;
+
+    Promise.resolve(window.winky.mic.setInteractive(interactive)).catch(() => {});
 };
 
 export const interactiveEnter = () => {

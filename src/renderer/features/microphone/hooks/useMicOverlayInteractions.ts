@@ -178,13 +178,17 @@ export const useMicOverlayInteractions = ({isMicOverlay}: UseMicOverlayInteracti
                 return;
             }
             try {
-                const cursor = await micApi.getCursorPosition();
+                const [cursor, windowPos] = await Promise.all([
+                    micApi.getCursorPosition(),
+                    micApi.getPosition?.() ?? Promise.resolve({x: 0, y: 0})
+                ]);
                 const rect = handleElement.getBoundingClientRect();
-                const padding = 6;
-                const left = (window.screenX || 0) + rect.left - padding;
-                const top = (window.screenY || 0) + rect.top - padding;
-                const right = (window.screenX || 0) + rect.right + padding;
-                const bottom = (window.screenY || 0) + rect.bottom + padding;
+                const dpr = window.devicePixelRatio || 1;
+                const padding = 6 * dpr;
+                const left = windowPos.x + rect.left * dpr - padding;
+                const top = windowPos.y + rect.top * dpr - padding;
+                const right = windowPos.x + rect.right * dpr + padding;
+                const bottom = windowPos.y + rect.bottom * dpr + padding;
                 const inside = cursor.x >= left && cursor.x <= right && cursor.y >= top && cursor.y <= bottom;
                 if (inside) {
                     handleHandleMouseEnter();

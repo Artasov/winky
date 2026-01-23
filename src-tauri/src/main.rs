@@ -733,14 +733,15 @@ async fn window_open_devtools(_app: tauri::AppHandle) -> Result<(), String> {
 unsafe fn update_window_ex_style(hwnd: winapi::shared::windef::HWND, ignore: bool) {
     use winapi::um::winuser::{
         GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOP, SWP_FRAMECHANGED,
-        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_TRANSPARENT,
+        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_TRANSPARENT, WS_EX_LAYERED,
     };
 
     let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+    let base_style = ex_style | WS_EX_LAYERED;
     let new_ex_style = if ignore {
-        ex_style | WS_EX_TRANSPARENT
+        base_style | WS_EX_TRANSPARENT
     } else {
-        ex_style & !WS_EX_TRANSPARENT
+        base_style & !WS_EX_TRANSPARENT
     };
 
     if new_ex_style != ex_style {
@@ -764,14 +765,12 @@ async fn window_set_ignore_cursor_events(
     ignore: bool,
     skip_native: Option<bool>,
 ) -> Result<(), String> {
-    // Пробуем найти окно с небольшой задержкой, если оно только что создано
     let mut window = app.get_webview_window(&label);
     if window.is_none() {
-        // Ждем немного и пробуем снова
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         window = app.get_webview_window(&label);
     }
-    
+
     if let Some(window) = window {
         let skip_native_call = skip_native.unwrap_or(false);
         if !skip_native_call {
@@ -790,8 +789,6 @@ async fn window_set_ignore_cursor_events(
         }
         Ok(())
     } else {
-        // Если окно не найдено, просто возвращаем Ok - это не критичная ошибка
-        // Окно может быть еще не создано или уже закрыто
         Ok(())
     }
 }

@@ -14,12 +14,14 @@ const isPointInsideRect = (
     cursor: {x: number; y: number},
     rect: DOMRect,
     padding: number,
-    windowOffset: {x: number; y: number}
+    windowOffset: {x: number; y: number},
+    dpr: number = 1
 ) => {
-    const left = windowOffset.x + rect.left - padding;
-    const right = windowOffset.x + rect.right + padding;
-    const top = windowOffset.y + rect.top - padding;
-    const bottom = windowOffset.y + rect.bottom + padding;
+    // rect в логических пикселях, умножаем на dpr
+    const left = windowOffset.x + rect.left * dpr - padding * dpr;
+    const right = windowOffset.x + rect.right * dpr + padding * dpr;
+    const top = windowOffset.y + rect.top * dpr - padding * dpr;
+    const bottom = windowOffset.y + rect.bottom * dpr + padding * dpr;
     return cursor.x >= left && cursor.x <= right && cursor.y >= top && cursor.y <= bottom;
 };
 
@@ -55,14 +57,20 @@ export const useMicInteractiveProximity = ({
             }
             try {
                 const micApi = window.winky?.mic;
-                if (!micApi?.getCursorPosition) {
+                if (!micApi?.getCursorPosition || !micApi?.getPosition) {
                     schedule(250);
                     return;
                 }
-                const cursor = await micApi.getCursorPosition();
+                const [cursor, windowPos] = await Promise.all([
+                    micApi.getCursorPosition(),
+                    micApi.getPosition()
+                ]);
+                // cursor и windowPos теперь оба в физических пикселях
+                // buttonRect в логических - умножаем на dpr
+                const dpr = window.devicePixelRatio || 1;
                 const windowOffset = {
-                    x: window.screenX || 0,
-                    y: window.screenY || 0
+                    x: windowPos.x,
+                    y: windowPos.y
                 };
                 const buttonRect = micButtonRef.current?.getBoundingClientRect() ?? null;
                 const contextRect = contextFieldRef?.current?.getBoundingClientRect() ?? null;
@@ -77,18 +85,18 @@ export const useMicInteractiveProximity = ({
 
                 let inside = false;
                 if (buttonRect) {
-                    inside = isPointInsideRect(cursor, buttonRect, 10, windowOffset);
+                    inside = isPointInsideRect(cursor, buttonRect, 10, windowOffset, dpr);
                 }
                 if (!inside) {
                     for (const rect of actionRects) {
-                        if (isPointInsideRect(cursor, rect, 12, windowOffset)) {
+                        if (isPointInsideRect(cursor, rect, 12, windowOffset, dpr)) {
                             inside = true;
                             break;
                         }
                     }
                 }
                 if (!inside && contextRect) {
-                    inside = isPointInsideRect(cursor, contextRect, 12, windowOffset);
+                    inside = isPointInsideRect(cursor, contextRect, 12, windowOffset, dpr);
                 }
 
                 const windowWidth = typeof window.innerWidth === 'number' ? window.innerWidth : 0;
@@ -100,6 +108,7 @@ export const useMicInteractiveProximity = ({
                     && cursor.y <= windowOffset.y + windowHeight + nearMargin;
 
                 const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
                 if (inside) {
                     lingerUntil = now + lingerMs;
                     if (!proximityActive) {

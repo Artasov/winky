@@ -31,8 +31,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
                 onClick={() => onClick(action)}
                 onMouseEnter={() => interactiveEnter()}
                 onMouseLeave={() => interactiveLeave()}
-                onFocus={() => interactiveEnter()}
-                onBlur={() => interactiveLeave()}
                 data-interactive="true"
                 className={classNames(
                     'app-region-no-drag',

@@ -96,10 +96,12 @@ body.body-transparent #root {
     background: transparent !important;
 }
 
+html[data-mic-window="true"],
 html[data-mic-window="true"] body,
 html[data-mic-window="true"] body #root {
     background: transparent !important;
     border-radius: 0 !important;
+    pointer-events: none;
 }
 
 .markdown-compact {

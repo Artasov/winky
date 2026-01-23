@@ -79,7 +79,7 @@ export class MicWindowController {
             await invoke('window_set_ignore_cursor_events', {
                 label: 'mic',
                 ignore,
-                skip_native: appliedNative
+                skip_native: false
             });
         } catch (invokeError) {
             console.debug('[MicWindowController] Failed to sync ignore cursor events via command:', invokeError);
@@ -209,13 +209,31 @@ export class MicWindowController {
     }
 
     async getPosition(): Promise<{x: number; y: number}> {
+        try {
+            const {getCurrentWindow} = await import('@tauri-apps/api/window');
+            const currentWin = getCurrentWindow();
+            const pos = await currentWin.outerPosition();
+            return {x: pos.x, y: pos.y};
+        } catch {
+            // Игнорируем
+        }
+
+        const win = this.window;
+        if (win) {
+            try {
+                const pos = await win.outerPosition();
+                return {x: pos.x, y: pos.y};
+            } catch {
+                // Игнорируем
+            }
+        }
         return this.position;
     }
 
     async getCursorPosition(): Promise<{x: number; y: number}> {
+        // cursorPosition() возвращает физические пиксели - НЕ делим на scale
         const cursor = await cursorPosition();
-        const scale = window.devicePixelRatio || 1;
-        return {x: cursor.x / scale, y: cursor.y / scale};
+        return {x: cursor.x, y: cursor.y};
     }
 
     async show(reason: string = 'system'): Promise<void> {
@@ -373,11 +391,20 @@ export class MicWindowController {
 
     async setInteractive(interactive: boolean): Promise<void> {
         const win = this.window ?? (await WebviewWindow.getByLabel('mic').catch(() => null));
-        if (!win) {
+        const ignore = !interactive;
+        if (win) {
+            await this.syncIgnoreCursorEvents(win, ignore, true);
             return;
         }
-        const ignore = !interactive;
-        await this.syncIgnoreCursorEvents(win, ignore, true);
+        try {
+            await invoke('window_set_ignore_cursor_events', {
+                label: 'mic',
+                ignore,
+                skip_native: false
+            });
+        } catch (invokeError) {
+            console.debug('[MicWindowController] Failed to sync ignore cursor events without window handle:', invokeError);
+        }
     }
 
     async beginDrag(): Promise<void> {

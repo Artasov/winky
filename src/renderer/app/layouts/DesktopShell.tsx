@@ -14,7 +14,7 @@ const DesktopShell: React.FC<DesktopShellProps> = ({allowSidebar = false}) => {
     const showSidebar = allowSidebar && Boolean(config) && hasToken && config?.setupCompleted;
 
     return (
-        <div className="fc disable-tap-select h-full bg-bg-base text-text-primary">
+        <div className="fc h-full bg-bg-base text-text-primary">
             <TitleBar showBugReportButton/>
             <div className="fr flex-1 overflow-hidden">
                 {showSidebar ? <Sidebar/> : null}

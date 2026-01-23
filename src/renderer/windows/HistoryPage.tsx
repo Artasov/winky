@@ -426,6 +426,10 @@ const HistoryPage: React.FC = () => {
     }, []);
 
     const handleToggleEntry = useCallback((entryId: string) => {
+        const selection = window.getSelection();
+        if (selection && selection.toString().trim().length > 0) {
+            return;
+        }
         setOpenEntryId((prev) => (prev === entryId ? null : entryId));
     }, []);
 

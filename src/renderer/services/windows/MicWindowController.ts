@@ -29,6 +29,7 @@ export class MicWindowController {
     private pendingAutoStart = false;
     private pendingAutoStartReason: string | null = null;
     private positionSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+    private fadeOutHideTimeout: ReturnType<typeof setTimeout> | null = null;
     private readonly AUTO_START_CONFIG_CACHE_MS = 5000;
     private readonly POSITION_SAVE_DEBOUNCE_MS = 300;
     private readonly width: number;
@@ -242,6 +243,16 @@ export class MicWindowController {
             console.warn('[MicWindowController] Rejecting mic show request: user is not authenticated or token not verified');
             return;
         }
+
+        // Отменяем отложенное скрытие, если оно запланировано
+        let cancelledFadeOut = false;
+        if (this.fadeOutHideTimeout !== null) {
+            clearTimeout(this.fadeOutHideTimeout);
+            this.fadeOutHideTimeout = null;
+            this.hideInProgress = false;
+            cancelledFadeOut = true;
+        }
+
         // Если идет процесс закрытия, ждем его завершения
         if (this.hideInProgress) {
             // Ждем завершения закрытия перед открытием
@@ -264,13 +275,25 @@ export class MicWindowController {
         const isVisible = await win.isVisible().catch(() => false);
         this.visible = isVisible;
 
-        if (isVisible) {
+        if (isVisible && !cancelledFadeOut) {
             try {
                 await win.setFocus();
                 return;
             } catch {
                 /* ignore */
             }
+        }
+
+        // Если отменили fade-out, нужно восстановить состояние
+        if (cancelledFadeOut) {
+            this.visible = true;
+            this.micReady = true;
+            await Promise.all([
+                win.setFocus().catch(() => {}),
+                emit('mic:start-fade-in', {reason})
+            ]);
+            void this.scheduleAutoStart(reason);
+            return;
         }
 
         try {
@@ -316,51 +339,56 @@ export class MicWindowController {
         }
         this.hideInProgress = true;
 
-        try {
-            const win = this.window ?? (await WebviewWindow.getByLabel('mic').catch(() => null));
-            if (!win) {
-                this.visible = false;
-                this.micReady = false;
-                this.pendingAutoStart = false;
-                this.pendingAutoStartReason = null;
-                this.hideInProgress = false;
-                return;
-            }
-
-            const isVisible = await win.isVisible().catch(() => false);
-            this.visible = isVisible;
-
-            if (!isVisible) {
-                this.hideInProgress = false;
-                return;
-            }
-
-            try {
-                const currentPos = await win.position().catch(() => null);
-                if (currentPos) {
-                    this.position = {x: currentPos.x, y: currentPos.y};
-                    void this.configApi.update({micWindowPosition: this.position});
-                }
-            } catch {
-                /* ignore */
-            }
-
+        const win = this.window ?? (await WebviewWindow.getByLabel('mic').catch(() => null));
+        if (!win) {
             this.visible = false;
-            // Сбрасываем состояние готовности и автозапуска при закрытии
             this.micReady = false;
             this.pendingAutoStart = false;
             this.pendingAutoStartReason = null;
+            this.hideInProgress = false;
+            return;
+        }
 
-            await Promise.all([
-                emit('mic:start-fade-out', {reason}),
+        const isVisible = await win.isVisible().catch(() => false);
+        this.visible = isVisible;
+
+        if (!isVisible) {
+            this.hideInProgress = false;
+            return;
+        }
+
+        try {
+            const currentPos = await win.position().catch(() => null);
+            if (currentPos) {
+                this.position = {x: currentPos.x, y: currentPos.y};
+                void this.configApi.update({micWindowPosition: this.position});
+            }
+        } catch {
+            /* ignore */
+        }
+
+        this.visible = false;
+        // Сбрасываем состояние готовности и автозапуска при закрытии
+        this.micReady = false;
+        this.pendingAutoStart = false;
+        this.pendingAutoStartReason = null;
+
+        // Запускаем анимацию fade-out
+        void emit('mic:start-fade-out', {reason});
+
+        // Планируем скрытие окна после завершения анимации (неблокирующий таймаут)
+        // Таймаут можно отменить в show() для быстрого переключения
+        this.fadeOutHideTimeout = setTimeout(() => {
+            this.fadeOutHideTimeout = null;
+            Promise.all([
                 win.hide().catch(() => {
                     this.window = null;
                 }),
                 emit('mic:visibility-change', {visible: false, reason})
-            ]);
-        } finally {
-            this.hideInProgress = false;
-        }
+            ]).finally(() => {
+                this.hideInProgress = false;
+            });
+        }, 300);
     }
 
     async toggle(reason: string = 'manual'): Promise<void> {
@@ -370,16 +398,20 @@ export class MicWindowController {
         this.toggleInProgress = true;
 
         try {
+            // Если есть отложенное скрытие (fade-out в процессе), показываем окно
+            if (this.fadeOutHideTimeout !== null) {
+                await this.show(reason);
+                return;
+            }
+
             const win = this.window ?? (await WebviewWindow.getByLabel('mic').catch(() => null));
             if (!win) {
                 await this.show(reason);
                 return;
             }
 
-            const isVisible = await win.isVisible().catch(() => false);
-            this.visible = isVisible;
-
-            if (isVisible) {
+            // Используем внутреннее состояние, а не реальную видимость окна
+            if (this.visible) {
                 await this.hide(reason);
             } else {
                 await this.show(reason);

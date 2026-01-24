@@ -4,7 +4,7 @@ import {interactiveEnter, interactiveLeave} from '../../../utils/interactive';
 const STORAGE_KEY = 'mic_context_text';
 const MIN_WIDTH = 170;
 const MAX_WIDTH = 460; // Шире, чтобы было больше места
-const FOCUSED_MIN_HEIGHT = 34; // Компактнее по высоте
+const FOCUSED_MIN_HEIGHT = 39; // Компактнее по высоте
 
 interface MicContextFieldProps {
     onContextChange?: (text: string) => void;

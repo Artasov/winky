@@ -1,5 +1,6 @@
 import type {
     ActionConfig,
+    ActionGroup,
     ActionIcon,
     ActionHistoryEntry,
     AppConfig,
@@ -39,8 +40,6 @@ declare global {
     }
 
     interface WinkyActionsAPI {
-        fetch(): Promise<ActionConfig[]>;
-
         create(action: {
             name: string;
             prompt: string;
@@ -72,6 +71,32 @@ declare global {
 
     interface WinkyIconsAPI {
         fetch(): Promise<ActionIcon[]>;
+    }
+
+    interface WinkyGroupsAPI {
+        fetch(): Promise<ActionGroup[]>;
+
+        create(group: {
+            name: string;
+            description?: string;
+            color?: string;
+            icon: string;
+            priority?: number;
+        }): Promise<ActionGroup[]>;
+
+        update(groupId: string, group: {
+            name?: string;
+            description?: string;
+            color?: string;
+            icon?: string;
+            priority?: number;
+        }): Promise<ActionGroup[]>;
+
+        delete(groupId: string): Promise<ActionGroup[]>;
+
+        addAction(groupId: string, actionId: string): Promise<ActionGroup[]>;
+
+        removeAction(groupId: string, actionId: string): Promise<ActionGroup[]>;
     }
 
     interface WinkyResourcesAPI {
@@ -246,6 +271,7 @@ declare global {
         clipboard: WinkyClipboardAPI;
         auth: WinkyAuthAPI;
         actions: WinkyActionsAPI;
+        groups: WinkyGroupsAPI;
         icons: WinkyIconsAPI;
         resources: WinkyResourcesAPI;
         profile: WinkyProfileAPI;

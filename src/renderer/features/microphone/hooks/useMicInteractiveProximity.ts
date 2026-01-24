@@ -8,6 +8,7 @@ type MicInteractiveProximityParams = {
     actionsContainerRef: RefObject<HTMLDivElement | null>;
     actionsEnabled: boolean;
     contextFieldRef?: RefObject<HTMLDivElement | null>;
+    groupSelectorRef?: RefObject<HTMLDivElement | null>;
 };
 
 const isPointInsideRect = (
@@ -30,7 +31,8 @@ export const useMicInteractiveProximity = ({
     micButtonRef,
     actionsContainerRef,
     actionsEnabled,
-    contextFieldRef
+    contextFieldRef,
+    groupSelectorRef
 }: MicInteractiveProximityParams) => {
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
@@ -74,6 +76,7 @@ export const useMicInteractiveProximity = ({
                 };
                 const buttonRect = micButtonRef.current?.getBoundingClientRect() ?? null;
                 const contextRect = contextFieldRef?.current?.getBoundingClientRect() ?? null;
+                const groupSelectorRect = groupSelectorRef?.current?.getBoundingClientRect() ?? null;
                 const actionRects: DOMRect[] = [];
                 if (actionsEnabled && actionsContainerRef.current) {
                     const elements = actionsContainerRef.current.querySelectorAll<HTMLElement>('.action-btn-container');
@@ -94,6 +97,9 @@ export const useMicInteractiveProximity = ({
                             break;
                         }
                     }
+                }
+                if (!inside && groupSelectorRect) {
+                    inside = isPointInsideRect(cursor, groupSelectorRect, 12, windowOffset, dpr);
                 }
                 if (!inside && contextRect) {
                     inside = isPointInsideRect(cursor, contextRect, 12, windowOffset, dpr);
@@ -136,5 +142,5 @@ export const useMicInteractiveProximity = ({
                 setProximityInteractive(false);
             }
         };
-    }, [isMicOverlay, micButtonRef, actionsContainerRef, actionsEnabled, contextFieldRef]);
+    }, [isMicOverlay, micButtonRef, actionsContainerRef, actionsEnabled, contextFieldRef, groupSelectorRef]);
 };

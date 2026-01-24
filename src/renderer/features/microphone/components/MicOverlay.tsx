@@ -11,8 +11,10 @@ import MicDragHandle from './MicDragHandle';
 import MicVolumeRings from './MicVolumeRings';
 import MicActionOrbit from './MicActionOrbit';
 import MicContextField from './MicContextField';
+import MicGroupSelector from './MicGroupSelector';
 import {resetInteractive} from '../../../utils/interactive';
 import {resourcesBridge} from '../../../services/winkyBridge';
+import {SYSTEM_GROUP_ID} from '@shared/constants';
 
 
 interface MicOverlayProps {
@@ -43,7 +45,9 @@ const MicOverlay: React.FC<MicOverlayProps> = ({contextTextRef: contextTextRefPr
         activeActionId,
         displayedActions,
         actionsVisible,
-        normalizedVolume
+        normalizedVolume,
+        groups,
+        selectedGroupId
     } = view;
     const {
         autoStartPendingRef,
@@ -57,12 +61,14 @@ const MicOverlay: React.FC<MicOverlayProps> = ({contextTextRef: contextTextRefPr
         handleActionClick,
         finishRecording,
         setActiveActionId,
-        warmUpRecorder
+        warmUpRecorder,
+        handleSelectGroup
     } = handlers;
 
     const micButtonRef = useRef<HTMLDivElement | null>(null);
     const actionsContainerRef = useRef<HTMLDivElement | null>(null);
     const contextFieldRef = useRef<HTMLDivElement | null>(null);
+    const groupSelectorRef = useRef<HTMLDivElement | null>(null);
 
     const [completionEnabled, setCompletionEnabled] = useState<boolean>(true);
     const [soundPath, setSoundPath] = useState<string>('');
@@ -154,7 +160,8 @@ const MicOverlay: React.FC<MicOverlayProps> = ({contextTextRef: contextTextRefPr
         micButtonRef,
         actionsContainerRef,
         actionsEnabled: actionsVisible && displayedActions.length > 0 && !processing,
-        contextFieldRef
+        contextFieldRef,
+        groupSelectorRef
     });
 
     // Сбрасываем состояние интерактивности при монтировании компонента
@@ -223,8 +230,23 @@ const MicOverlay: React.FC<MicOverlayProps> = ({contextTextRef: contextTextRefPr
             ) : (
                 <audio ref={completionSoundRef} />
             )}
+            {/* Group selector at the top */}
+            {groups.filter((g) => !g.is_system && g.id !== SYSTEM_GROUP_ID).length > 1 && (
+                <div
+                    className="absolute left-1/2 -translate-x-1/2"
+                    style={{top: 10, zIndex: 100, pointerEvents: 'auto'}}
+                >
+                    <MicGroupSelector
+                        groups={groups}
+                        selectedGroupId={selectedGroupId}
+                        onSelectGroup={handleSelectGroup}
+                        disabled={processing}
+                        containerRef={groupSelectorRef}
+                    />
+                </div>
+            )}
             <MicDragHandle interactions={interactions} isRecording={isRecording} disabled={processing}/>
-            <div className="pointer-events-none relative flex h-full w-full flex-col items-center pt-2">
+            <div className="pointer-events-none relative flex h-full w-full flex-col items-center pt-12">
                 <div
                     className="relative flex items-center justify-center"
                     style={{width: `${orbitSize}px`, height: `${orbitSize}px`}}

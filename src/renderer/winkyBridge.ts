@@ -7,6 +7,7 @@ import {configBridge as configApi} from './winkyBridge/configBridge';
 import {clipboardBridge as clipboardApi} from './winkyBridge/clipboardBridge';
 import {authBridge as authApi} from './winkyBridge/authBridge';
 import {actionsBridge as actionsApi, iconsBridge as iconsApi} from './winkyBridge/actionsBridge';
+import {groupsBridge as groupsApi} from './winkyBridge/groupsBridge';
 import {profileBridge as profileApi} from './winkyBridge/profileBridge';
 import {speechBridge as speechApi} from './winkyBridge/speechBridge';
 import {llmBridge as llmApi} from './winkyBridge/llmBridge';
@@ -106,6 +107,7 @@ window.winky = {
     clipboard: clipboardApi,
     auth: authApi,
     actions: actionsApi,
+    groups: groupsApi,
     icons: iconsApi,
     profile: profileApi,
     speech: speechApi,

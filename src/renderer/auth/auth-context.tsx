@@ -9,7 +9,7 @@ import {
     useState
 } from 'react';
 import {AuthClient, AuthError} from '../services/authClient';
-import {authBridge as appAuthBridge, configBridge} from '../services/winkyBridge';
+import {authBridge as appAuthBridge, configBridge, groupsBridge} from '../services/winkyBridge';
 import type {AuthDeepLinkPayload, AuthProvider as OAuthProviderType, User} from '@shared/types';
 import {useWindowIdentity} from '../app/hooks/useWindowIdentity';
 import {onUnauthorized} from '@shared/api';
@@ -262,7 +262,15 @@ export function AuthProvider({children}: AuthProviderProps) {
                         if (cancelled) return;
 
                         console.log('[auth] User profile fetched successfully', {userId: profile.id, email: profile.email});
-                        
+
+                        // Загружаем группы с экшенами
+                        try {
+                            await groupsBridge.fetch();
+                            console.log('[auth] Groups fetched successfully');
+                        } catch (groupsError) {
+                            console.warn('[auth] Failed to fetch groups, but continuing:', groupsError);
+                        }
+
                         // Устанавливаем пользователя и статус
                         setUser(profile);
                         setStatus('authenticated');
@@ -333,6 +341,14 @@ export function AuthProvider({children}: AuthProviderProps) {
                 });
             }
 
+            // Загружаем группы с экшенами
+            try {
+                await groupsBridge.fetch();
+                console.log('[auth] Groups fetched after sign-in');
+            } catch (groupsError) {
+                console.warn('[auth] Failed to fetch groups after sign-in, but continuing:', groupsError);
+            }
+
             setUser(profile);
             setStatus('authenticated');
             persistCachedUser(profile);
@@ -391,6 +407,13 @@ export function AuthProvider({children}: AuthProviderProps) {
                     setStatus('checking');
                     try {
                         const profile = await authClient.getCurrentUser(true);
+                        // Загружаем группы с экшенами
+                        try {
+                            await groupsBridge.fetch();
+                            console.log('[auth] OAuth polling: groups fetched successfully');
+                        } catch (groupsError) {
+                            console.warn('[auth] OAuth polling: failed to fetch groups, but continuing:', groupsError);
+                        }
                         setUser(profile);
                         setStatus('authenticated');
                         setError(null);

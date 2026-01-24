@@ -97,7 +97,11 @@ pub struct AppConfig {
     #[serde(default)]
     pub api_keys: ApiKeys,
     #[serde(default)]
+    pub groups: Vec<serde_json::Value>,
+    #[serde(default)]
     pub actions: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub selected_group_id: Option<String>,
     #[serde(default)]
     pub mic_window_position: Option<WindowPosition>,
     #[serde(default = "default_mic_hotkey")]
@@ -142,7 +146,9 @@ impl Default for AppConfig {
             speech: SpeechConfig::default(),
             llm: LlmConfig::default(),
             api_keys: ApiKeys::default(),
+            groups: Vec::new(),
             actions: Vec::new(),
+            selected_group_id: None,
             mic_window_position: None,
             mic_hotkey: default_mic_hotkey(),
             mic_anchor: default_mic_anchor(),

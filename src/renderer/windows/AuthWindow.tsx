@@ -6,6 +6,7 @@ import {useToast} from '../context/ToastContext';
 import {useAuth} from '../auth';
 import TitleBar from '../components/TitleBar';
 import type {AuthProvider} from '@shared/types';
+import {groupsBridge} from '../services/winkyBridge';
 
 const AuthWindow: React.FC = () => {
     const {refreshConfig} = useConfig();
@@ -32,6 +33,12 @@ const AuthWindow: React.FC = () => {
                 await fetchUser();
             } catch (userError) {
                 console.warn('[AuthWindow] Failed to fetch user, but continuing:', userError);
+            }
+            // Загружаем группы с экшенами после авторизации
+            try {
+                await groupsBridge.fetch();
+            } catch (groupsError) {
+                console.warn('[AuthWindow] Failed to fetch groups, but continuing:', groupsError);
             }
             showToast('Signed in successfully.', 'success');
             const config = await refreshConfig();

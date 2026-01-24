@@ -2,6 +2,7 @@ import {resultBridge} from '../winkyBridge/windowsBridge';
 import {clipboardBridge} from '../winkyBridge/clipboardBridge';
 import {authBridge} from '../winkyBridge/authBridge';
 import {actionsBridge, iconsBridge} from '../winkyBridge/actionsBridge';
+import {groupsBridge} from '../winkyBridge/groupsBridge';
 import {profileBridge} from '../winkyBridge/profileBridge';
 import {configBridge} from '../winkyBridge/configBridge';
 import {speechBridge} from '../winkyBridge/speechBridge';
@@ -23,6 +24,7 @@ export {
     clipboardBridge,
     authBridge,
     actionsBridge,
+    groupsBridge,
     iconsBridge,
     profileBridge,
     configBridge,

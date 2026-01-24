@@ -3,6 +3,7 @@ import {Box, Chip, IconButton, Stack, Typography} from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import StarsRoundedIcon from '@mui/icons-material/StarsRounded';
 import type {ActionConfig} from '@shared/types';
+import {getMediaUrl} from '@shared/constants';
 
 type Props = {
     action: ActionConfig;
@@ -10,9 +11,10 @@ type Props = {
     onEdit: (action: ActionConfig) => void;
     onDelete: (id: string, name: string) => void;
     disabled?: boolean;
+    showPrompt?: boolean;
 };
 
-const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disabled = false}) => {
+const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disabled = false, showPrompt = false}) => {
     const isDefaultAction = Boolean(action.is_default);
     const truncate = (value: string, limit = 170) => {
         if (!value) {
@@ -47,6 +49,7 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                 opacity: disabled ? 0.65 : 1,
                 boxShadow: '0 12px 32px ' + 'rgba(255,247,248,0.08)',
                 transition: 'transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease',
+                minWidth: 0,
                 '&:hover': disabled
                     ? undefined
                     : {
@@ -126,7 +129,7 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                         {action.icon_details?.svg ? (
                             <Box
                                 component="img"
-                                src={action.icon_details.svg}
+                                src={getMediaUrl(action.icon_details.svg)}
                                 alt={action.icon_details.name || ''}
                                 sx={{width: 30, height: 30}}
                             />
@@ -158,9 +161,11 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                     </Box>
                 </Stack>
 
-                <Typography variant="body2" color="text.secondary" sx={{mt: 2}}>
-                    {promptText}
-                </Typography>
+                {showPrompt && (
+                    <Typography variant="body2" color="text.secondary" sx={{mt: 2}}>
+                        {promptText}
+                    </Typography>
+                )}
 
                 <Stack direction="row" spacing={1} flexWrap="wrap" mt={2}>
                     {action.show_results && (

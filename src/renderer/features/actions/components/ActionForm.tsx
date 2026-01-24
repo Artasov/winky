@@ -21,8 +21,9 @@ import CloseIcon from '@mui/icons-material/Close';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import MicIcon from '@mui/icons-material/Mic';
 import type {ActionFormValues} from '../hooks/useActionForm';
+import type {ActionGroup} from '@shared/types';
 import HotkeyInput from '../../../components/HotkeyInput';
-import {LLM_GEMINI_API_MODELS, LLM_LOCAL_MODELS, LLM_OPENAI_API_MODELS} from '@shared/constants';
+import {getMediaUrl, LLM_GEMINI_API_MODELS, LLM_LOCAL_MODELS, LLM_OPENAI_API_MODELS, MAX_ACTIONS_PER_GROUP} from '@shared/constants';
 import VoiceActionModal from './VoiceActionModal';
 import {useConfig} from '../../../context/ConfigContext';
 import {useToast} from '../../../context/ToastContext';
@@ -35,6 +36,7 @@ type ModalProps = {
 type Props = {
     icons: Array<{ id: string; name: string; emoji?: string; svg?: string }>;
     iconsLoading: boolean;
+    groups: ActionGroup[];
     values: ActionFormValues;
     setField: <K extends keyof ActionFormValues>(key: K, value: ActionFormValues[K]) => void;
     modal: ModalProps;
@@ -56,6 +58,7 @@ const DialogTransition = forwardRef(function DialogTransition(
 const ActionForm: React.FC<Props> = ({
                                          icons,
                                          iconsLoading,
+                                         groups,
                                          values,
                                          setField,
                                          modal,
@@ -69,6 +72,14 @@ const ActionForm: React.FC<Props> = ({
     const isEditMode = mode === 'edit';
     const isNameLocked = isEditMode && editingActionIsDefault;
     const selectedIconName = icons.find((icon) => icon.id === values.iconId)?.name;
+
+    const isGroupFull = (group: ActionGroup): boolean => {
+        if (group.actions.length < MAX_ACTIONS_PER_GROUP) return false;
+        if (isEditMode && editingActionId && group.actions.some((a) => a.id === editingActionId)) {
+            return false;
+        }
+        return true;
+    };
     const {config} = useConfig();
     const {showToast} = useToast();
     const [voiceModalOpen, setVoiceModalOpen] = useState(false);
@@ -145,8 +156,63 @@ const ActionForm: React.FC<Props> = ({
                         required
                         disabled={isNameLocked}
                         helperText={isNameLocked ? 'Default action name cannot be changed.' : undefined}
+                        slotProps={{
+                            formHelperText: {
+                                sx: {color: 'text.secondary'}
+                            }
+                        }}
                         sx={{mb: 1}}
                     />
+                    {/* Hide group selector for system actions */}
+                    {!(isEditMode && editingActionIsDefault) && (
+                        <TextField
+                            label="Group"
+                            value={values.groupId}
+                            onChange={(event) => setField('groupId', event.target.value)}
+                            select
+                            fullWidth
+                            required
+                            helperText="Select which group this action belongs to"
+                            sx={{mb: 1}}
+                        >
+                            {groups.map((group) => {
+                                const isFull = isGroupFull(group);
+                                return (
+                                    <MenuItem key={group.id} value={group.id} disabled={isFull}>
+                                        <Box sx={{display: 'flex', alignItems: 'center', gap: 1, width: '100%'}}>
+                                            {group.icon_details?.svg && (
+                                                <Box
+                                                    component="img"
+                                                    src={getMediaUrl(group.icon_details.svg)}
+                                                    alt=""
+                                                    sx={{width: 18, height: 18, opacity: isFull ? 0.5 : 1}}
+                                                />
+                                            )}
+                                            <span style={{opacity: isFull ? 0.5 : 1}}>{group.name}</span>
+                                            {isFull && (
+                                                <Typography
+                                                    variant="caption"
+                                                    sx={{ml: 1, color: 'text.disabled', fontStyle: 'italic'}}
+                                                >
+                                                    Full
+                                                </Typography>
+                                            )}
+                                            <Box
+                                                sx={{
+                                                    width: 12,
+                                                    height: 12,
+                                                    borderRadius: '50%',
+                                                    bgcolor: group.color || '#f43f5e',
+                                                    ml: 'auto',
+                                                    opacity: isFull ? 0.5 : 1
+                                                }}
+                                            />
+                                        </Box>
+                                    </MenuItem>
+                            );
+                        })}
+                        </TextField>
+                    )}
                     <TextField
                         label="Priority"
                         type="number"
@@ -341,7 +407,7 @@ const ActionForm: React.FC<Props> = ({
                                                 ) : (
                                                     <Box
                                                         component="img"
-                                                        src={icon.svg}
+                                                        src={getMediaUrl(icon.svg)}
                                                         alt={icon.name}
                                                         sx={{width: 24, height: 24}}
                                                     />

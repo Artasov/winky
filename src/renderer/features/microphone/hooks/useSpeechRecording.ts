@@ -2,8 +2,8 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {emit} from '@tauri-apps/api/event';
 import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
-import {FAST_WHISPER_PORT, LLM_MODES, SPEECH_MODES} from '@shared/constants';
-import type {ActionConfig, AppConfig} from '@shared/types';
+import {FAST_WHISPER_PORT, LLM_MODES, MAX_ACTIONS_AROUND_MIC, SPEECH_MODES, SYSTEM_GROUP_ID} from '@shared/constants';
+import type {ActionConfig, ActionGroup, AppConfig} from '@shared/types';
 import {resetInteractive, setRecordingInteractive} from '../../../utils/interactive';
 import {createSpeechRecorder, type SpeechRecorder} from '../services/SpeechRecorder';
 import {normalizeLocalSpeechModelName, subscribeToLocalModelWarmup} from '../../../services/localSpeechModels';
@@ -64,6 +64,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
     const [localModelWarmingUp, setLocalModelWarmingUp] = useState(false);
     const [localLlmWarmingUp, setLocalLlmWarmingUp] = useState(false);
     const [localLlmDownloading, setLocalLlmDownloading] = useState(false);
+    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(config?.selectedGroupId ?? null);
 
     const scheduleLocalServerAlertRelease = useCallback(() => {
         if (typeof window === 'undefined') {
@@ -458,18 +459,73 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
         }
     }, [processing, isRecording, ensureSpeechServiceOnce, finishRecording, processAction, stopVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 
+    const groups = useMemo<ActionGroup[]>(() => config?.groups ?? [], [config?.groups]);
     const actions = useMemo<ActionConfig[]>(() => config?.actions ?? [], [config?.actions]);
     const activeActions = useMemo<ActionConfig[]>(
         () => actions.filter((action) => action.is_active !== false),
         [actions]
     );
+
+    // Синхронизируем selectedGroupId с конфигом
+    useEffect(() => {
+        if (config?.selectedGroupId !== undefined && config.selectedGroupId !== selectedGroupId) {
+            setSelectedGroupId(config.selectedGroupId);
+        }
+    }, [config?.selectedGroupId]);
+
+    // Если selectedGroupId не задан, выбираем первую не-системную группу
+    useEffect(() => {
+        if (!selectedGroupId && groups.length > 0) {
+            const nonSystemGroups = groups.filter((g) => !g.is_system && g.id !== SYSTEM_GROUP_ID);
+            if (nonSystemGroups.length > 0) {
+                const sortedGroups = [...nonSystemGroups].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+                setSelectedGroupId(sortedGroups[0].id);
+            }
+        }
+    }, [groups, selectedGroupId]);
+
+    const handleSelectGroup = useCallback(async (groupId: string) => {
+        setSelectedGroupId(groupId);
+        try {
+            await invoke('config_update', {payload: {selectedGroupId: groupId}});
+        } catch (error) {
+            console.warn('[useSpeechRecording] Failed to save selectedGroupId:', error);
+        }
+    }, []);
+
     const displayedActions = useMemo<ActionConfig[]>(() => {
-        if (!isRecording || activeActions.length === 0) {
+        if (!isRecording) {
             return [];
         }
-        const MAX_FLOATING_ACTIONS = 7;
-        return activeActions.slice(0, MAX_FLOATING_ACTIONS);
-    }, [activeActions, isRecording]);
+
+        // Находим системную группу для добавления её экшенов
+        const systemGroup = groups.find((g) => g.is_system || g.id === SYSTEM_GROUP_ID);
+        const systemActions = systemGroup?.actions.filter((a) => a.is_active !== false) ?? [];
+
+        // Если есть выбранная группа, показываем экшены из неё + системные
+        if (selectedGroupId && groups.length > 0) {
+            const selectedGroup = groups.find((g) => g.id === selectedGroupId && !g.is_system && g.id !== SYSTEM_GROUP_ID);
+            if (selectedGroup) {
+                const groupActions = selectedGroup.actions.filter((a) => a.is_active !== false);
+                // Сначала экшены группы, потом системные (до лимита)
+                const combined = [...groupActions, ...systemActions];
+                // Убираем дубликаты по id
+                const unique = combined.filter((action, index, self) =>
+                    index === self.findIndex((a) => a.id === action.id)
+                );
+                return unique.slice(0, MAX_ACTIONS_AROUND_MIC);
+            }
+        }
+
+        // Fallback: показываем только системные или все активные экшены
+        if (systemActions.length > 0) {
+            return systemActions.slice(0, MAX_ACTIONS_AROUND_MIC);
+        }
+        if (activeActions.length === 0) {
+            return [];
+        }
+        return activeActions.slice(0, MAX_ACTIONS_AROUND_MIC);
+    }, [activeActions, groups, selectedGroupId, isRecording]);
 
     // Увеличиваем чувствительность - умножаем на больший коэффициент
     const normalizedVolume = Math.min(volume * 5.0, 1);
@@ -508,7 +564,9 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
             activeActionId,
             displayedActions,
             actionsVisible: displayedActions.length > 0,
-            normalizedVolume
+            normalizedVolume,
+            groups,
+            selectedGroupId
         },
         refs: {
             completionSoundRef,
@@ -522,7 +580,8 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
             handleActionClick,
             finishRecording,
             setActiveActionId,
-            warmUpRecorder
+            warmUpRecorder,
+            handleSelectGroup
         }
     };
 };

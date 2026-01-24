@@ -98,6 +98,21 @@ export interface ActionConfig {
     llm_model?: string | null;
 }
 
+export interface ActionGroup {
+    id: string;
+    profile: string;
+    name: string;
+    description: string;
+    color: string;
+    priority: number;
+    icon: string;
+    icon_details: ActionIcon;
+    actions: ActionConfig[];
+    created_at: string;
+    updated_at: string;
+    is_system?: boolean;
+}
+
 export interface ActionHistoryEntry {
     id: string;
     created_at: string;
@@ -143,7 +158,9 @@ export interface AppConfig {
         model: LLMModel;
     };
     apiKeys: ApiKeys;
+    groups: ActionGroup[];
     actions: ActionConfig[];
+    selectedGroupId?: string | null;
     micWindowPosition?: {
         x: number;
         y: number;

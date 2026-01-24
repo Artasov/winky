@@ -10,7 +10,7 @@ interface MicDragHandleProps {
 const MicDragHandleComponent: React.FC<MicDragHandleProps> = ({interactions, isRecording, disabled}) => {
     const style: React.CSSProperties = {
         pointerEvents: disabled ? 'none' : 'auto',
-        top: '36px',
+        top: '68px',
         opacity: isRecording ? 1 : 0.92,
         transition: 'opacity 200ms ease'
     };

@@ -8,7 +8,7 @@ import {
     ME_ENDPOINT,
     SPEECH_MODES
 } from '@shared/constants';
-import type {ActionConfig, ActionIcon, AppConfig, User, WinkyNote, WinkyProfile} from '@shared/types';
+import type {ActionConfig, ActionGroup, ActionIcon, AppConfig, User, WinkyNote, WinkyProfile} from '@shared/types';
 import {createLLMService} from '../services/llm/factory';
 import {markLocalTranscriptionFinish, markLocalTranscriptionStart} from './localSpeechModels';
 
@@ -36,6 +36,22 @@ export type ActionUpdatePayload = {
     auto_copy_result?: boolean;
 };
 
+export type GroupCreatePayload = {
+    name: string;
+    description?: string;
+    color?: string;
+    icon: string;
+    priority?: number;
+};
+
+export type GroupUpdatePayload = {
+    name?: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+    priority?: number;
+};
+
 export type SpeechTranscribeConfig = {
     mode: string;
     model: string;
@@ -56,6 +72,7 @@ const DEFAULT_TRANSCRIBE_UI_TIMEOUT_MS = 120_000;
 const SLOW_TRANSCRIBE_WARNING_MS = 15_000;
 
 const ACTIONS_API_PATH = 'winky/actions/';
+const GROUPS_API_PATH = 'winky/groups/';
 const ICONS_API_PATH = 'winky/icons/';
 const PROFILE_API_PATH = 'winky/profile/';
 const NOTES_API_PATH = 'winky/notes/';
@@ -77,44 +94,94 @@ const withAuthClient = async <T>(operation: (client: AxiosInstance, config: AppC
     return operation(client, config);
 };
 
-export const fetchActions = async (): Promise<ActionConfig[]> => {
+export const createAction = async (payload: ActionCreatePayload): Promise<ActionConfig[]> => {
     return withAuthClient(async (client) => {
-        const actions = await fetchAllPages<ActionConfig>(client, ACTIONS_API_PATH);
-        await updateConfig({actions});
-        return actions;
+        await client.post<ActionConfig>(ACTIONS_API_PATH, payload);
+        // Перезагружаем группы, чтобы получить актуальные данные
+        const groups = await fetchAllPages<ActionGroup>(client, GROUPS_API_PATH);
+        const allActions = groups.flatMap((group) => group.actions);
+        const uniqueActions = Array.from(new Map(allActions.map((a) => [a.id, a])).values());
+        await updateConfig({groups, actions: uniqueActions});
+        return uniqueActions;
+    });
+};
+
+export const updateAction = async (actionId: string, payload: ActionUpdatePayload): Promise<ActionConfig[]> => {
+    return withAuthClient(async (client) => {
+        await client.patch<ActionConfig>(`${ACTIONS_API_PATH}${actionId}/`, payload);
+        // Перезагружаем группы, чтобы получить актуальные данные
+        const groups = await fetchAllPages<ActionGroup>(client, GROUPS_API_PATH);
+        const allActions = groups.flatMap((group) => group.actions);
+        const uniqueActions = Array.from(new Map(allActions.map((a) => [a.id, a])).values());
+        await updateConfig({groups, actions: uniqueActions});
+        return uniqueActions;
+    });
+};
+
+export const deleteAction = async (actionId: string): Promise<ActionConfig[]> => {
+    return withAuthClient(async (client) => {
+        await client.delete(`${ACTIONS_API_PATH}${actionId}/`);
+        // Перезагружаем группы, чтобы получить актуальные данные
+        const groups = await fetchAllPages<ActionGroup>(client, GROUPS_API_PATH);
+        const allActions = groups.flatMap((group) => group.actions);
+        const uniqueActions = Array.from(new Map(allActions.map((a) => [a.id, a])).values());
+        await updateConfig({groups, actions: uniqueActions});
+        return uniqueActions;
+    });
+};
+
+// Groups API
+
+export const fetchGroups = async (): Promise<ActionGroup[]> => {
+    return withAuthClient(async (client, config) => {
+        const groups = await fetchAllPages<ActionGroup>(client, GROUPS_API_PATH);
+        // Извлекаем все экшены из групп для обратной совместимости
+        const allActions = groups.flatMap((group) => group.actions);
+        // Убираем дубликаты по id
+        const uniqueActions = Array.from(new Map(allActions.map((a) => [a.id, a])).values());
+        await updateConfig({groups, actions: uniqueActions});
+        return groups;
     }).catch(async (error) => {
         if (error.message?.includes('Authentication is required')) {
             const config = await getConfig();
-            return config.actions ?? [];
+            return config.groups ?? [];
         }
         throw error;
     });
 };
 
-export const createAction = async (payload: ActionCreatePayload): Promise<ActionConfig[]> => {
-    return withAuthClient(async (client, config) => {
-        const {data} = await client.post<ActionConfig>(ACTIONS_API_PATH, payload);
-        const updated = [...(config.actions ?? []).filter(({id}) => id !== data.id), data];
-        await updateConfig({actions: updated});
-        return updated;
+export const createGroup = async (payload: GroupCreatePayload): Promise<ActionGroup[]> => {
+    return withAuthClient(async (client) => {
+        await client.post<ActionGroup>(GROUPS_API_PATH, payload);
+        return fetchGroups();
     });
 };
 
-export const updateAction = async (actionId: string, payload: ActionUpdatePayload): Promise<ActionConfig[]> => {
-    return withAuthClient(async (client, config) => {
-        const {data} = await client.patch<ActionConfig>(`${ACTIONS_API_PATH}${actionId}/`, payload);
-        const updated = (config.actions ?? []).map((existing) => (existing.id === actionId ? data : existing));
-        await updateConfig({actions: updated});
-        return updated;
+export const updateGroup = async (groupId: string, payload: GroupUpdatePayload): Promise<ActionGroup[]> => {
+    return withAuthClient(async (client) => {
+        await client.patch<ActionGroup>(`${GROUPS_API_PATH}${groupId}/`, payload);
+        return fetchGroups();
     });
 };
 
-export const deleteAction = async (actionId: string): Promise<ActionConfig[]> => {
-    return withAuthClient(async (client, config) => {
-        await client.delete(`${ACTIONS_API_PATH}${actionId}/`);
-        const updated = (config.actions ?? []).filter(({id}) => id !== actionId);
-        await updateConfig({actions: updated});
-        return updated;
+export const deleteGroup = async (groupId: string): Promise<ActionGroup[]> => {
+    return withAuthClient(async (client) => {
+        await client.delete(`${GROUPS_API_PATH}${groupId}/`);
+        return fetchGroups();
+    });
+};
+
+export const addActionToGroup = async (groupId: string, actionId: string): Promise<ActionGroup[]> => {
+    return withAuthClient(async (client) => {
+        await client.post(`${GROUPS_API_PATH}${groupId}/add-action/`, {action_id: actionId});
+        return fetchGroups();
+    });
+};
+
+export const removeActionFromGroup = async (groupId: string, actionId: string): Promise<ActionGroup[]> => {
+    return withAuthClient(async (client) => {
+        await client.post(`${GROUPS_API_PATH}${groupId}/remove-action/`, {action_id: actionId});
+        return fetchGroups();
     });
 };
 

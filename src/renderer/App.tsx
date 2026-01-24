@@ -10,7 +10,7 @@ import {useConfigController} from './app/hooks/useConfigController';
 import {useNavigationSync} from './app/hooks/useNavigationSync';
 import {useToastBridge} from './app/hooks/useToastBridge';
 import {useWindowChrome} from './app/hooks/useWindowChrome';
-import {configBridge} from './services/winkyBridge';
+import {configBridge, groupsBridge} from './services/winkyBridge';
 import {Slide, ToastContainer, toast} from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './styles/ReactToastify.sass';
@@ -45,7 +45,7 @@ const AppContent: React.FC = () => {
     const {config, loading, preloadError, refreshConfig, updateConfig, setConfig} = useConfigController();
     const {user, fetchUser, loading: userLoading} = useUser();
     const userFetchAttempted = useRef(false);
-    const actionsFetched = useRef(false);
+    const groupsFetched = useRef(false);
     const shouldRenderToasts = windowIdentity.allowsToasts;
     const isAuthenticated = Boolean(user);
     const navigate = useNavigate();
@@ -319,24 +319,24 @@ const AppContent: React.FC = () => {
         if (windowIdentity.isAuxWindow) {
             return;
         }
-        // НЕ запрашиваем actions пока пользователь не авторизован
+        // НЕ запрашиваем groups пока пользователь не авторизован
         if (!isAuthenticated) {
-            actionsFetched.current = false;
+            groupsFetched.current = false;
             return;
         }
         const hasToken = config?.auth.access || config?.auth.accessToken;
         if (!hasToken || (hasToken.trim() === '')) {
-            actionsFetched.current = false;
+            groupsFetched.current = false;
             return;
         }
-        if (actionsFetched.current) {
+        if (groupsFetched.current) {
             return;
         }
-        console.log('[App] Fetching actions...');
-        actionsFetched.current = true;
-        window.winky?.actions?.fetch?.().catch((error) => {
-            console.error('[App] Failed to fetch actions', error);
-            actionsFetched.current = false;
+        console.log('[App] Fetching groups...');
+        groupsFetched.current = true;
+        groupsBridge.fetch().catch((error) => {
+            console.error('[App] Failed to fetch groups', error);
+            groupsFetched.current = false;
         });
     }, [config?.auth.access, config?.auth.accessToken, windowIdentity.isAuxWindow, isAuthenticated]);
 

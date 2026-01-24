@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState, type FormEvent} from 'react';
 import {z} from 'zod';
-import type {ActionConfig} from '@shared/types';
+import type {ActionConfig, ActionGroup} from '@shared/types';
 import {getErrorMessage} from '../../../utils/errorMessage';
 
 const formSchema = z.object({
@@ -13,7 +13,8 @@ const formSchema = z.object({
     showResults: z.boolean(),
     soundOnComplete: z.boolean(),
     autoCopyResult: z.boolean(),
-    llmModel: z.string().optional()
+    llmModel: z.string().optional(),
+    groupId: z.string().min(1, 'Choose a group.')
 });
 
 export type ActionFormValues = z.infer<typeof formSchema>;
@@ -22,6 +23,7 @@ type UseActionFormParams = {
     icons: Array<{ id: string; name: string }>;
     iconsLoading: boolean;
     fetchIcons: () => Promise<Array<{ id: string; name: string }>>;
+    groups: ActionGroup[];
     isAuthorized: boolean;
     showToast: (message: string, type?: 'success' | 'info' | 'error') => void;
     refreshConfig: () => Promise<unknown>;
@@ -31,6 +33,7 @@ export const useActionForm = ({
     icons,
     iconsLoading,
     fetchIcons,
+    groups,
     isAuthorized,
     showToast,
     refreshConfig
@@ -43,6 +46,8 @@ export const useActionForm = ({
     const [pendingDelete, setPendingDelete] = useState<{id: string; name: string} | null>(null);
     const [editingActionIsDefault, setEditingActionIsDefault] = useState(false);
 
+    const defaultGroupId = groups.length > 0 ? groups[0].id : '';
+
     const [values, setValues] = useState<ActionFormValues>({
         name: '',
         prompt: '',
@@ -53,7 +58,8 @@ export const useActionForm = ({
         showResults: false,
         soundOnComplete: false,
         autoCopyResult: false,
-        llmModel: ''
+        llmModel: '',
+        groupId: defaultGroupId
     });
 
     const resetForm = useCallback(() => {
@@ -67,11 +73,12 @@ export const useActionForm = ({
             showResults: false,
             soundOnComplete: false,
             autoCopyResult: false,
-            llmModel: ''
+            llmModel: '',
+            groupId: groups.length > 0 ? groups[0].id : ''
         });
         setEditingActionId(null);
         setEditingActionIsDefault(false);
-    }, []);
+    }, [groups]);
 
     const closeModal = useCallback(() => {
         if (!isModalVisible) {
@@ -96,6 +103,10 @@ export const useActionForm = ({
             showToast('This action is inactive and cannot be edited.', 'info');
             return;
         }
+        // Find which group this action belongs to
+        const actionGroup = groups.find((g) => g.actions.some((a) => a.id === action.id));
+        const groupId = actionGroup?.id || (groups.length > 0 ? groups[0].id : '');
+
         setMode('edit');
         setEditingActionId(action.id);
         setEditingActionIsDefault(Boolean(action.is_default));
@@ -109,16 +120,21 @@ export const useActionForm = ({
             showResults: action.show_results ?? false,
             soundOnComplete: action.sound_on_complete ?? false,
             autoCopyResult: action.auto_copy_result ?? false,
-            llmModel: action.llm_model ?? ''
+            llmModel: action.llm_model ?? '',
+            groupId
         });
         setIsModalVisible(true);
-    }, [showToast]);
+    }, [showToast, groups]);
 
     const openCloneModal = useCallback((action: ActionConfig) => {
         if (action.is_active === false) {
             showToast('This action is inactive and cannot be cloned.', 'info');
             return;
         }
+        // Find which group this action belongs to
+        const actionGroup = groups.find((g) => g.actions.some((a) => a.id === action.id));
+        const groupId = actionGroup?.id || (groups.length > 0 ? groups[0].id : '');
+
         setMode('create');
         setEditingActionId(null);
         setEditingActionIsDefault(false);
@@ -132,10 +148,11 @@ export const useActionForm = ({
             showResults: action.show_results ?? false,
             soundOnComplete: action.sound_on_complete ?? false,
             autoCopyResult: action.auto_copy_result ?? false,
-            llmModel: action.llm_model ?? ''
+            llmModel: action.llm_model ?? '',
+            groupId
         });
         setIsModalVisible(true);
-    }, [showToast]);
+    }, [showToast, groups]);
 
     const setField = useCallback(<K extends keyof ActionFormValues>(key: K, value: ActionFormValues[K]) => {
         setValues((prev) => ({
@@ -207,6 +224,13 @@ export const useActionForm = ({
                     delete payload.name;
                 }
                 await window.winky?.actions.update(editingActionId, payload);
+                // Handle group change for existing action
+                const currentGroup = groups.find((g) => g.actions.some((a) => a.id === editingActionId));
+                if (currentGroup && currentGroup.id !== validation.data.groupId) {
+                    // Remove from old group and add to new group
+                    await window.winky?.groups.removeAction(currentGroup.id, editingActionId);
+                    await window.winky?.groups.addAction(validation.data.groupId, editingActionId);
+                }
             } else {
                 const payload = {
                     name: validation.data.name.trim(),
@@ -220,7 +244,15 @@ export const useActionForm = ({
                     auto_copy_result: validation.data.autoCopyResult,
                     llm_model: validation.data.llmModel?.trim() || undefined
                 };
-                await window.winky?.actions.create(payload);
+                const createdActions = await window.winky?.actions.create(payload);
+                // Add the newly created action to the selected group
+                if (createdActions && createdActions.length > 0 && validation.data.groupId) {
+                    // Find the newly created action (it should be in the returned list)
+                    const newAction = createdActions.find((a) => a.name === payload.name);
+                    if (newAction) {
+                        await window.winky?.groups.addAction(validation.data.groupId, newAction.id);
+                    }
+                }
             }
 
             await refreshConfig();
@@ -233,7 +265,7 @@ export const useActionForm = ({
         } finally {
             setSaving(false);
         }
-    }, [values, editingActionId, editingActionIsDefault, closeModal, refreshConfig, showToast]);
+    }, [values, editingActionId, editingActionIsDefault, groups, closeModal, refreshConfig, showToast]);
 
     const handleDeleteConfirmed = useCallback(async (actionId: string, actionName: string) => {
         if (deletingIds.has(actionId)) {

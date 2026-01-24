@@ -1,6 +1,7 @@
 import React from 'react';
 import classNames from 'classnames';
 import type {ActionConfig} from '@shared/types';
+import {getMediaUrl} from '@shared/constants';
 import {interactiveEnter, interactiveLeave} from '../utils/interactive';
 import GlassTooltip from './GlassTooltip';
 
@@ -66,7 +67,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
                 <>
                     {action.icon_details?.svg ? (
                         <img
-                            src={action.icon_details.svg}
+                            src={getMediaUrl(action.icon_details.svg)}
                             alt=""
                             width={iconSize}
                             height={iconSize}

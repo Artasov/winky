@@ -1,5 +1,6 @@
 export const APP_NAME = 'Winky';
-export const API_BASE_URL = 'https://xlartas.com/api/v1';
+export const SITE_BASE_URL = 'https://xlartas.com';
+export const API_BASE_URL = `${SITE_BASE_URL}/api/v1`;
 export const AUTH_ENDPOINT = `${API_BASE_URL}/auth/login/`;
 export const AUTH_REFRESH_ENDPOINT = `${API_BASE_URL}/auth/refresh/`;
 export const ME_ENDPOINT = `${API_BASE_URL}/me/`;
@@ -103,3 +104,13 @@ export const SPEECH_LOCAL_MODEL_ALIASES = {
 export const MIC_WINDOW_WIDTH = 520;
 export const MIC_WINDOW_HEIGHT = 1080;
 export const MIC_WINDOW_MARGIN = 24;
+
+export const MAX_ACTIONS_PER_GROUP = 6;
+export const MAX_ACTIONS_AROUND_MIC = 7;
+export const SYSTEM_GROUP_ID = '00000000-0000-0000-0000-000000000000';
+
+export const getMediaUrl = (path: string | undefined | null): string | undefined => {
+    if (!path) return undefined;
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    return `${SITE_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+};

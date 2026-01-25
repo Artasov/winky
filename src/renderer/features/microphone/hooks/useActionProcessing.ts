@@ -196,7 +196,7 @@ export const useActionProcessing = ({
 
             const transcriptionForOutput = hasSpeech ? transcriptionText : contextText;
             const llmInput = hasSpeech
-                ? (hasContext ? `${transcriptionText}\n\nAdditional context:\n${contextText}`.trim() : transcriptionText)
+                ? (hasContext ? `${transcriptionText}\n\n${contextText}`.trim() : transcriptionText)
                 : contextText;
 
             const needsLLM = Boolean(action.prompt && action.prompt.trim());

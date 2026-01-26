@@ -2,12 +2,99 @@ import {useCallback, type RefObject} from 'react';
 import type {ActionConfig, AppConfig} from '@shared/types';
 import {createNoteForMode, deriveNoteTitle, resolveNotesStorageMode} from '../../../services/notesService';
 import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, resultBridge, speechBridge} from '../../../services/winkyBridge';
-import {trimSilenceFromAudioBlob} from '../services/audioProcessing';
+import {trimSilenceFromAudioBlob, isAudioSilent} from '../services/audioProcessing';
 
 type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
 
 const TRANSCRIBE_UI_TIMEOUT_MS = 120_000;
 const TRANSCRIBE_SLOW_LOG_MS = 15_000;
+
+// Известные галлюцинации/артефакты Whisper при тихом/шумном аудио
+const KNOWN_WHISPER_HALLUCINATIONS = [
+    'hostname, and email are included in the link below.',
+    'thank you for watching',
+    'thanks for watching',
+    'subscribe',
+    'like and subscribe',
+    'امیدوارم که این ویدیو',
+    'ご視聴ありがとうございました',
+    '字幕by',
+    'subtitle by',
+    'transcript by',
+    'captioning by',
+    'www.mooji.org',
+    'subtitle credit',
+    'please subscribe',
+    'like this video',
+    'comment below',
+    'www.',
+    'http',
+    'https',
+    '.com',
+    'click the link',
+    'in the description',
+    'see you next time',
+    'goodbye',
+];
+
+// Проверяет, является ли текст валидной транскрипцией или артефактом
+const isValidTranscription = (text: string, prompt?: string): boolean => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+        return false;
+    }
+
+    const normalizedText = trimmed.toLowerCase();
+
+    // 1. Проверяем на известные галлюцинации Whisper
+    for (const hallucination of KNOWN_WHISPER_HALLUCINATIONS) {
+        const normalizedHallucination = hallucination.toLowerCase();
+        if (normalizedText === normalizedHallucination ||
+            normalizedText.includes(normalizedHallucination) ||
+            normalizedHallucination.includes(normalizedText)) {
+            console.warn('[useActionProcessing] Known Whisper hallucination detected:', trimmed);
+            return false;
+        }
+    }
+
+    // 2. Проверяем, не является ли результат копией промпта
+    if (prompt?.trim()) {
+        const normalizedPrompt = prompt.trim().toLowerCase();
+        // Если результат содержит более 70% текста промпта, вероятно это галлюцинация
+        if (normalizedText.includes(normalizedPrompt) || normalizedPrompt.includes(normalizedText)) {
+            const similarity = normalizedText.length / normalizedPrompt.length;
+            if (similarity > 0.7) {
+                console.warn('[useActionProcessing] Transcription looks like prompt repetition:', trimmed);
+                return false;
+            }
+        }
+    }
+
+    // 3. Проверяем на подозрительные паттерны
+    // Только иероглифы/китайские символы (если язык не китайский)
+    const chineseChars = trimmed.match(/[\u4e00-\u9fff]/g);
+    const chineseRatio = chineseChars ? chineseChars.length / trimmed.length : 0;
+    if (chineseRatio > 0.8) {
+        console.warn('[useActionProcessing] Transcription is mostly Chinese characters (possible hallucination):', trimmed);
+        return false;
+    }
+
+    // 4. Только арабские символы (если язык не арабский)
+    const arabicChars = trimmed.match(/[\u0600-\u06ff]/g);
+    const arabicRatio = arabicChars ? arabicChars.length / trimmed.length : 0;
+    if (arabicRatio > 0.8) {
+        console.warn('[useActionProcessing] Transcription is mostly Arabic characters (possible hallucination):', trimmed);
+        return false;
+    }
+
+    // 5. Очень короткие результаты (менее 2 символов) могут быть артефактами
+    if (trimmed.length < 2) {
+        console.warn('[useActionProcessing] Transcription too short (possible artifact):', trimmed);
+        return false;
+    }
+
+    return true;
+};
 
 type UseActionProcessingParams = {
     config: AppConfig | null;
@@ -94,6 +181,7 @@ export const useActionProcessing = ({
             let mimeType = blob.type || 'audio/webm';
             let audioForSave: ArrayBuffer | null = null;
             let saveMimeType: string | undefined = undefined;
+            let isSilent = false;
 
             if (shouldTrimSilence) {
                 const trimmed = await trimSilenceFromAudioBlob(blob, {
@@ -104,17 +192,37 @@ export const useActionProcessing = ({
                 });
                 audioData = trimmed.audioData;
                 mimeType = trimmed.mimeType;
+                isSilent = trimmed.isSilent;
                 if (shouldSaveAudio) {
                     audioForSave = trimmed.audioData;
                     saveMimeType = trimmed.mimeType;
                 }
             } else {
+                // Проверяем на тишину даже если trimSilence отключен
+                isSilent = await isAudioSilent(blob);
                 const originalAudioData = await blob.arrayBuffer();
                 audioData = originalAudioData;
                 if (shouldSaveAudio) {
                     audioForSave = originalAudioData;
                     saveMimeType = mimeType;
                 }
+            }
+
+            // Проверяем наличие контекста ДО блокировки из-за тишины
+            const contextText = contextTextRef.current?.trim() || '';
+            const hasContext = contextText.length > 0;
+
+            // Если аудио тихое и нет контекста, не выполняем действие
+            if (isSilent && !hasContext) {
+                console.log('[useActionProcessing] Audio is silent and no context provided, skipping action');
+                showToast('No speech detected in the recording.', 'info');
+                return;
+            }
+
+            // Если есть контекст, но аудио тихое - пропускаем распознавание речи
+            const shouldSkipTranscription = isSilent && hasContext;
+            if (shouldSkipTranscription) {
+                console.log('[useActionProcessing] Audio is silent but context provided, skipping transcription but processing action');
             }
 
             let savedAudioPath: string | null | undefined = undefined;
@@ -143,54 +251,72 @@ export const useActionProcessing = ({
                 .join('\n\n')
                 .trim() || undefined;
 
-            abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            slowLogTimer =
-                typeof window !== 'undefined'
-                    ? window.setTimeout(() => {
-                        console.warn('[useActionProcessing] Transcription still in-flight', {
-                            mode: config.speech.mode,
-                            model: config.speech.model,
-                            actionId: action.id,
-                            elapsedMs: Date.now() - startTime
-                        });
-                    }, TRANSCRIBE_SLOW_LOG_MS)
-                    : null;
+            let transcription = '';
 
-            console.log('[useActionProcessing] Starting transcription request', {
-                mode: config.speech.mode,
-                model: config.speech.model,
-                audioSizeKB: (audioData.byteLength / 1024).toFixed(2)
-            });
+            // Выполняем транскрипцию только если аудио не тихое
+            if (!shouldSkipTranscription) {
+                abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                slowLogTimer =
+                    typeof window !== 'undefined'
+                        ? window.setTimeout(() => {
+                            console.warn('[useActionProcessing] Transcription still in-flight', {
+                                mode: config.speech.mode,
+                                model: config.speech.model,
+                                actionId: action.id,
+                                elapsedMs: Date.now() - startTime
+                            });
+                        }, TRANSCRIBE_SLOW_LOG_MS)
+                        : null;
 
-            const transcription = await speechBridge.transcribe(audioData, {
-                mode: config.speech.mode,
-                model: config.speech.model,
-                openaiKey: config.apiKeys.openai,
-                googleKey: config.apiKeys.google,
-                accessToken: authToken,
-                prompt: transcriptionPrompt
-            }, {
-                signal: abortController?.signal,
-                uiTimeoutMs: TRANSCRIBE_UI_TIMEOUT_MS,
-                mimeType
-            });
+                console.log('[useActionProcessing] Starting transcription request', {
+                    mode: config.speech.mode,
+                    model: config.speech.model,
+                    audioSizeKB: (audioData.byteLength / 1024).toFixed(2)
+                });
 
-            clearSlowLogTimer();
-            
-            const elapsedMs = Date.now() - startTime;
-            console.log('[useActionProcessing] Transcription completed', {
-                elapsedMs,
-                hasResult: !!transcription,
-                resultLength: transcription?.length ?? 0
-            });
+                transcription = await speechBridge.transcribe(audioData, {
+                    mode: config.speech.mode,
+                    model: config.speech.model,
+                    openaiKey: config.apiKeys.openai,
+                    googleKey: config.apiKeys.google,
+                    accessToken: authToken,
+                    prompt: transcriptionPrompt
+                }, {
+                    signal: abortController?.signal,
+                    uiTimeoutMs: TRANSCRIBE_UI_TIMEOUT_MS,
+                    mimeType
+                });
+
+                clearSlowLogTimer();
+
+                const elapsedMs = Date.now() - startTime;
+                console.log('[useActionProcessing] Transcription completed', {
+                    elapsedMs,
+                    hasResult: !!transcription,
+                    resultLength: transcription?.length ?? 0
+                });
+            } else {
+                console.log('[useActionProcessing] Skipping transcription, using context only');
+            }
 
             const transcriptionText = transcription?.trim() ?? '';
-            const contextText = contextTextRef.current?.trim() || '';
-            const hasSpeech = transcriptionText.length > 0;
-            const hasContext = contextText.length > 0;
+
+            // Проверяем валидность транскрипции
+            const isValidResult = isValidTranscription(transcriptionText, transcriptionPrompt);
+
+            // Логируем результат валидации
+            if (transcriptionText.length > 0 && !isValidResult) {
+                console.warn('[useActionProcessing] Transcription filtered as invalid/hallucination:', {
+                    transcription: transcriptionText,
+                    length: transcriptionText.length,
+                    prompt: transcriptionPrompt
+                });
+            }
+
+            const hasSpeech = transcriptionText.length > 0 && isValidResult;
 
             if (!hasSpeech && !hasContext) {
-                showToast('Failed to transcribe speech for the action.', 'error');
+                showToast('No speech detected in the recording.', 'info');
                 return;
             }
 

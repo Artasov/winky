@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/resources/logo-rounded.png" alt="Winky Logo" width="248" height="248">
+  <img src="docs/img/poster.jpg" alt="Winky Logo">
   <h1>Winky</h1>
   <h3><strong>Your cute voice assistant powered by AI</strong></h3>
   <h3>⭐ <strong>Star this repository if it helped you!</strong> ⭐</h3>
@@ -24,6 +24,10 @@
 **Winky** is a cross-platform desktop voice assistant that helps you quickly convert voice to text and run intelligent LLM-powered actions. With a convenient floating microphone overlay, you can interact with Winky from anywhere on your screen, making it perfect for productivity workflows.
 
 Winky supports both cloud-based and local AI processing, giving you the flexibility to choose between speed and privacy. Whether you need quick voice commands, transcription, or AI-powered responses, Winky is ready to help.
+
+### Google Chrome Extension:
+- Extension repository: https://github.com/Artasov/winky-ext
+- Chrome Web Store: https://chromewebstore.google.com/detail/winky/mpinlhhkmpljjlcekiocnglfbfpamkjl
 
 ## About This Repository
 

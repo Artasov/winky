@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/img/poster.jpg" alt="Winky Logo">
+  <img src="docs/img/poster.jpg" height="400" alt="Winky Logo">
   <h1>Winky</h1>
   <h3><strong>Your cute voice assistant powered by AI</strong></h3>
   <h3>⭐ <strong>Star this repository if it helped you!</strong> ⭐</h3>

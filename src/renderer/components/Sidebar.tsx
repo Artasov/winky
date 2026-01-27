@@ -34,6 +34,10 @@ const Sidebar: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const videoRef = useRef<HTMLVideoElement | null>(null);
+    const lastProgressTimeRef = useRef<number>(0);
+    const lastProgressAtRef = useRef<number>(0);
+    const stallTimeoutRef = useRef<number | null>(null);
+    const frameCallbackIdRef = useRef<number | null>(null);
     const {config} = useConfig();
     const {user} = useUser();
     const showAvatarVideo = config?.showAvatarVideo !== false;
@@ -44,7 +48,22 @@ const Sidebar: React.FC = () => {
 
     const shouldPlay = () => typeof document !== 'undefined' && !document.hidden;
 
-    const ensurePlayback = useCallback(() => {
+    const restartPlayback = useCallback(() => {
+        const video = videoRef.current;
+        if (!video || !shouldPlay()) {
+            return;
+        }
+        video.pause();
+        video.currentTime = 0;
+        const playPromise = video.play();
+        if (playPromise) {
+            playPromise.catch(() => {
+                /* autoplay can fail silently; ignore */
+            });
+        }
+    }, []);
+
+    const keepPlayback = useCallback(() => {
         if (!showAvatarVideo) {
             return;
         }
@@ -52,8 +71,11 @@ const Sidebar: React.FC = () => {
         if (!video || !shouldPlay()) {
             return;
         }
+        if (video.ended || video.currentTime >= video.duration) {
+            restartPlayback();
+            return;
+        }
         if (video.paused || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-            video.currentTime = video.currentTime >= video.duration ? 0 : video.currentTime;
             const playPromise = video.play();
             if (playPromise) {
                 playPromise.catch(() => {
@@ -61,13 +83,23 @@ const Sidebar: React.FC = () => {
                 });
             }
         }
-    }, [showAvatarVideo]);
+    }, [restartPlayback, showAvatarVideo]);
 
     useEffect(() => {
+        const STALL_TIMEOUT_MS = 6000;
+
         if (!showAvatarVideo) {
             const video = videoRef.current;
             if (video) {
                 video.pause();
+            }
+            if (stallTimeoutRef.current) {
+                window.clearTimeout(stallTimeoutRef.current);
+                stallTimeoutRef.current = null;
+            }
+            if (frameCallbackIdRef.current && video && typeof video.cancelVideoFrameCallback === 'function') {
+                video.cancelVideoFrameCallback(frameCallbackIdRef.current);
+                frameCallbackIdRef.current = null;
             }
             return;
         }
@@ -78,18 +110,51 @@ const Sidebar: React.FC = () => {
         video.playbackRate = 1;
         video.playsInline = true;
         video.muted = true;
+        video.loop = true;
+
+        const armStallTimeout = () => {
+            if (stallTimeoutRef.current) {
+                window.clearTimeout(stallTimeoutRef.current);
+            }
+            stallTimeoutRef.current = window.setTimeout(() => {
+                if (!video || !shouldPlay() || document.hidden) {
+                    return;
+                }
+                const stalledForMs = Date.now() - lastProgressAtRef.current;
+                if (!video.paused && stalledForMs >= STALL_TIMEOUT_MS) {
+                    restartPlayback();
+                    lastProgressTimeRef.current = video.currentTime;
+                    lastProgressAtRef.current = Date.now();
+                    armStallTimeout();
+                }
+            }, STALL_TIMEOUT_MS);
+        };
 
         const handleVisibilityChange = () => {
             if (document.hidden) {
                 video.pause();
+                if (stallTimeoutRef.current) {
+                    window.clearTimeout(stallTimeoutRef.current);
+                    stallTimeoutRef.current = null;
+                }
+                if (frameCallbackIdRef.current && typeof video.cancelVideoFrameCallback === 'function') {
+                    video.cancelVideoFrameCallback(frameCallbackIdRef.current);
+                    frameCallbackIdRef.current = null;
+                }
                 return;
             }
-            ensurePlayback();
+            restartPlayback();
+            lastProgressTimeRef.current = video.currentTime;
+            lastProgressAtRef.current = Date.now();
+            armStallTimeout();
+            trackFrames();
         };
 
         const handleCanPlay = () => {
             if (!document.hidden) {
-                ensurePlayback();
+                keepPlayback();
+                armStallTimeout();
+                trackFrames();
             }
         };
 
@@ -101,7 +166,31 @@ const Sidebar: React.FC = () => {
                 video.pause();
                 video.currentTime = 0;
             }
-            ensurePlayback();
+            keepPlayback();
+            armStallTimeout();
+            trackFrames();
+        };
+
+        const handleProgress = () => {
+            if (!video) {
+                return;
+            }
+            lastProgressTimeRef.current = video.currentTime;
+            lastProgressAtRef.current = Date.now();
+            armStallTimeout();
+        };
+
+        const trackFrames = () => {
+            if (!video || document.hidden || !shouldPlay()) {
+                return;
+            }
+            if (typeof video.requestVideoFrameCallback !== 'function') {
+                return;
+            }
+            frameCallbackIdRef.current = video.requestVideoFrameCallback(() => {
+                handleProgress();
+                trackFrames();
+            });
         };
 
         const monitoredEvents: Array<keyof HTMLMediaElementEventMap> = [
@@ -114,20 +203,36 @@ const Sidebar: React.FC = () => {
         ];
 
         video.addEventListener('canplay', handleCanPlay);
+        video.addEventListener('playing', handleProgress);
+        video.addEventListener('timeupdate', handleProgress);
         monitoredEvents.forEach((event) => video.addEventListener(event, handlePlaybackIssue));
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         if (!document.hidden) {
-            ensurePlayback();
+            handleProgress();
+            keepPlayback();
+            trackFrames();
         }
+
+        armStallTimeout();
 
         return () => {
             video.removeEventListener('canplay', handleCanPlay);
+            video.removeEventListener('playing', handleProgress);
+            video.removeEventListener('timeupdate', handleProgress);
             monitoredEvents.forEach((event) => video.removeEventListener(event, handlePlaybackIssue));
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            if (stallTimeoutRef.current) {
+                window.clearTimeout(stallTimeoutRef.current);
+                stallTimeoutRef.current = null;
+            }
+            if (frameCallbackIdRef.current && typeof video.cancelVideoFrameCallback === 'function') {
+                video.cancelVideoFrameCallback(frameCallbackIdRef.current);
+                frameCallbackIdRef.current = null;
+            }
             video.pause();
         };
-    }, [ensurePlayback, showAvatarVideo]);
+    }, [keepPlayback, restartPlayback, showAvatarVideo]);
 
     return (
         <aside className="flex h-full w-64 flex-col border-r border-primary-200/60 bg-white/95 backdrop-blur shadow-sm">

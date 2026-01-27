@@ -281,6 +281,7 @@ html[data-mic-window="true"] body #root {
 .mic-context-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: rgba(244, 63, 94, 0.85) rgba(244, 63, 94, 0.15);
+    scrollbar-gutter: stable;
 }
 
 .mic-context-scrollbar::-webkit-scrollbar {

@@ -1,10 +1,15 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {interactiveEnter, interactiveLeave} from '../../../utils/interactive';
 
 const STORAGE_KEY = 'mic_context_text';
 const MIN_WIDTH = 170;
-const MAX_WIDTH = 460; // Шире, чтобы было больше места
-const FOCUSED_MIN_HEIGHT = 39; // Компактнее по высоте
+const MAX_WIDTH = 460;
+const FOCUSED_MIN_HEIGHT = 39;
+const MAX_HEIGHT = 400;
+const BORDER_WIDTH = 3;
+const PADDING = '8px 12px 8px 12px';
+const PADDING_X = 24;
+const PADDING_Y = 18;
 
 interface MicContextFieldProps {
     onContextChange?: (text: string) => void;
@@ -15,11 +20,16 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
     const [value, setValue] = useState<string>('');
     const [isFocused, setIsFocused] = useState<boolean>(false);
     const [fieldWidth, setFieldWidth] = useState<number>(MIN_WIDTH);
+    const [contentHeight, setContentHeight] = useState<number>(FOCUSED_MIN_HEIGHT);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
     const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
-    const padding = '7px 12px 12px 12px';
     const hasValue = Boolean(value.trim());
     const shouldWrap = fieldWidth >= MAX_WIDTH;
+    const containerHeight = Math.min(
+        MAX_HEIGHT,
+        Math.max(FOCUSED_MIN_HEIGHT, Math.ceil(contentHeight + PADDING_Y + BORDER_WIDTH * 2 + 1))
+    ) - 2;
 
     // Загружаем сохраненный текст при монтировании
     useEffect(() => {
@@ -64,9 +74,9 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
             return;
         }
 
-        const handleVisibilityChange = (first?: {visible?: boolean} | unknown, second?: {visible?: boolean}) => {
+        const handleVisibilityChange = (first?: { visible?: boolean } | unknown, second?: { visible?: boolean }) => {
             const data = (first && typeof (first as any)?.visible === 'boolean')
-                ? (first as {visible?: boolean})
+                ? (first as { visible?: boolean })
                 : second;
             if (data?.visible === false) {
                 textareaRef.current?.blur();
@@ -91,9 +101,7 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
         }
         const handleClear = () => {
             setValue('');
-            if (textareaRef.current) {
-                textareaRef.current.scrollTop = 0;
-            }
+            if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
         };
         window.addEventListener('mic:clear-context', handleClear);
         return () => {
@@ -111,10 +119,8 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
 
     const handleClear = useCallback(() => {
         setValue('');
-        if (textareaRef.current) {
-            textareaRef.current.scrollTop = 0;
-            textareaRef.current.focus();
-        }
+        if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+        textareaRef.current?.focus();
     }, []);
 
     const handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -122,7 +128,7 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
     }, []);
 
     // Автоматическое изменение высоты без лишних перерендеров
-    useEffect(() => {
+    useLayoutEffect(() => {
         const textarea = textareaRef.current;
         if (!textarea) {
             return;
@@ -131,13 +137,12 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
         // Сбрасываем высоту для корректного расчета
         textarea.style.height = 'auto';
 
-        const minHeight = FOCUSED_MIN_HEIGHT;
-        const scrollHeight = textarea.scrollHeight;
-        const newHeight = Math.max(minHeight, scrollHeight);
-        textarea.style.height = `${newHeight}px`;
+        const nextHeight = Math.max(1, Math.ceil(textarea.scrollHeight));
+        textarea.style.height = `${nextHeight}px`;
+        setContentHeight((prev) => (Math.abs(prev - nextHeight) >= 1 ? nextHeight : prev));
     }, [value, isFocused]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (typeof window === 'undefined') {
             return;
         }
@@ -169,18 +174,18 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
                 maxLineWidth = metrics.width;
             }
         }
-        const paddingLeft = parseFloat(style.paddingLeft || '0');
-        const paddingRight = parseFloat(style.paddingRight || '0');
-        const borderLeft = parseFloat(style.borderLeftWidth || '0');
-        const borderRight = parseFloat(style.borderRightWidth || '0');
         const nextWidth = Math.min(
             MAX_WIDTH,
-            Math.max(MIN_WIDTH, Math.ceil(maxLineWidth + paddingLeft + paddingRight + borderLeft + borderRight))
+            Math.max(MIN_WIDTH, Math.ceil(maxLineWidth + PADDING_X + BORDER_WIDTH * 2))
         );
         if (Math.abs(nextWidth - fieldWidth) >= 1) {
             setFieldWidth(nextWidth);
         }
     }, [value, fieldWidth]);
+
+    const handleContainerClick = useCallback(() => {
+        textareaRef.current?.focus();
+    }, []);
 
     return (
         <div
@@ -219,41 +224,60 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
                     Clear
                 </button>
             ) : null}
-            <textarea
-                ref={textareaRef}
-                rows={1}
-                value={value}
-                onChange={handleChange}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
+            <div
+                ref={scrollContainerRef}
+                className="mic-context-scrollbar app-region-no-drag"
+                onClick={handleContainerClick}
                 onMouseEnter={() => interactiveEnter()}
                 onMouseLeave={() => interactiveLeave()}
-                placeholder={hasValue ? '' : 'Add context...'}
-                className="mic-context-scrollbar"
-                wrap={shouldWrap ? 'soft' : 'off'}
                 style={{
-                    width: '100%',
-                    fontSize: '13px',
-                    lineHeight: '1.2',
-                    padding,
                     minHeight: `${FOCUSED_MIN_HEIGHT}px`,
-                    maxHeight: '400px',
-                    height: 'auto',
-                    resize: 'none',
+                    maxHeight: `${MAX_HEIGHT}px`,
+                    height: `${containerHeight}px`,
                     transition: 'padding 0.2s ease, border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease',
-                    whiteSpace: shouldWrap ? 'pre-wrap' : 'pre',
                     overflowX: 'hidden',
                     overflowY: 'auto',
-                    color: 'rgba(255, 255, 255, 0.9)',
+                    padding: PADDING,
                     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                    border: '3px solid rgba(225, 29, 72, 0.9)',
+                    border: `${BORDER_WIDTH}px solid rgba(225, 29, 72, 0.9)`,
                     borderRadius: '12px',
                     outline: 'none',
                     boxShadow: '0 0 16px rgba(225, 29, 72, 0.5), 0 0 24px rgba(225, 29, 72, 0.3)',
                     cursor: 'text',
                     pointerEvents: 'auto',
                 }}
-            />
+            >
+                <textarea
+                    ref={textareaRef}
+                    rows={1}
+                    value={value}
+                    onChange={handleChange}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
+                    placeholder={hasValue ? '' : 'Add context...'}
+                    wrap={shouldWrap ? 'soft' : 'off'}
+                    style={{
+                        width: '100%',
+                        fontSize: '15px',
+                        lineHeight: '1.2',
+                        minHeight: 0,
+                        height: `${contentHeight}px`,
+                        resize: 'none',
+                        border: 'none',
+                        outline: 'none',
+                        backgroundColor: 'transparent',
+                        padding: 0,
+                        margin: 0,
+                        whiteSpace: shouldWrap ? 'pre-wrap' : 'pre',
+                        overflow: 'hidden',
+                        color: 'rgba(255, 255, 255, 0.9)',
+                        caretColor: 'rgba(255, 255, 255, 0.95)',
+                        cursor: 'text',
+                        pointerEvents: 'auto',
+                        display: 'block',
+                    }}
+                />
+            </div>
         </div>
     );
 };

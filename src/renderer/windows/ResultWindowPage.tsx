@@ -6,10 +6,10 @@ import {emit, listen} from '@tauri-apps/api/event';
 import {getCurrentWindow} from '@tauri-apps/api/window';
 
 const ResultWindowPage: React.FC = () => {
-    const [transcription, setTranscription] = useState('');
+    const [requestText, setRequestText] = useState('');
     const [llmResponse, setLLMResponse] = useState('');
     const [isStreaming, setIsStreaming] = useState(false);
-    const [copiedTranscription, setCopiedTranscription] = useState(false);
+    const [copiedRequest, setCopiedRequest] = useState(false);
     const [copiedResponse, setCopiedResponse] = useState(false);
 
     const contentRef = useRef<HTMLDivElement>(null);
@@ -26,7 +26,7 @@ const ResultWindowPage: React.FC = () => {
             console.log('[ResultWindowPage] Received data:', data);
             if (data.transcription !== undefined) {
                 console.log('[ResultWindowPage] Setting transcription:', data.transcription);
-                setTranscription(data.transcription);
+                setRequestText(data.transcription);
             }
             if (data.llmResponse !== undefined) {
                 console.log('[ResultWindowPage] Setting LLM response:', data.llmResponse);
@@ -65,10 +65,10 @@ const ResultWindowPage: React.FC = () => {
         };
     }, []);
 
-    const handleCopyTranscription = async () => {
-        await clipboardBridge.writeText(transcription);
-        setCopiedTranscription(true);
-        setTimeout(() => setCopiedTranscription(false), 2000);
+    const handleCopyRequest = async () => {
+        await clipboardBridge.writeText(requestText);
+        setCopiedRequest(true);
+        setTimeout(() => setCopiedRequest(false), 2000);
     };
 
     const handleCopyResponse = async () => {
@@ -105,17 +105,17 @@ const ResultWindowPage: React.FC = () => {
                     tabIndex={-1}
                     className='fc gap-2 overflow-y-auto flex-1 px-6 pt-4 pb-6 focus:outline-none'
                 >
-                    {/* Transcription */}
+                    {/* Request */}
                     <div className='fc gap-2'>
                         <div className='frsc gap-2'>
-                            <label className='text-sm font-medium text-text-primary pl-1'>Recognized Speech</label>
+                            <label className='text-sm font-medium text-text-primary pl-1'>Request</label>
                             <button
                                 type='button'
-                                onClick={handleCopyTranscription}
+                                onClick={handleCopyRequest}
                                 className='flex h-7 w-7 items-center justify-center rounded-lg border border-primary-200 bg-white text-text-primary transition-[background-color,border-color] duration-base hover:border-primary hover:bg-primary-50'
-                                aria-label='Copy transcription'
+                                aria-label='Copy request'
                             >
-                                {copiedTranscription ? (
+                                {copiedRequest ? (
                                     <svg className='h-3.5 w-3.5' viewBox='0 0 20 20' fill='currentColor'>
                                         <path fillRule='evenodd'
                                               d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'
@@ -137,8 +137,8 @@ const ResultWindowPage: React.FC = () => {
                         </div>
                         <div
                             className='rounded-lg border border-primary-200 bg-white shadow-primary-sm p-4 text-sm leading-relaxed text-text-primary min-h-24'>
-                            {transcription ||
-                                <span className='text-text-tertiary animate-pulse-soft'>Recognizing...</span>}
+                            {requestText ||
+                                <span className='text-text-tertiary animate-pulse-soft'>Preparing request...</span>}
                         </div>
                     </div>
 

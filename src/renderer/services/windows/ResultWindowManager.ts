@@ -144,7 +144,6 @@ export class ResultWindowManager {
      * Обновляет данные в окне
      */
     async update(payload: ResultPayload): Promise<void> {
-        console.log('[ResultWindowManager] update() called:', payload, 'ready:', this.isReady);
         
         // Обновляем состояние
         this.lastPayload = this.lastPayload ? {...this.lastPayload, ...payload} : payload;
@@ -152,13 +151,11 @@ export class ResultWindowManager {
         
         // Если окно не готово, сохраняем данные
         if (!this.isReady) {
-            console.log('[ResultWindowManager] Window not ready, storing payload');
             this.pendingPayload = this.pendingPayload ? {...this.pendingPayload, ...payload} : payload;
             
             // Небольшая задержка для проверки готовности
             await new Promise(resolve => setTimeout(resolve, 50));
             if (this.isReady && this.pendingPayload) {
-                console.log('[ResultWindowManager] Window became ready, sending stored payload');
                 const finalPayload = this.pendingPayload;
                 this.pendingPayload = null;
                 await this.sendPayload(finalPayload);
@@ -167,7 +164,6 @@ export class ResultWindowManager {
         }
         
         // Отправляем данные если окно готово
-        console.log('[ResultWindowManager] Sending payload (window ready)');
         await this.sendPayload(payload);
     }
     /**

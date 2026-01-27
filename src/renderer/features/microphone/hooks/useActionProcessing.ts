@@ -321,25 +321,38 @@ export const useActionProcessing = ({
             }
 
             const transcriptionForOutput = hasSpeech ? transcriptionText : contextText;
-            const llmInput = hasSpeech
-                ? (hasContext ? `${transcriptionText}\n\n${contextText}`.trim() : transcriptionText)
-                : contextText;
+            const llmInputParts = [
+                hasSpeech ? transcriptionText : '',
+                hasContext ? contextText : ''
+            ].filter((part) => part.length > 0);
+            const llmInput = llmInputParts.join('\n\n').trim();
+
+            if (!llmInput) {
+                console.log('[useActionProcessing] Empty input after silence/context merge, skipping action');
+                showToast('Nothing to process. Add context or record speech.', 'info');
+                return;
+            }
+
+            if (!hasSpeech && hasContext) {
+                console.log('[useActionProcessing] Using context-only input for action execution');
+            }
 
             const needsLLM = Boolean(action.prompt && action.prompt.trim());
 
             if (action.show_results) {
                 await resultBridge.open();
                 await resultBridge.update({
-                    transcription: transcriptionForOutput,
-                    llmResponse: needsLLM ? '' : transcriptionForOutput,
+                    transcription: llmInput,
+                    llmResponse: needsLLM ? '' : llmInput,
                     isStreaming: needsLLM
                 });
             }
 
             if (!needsLLM) {
+                const responseText = llmInput;
                 if (action.auto_copy_result) {
                     await copyWithRetries({
-                        text: transcriptionForOutput,
+                        text: responseText,
                         showToast,
                         successMessage: 'Result copied.',
                         failureMessage: 'Failed to copy the result to the clipboard.'
@@ -351,10 +364,10 @@ export const useActionProcessing = ({
                     action_prompt: action.prompt?.trim() || null,
                     transcription: transcriptionForOutput,
                     llm_response: null,
-                    result_text: transcriptionForOutput,
+                    result_text: responseText,
                     audio_path: await ensureAudioSaved()
                 });
-                await saveQuickNote(transcriptionForOutput);
+                await saveQuickNote(responseText);
                 clearContext();
                 await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef});
                 return;

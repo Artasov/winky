@@ -24,8 +24,12 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
     const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const measureRef = useRef<HTMLDivElement | null>(null);
+    const pasteInFlightRef = useRef(false);
     const hasValue = Boolean(value.trim());
     const shouldWrap = fieldWidth >= MAX_WIDTH;
+    const innerWidth = Math.max(1, fieldWidth - PADDING_X - BORDER_WIDTH * 2);
+    const measureValue = value.endsWith('\n') ? `${value}\u200b` : (value || ' ');
     const containerHeight = Math.min(
         MAX_HEIGHT,
         Math.max(FOCUSED_MIN_HEIGHT, Math.ceil(contentHeight + PADDING_Y + BORDER_WIDTH * 2 + 1))
@@ -127,20 +131,69 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
         setValue(event.target.value);
     }, []);
 
+    const handlePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        pasteInFlightRef.current = true;
+        const pastedText = event.clipboardData.getData('text');
+        if (!pastedText) {
+            return;
+        }
+        event.preventDefault();
+        const textarea = textareaRef.current;
+        const selectionStart = textarea?.selectionStart ?? value.length;
+        const selectionEnd = textarea?.selectionEnd ?? value.length;
+        const nextValue = `${value.slice(0, selectionStart)}${pastedText}${value.slice(selectionEnd)}`;
+        const nextCaret = selectionStart + pastedText.length;
+        setValue(`${nextValue} `);
+        if (typeof window === 'undefined') {
+            setValue(nextValue);
+            return;
+        }
+        window.requestAnimationFrame(() => {
+            pasteInFlightRef.current = true;
+            setValue(nextValue);
+            window.requestAnimationFrame(() => {
+                const current = textareaRef.current;
+                if (!current) {
+                    return;
+                }
+                current.focus();
+                current.setSelectionRange(nextCaret, nextCaret);
+            });
+        });
+    }, [value]);
+
     // Автоматическое изменение высоты без лишних перерендеров
     useLayoutEffect(() => {
         const textarea = textareaRef.current;
-        if (!textarea) {
+        const scrollContainer = scrollContainerRef.current;
+        const measure = measureRef.current;
+        if (!textarea || !scrollContainer) {
             return;
         }
 
         // Сбрасываем высоту для корректного расчета
-        textarea.style.height = 'auto';
+        const recalcHeight = () => {
+            textarea.style.height = '0px';
+            const heightSource = measure ?? textarea;
+            const nextHeight = Math.max(1, Math.ceil(heightSource.scrollHeight));
+            textarea.style.height = `${nextHeight}px`;
+            setContentHeight((prev) => (Math.abs(prev - nextHeight) >= 1 ? nextHeight : prev));
+            const maxScrollTop = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
+            if (scrollContainer.scrollTop > maxScrollTop) {
+                scrollContainer.scrollTop = maxScrollTop;
+            }
+        };
 
-        const nextHeight = Math.max(1, Math.ceil(textarea.scrollHeight));
-        textarea.style.height = `${nextHeight}px`;
-        setContentHeight((prev) => (Math.abs(prev - nextHeight) >= 1 ? nextHeight : prev));
-    }, [value, isFocused]);
+        recalcHeight();
+
+        if (pasteInFlightRef.current && typeof window !== 'undefined') {
+            window.requestAnimationFrame(() => {
+                recalcHeight();
+                scrollContainer.scrollTop = 0;
+                pasteInFlightRef.current = false;
+            });
+        }
+    }, [value, isFocused, fieldWidth]);
 
     useLayoutEffect(() => {
         if (typeof window === 'undefined') {
@@ -235,6 +288,7 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
                     maxHeight: `${MAX_HEIGHT}px`,
                     height: `${containerHeight}px`,
                     transition: 'padding 0.2s ease, border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease',
+                    position: 'relative',
                     overflowX: 'hidden',
                     overflowY: 'auto',
                     padding: PADDING,
@@ -252,6 +306,7 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
                     rows={1}
                     value={value}
                     onChange={handleChange}
+                    onPaste={handlePaste}
                     onFocus={handleFocus}
                     onBlur={handleBlur}
                     placeholder={hasValue ? '' : 'Add context...'}
@@ -277,6 +332,28 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
                         display: 'block',
                     }}
                 />
+                <div
+                    ref={measureRef}
+                    aria-hidden
+                    style={{
+                        position: 'absolute',
+                        visibility: 'hidden',
+                        pointerEvents: 'none',
+                        zIndex: -1,
+                        top: 0,
+                        left: 0,
+                        width: `${innerWidth}px`,
+                        fontSize: '15px',
+                        lineHeight: '1.2',
+                        padding: 0,
+                        margin: 0,
+                        border: 0,
+                        whiteSpace: shouldWrap ? 'pre-wrap' : 'pre',
+                        overflowWrap: 'anywhere',
+                    }}
+                >
+                    {measureValue}
+                </div>
             </div>
         </div>
     );

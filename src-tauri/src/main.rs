@@ -797,6 +797,7 @@ async fn window_set_ignore_cursor_events(
 async fn window_open_main(app: tauri::AppHandle) -> Result<(), String> {
     // Пробуем получить существующее окно
     if let Some(main) = app.get_webview_window("main") {
+        main.unminimize().map_err(|e| format!("Failed to unminimize main window: {}", e))?;
         main.show().map_err(|e| format!("Failed to show main window: {}", e))?;
         main.set_focus().map_err(|e| format!("Failed to focus main window: {}", e))?;
         Ok(())

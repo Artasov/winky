@@ -2,7 +2,7 @@ use serde_json::json;
 use tauri::{
     image::Image,
     menu::{MenuBuilder, MenuItemBuilder},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager,
 };
 use crate::window_open_main;
@@ -81,6 +81,19 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
 
     builder
         .menu(&menu)
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::DoubleClick { button, .. } = event {
+                if button != MouseButton::Left {
+                    return;
+                }
+                let app_handle = tray.app_handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = window_open_main(app_handle).await {
+                        eprintln!("Failed to open main window from tray double click: {}", e);
+                    }
+                });
+            }
+        })
         .on_menu_event(|app, event| match event.id().as_ref() {
             MIC_MENU_ID => {
                 let _ = app.emit("mic:show-request", json!({ "reason": "taskbar" }));

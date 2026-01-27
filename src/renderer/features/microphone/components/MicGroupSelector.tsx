@@ -3,6 +3,7 @@ import {Box} from '@mui/material';
 import type {ActionGroup} from '@shared/types';
 import {getMediaUrl, SYSTEM_GROUP_ID} from '@shared/constants';
 import {interactiveEnter, interactiveLeave} from '../../../utils/interactive';
+import GlassTooltip from '../../../components/GlassTooltip';
 
 type Props = {
     groups: ActionGroup[];
@@ -52,50 +53,50 @@ const MicGroupSelector: React.FC<Props> = ({
             {sortedGroups.map((group) => {
                 const isSelected = group.id === selectedGroupId;
                 return (
-                    <button
-                        key={group.id}
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleClick(group.id);
-                        }}
-                        disabled={disabled}
-                        title={group.name}
-                        className="frcc rounded-full transition-all duration-200"
-                        style={{
-                            width: 32,
-                            height: 32,
-                            minWidth: 32,
-                            border: `2px solid ${isSelected ? group.color : 'transparent'}`,
-                            backgroundColor: isSelected ? `${group.color}30` : 'transparent',
-                            cursor: disabled ? 'default' : 'pointer',
-                            pointerEvents: 'auto'
-                        }}
-                    >
-                        {group.icon_details?.svg ? (
-                            <Box
-                                component="img"
-                                src={getMediaUrl(group.icon_details.svg)}
-                                alt={group.name}
-                                sx={{
-                                    width: 18,
-                                    height: 18,
-                                    opacity: isSelected ? 1 : 0.6,
-                                    transition: 'opacity 200ms ease',
-                                    filter: 'brightness(0) invert(1)'
-                                }}
-                            />
-                        ) : (
-                            <Box
-                                sx={{
-                                    width: 12,
-                                    height: 12,
-                                    borderRadius: '50%',
-                                    bgcolor: 'rgba(255, 255, 255, 0.8)'
-                                }}
-                            />
-                        )}
-                    </button>
+                    <GlassTooltip key={group.id} content={group.name} placement="top">
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleClick(group.id);
+                            }}
+                            disabled={disabled}
+                            className="frcc rounded-full transition-all duration-200"
+                            style={{
+                                width: 32,
+                                height: 32,
+                                minWidth: 32,
+                                border: `2px solid ${isSelected ? group.color : 'transparent'}`,
+                                backgroundColor: isSelected ? `${group.color}30` : 'transparent',
+                                cursor: disabled ? 'default' : 'pointer',
+                                pointerEvents: 'auto'
+                            }}
+                        >
+                            {group.icon_details?.svg ? (
+                                <Box
+                                    component="img"
+                                    src={getMediaUrl(group.icon_details.svg)}
+                                    alt={group.name}
+                                    sx={{
+                                        width: 18,
+                                        height: 18,
+                                        opacity: isSelected ? 1 : 0.6,
+                                        transition: 'opacity 200ms ease',
+                                        filter: 'brightness(0) invert(1)'
+                                    }}
+                                />
+                            ) : (
+                                <Box
+                                    sx={{
+                                        width: 12,
+                                        height: 12,
+                                        borderRadius: '50%',
+                                        bgcolor: 'rgba(255, 255, 255, 0.8)'
+                                    }}
+                                />
+                            )}
+                        </button>
+                    </GlassTooltip>
                 );
             })}
         </div>

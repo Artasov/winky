@@ -6,13 +6,15 @@ interface GlassTooltipProps {
     children: React.ReactElement;
     delay?: number;
     offset?: number;
+    placement?: 'auto' | 'top' | 'bottom';
 }
 
 const GlassTooltip: React.FC<GlassTooltipProps> = ({
     content,
     children,
     delay = 400,
-    offset = 8
+    offset = 8,
+    placement = 'auto'
 }) => {
     const [visible, setVisible] = useState(false);
     const [position, setPosition] = useState<{top: number; left: number}>({top: 0, left: 0});
@@ -26,7 +28,7 @@ const GlassTooltip: React.FC<GlassTooltipProps> = ({
         }
 
         const rect = triggerRef.current.getBoundingClientRect();
-        let top = rect.bottom + offset;
+        let top = placement === 'top' ? rect.top - offset : rect.bottom + offset;
         let left = rect.left + rect.width / 2;
         const margin = 12;
 
@@ -35,7 +37,11 @@ const GlassTooltip: React.FC<GlassTooltipProps> = ({
             const fitsBelow = top + tooltipRect.height + margin <= window.innerHeight;
             const fitsAbove = rect.top - offset - tooltipRect.height - margin >= 0;
 
-            if (!fitsBelow && fitsAbove) {
+            if (placement === 'top') {
+                top = rect.top - offset - tooltipRect.height;
+            } else if (placement === 'bottom') {
+                top = rect.bottom + offset;
+            } else if (!fitsBelow && fitsAbove) {
                 top = rect.top - offset - tooltipRect.height;
             }
 
@@ -54,7 +60,7 @@ const GlassTooltip: React.FC<GlassTooltipProps> = ({
             }
             return {top, left};
         });
-    }, [offset]);
+    }, [offset, placement]);
 
     const showTooltip = useCallback(() => {
         if (timeoutRef.current) {

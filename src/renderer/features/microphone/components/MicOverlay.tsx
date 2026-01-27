@@ -36,6 +36,7 @@ const MicOverlay: React.FC<MicOverlayProps> = ({contextTextRef: contextTextRefPr
     const contextTextRef = contextTextRefProp || useRef<string>('');
     const orbitSize = 140;
     const contextOffset = -4;
+    const overlayOffset = 50;
     const recording = useSpeechRecording({config, showToast, isMicOverlay, contextTextRef});
     const interactions = useMicOverlayInteractions({isMicOverlay});
     const {view, refs, handlers} = recording;
@@ -230,55 +231,57 @@ const MicOverlay: React.FC<MicOverlayProps> = ({contextTextRef: contextTextRefPr
             ) : (
                 <audio ref={completionSoundRef} />
             )}
-            {/* Group selector at the top */}
-            {groups.filter((g) => !g.is_system && g.id !== SYSTEM_GROUP_ID).length > 1 && (
-                <div
-                    className="absolute left-1/2 -translate-x-1/2"
-                    style={{top: 10, zIndex: 100, pointerEvents: 'auto'}}
-                >
-                    <MicGroupSelector
-                        groups={groups}
-                        selectedGroupId={selectedGroupId}
-                        onSelectGroup={handleSelectGroup}
-                        disabled={processing}
-                        containerRef={groupSelectorRef}
-                    />
-                </div>
-            )}
-            <MicDragHandle interactions={interactions} isRecording={isRecording} disabled={processing}/>
-            <div className="pointer-events-none relative flex h-full w-full flex-col items-center pt-12">
-                <div
-                    className="relative flex items-center justify-center"
-                    style={{width: `${orbitSize}px`, height: `${orbitSize}px`}}
-                >
-                    <MicVolumeRings isRecording={isRecording} normalizedVolume={normalizedVolume}/>
+            <div className="relative h-full w-full" style={{transform: `translateY(${overlayOffset}px)`}}>
+                {/* Group selector at the top */}
+                {groups.filter((g) => !g.is_system && g.id !== SYSTEM_GROUP_ID).length > 1 && (
                     <div
-                        className="relative"
-                        style={{pointerEvents: processing ? 'none' : 'auto'}}
-                        ref={micButtonRef}
+                        className="absolute left-1/2 -translate-x-1/2"
+                        style={{top: 10, zIndex: 100, pointerEvents: 'auto'}}
                     >
-                        <MicrophoneButton
-                            isRecording={isRecording}
-                            onToggle={handleMicrophoneToggle}
+                        <MicGroupSelector
+                            groups={groups}
+                            selectedGroupId={selectedGroupId}
+                            onSelectGroup={handleSelectGroup}
                             disabled={processing}
-                            size={isRecording ? 'compact' : 'default'}
+                            containerRef={groupSelectorRef}
                         />
                     </div>
+                )}
+                <MicDragHandle interactions={interactions} isRecording={isRecording} disabled={processing}/>
+                <div className="pointer-events-none relative flex h-full w-full flex-col items-center pt-12">
                     <div
-                        ref={actionsContainerRef}
-                        className="pointer-events-none absolute inset-0"
+                        className="relative flex items-center justify-center"
+                        style={{width: `${orbitSize}px`, height: `${orbitSize}px`}}
                     >
-                        <MicActionOrbit
-                            actions={displayedActions}
-                            actionsVisible={actionsVisible}
-                            processing={processing}
-                            activeActionId={activeActionId}
-                            onActionClick={handleActionClick}
-                        />
+                        <MicVolumeRings isRecording={isRecording} normalizedVolume={normalizedVolume}/>
+                        <div
+                            className="relative"
+                            style={{pointerEvents: processing ? 'none' : 'auto'}}
+                            ref={micButtonRef}
+                        >
+                            <MicrophoneButton
+                                isRecording={isRecording}
+                                onToggle={handleMicrophoneToggle}
+                                disabled={processing}
+                                size={isRecording ? 'compact' : 'default'}
+                            />
+                        </div>
+                        <div
+                            ref={actionsContainerRef}
+                            className="pointer-events-none absolute inset-0"
+                        >
+                            <MicActionOrbit
+                                actions={displayedActions}
+                                actionsVisible={actionsVisible}
+                                processing={processing}
+                                activeActionId={activeActionId}
+                                onActionClick={handleActionClick}
+                            />
+                        </div>
                     </div>
-                </div>
-                <div className="pointer-events-auto" style={{marginTop: `${contextOffset}px`}}>
-                    <MicContextField onContextChange={handleContextChange} containerRef={contextFieldRef} />
+                    <div className="pointer-events-auto" style={{marginTop: `${contextOffset}px`}}>
+                        <MicContextField onContextChange={handleContextChange} containerRef={contextFieldRef} />
+                    </div>
                 </div>
             </div>
         </>

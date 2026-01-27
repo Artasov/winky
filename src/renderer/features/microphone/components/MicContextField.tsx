@@ -292,7 +292,7 @@ const MicContextField: React.FC<MicContextFieldProps> = ({onContextChange, conta
                     overflowX: 'hidden',
                     overflowY: 'auto',
                     padding: PADDING,
-                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    backgroundColor: 'rgba(0, 0, 0, 0.9)',
                     border: `${BORDER_WIDTH}px solid rgba(225, 29, 72, 0.9)`,
                     borderRadius: '12px',
                     outline: 'none',

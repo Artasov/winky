@@ -50,7 +50,7 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
 
     return (
         <div
-            className={`app-region-drag flex h-16 w-full items-center justify-between border-b px-4 text-xs uppercase tracking-[0.3em] text-text-tertiary ${
+            className={`app-region-drag flex h-11 w-full items-center justify-between border-b px-4 text-xs uppercase tracking-[0.3em] text-text-tertiary ${
                 isDark
                     ? 'border-white/15 bg-transparent'
                     : 'border-primary-200/60 bg-white/95 backdrop-blur shadow-sm'
@@ -60,7 +60,7 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
                 <img
                     src="./resources/winky-pink-signature.png"
                     alt="Winky"
-                    className="h-10 pointer-events-none pt-1"
+                    className="h-6 pointer-events-none"
                     draggable="false"
                     style={isDark ? {
                         filter: 'grayscale(100%) brightness(2) contrast(1.2)'
@@ -68,9 +68,9 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
                 />
                 {version ? (
                     <span style={{
-                        marginBottom: -12,
-                        marginLeft: -7,
-                    }} className="text-[10px] font-light normal-case tracking-normal text-text-tertiary/80">
+                        marginBottom: -8,
+                        marginLeft: -5,
+                    }} className="text-[9px] font-light normal-case tracking-normal text-text-tertiary/80">
                         {version}
                     </span>
                 ) : null}
@@ -81,7 +81,7 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
                         type="button"
                         tabIndex={-1}
                         onClick={() => setBugModalOpen(true)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
                         aria-label="Report a problem"
                     >
                         <BugReportIcon fontSize="small" />
@@ -91,7 +91,7 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
                     type="button"
                     tabIndex={-1}
                     onClick={toggleThemeMode}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
                     aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
                     title={isDark ? 'Light theme' : 'Dark theme'}
                     data-theme-mode={themeMode}
@@ -102,7 +102,7 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
                     type="button"
                     onClick={handleMinimize}
                     tabIndex={-1}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-bg-tertiary hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-bg-tertiary hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
                     aria-label="Minimize"
                 >
                     <svg viewBox="0 0 12 2" className="h-2 w-3 fill-current">
@@ -113,7 +113,7 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
                     type="button"
                     onClick={handleClose}
                     tabIndex={-1}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
                     aria-label="Close"
                 >
                     <svg viewBox="0 0 12 12" className="h-3 w-3 fill-current">

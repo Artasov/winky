@@ -516,17 +516,27 @@ const ChatViewPage: React.FC = () => {
         <div className="fc h-full w-full">
             {/* Header */}
             <div
-                className="frbc gap-3 px-4 py-3 border-b flex-shrink-0"
+                className="frbc gap-2 px-3 py-1.5 border-b flex-shrink-0"
                 style={{
                     borderColor: isDark ? darkSurface : 'var(--color-border-light)',
                     backgroundColor: isDark ? 'transparent' : 'var(--color-bg-elevated)'
                 }}
             >
-                <div className="frsc gap-3 min-w-0 flex-1">
-                    <IconButton onClick={handleBack} size="small">
-                        <ArrowBackRoundedIcon/>
+                <div className="frsc gap-2 min-w-0 flex-1">
+                    <IconButton
+                        onClick={handleBack}
+                        size="small"
+                        sx={{
+                            padding: '3px',
+                            backgroundColor: 'transparent',
+                            '&:hover': {
+                                backgroundColor: 'transparent'
+                            }
+                        }}
+                    >
+                        <ArrowBackRoundedIcon sx={{fontSize: 18}}/>
                     </IconButton>
-                    <h1 className="text-lg font-semibold text-text-primary truncate">
+                    <h1 className="text-base font-semibold text-text-primary truncate">
                         {isNewChat ? 'New Chat' : chatTitle || 'Chat'}
                     </h1>
                 </div>
@@ -536,6 +546,7 @@ const ChatViewPage: React.FC = () => {
                         onRename={handleRenameChat}
                         onDelete={handleDeleteChat}
                         disabled={sending}
+                        compact
                     />
                 )}
             </div>
@@ -576,22 +587,27 @@ const ChatViewPage: React.FC = () => {
                                 padding: '10px 14px 3px 14px',
                                 minHeight: '42px',
                                 transition: 'background-color 0.2s ease, backdrop-filter 0.2s ease',
-                                '& fieldset': {
-                                    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'
+                                boxShadow: 'none !important',
+                                '& fieldset, & .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)',
+                                    boxShadow: 'none !important'
                                 },
-                                '&:hover fieldset': {
+                                '&:hover fieldset, &:hover .MuiOutlinedInput-notchedOutline': {
                                     borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'
                                 },
                                 '&.Mui-focused': {
                                     backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)',
-                                    backdropFilter: 'blur(12px)'
+                                    backdropFilter: 'blur(12px)',
+                                    boxShadow: 'none !important',
+                                    outline: 'none'
                                 },
-                                '&.Mui-focused fieldset': {
-                                    borderColor: isDark ? 'rgba(255,255,255,0.35)' : 'var(--color-primary)',
-                                    borderWidth: '1px'
+                                '&.Mui-focused fieldset, &.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)',
+                                    borderWidth: '1px',
+                                    boxShadow: 'none !important'
                                 },
                                 '&.Mui-error fieldset': {
-                                    borderColor: isDark ? 'rgba(255,255,255,0.35)' : 'var(--color-primary)'
+                                    borderColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'
                                 }
                             },
                             '& .MuiInputBase-input': {
@@ -623,12 +639,12 @@ const ChatViewPage: React.FC = () => {
                                 position: 'relative',
                                 zIndex: 1,
                                 backgroundColor: isRecording
-                                    ? '#e11d48' // rose-600
+                                    ? '#e11d48'
                                     : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
                                 '&:hover': {
                                     backgroundColor: isRecording
-                                        ? '#be123c' // rose-700
-                                        : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'
+                                        ? '#be123c'
+                                        : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'
                                 }
                             }}
                         >
@@ -661,7 +677,7 @@ const ChatViewPage: React.FC = () => {
                         {sending ? (
                             <CircularProgress size={24} color="inherit"/>
                         ) : (
-                            <SendRoundedIcon/>
+                            <SendRoundedIcon sx={{transform: 'translateX(6%)'}}/>
                         )}
                     </IconButton>
                 </div>

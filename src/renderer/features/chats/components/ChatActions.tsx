@@ -22,9 +22,10 @@ interface ChatActionsProps {
     onRename: (newTitle: string) => Promise<void>;
     onDelete: () => Promise<void>;
     disabled?: boolean;
+    compact?: boolean;
 }
 
-const ChatActions: React.FC<ChatActionsProps> = ({chatTitle, onRename, onDelete, disabled}) => {
+const ChatActions: React.FC<ChatActionsProps> = ({chatTitle, onRename, onDelete, disabled, compact}) => {
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [renameDialogOpen, setRenameDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -86,9 +87,16 @@ const ChatActions: React.FC<ChatActionsProps> = ({chatTitle, onRename, onDelete,
                 size="small"
                 onClick={handleMenuOpen}
                 disabled={disabled}
-                sx={{color: 'text.secondary'}}
+                sx={{
+                    color: 'text.secondary',
+                    backgroundColor: 'transparent',
+                    '&:hover': {
+                        backgroundColor: 'rgba(0,0,0,0.05)'
+                    },
+                    ...(compact && {padding: '4px'})
+                }}
             >
-                <MoreVertIcon fontSize="small"/>
+                <MoreVertIcon sx={{fontSize: compact ? 18 : 20}}/>
             </IconButton>
 
             <Menu

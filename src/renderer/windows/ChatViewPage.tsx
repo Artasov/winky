@@ -575,19 +575,20 @@ const ChatViewPage: React.FC = () => {
                                 backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)',
                                 padding: '10px 14px 3px 14px',
                                 minHeight: '42px',
+                                transition: 'background-color 0.2s ease, backdrop-filter 0.2s ease',
                                 '& fieldset': {
                                     borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'
                                 },
                                 '&:hover fieldset': {
                                     borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'
                                 },
+                                '&.Mui-focused': {
+                                    backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)',
+                                    backdropFilter: 'blur(12px)'
+                                },
                                 '&.Mui-focused fieldset': {
                                     borderColor: isDark ? 'rgba(255,255,255,0.35)' : 'var(--color-primary)',
-                                    borderWidth: '1px',
-                                    boxShadow: 'none'
-                                },
-                                '&.Mui-focused': {
-                                    boxShadow: 'none'
+                                    borderWidth: '1px'
                                 },
                                 '&.Mui-error fieldset': {
                                     borderColor: isDark ? 'rgba(255,255,255,0.35)' : 'var(--color-primary)'
@@ -623,11 +624,11 @@ const ChatViewPage: React.FC = () => {
                                 zIndex: 1,
                                 backgroundColor: isRecording
                                     ? '#e11d48' // rose-600
-                                    : isDark ? 'rgba(255,255,255,0.1)' : 'var(--color-bg-tertiary)',
+                                    : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
                                 '&:hover': {
                                     backgroundColor: isRecording
                                         ? '#be123c' // rose-700
-                                        : isDark ? 'rgba(255,255,255,0.15)' : 'var(--color-bg-secondary)'
+                                        : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'
                                 }
                             }}
                         >

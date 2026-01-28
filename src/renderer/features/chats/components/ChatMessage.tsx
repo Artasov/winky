@@ -119,7 +119,6 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({message, isStreaming}
 
     const [copiedRaw, setCopiedRaw] = useState(false);
     const [copiedText, setCopiedText] = useState(false);
-    const [isHovered, setIsHovered] = useState(false);
     const contentRef = useRef<HTMLDivElement>(null);
 
     const isUser = message.role === 'user';
@@ -141,11 +140,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({message, isStreaming}
     const markdownComponents = getMarkdownComponents(isDark);
 
     return (
-        <div
-            className={`fc gap-1 ${isUser ? 'items-end' : 'items-start'}`}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-        >
+        <div className={`fc gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
             {/* Message bubble */}
             <div
                 className={`rounded-2xl px-4 py-2 ${
@@ -177,17 +172,17 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({message, isStreaming}
                 </div>
             </div>
 
-            {/* Footer: copy buttons + time */}
-            <div className={`frsc gap-1 px-2 ${isUser ? 'flex-row-reverse' : ''}`}>
-                {/* Copy buttons - appear on hover */}
-                <div
-                    className="frsc gap-0.5"
-                    style={{
-                        opacity: isHovered ? 1 : 0,
-                        transition: 'opacity 0.15s ease',
-                        pointerEvents: isHovered ? 'auto' : 'none'
-                    }}
-                >
+            {/* Footer: LLM = время, иконки | User = иконки, время (справа) */}
+            <div className={`frsc gap-1 px-2 ${isUser ? 'justify-end' : ''}`}>
+                {/* Для LLM: время первым */}
+                {!isUser && (
+                    <span className="text-xs text-text-tertiary">
+                        {formatTime(message.created_at)}
+                    </span>
+                )}
+
+                {/* Copy buttons - всегда видны */}
+                <div className="frsc gap-0.5">
                     <Tooltip title={copiedRaw ? 'Copied!' : 'Copy Markdown'} arrow placement="top">
                         <IconButton
                             size="small"
@@ -227,9 +222,12 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({message, isStreaming}
                     </Tooltip>
                 </div>
 
-                <span className="text-xs text-text-tertiary">
-                    {formatTime(message.created_at)}
-                </span>
+                {/* Для User: время последним */}
+                {isUser && (
+                    <span className="text-xs text-text-tertiary">
+                        {formatTime(message.created_at)}
+                    </span>
+                )}
             </div>
         </div>
     );

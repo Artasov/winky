@@ -353,20 +353,17 @@ html[data-mic-window="true"] body #root {
     width: 26px;
     height: 26px;
     padding: 0;
-    border: 1px solid var(--color-border-light);
+    border: none;
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.4);
     color: var(--color-text-secondary);
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
-    backdrop-filter: blur(4px);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .code-block-copy-btn:hover {
-    background: rgba(255, 255, 255, 1);
-    border-color: var(--color-border-base);
+    background: rgba(255, 255, 255, 0.6);
 }
 
 .code-block-copy-btn:active {
@@ -375,14 +372,12 @@ html[data-mic-window="true"] body #root {
 
 /* Dark theme support for code block copy button */
 [data-theme="dark"] .code-block-copy-btn {
-    background: rgba(40, 40, 40, 0.95);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.7);
 }
 
 [data-theme="dark"] .code-block-copy-btn:hover {
-    background: rgba(60, 60, 60, 0.95);
-    border-color: rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.2);
 }
 
 /* Remove unwanted background from syntax highlighter code element */

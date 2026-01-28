@@ -387,6 +387,23 @@ html[data-mic-window="true"] body #root {
 
 .code-block-wrapper pre[class*="language-"] {
     background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Remove any borders/lines from syntax highlighter on light theme */
+.code-block-wrapper span,
+.code-block-wrapper div {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+[data-theme="light"] .code-block-wrapper pre,
+[data-theme="light"] .code-block-wrapper code,
+[data-theme="light"] .code-block-wrapper span {
+    border: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
 }
 
 .overflow-y-auto {

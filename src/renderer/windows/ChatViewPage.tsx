@@ -208,6 +208,7 @@ const ChatViewPage: React.FC = () => {
     const [chatTitle, setChatTitle] = useState('');
 
     const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -443,6 +444,8 @@ const ChatViewPage: React.FC = () => {
                     const result = await winkyTranscribe(arrayBuffer, accessToken, {mimeType: 'audio/webm'});
                     if (result.text.trim()) {
                         setInputText((prev) => prev + (prev ? ' ' : '') + result.text.trim());
+                        // Фокус на textarea после успешной транскрибации
+                        setTimeout(() => inputRef.current?.focus(), 0);
                     }
                 } catch (error: any) {
                     console.error('[ChatViewPage] Transcription failed', error);
@@ -529,8 +532,10 @@ const ChatViewPage: React.FC = () => {
                         sx={{
                             padding: '3px',
                             backgroundColor: 'transparent',
+                            boxShadow: 'none',
                             '&:hover': {
-                                backgroundColor: 'transparent'
+                                backgroundColor: 'transparent',
+                                boxShadow: 'none'
                             }
                         }}
                     >
@@ -552,7 +557,11 @@ const ChatViewPage: React.FC = () => {
             </div>
 
             {/* Messages */}
-            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4">
+            <div
+                ref={messagesContainerRef}
+                className="flex-1 overflow-y-auto px-4 py-4"
+                style={{backgroundColor: isDark ? 'transparent' : '#ffffff'}}
+            >
                 <MessagesList
                     messages={currentBranch}
                     streamingContent={streamingContent}
@@ -580,6 +589,7 @@ const ChatViewPage: React.FC = () => {
                         multiline
                         maxRows={10}
                         minRows={1}
+                        slotProps={{htmlInput: {ref: inputRef}}}
                         sx={{
                             '& .MuiOutlinedInput-root': {
                                 borderRadius: '12px',

@@ -92,11 +92,21 @@ const getMarkdownComponents = (isDark: boolean): Components => {
                             paddingRight: '2.5rem',
                             borderRadius: '8px',
                             fontSize: '0.875rem',
-                            background: isDark ? 'rgba(0, 0, 0, 0.3)' : 'var(--color-bg-secondary)'
+                            background: isDark ? 'rgba(0, 0, 0, 0.3)' : '#ffffff',
+                            border: 'none'
                         }}
                         codeTagProps={{
                             style: {
-                                background: 'transparent'
+                                background: 'transparent',
+                                border: 'none',
+                                boxShadow: 'none'
+                            }
+                        }}
+                        lineProps={{
+                            style: {
+                                background: 'transparent',
+                                border: 'none',
+                                boxShadow: 'none'
                             }
                         }}
                     >

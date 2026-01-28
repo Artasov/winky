@@ -90,8 +90,10 @@ const ChatActions: React.FC<ChatActionsProps> = ({chatTitle, onRename, onDelete,
                 sx={{
                     color: 'text.secondary',
                     backgroundColor: 'transparent',
+                    boxShadow: 'none',
                     '&:hover': {
-                        backgroundColor: 'rgba(0,0,0,0.05)'
+                        backgroundColor: 'transparent',
+                        boxShadow: 'none'
                     },
                     ...(compact && {padding: '4px'})
                 }}

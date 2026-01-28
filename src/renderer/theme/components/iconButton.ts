@@ -6,7 +6,7 @@ export const createIconButtonOverrides = (theme: Theme): Components['MuiIconButt
             ...(theme.palette.mode === 'dark'
                 ? {
                     backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                    boxShadow: '0 10px 24px rgba(0, 0, 0, 0.55)'
+                    boxShadow: '0 2px 14px rgba(0, 0, 0, 0.2)'
                 }
                 : {
                     backgroundColor: 'rgba(15, 23, 42, 0.04)',
@@ -20,7 +20,7 @@ export const createIconButtonOverrides = (theme: Theme): Components['MuiIconButt
                 backgroundColor: alpha(theme.palette.primary.main, 0.16),
                 color: theme.palette.primary.main,
                 boxShadow: theme.palette.mode === 'dark'
-                    ? `0 14px 32px ${alpha(theme.palette.primary.main, 0.35)}`
+                    ? `0 0 1px ${alpha(theme.palette.primary.main, 0.2)}`
                     : '0 10px 26px rgba(244, 63, 94, 0.2)'
             },
             '&.MuiIconButton-colorPrimary': {

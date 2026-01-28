@@ -255,11 +255,28 @@ html[data-mic-window="true"] body #root {
 .markdown-compact ul,
 .markdown-compact ol {
     margin: 0.5rem 0;
-    padding-left: 1.25rem;
+    padding-left: 1.5rem;
+}
+
+.markdown-compact ul {
+    list-style-type: disc;
+}
+
+.markdown-compact ol {
+    list-style-type: decimal;
 }
 
 .markdown-compact li {
     margin: 0.2rem 0;
+    display: list-item;
+}
+
+.markdown-compact ul ul {
+    list-style-type: circle;
+}
+
+.markdown-compact ul ul ul {
+    list-style-type: square;
 }
 
 .markdown-compact a {
@@ -285,6 +302,16 @@ html[data-mic-window="true"] body #root {
     overflow-x: auto;
 }
 
+[data-theme="dark"] .markdown-compact pre {
+    background: rgba(0, 0, 0, 0.3);
+    border: none;
+}
+
+[data-theme="dark"] .markdown-compact code {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+}
+
 .markdown-compact pre code {
     padding: 0;
     border: 0;
@@ -296,6 +323,75 @@ html[data-mic-window="true"] body #root {
     padding-left: 0.75rem;
     border-left: 2px solid var(--color-border-base);
     color: var(--color-text-secondary);
+}
+
+/* Code block with copy button */
+.markdown-with-copy .code-block-wrapper {
+    position: relative;
+}
+
+.markdown-with-copy .code-block-wrapper:hover .code-block-copy-btn {
+    opacity: 1;
+}
+
+.markdown-with-copy .code-block-wrapper pre {
+    margin: 0;
+}
+
+/* Copy button for code blocks - sticky + float approach */
+.code-block-copy-btn {
+    position: sticky;
+    top: -14px;
+    float: right;
+    margin-top: 6px;
+    margin-right: 6px;
+    margin-bottom: -32px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--color-border-light);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.code-block-copy-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    border-color: var(--color-border-base);
+}
+
+.code-block-copy-btn:active {
+    transform: scale(0.92);
+}
+
+/* Dark theme support for code block copy button */
+[data-theme="dark"] .code-block-copy-btn {
+    background: rgba(40, 40, 40, 0.95);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="dark"] .code-block-copy-btn:hover {
+    background: rgba(60, 60, 60, 0.95);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Remove unwanted background from syntax highlighter code element */
+.code-block-wrapper code[class*="language-"] {
+    background: none !important;
+}
+
+.code-block-wrapper pre[class*="language-"] {
+    background: none !important;
 }
 
 .overflow-y-auto {

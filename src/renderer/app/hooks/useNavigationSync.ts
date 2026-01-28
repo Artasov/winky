@@ -12,7 +12,12 @@ interface NavigationSyncParams {
 
 const authRoutes = ['/', '/auth'];
 const setupRoutes = ['/setup'];
-const appRoutes = ['/me', '/actions', '/settings', '/history', '/notes', '/info'];
+const appRoutes = ['/me', '/actions', '/settings', '/history', '/notes', '/info', '/chats', '/result'];
+
+const isAppRoute = (path: string): boolean => {
+    // Точное совпадение или путь начинается с одного из appRoutes + /
+    return appRoutes.some((route) => path === route || path.startsWith(`${route}/`));
+};
 
 export const useNavigationSync = ({config, loading, windowIdentity, isAuthenticated}: NavigationSyncParams): void => {
     const navigate = useNavigate();
@@ -53,7 +58,7 @@ export const useNavigationSync = ({config, loading, windowIdentity, isAuthentica
             return;
         }
 
-        if (!appRoutes.includes(currentPath)) {
+        if (!isAppRoute(currentPath)) {
             console.log('[useNavigationSync] Navigating to /actions');
             navigate('/actions');
         }

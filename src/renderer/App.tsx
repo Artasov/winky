@@ -25,7 +25,12 @@ import SettingsPage from './windows/SettingsPage';
 import HistoryPage from './windows/HistoryPage';
 import NotesPage from './windows/NotesPage';
 import InfoPage from './windows/InfoPage';
+import ChatsPage from './windows/ChatsPage';
+import ChatViewPage from './windows/ChatViewPage';
+import ResultPage from './windows/ResultPage';
 import ResultWindowPage from './windows/ResultWindowPage';
+import {ResultProvider} from './context/ResultContext';
+import {resultPageBridge} from './services/resultPageBridge';
 import ErrorWindow from './windows/ErrorWindow';
 import DesktopShell from './app/layouts/DesktopShell';
 import MicShell from './app/layouts/MicShell';
@@ -421,6 +426,33 @@ const AppContent: React.FC = () => {
         };
     }, [windowIdentity.isAuxWindow, ensureMicrophonePermission]);
 
+    // Слушаем событие открытия страницы результата
+    useEffect(() => {
+        if (windowIdentity.isAuxWindow) {
+            return;
+        }
+
+        const handleOpenResult = () => {
+            // Показываем главное окно и переходим на /result
+            window.winky?.main?.show?.();
+            navigate('/result');
+        };
+
+        const handleNavigateToChat = (event: CustomEvent<{chatId: string}>) => {
+            const chatId = event.detail?.chatId;
+            if (chatId) {
+                navigate(`/chats/${chatId}`);
+            }
+        };
+
+        window.addEventListener('result-page:open', handleOpenResult);
+        window.addEventListener('navigate-to-chat', handleNavigateToChat as EventListener);
+        return () => {
+            window.removeEventListener('result-page:open', handleOpenResult);
+            window.removeEventListener('navigate-to-chat', handleNavigateToChat as EventListener);
+        };
+    }, [windowIdentity.isAuxWindow, navigate]);
+
     const configContextValue = useMemo(
         () => ({config, setConfig, refreshConfig, updateConfig}),
         [config, refreshConfig, setConfig, updateConfig]
@@ -471,10 +503,13 @@ const AppContent: React.FC = () => {
                     <Route element={<DesktopShell allowSidebar/>}>
                         <Route path="/me" element={<MePage/>}/>
                         <Route path="/actions" element={<ActionsPage/>}/>
+                        <Route path="/chats" element={<ChatsPage/>}/>
+                        <Route path="/chats/:chatId" element={<ChatViewPage/>}/>
                         <Route path="/settings" element={<SettingsPage/>}/>
                         <Route path="/history" element={<HistoryPage/>}/>
                         <Route path="/notes" element={<NotesPage/>}/>
                         <Route path="/info" element={<InfoPage/>}/>
+                        <Route path="/result" element={<ResultPage/>}/>
                     </Route>
                 </>
             ) : null}
@@ -550,7 +585,9 @@ const App: React.FC = () => {
         <AuthProvider>
             <UserProvider>
                 <IconsProvider>
-                    <AppContent/>
+                    <ResultProvider>
+                        <AppContent/>
+                    </ResultProvider>
                 </IconsProvider>
             </UserProvider>
         </AuthProvider>

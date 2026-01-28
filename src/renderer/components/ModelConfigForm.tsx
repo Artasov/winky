@@ -20,10 +20,12 @@ import {
     LLM_LOCAL_MODELS,
     LLM_MODES,
     LLM_OPENAI_API_MODELS,
+    LLM_WINKY_API_MODELS,
     SPEECH_GOOGLE_API_MODELS,
     SPEECH_LOCAL_MODELS,
     SPEECH_MODES,
-    SPEECH_OPENAI_API_MODELS
+    SPEECH_OPENAI_API_MODELS,
+    SPEECH_WINKY_API_MODELS
 } from '@shared/constants';
 import type {LLMMode, LLMModel, TranscribeMode, TranscribeModel} from '@shared/types';
 import {
@@ -31,8 +33,11 @@ import {
     isGeminiApiModel,
     isGoogleTranscribeModel,
     isOpenAiApiModel,
-    isOpenAiTranscribeModel
+    isOpenAiTranscribeModel,
+    isWinkyLLMModel,
+    isWinkyTranscribeModel
 } from '../utils/modelFormatters';
+import {useUser} from '../context/UserContext';
 import {
     checkLocalModelDownloaded,
     downloadLocalSpeechModel,
@@ -61,35 +66,41 @@ export interface ModelConfigFormData {
     globalLlmPrompt: string;
 }
 
-const resolveTranscribeOptions = (mode: TranscribeMode, openaiKey: string, googleKey: string): TranscribeModel[] => {
+const resolveTranscribeOptions = (mode: TranscribeMode, openaiKey: string, googleKey: string, isAuthenticated: boolean): TranscribeModel[] => {
     if (mode === SPEECH_MODES.API) {
         const options: string[] = [];
-        // Р”РѕР±Р°РІР»СЏРµРј OpenAI РјРѕРґРµР»Рё С‚РѕР»СЊРєРѕ РµСЃР»Рё РµСЃС‚СЊ РєР»СЋС‡
+        // Winky модели первыми (если авторизован)
+        if (isAuthenticated) {
+            options.push(...SPEECH_WINKY_API_MODELS);
+        }
+        // OpenAI модели только если есть ключ
         if (openaiKey.trim().length > 0) {
             options.push(...SPEECH_OPENAI_API_MODELS);
         }
-        // Р”РѕР±Р°РІР»СЏРµРј Google РјРѕРґРµР»Рё С‚РѕР»СЊРєРѕ РµСЃР»Рё РµСЃС‚СЊ РєР»СЋС‡
+        // Google модели только если есть ключ
         if (googleKey.trim().length > 0) {
             options.push(...SPEECH_GOOGLE_API_MODELS);
         }
-        // Р•СЃР»Рё РЅРµС‚ РєР»СЋС‡РµР№ - РІРѕР·РІСЂР°С‰Р°РµРј РїСѓСЃС‚РѕР№ РјР°СЃСЃРёРІ (РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РґРѕР»Р¶РµРЅ РІС‹Р±СЂР°С‚СЊ Local РёР»Рё РґРѕР±Р°РІРёС‚СЊ РєР»СЋС‡)
         return options as TranscribeModel[];
     }
     return [...SPEECH_LOCAL_MODELS] as TranscribeModel[];
 };
 
-const resolveLlmOptions = (mode: LLMMode, openaiKey: string, googleKey: string): LLMModel[] => {
+const resolveLlmOptions = (mode: LLMMode, openaiKey: string, googleKey: string, isAuthenticated: boolean): LLMModel[] => {
     if (mode === LLM_MODES.API) {
         const options: string[] = [];
-        // Р”РѕР±Р°РІР»СЏРµРј OpenAI РјРѕРґРµР»Рё С‚РѕР»СЊРєРѕ РµСЃР»Рё РµСЃС‚СЊ РєР»СЋС‡
+        // Winky модели первыми (если авторизован)
+        if (isAuthenticated) {
+            options.push(...LLM_WINKY_API_MODELS);
+        }
+        // OpenAI модели только если есть ключ
         if (openaiKey.trim().length > 0) {
             options.push(...LLM_OPENAI_API_MODELS);
         }
-        // Р”РѕР±Р°РІР»СЏРµРј Google РјРѕРґРµР»Рё С‚РѕР»СЊРєРѕ РµСЃР»Рё РµСЃС‚СЊ РєР»СЋС‡
+        // Google модели только если есть ключ
         if (googleKey.trim().length > 0) {
             options.push(...LLM_GEMINI_API_MODELS);
         }
-        // Р•СЃР»Рё РЅРµС‚ РєР»СЋС‡РµР№ - РІРѕР·РІСЂР°С‰Р°РµРј РїСѓСЃС‚РѕР№ РјР°СЃСЃРёРІ (РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РґРѕР»Р¶РµРЅ РІС‹Р±СЂР°С‚СЊ Local РёР»Рё РґРѕР±Р°РІРёС‚СЊ РєР»СЋС‡)
         return options as LLMModel[];
     }
     return [...LLM_LOCAL_MODELS] as LLMModel[];
@@ -147,6 +158,8 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                                              onSubmit,
                                                              submitButtonText = 'Save'
                                                          }) => {
+    const {user} = useUser();
+    const isAuthenticated = Boolean(user);
     const shouldAutoSave = autoSave && typeof onAutoSave === 'function';
     const disableInputs = saving && !shouldAutoSave;
     const [modeInfoDialog, setModeInfoDialog] = useState<ModeInfoDialogType | null>(null);
@@ -192,12 +205,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         [values.transcribeModel]
     );
     const transcribeModelOptions = useMemo<TranscribeModel[]>(
-        () => resolveTranscribeOptions(values.transcribeMode, values.openaiKey, values.googleKey),
-        [values.transcribeMode, values.openaiKey, values.googleKey]
+        () => resolveTranscribeOptions(values.transcribeMode, values.openaiKey, values.googleKey, isAuthenticated),
+        [values.transcribeMode, values.openaiKey, values.googleKey, isAuthenticated]
     );
     const llmModelOptions = useMemo<LLMModel[]>(
-        () => resolveLlmOptions(values.llmMode, values.openaiKey, values.googleKey),
-        [values.llmMode, values.openaiKey, values.googleKey]
+        () => resolveLlmOptions(values.llmMode, values.openaiKey, values.googleKey, isAuthenticated),
+        [values.llmMode, values.openaiKey, values.googleKey, isAuthenticated]
     );
     const safeLlmModel = useMemo<LLMModel>(() => {
         if (llmModelOptions.length === 0) {
@@ -506,9 +519,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const emitChange = useCallback((partial: Partial<ModelConfigFormData>) => {
         const nextValues = {...values, ...partial};
 
-        // РџРѕРґС…РІР°С‚С‹РІР°РµРј РєРѕСЂСЂРµРєС‚РЅСѓСЋ РјРѕРґРµР»СЊ СЃСЂР°Р·Сѓ РїСЂРё СЃРјРµРЅРµ СЂРµР¶РёРјР°, С‡С‚РѕР±С‹ Select РЅРµ РјРёРіР°Р» РїСѓСЃС‚С‹Рј Р·РЅР°С‡РµРЅРёРµРј.
+        // Подхватываем корректную модель сразу при смене режима, чтобы Select не мигал пустым значением.
         if (partial.transcribeMode && partial.transcribeModel === undefined) {
-            const options = resolveTranscribeOptions(partial.transcribeMode, partial.openaiKey ?? values.openaiKey, partial.googleKey ?? values.googleKey);
+            const options = resolveTranscribeOptions(partial.transcribeMode, partial.openaiKey ?? values.openaiKey, partial.googleKey ?? values.googleKey, isAuthenticated);
             const currentModel = nextValues.transcribeModel;
             const rememberedModel = transcribeSelectionByModeRef.current[partial.transcribeMode];
             const resolvedModel =
@@ -520,7 +533,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         }
 
         if (partial.llmMode && partial.llmModel === undefined) {
-            const options = resolveLlmOptions(partial.llmMode, partial.openaiKey ?? values.openaiKey, partial.googleKey ?? values.googleKey);
+            const options = resolveLlmOptions(partial.llmMode, partial.openaiKey ?? values.openaiKey, partial.googleKey ?? values.googleKey, isAuthenticated);
             const currentModel = nextValues.llmModel;
             const rememberedModel = llmSelectionByModeRef.current[partial.llmMode];
             const resolvedModel =
@@ -533,12 +546,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
 
         onChange(nextValues);
 
-        // Р”Р»СЏ РїСЂРѕРјРїС‚РѕРІ РЅРµ РІС‹Р·С‹РІР°РµРј Р°РІС‚РѕСЃРѕС…СЂР°РЅРµРЅРёРµ СЃСЂР°Р·Сѓ - РѕРЅРѕ Р±СѓРґРµС‚ С‡РµСЂРµР· РґРµР±Р°СѓРЅСЃ
+        // Для промптов не вызываем автосохранение сразу - оно будет через дебаунс
         const isPromptChange = 'globalTranscribePrompt' in partial || 'globalLlmPrompt' in partial;
         if (shouldAutoSave && onAutoSave && !isPromptChange) {
             void onAutoSave(nextValues);
         }
-    }, [values, onChange, shouldAutoSave, onAutoSave]);
+    }, [values, onChange, shouldAutoSave, onAutoSave, isAuthenticated]);
 
     useEffect(() => {
         if (values.transcribeMode !== SPEECH_MODES.LOCAL) {
@@ -642,12 +655,16 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     if (requiresOpenAIKeyForLLM) {
         openaiKeyReasons.push('OpenAI GPT models');
     }
+    const isWinkyLlmSelected = isWinkyLLMModel(safeLlmModel);
+    const isWinkyTranscribeSelected = isWinkyTranscribeModel(values.transcribeModel);
     const shouldShowOpenAIField =
         values.llmMode === LLM_MODES.API ||
         values.transcribeMode === SPEECH_MODES.API ||
         values.openaiKey.trim().length > 0;
+    // Не показываем секцию ключей если используются только Winky модели или Local режим
     const shouldShowApiKeysSection =
-        values.transcribeMode !== SPEECH_MODES.LOCAL || values.llmMode !== LLM_MODES.LOCAL;
+        (values.transcribeMode !== SPEECH_MODES.LOCAL || values.llmMode !== LLM_MODES.LOCAL) &&
+        !(isWinkyLlmSelected && isWinkyTranscribeSelected);
     const isLocalLLMMode = values.llmMode === LLM_MODES.LOCAL;
     const checkingMessage = selectedLocalModelDescription
         ? `Checking if ${selectedLocalModelDescription} is availableвЂ¦`

@@ -535,7 +535,6 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
     }, [isRecording]);
 
     useEffect(() => {
-        console.log('[speech-recording] isRecording changed', {isRecording});
         setRecordingInteractive(isRecording);
     }, [isRecording]);
 

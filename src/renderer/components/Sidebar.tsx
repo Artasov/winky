@@ -6,11 +6,14 @@ import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
 import {useThemeMode} from '../context/ThemeModeContext';
 import BubbleChartRoundedIcon from '@mui/icons-material/BubbleChartRounded';
+import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
 import BookmarkBorderRoundedIcon from '@mui/icons-material/BookmarkBorderRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
+import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
+import {useResult} from '../context/ResultContext';
 
 interface NavItem {
     id: string;
@@ -21,6 +24,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
     {id: 'actions', label: 'Actions', Icon: BubbleChartRoundedIcon, path: '/actions'},
+    {id: 'chats', label: 'Chats', Icon: ChatRoundedIcon, path: '/chats'},
     {id: 'history', label: 'History', Icon: MenuBookRoundedIcon, path: '/history'},
     {id: 'notes', label: 'Notes', Icon: BookmarkBorderRoundedIcon, path: '/notes'}
 ];
@@ -42,7 +46,17 @@ const Sidebar: React.FC = () => {
     const {config} = useConfig();
     const {user} = useUser();
     const {isDark} = useThemeMode();
+    const {isActive: hasResult} = useResult();
     const showAvatarVideo = config?.showAvatarVideo !== false && !isDark;
+
+    // Динамически добавляем Result если есть данные
+    const dynamicNavItems = React.useMemo(() => {
+        const items = [...navItems];
+        if (hasResult) {
+            items.push({id: 'result', label: 'Result', Icon: AutoAwesomeRoundedIcon, path: '/result'});
+        }
+        return items;
+    }, [hasResult]);
 
     const handleNavigation = (path: string) => {
         navigate(path);
@@ -243,8 +257,9 @@ const Sidebar: React.FC = () => {
                 : 'border-primary-200/60 bg-white/95 backdrop-blur shadow-sm'
         }`}>
             <nav className="flex flex-1 flex-col gap-1 px-3 mt-4">
-                {navItems.map((item) => {
-                    const isActive = location.pathname === item.path;
+                {dynamicNavItems.map((item) => {
+                    // Для /chats также активен при /chats/:chatId
+                    const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
                     return (
                         <button
                             key={item.id}

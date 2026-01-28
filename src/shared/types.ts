@@ -3,18 +3,24 @@ import {
     LLM_LOCAL_MODELS,
     LLM_MODES,
     LLM_OPENAI_API_MODELS,
+    LLM_WINKY_API_MODELS,
     SPEECH_API_MODELS,
     SPEECH_LOCAL_MODELS,
-    SPEECH_MODES
+    SPEECH_MODES,
+    SPEECH_WINKY_API_MODELS
 } from './constants';
 
 export type TranscribeMode = (typeof SPEECH_MODES)[keyof typeof SPEECH_MODES];
 export type LLMMode = (typeof LLM_MODES)[keyof typeof LLM_MODES];
 export type LLMModel =
+    | (typeof LLM_WINKY_API_MODELS)[number]
     | (typeof LLM_OPENAI_API_MODELS)[number]
     | (typeof LLM_GEMINI_API_MODELS)[number]
     | (typeof LLM_LOCAL_MODELS)[number];
-export type TranscribeModel = (typeof SPEECH_API_MODELS)[number] | (typeof SPEECH_LOCAL_MODELS)[number];
+export type TranscribeModel =
+    | (typeof SPEECH_WINKY_API_MODELS)[number]
+    | (typeof SPEECH_API_MODELS)[number]
+    | (typeof SPEECH_LOCAL_MODELS)[number];
 
 export interface AuthTokens {
     access: string;
@@ -205,4 +211,40 @@ export interface FastWhisperStatus {
     logLine?: string;
     installDir?: string;
     updatedAt: number;
+}
+
+export interface WinkyChat {
+    id: string;
+    title: string;
+    additional_context: string;
+    message_count: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface WinkyChatMessage {
+    id: string;
+    parent_id: string | null;
+    role: 'user' | 'assistant';
+    content: string;
+    model_level: 'low' | 'high' | 'transcribe';
+    tokens: number;
+    has_children: boolean;
+    created_at: string;
+}
+
+export interface WinkyChatsPaginated {
+    items: WinkyChat[];
+    total: number;
+    page: number;
+    page_size: number;
+    pages: number;
+}
+
+export interface WinkyChatMessagesPaginated {
+    items: WinkyChatMessage[];
+    total: number;
+    page: number;
+    page_size: number;
+    pages: number;
 }

@@ -1,8 +1,17 @@
 import {useCallback, type RefObject} from 'react';
 import type {ActionConfig, AppConfig} from '@shared/types';
+import {LLM_WINKY_API_MODELS, SPEECH_WINKY_API_MODELS} from '@shared/constants';
 import {createNoteForMode, deriveNoteTitle, resolveNotesStorageMode} from '../../../services/notesService';
-import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, resultBridge, speechBridge} from '../../../services/winkyBridge';
+import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, speechBridge} from '../../../services/winkyBridge';
+import {resultPageBridge} from '../../../services/resultPageBridge';
 import {trimSilenceFromAudioBlob, isAudioSilent} from '../services/audioProcessing';
+import {winkyTranscribe, winkyLLMStream} from '../../../services/winkyAiApi';
+
+const WINKY_LLM_MODELS_SET = new Set<string>([...LLM_WINKY_API_MODELS]);
+const WINKY_SPEECH_MODELS_SET = new Set<string>([...SPEECH_WINKY_API_MODELS]);
+
+const isWinkyLLMModel = (model: string): boolean => WINKY_LLM_MODELS_SET.has(model);
+const isWinkySpeechModel = (model: string): boolean => WINKY_SPEECH_MODELS_SET.has(model);
 
 type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
 
@@ -253,35 +262,33 @@ export const useActionProcessing = ({
                         }, TRANSCRIBE_SLOW_LOG_MS)
                         : null;
 
-                console.log('[useActionProcessing] Starting transcription request', {
-                    mode: config.speech.mode,
-                    model: config.speech.model,
-                    audioSizeKB: (audioData.byteLength / 1024).toFixed(2)
-                });
-
-                transcription = await speechBridge.transcribe(audioData, {
-                    mode: config.speech.mode,
-                    model: config.speech.model,
-                    openaiKey: config.apiKeys.openai,
-                    googleKey: config.apiKeys.google,
-                    accessToken: authToken,
-                    prompt: transcriptionPrompt
-                }, {
-                    signal: abortController?.signal,
-                    uiTimeoutMs: TRANSCRIBE_UI_TIMEOUT_MS,
-                    mimeType
-                });
+                // Winky модели используют собственный API для транскрибации
+                if (isWinkySpeechModel(config.speech.model) && authToken) {
+                    try {
+                        const result = await winkyTranscribe(audioData, authToken, {mimeType});
+                        transcription = result.text;
+                    } catch (error: any) {
+                        if (error?.response?.status === 402) {
+                            throw error;
+                        }
+                        throw error;
+                    }
+                } else {
+                    transcription = await speechBridge.transcribe(audioData, {
+                        mode: config.speech.mode,
+                        model: config.speech.model,
+                        openaiKey: config.apiKeys.openai,
+                        googleKey: config.apiKeys.google,
+                        accessToken: authToken,
+                        prompt: transcriptionPrompt
+                    }, {
+                        signal: abortController?.signal,
+                        uiTimeoutMs: TRANSCRIBE_UI_TIMEOUT_MS,
+                        mimeType
+                    });
+                }
 
                 clearSlowLogTimer();
-
-                const elapsedMs = Date.now() - startTime;
-                console.log('[useActionProcessing] Transcription completed', {
-                    elapsedMs,
-                    hasResult: !!transcription,
-                    resultLength: transcription?.length ?? 0
-                });
-            } else {
-                console.log('[useActionProcessing] Skipping transcription, using context only');
             }
 
             const transcriptionText = transcription?.trim() ?? '';
@@ -323,10 +330,79 @@ export const useActionProcessing = ({
             }
 
             const needsLLM = Boolean(action.prompt && action.prompt.trim());
+            const llmModel = action.llm_model?.trim() || config.llm.model;
+            const useWinkyLLM = isWinkyLLMModel(llmModel) && authToken;
 
+            // Для Winky LLM моделей - используем чаты
+            if (needsLLM && useWinkyLLM) {
+                const actionLlmPrompt = action.prompt?.trim() || '';
+                const globalLlmPrompt = config.globalLlmPrompt?.trim() || '';
+                const llmPrompt = [globalLlmPrompt, actionLlmPrompt]
+                    .filter(p => p.length > 0)
+                    .join('\n\n')
+                    .trim();
+
+                const fullPrompt = llmPrompt ? `${llmPrompt}\n\n${llmInput}` : llmInput;
+                const modelLevel = llmModel === 'winky-high' ? 'high' : 'low';
+
+                let streamedResponse = '';
+
+                try {
+                    const result = await winkyLLMStream(
+                        {
+                            prompt: fullPrompt,
+                            model_level: modelLevel
+                        },
+                        authToken,
+                        (chunk) => {
+                            streamedResponse += chunk;
+                        }
+                    );
+
+                    const finalResponse = result.content;
+
+                    if (action.auto_copy_result) {
+                        await copyWithRetries({
+                            text: finalResponse,
+                            showToast,
+                            successMessage: 'Response copied.',
+                            failureMessage: 'Failed to copy the response to the clipboard.'
+                        });
+                    }
+
+                    await recordHistory({
+                        action_id: action.id,
+                        action_name: action.name,
+                        action_prompt: action.prompt?.trim() || null,
+                        transcription: transcriptionForOutput,
+                        llm_response: finalResponse,
+                        result_text: finalResponse,
+                        audio_path: await ensureAudioSaved()
+                    });
+                    await saveQuickNote(finalResponse);
+                    clearContext();
+
+                    // Переходим в чат если show_results
+                    if (action.show_results && result.chat_id) {
+                        window.winky?.main?.show?.();
+                        window.dispatchEvent(new CustomEvent('navigate-to-chat', {detail: {chatId: result.chat_id}}));
+                    }
+
+                    await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef, debug: true});
+                } catch (error: any) {
+                    if (error?.response?.status === 402) {
+                        throw error;
+                    }
+                    throw error;
+                }
+
+                return;
+            }
+
+            // Для OpenAI/Google моделей - используем Result Page
             if (action.show_results) {
-                await resultBridge.open();
-                await resultBridge.update({
+                resultPageBridge.open();
+                resultPageBridge.update({
                     transcription: llmInput,
                     llmResponse: needsLLM ? '' : llmInput,
                     isStreaming: needsLLM
@@ -358,7 +434,6 @@ export const useActionProcessing = ({
                 return;
             }
 
-            const llmModel = action.llm_model?.trim() || config.llm.model;
             const llmConfig = {
                 mode: config.llm.mode,
                 model: llmModel,
@@ -371,7 +446,7 @@ export const useActionProcessing = ({
             const onChunk = action.show_results
                 ? (chunk: string) => {
                     streamedResponse += chunk;
-                    void resultBridge.update({llmResponse: streamedResponse, isStreaming: true});
+                    resultPageBridge.update({llmResponse: streamedResponse, isStreaming: true});
                 }
                 : undefined;
 
@@ -393,7 +468,7 @@ export const useActionProcessing = ({
             const finalResponse = response?.trim().length ? response : streamedResponse;
 
             if (action.show_results) {
-                await resultBridge.update({llmResponse: finalResponse, isStreaming: false});
+                resultPageBridge.update({llmResponse: finalResponse, isStreaming: false});
             }
 
             if (action.auto_copy_result) {
@@ -422,6 +497,13 @@ export const useActionProcessing = ({
             console.error(error);
 
             let errorMessage = 'An error occurred while processing the action.';
+
+            // Обработка ошибки 402 - недостаточно кредитов
+            if (error?.response?.status === 402) {
+                errorMessage = 'Not enough credits. Top up your balance at xlartas.com/billing';
+                showToast(errorMessage, 'error');
+                return;
+            }
 
             if (error?.response?.status === 401) {
                 const errorData = error?.response?.data?.error;

@@ -1,8 +1,10 @@
 import {
     LLM_GEMINI_API_MODELS,
     LLM_OPENAI_API_MODELS,
+    LLM_WINKY_API_MODELS,
     SPEECH_GOOGLE_API_MODELS,
-    SPEECH_OPENAI_API_MODELS
+    SPEECH_OPENAI_API_MODELS,
+    SPEECH_WINKY_API_MODELS
 } from '@shared/constants';
 import type {LLMModel, TranscribeModel} from '@shared/types';
 import {normalizeOllamaModelName} from '../services/ollama';
@@ -10,8 +12,10 @@ import {getLocalSpeechModelMetadata} from '../services/localSpeechModels';
 
 const OPENAI_API_MODEL_SET = new Set<string>([...LLM_OPENAI_API_MODELS]);
 const GEMINI_API_MODEL_SET = new Set<string>([...LLM_GEMINI_API_MODELS]);
+const WINKY_LLM_MODEL_SET = new Set<string>([...LLM_WINKY_API_MODELS]);
 const OPENAI_TRANSCRIBE_MODEL_SET = new Set<string>([...SPEECH_OPENAI_API_MODELS]);
 const GOOGLE_TRANSCRIBE_MODEL_SET = new Set<string>([...SPEECH_GOOGLE_API_MODELS]);
+const WINKY_TRANSCRIBE_MODEL_SET = new Set<string>([...SPEECH_WINKY_API_MODELS]);
 
 const LOCAL_LLM_SIZE_HINTS: Record<string, string> = {
     'gpt-oss:120b': '≈90 GB',
@@ -29,8 +33,10 @@ const LOCAL_LLM_SIZE_HINTS: Record<string, string> = {
 
 export const isGeminiApiModel = (model: LLMModel): boolean => GEMINI_API_MODEL_SET.has(model as string);
 export const isOpenAiApiModel = (model: LLMModel): boolean => OPENAI_API_MODEL_SET.has(model as string);
+export const isWinkyLLMModel = (model: LLMModel): boolean => WINKY_LLM_MODEL_SET.has(model as string);
 export const isOpenAiTranscribeModel = (model: TranscribeModel): boolean => OPENAI_TRANSCRIBE_MODEL_SET.has(model as string);
 export const isGoogleTranscribeModel = (model: TranscribeModel): boolean => GOOGLE_TRANSCRIBE_MODEL_SET.has(model as string);
+export const isWinkyTranscribeModel = (model: TranscribeModel): boolean => WINKY_TRANSCRIBE_MODEL_SET.has(model as string);
 
 export const formatLabel = (value: string): string =>
     value
@@ -42,6 +48,11 @@ export const formatLabel = (value: string): string =>
         .join(' ');
 
 export const formatLLMLabel = (value: string): string => {
+    if (isWinkyLLMModel(value as LLMModel)) {
+        // winky-high -> Winky High (без дублирования префикса)
+        const level = value.replace('winky-', '');
+        return `Winky ${level.charAt(0).toUpperCase() + level.slice(1)}`;
+    }
     const base = formatLabel(value);
     if (isGeminiApiModel(value as LLMModel)) {
         return `Google ${base}`;
@@ -61,6 +72,11 @@ export const formatTranscribeLabel = (value: string): string => {
     const localMeta = getLocalSpeechModelMetadata(value);
     if (localMeta) {
         return `${localMeta.label} · ${localMeta.size}`;
+    }
+    if (isWinkyTranscribeModel(value as TranscribeModel)) {
+        // winky-transcribe -> Winky Transcribe (без дублирования префикса)
+        const suffix = value.replace('winky-', '');
+        return `Winky ${suffix.charAt(0).toUpperCase() + suffix.slice(1)}`;
     }
     const base = formatLabel(value);
     if (isGoogleTranscribeModel(value as TranscribeModel)) {

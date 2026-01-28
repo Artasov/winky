@@ -252,19 +252,6 @@ export const isAudioSilent = async (blob: Blob): Promise<boolean> => {
         const hasLoudPeaks = maxRms >= MAX_RMS_THRESHOLD;
 
         const isSilent = isSilentByAverage && isSilentByLoudWindows && !hasLoudPeaks;
-
-        console.log('[audioProcessing] isAudioSilent check:', {
-            maxRms: maxRms.toFixed(4),
-            avgRms: avgRms.toFixed(4),
-            avgRmsThreshold: AVG_RMS_THRESHOLD,
-            maxRmsThreshold: MAX_RMS_THRESHOLD,
-            loudWindowsPercent: loudWindowsPercent.toFixed(1) + '%',
-            loudWindowsThreshold: LOUD_WINDOWS_PERCENT_THRESHOLD + '%',
-            isSilentByAverage,
-            isSilentByLoudWindows,
-            hasLoudPeaks,
-            isSilent
-        });
         return isSilent;
     } catch (error) {
         console.warn('[audioProcessing] Failed to check if audio is silent', error);
@@ -339,23 +326,7 @@ export const trimSilenceFromAudioBlob = async (
         // Тишина только если средний низкий И мало громких окон И нет явных пиков речи
         const isSilent = isSilentByAverage && isSilentByLoudWindows && !hasLoudPeaks;
 
-        console.log('[audioProcessing] Audio analysis:', {
-            maxRms: maxRms.toFixed(4),
-            avgRms: avgRms.toFixed(4),
-            avgRmsThreshold: AVG_RMS_THRESHOLD,
-            maxRmsThreshold: MAX_RMS_THRESHOLD,
-            loudWindowsPercent: loudWindowsPercent.toFixed(1) + '%',
-            loudWindowsThreshold: LOUD_WINDOWS_PERCENT_THRESHOLD + '%',
-            totalWindows: windowCount,
-            loudWindows: loudWindows,
-            isSilentByAverage,
-            isSilentByLoudWindows,
-            hasLoudPeaks,
-            isSilent
-        });
-
         if (isSilent) {
-            console.warn('[audioProcessing] Audio is silent (below thresholds)');
             const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
             return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
         }
@@ -365,21 +336,18 @@ export const trimSilenceFromAudioBlob = async (
         const segments = findTrimSegments(decoded, threshold, paddingMs, minSegmentMs);
 
         if (segments.length === 0) {
-            console.log('[audioProcessing] No speech segments found after trimming');
             const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
             return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
         }
 
         const combined = concatAudioSegments(decoded, segments);
         if (!combined) {
-            console.log('[audioProcessing] Failed to concat audio segments');
             const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
             return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
         }
 
         const trimmedDurationMs = (combined.length / combined.sampleRate) * 1000;
         if (trimmedDurationMs < minDurationMs) {
-            console.log('[audioProcessing] Trimmed duration too short:', trimmedDurationMs, 'ms');
             const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
             return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
         }

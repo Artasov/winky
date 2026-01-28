@@ -1,5 +1,6 @@
 export const APP_NAME = 'Winky';
 export const SITE_BASE_URL = 'https://xlartas.com';
+export const WS_BASE_URL = 'wss://xlartas.com';
 export const API_BASE_URL = `${SITE_BASE_URL}/api/v1`;
 export const AUTH_ENDPOINT = `${API_BASE_URL}/auth/login/`;
 export const AUTH_REFRESH_ENDPOINT = `${API_BASE_URL}/auth/refresh/`;
@@ -46,7 +47,10 @@ export const LLM_GEMINI_API_MODELS = [
     'gemini-1.0-pro'
 ] as const;
 
+export const LLM_WINKY_API_MODELS = ['winky-high', 'winky-low'] as const;
+
 export const LLM_API_MODELS = [
+    ...LLM_WINKY_API_MODELS,
     ...LLM_OPENAI_API_MODELS,
     ...LLM_GEMINI_API_MODELS
 ] as const;
@@ -81,7 +85,10 @@ export const SPEECH_GOOGLE_API_MODELS = [
     'gemini-2.0-flash'   // Flash модель, поддерживает аудио
 ] as const;
 
+export const SPEECH_WINKY_API_MODELS = ['winky-transcribe'] as const;
+
 export const SPEECH_API_MODELS = [
+    ...SPEECH_WINKY_API_MODELS,
     ...SPEECH_OPENAI_API_MODELS,
     ...SPEECH_GOOGLE_API_MODELS
 ] as const;

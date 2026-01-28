@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from '@mui/material';
+import {alpha, useTheme} from '@mui/material/styles';
 import type {ActionHistoryEntry} from '@shared/types';
 import GlassTooltip from '../components/GlassTooltip';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -144,6 +145,10 @@ const SHIFT_COOLDOWN_MS = 200;
 
 const HistoryPage: React.FC = () => {
     const {showToast} = useToast();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const darkSurface = alpha('#6f6f6f', 0.12);
+    const darkSurfaceSoft = alpha('#6f6f6f', 0.1);
     const [entries, setEntries] = useState<ActionHistoryEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [clearing, setClearing] = useState(false);
@@ -693,15 +698,22 @@ const HistoryPage: React.FC = () => {
                         <h1 className="text-3xl font-semibold text-text-primary">History</h1>
                         <div className="frsc flex-wrap gap-3">
                             <div
-                                className="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary shadow-primary-sm">
+                                className="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary shadow-primary-sm"
+                                style={isDark ? {
+                                    backgroundColor: darkSurfaceSoft,
+                                    border: `1px solid ${darkSurface}`,
+                                    color: theme.palette.text.primary
+                                } : undefined}
+                            >
                                 {entries.length} entries
                             </div>
                             <GlassTooltip
                                 content="History is stored only on this device. Uninstalling the app removes it. You can also clear it here.">
                                 <button
                                     type="button"
-                                    className="frcc h-7 w-7 rounded-xl border border-primary-200 bg-white text-text-secondary shadow-primary-sm transition-[background-color,border-color,color] duration-base hover:border-primary hover:bg-primary-50 hover:text-primary"
+                                    className="frcc h-7 w-7 rounded-xl border border-primary-200 bg-bg-elevated text-text-secondary shadow-primary-sm transition-[background-color,border-color,color] duration-base hover:border-primary hover:bg-primary-50 hover:text-primary"
                                     aria-label="History storage info"
+                                    style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurfaceSoft} : undefined}
                                 >
                                     <svg
                                         className="h-4 w-4"
@@ -743,7 +755,9 @@ const HistoryPage: React.FC = () => {
             ) : entries.length === 0 ? (
                 <div className="flex flex-1 items-center justify-center">
                     <div
-                        className="max-w-lg rounded-2xl border border-dashed border-primary-200 bg-bg-secondary p-8 text-center">
+                        className="max-w-lg rounded-2xl border border-dashed border-primary-200 bg-bg-secondary p-8 text-center"
+                        style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
+                    >
                         <h2 className="text-lg font-semibold text-text-primary">No history yet</h2>
                         <p className="mt-2 text-sm text-text-secondary">
                             Run an action from the microphone overlay to see it here.
@@ -774,8 +788,13 @@ const HistoryPage: React.FC = () => {
                                 role="button"
                                 tabIndex={0}
                                 aria-expanded={isOpen}
-                                className="cursor-pointer rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-4 animate-fade-in-up max-w-full w-full box-border min-w-0 overflow-hidden"
-                                style={{maxWidth: '100%'}}
+                                className="cursor-pointer rounded-2xl border border-primary-200 bg-bg-elevated shadow-primary-sm p-4 animate-fade-in-up max-w-full w-full box-border min-w-0 overflow-hidden"
+                                style={{
+                                    maxWidth: '100%',
+                                    borderColor: isDark ? darkSurface : undefined,
+                                    backgroundColor: isDark ? darkSurface : undefined,
+                                    boxShadow: isDark ? 'none' : undefined
+                                }}
                             >
                                 <div className="frb flex-wrap gap-1 w-full min-w-0">
                                     <div className="fc gap-1 w-full min-w-0">
@@ -785,7 +804,13 @@ const HistoryPage: React.FC = () => {
                                                     {entry.action_name}
                                                 </h2>
                                                 <span
-                                                    className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary shrink-0">
+                                                    className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary shrink-0"
+                                                    style={isDark ? {
+                                                        backgroundColor: darkSurfaceSoft,
+                                                        border: `1px solid ${darkSurface}`,
+                                                        color: theme.palette.text.primary
+                                                    } : undefined}
+                                                >
                                                     Action
                                                 </span>
                                             </div>
@@ -826,9 +851,12 @@ const HistoryPage: React.FC = () => {
                                     className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'mt-3 max-h-[900px] opacity-100' : 'max-h-0 opacity-0'}`}
                                 >
                                     <div className="flex flex-col gap-2">
-                                        <div className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3">
+                                        <div
+                                            className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
+                                            style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
+                                        >
                                             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
-                                                Transcription
+                                                Request
                                             </p>
                                             <div
                                                 className="mt-2 max-h-[400px] overflow-auto whitespace-pre-wrap break-words break-all text-sm text-text-primary history-scrollbar">
@@ -836,9 +864,12 @@ const HistoryPage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        <div className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3">
+                                        <div
+                                            className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
+                                            style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
+                                        >
                                             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
-                                                LLM response
+                                                Response
                                             </p>
                                             <div
                                                 className="mt-2 max-h-[400px] overflow-auto whitespace-pre-wrap break-words break-all text-sm text-text-primary history-scrollbar">
@@ -850,6 +881,7 @@ const HistoryPage: React.FC = () => {
                                             <div
                                                 className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
                                                 onClick={(event) => event.stopPropagation()}
+                                                style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
                                             >
                                                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
                                                     Audio

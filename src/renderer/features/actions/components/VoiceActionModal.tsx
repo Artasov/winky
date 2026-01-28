@@ -220,7 +220,7 @@ const VoiceActionModal: React.FC<VoiceActionModalProps> = ({
                                 'flex items-center justify-center rounded-full shadow-xl outline-none',
                                 isRecording
                                     ? 'bg-rose-600 hover:bg-rose-500'
-                                    : 'bg-white',
+                                    : 'bg-bg-elevated',
                                 isProcessing && 'opacity-60 cursor-not-allowed',
                                 !isProcessing && 'cursor-pointer'
                             )}
@@ -235,7 +235,7 @@ const VoiceActionModal: React.FC<VoiceActionModalProps> = ({
                             <svg
                                 viewBox="0 0 24 24"
                                 className={classNames(
-                                    'absolute h-10 w-10 fill-current pointer-events-none text-black transition-opacity duration-300',
+                                    'absolute h-10 w-10 fill-current pointer-events-none text-text-primary transition-opacity duration-300',
                                     isRecording ? 'opacity-0' : 'opacity-100'
                                 )}
                             >

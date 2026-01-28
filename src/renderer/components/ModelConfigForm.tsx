@@ -1,4 +1,4 @@
-import React, {forwardRef, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+﻿import React, {forwardRef, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
     Box,
     Button,
@@ -14,6 +14,7 @@ import {
     TextField,
     Typography
 } from '@mui/material';
+import {alpha} from '@mui/material/styles';
 import {
     LLM_GEMINI_API_MODELS,
     LLM_LOCAL_MODELS,
@@ -63,15 +64,15 @@ export interface ModelConfigFormData {
 const resolveTranscribeOptions = (mode: TranscribeMode, openaiKey: string, googleKey: string): TranscribeModel[] => {
     if (mode === SPEECH_MODES.API) {
         const options: string[] = [];
-        // Добавляем OpenAI модели только если есть ключ
+        // Р”РѕР±Р°РІР»СЏРµРј OpenAI РјРѕРґРµР»Рё С‚РѕР»СЊРєРѕ РµСЃР»Рё РµСЃС‚СЊ РєР»СЋС‡
         if (openaiKey.trim().length > 0) {
             options.push(...SPEECH_OPENAI_API_MODELS);
         }
-        // Добавляем Google модели только если есть ключ
+        // Р”РѕР±Р°РІР»СЏРµРј Google РјРѕРґРµР»Рё С‚РѕР»СЊРєРѕ РµСЃР»Рё РµСЃС‚СЊ РєР»СЋС‡
         if (googleKey.trim().length > 0) {
             options.push(...SPEECH_GOOGLE_API_MODELS);
         }
-        // Если нет ключей - возвращаем пустой массив (пользователь должен выбрать Local или добавить ключ)
+        // Р•СЃР»Рё РЅРµС‚ РєР»СЋС‡РµР№ - РІРѕР·РІСЂР°С‰Р°РµРј РїСѓСЃС‚РѕР№ РјР°СЃСЃРёРІ (РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РґРѕР»Р¶РµРЅ РІС‹Р±СЂР°С‚СЊ Local РёР»Рё РґРѕР±Р°РІРёС‚СЊ РєР»СЋС‡)
         return options as TranscribeModel[];
     }
     return [...SPEECH_LOCAL_MODELS] as TranscribeModel[];
@@ -80,15 +81,15 @@ const resolveTranscribeOptions = (mode: TranscribeMode, openaiKey: string, googl
 const resolveLlmOptions = (mode: LLMMode, openaiKey: string, googleKey: string): LLMModel[] => {
     if (mode === LLM_MODES.API) {
         const options: string[] = [];
-        // Добавляем OpenAI модели только если есть ключ
+        // Р”РѕР±Р°РІР»СЏРµРј OpenAI РјРѕРґРµР»Рё С‚РѕР»СЊРєРѕ РµСЃР»Рё РµСЃС‚СЊ РєР»СЋС‡
         if (openaiKey.trim().length > 0) {
             options.push(...LLM_OPENAI_API_MODELS);
         }
-        // Добавляем Google модели только если есть ключ
+        // Р”РѕР±Р°РІР»СЏРµРј Google РјРѕРґРµР»Рё С‚РѕР»СЊРєРѕ РµСЃР»Рё РµСЃС‚СЊ РєР»СЋС‡
         if (googleKey.trim().length > 0) {
             options.push(...LLM_GEMINI_API_MODELS);
         }
-        // Если нет ключей - возвращаем пустой массив (пользователь должен выбрать Local или добавить ключ)
+        // Р•СЃР»Рё РЅРµС‚ РєР»СЋС‡РµР№ - РІРѕР·РІСЂР°С‰Р°РµРј РїСѓСЃС‚РѕР№ РјР°СЃСЃРёРІ (РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РґРѕР»Р¶РµРЅ РІС‹Р±СЂР°С‚СЊ Local РёР»Рё РґРѕР±Р°РІРёС‚СЊ РєР»СЋС‡)
         return options as LLMModel[];
     }
     return [...LLM_LOCAL_MODELS] as LLMModel[];
@@ -102,25 +103,25 @@ const MODE_INFO_DIALOG_CONTENT: Record<ModeInfoDialogType, {
     bullets: string[]
 }> = {
     transcribe: {
-        title: 'Local Transcribe Mode',
+        title: 'Transcribe Mode',
         description:
-            'Audio is processed entirely on your machine via the bundled FastWhisper server. The server itself occupies roughly 43 MB and works offline once the model is warmed up.',
+            'Choose how your voice is converted to text. In API mode, audio is sent to cloud providers. In Local mode, everything runs on your machine via FastWhisper.',
         bullets: [
-            'Available model sizes: Tiny 75 MB, Base 141 MB, Small 463 MB, Medium 1.42 GB, Large v3 3 GB (aka Florcheva 3).',
-            'If you lack an NVIDIA GPU the engine falls back to CPU, so Medium/Large v3 models will run noticeably slower.',
-            'Best results come from using an NVIDIA GPU with the Large v3 model; warmup may temporarily block the microphone.',
-            'Everything stays offline, with no API quotas or token costs once installed.'
+            'API mode: Set your OpenAI or Google AI API key below, then select a model (Whisper, Gemini). Charges depend on the provider\'s pricing.',
+            'Local mode: Uses the bundled FastWhisper server (~43 MB). Available models: Tiny 75 MB, Base 141 MB, Small 463 MB, Medium 1.42 GB, Large v3 3 GB.',
+            'Without an NVIDIA GPU, local models fall back to CPU and run slower. Best results come from an NVIDIA GPU with Large v3.',
+            'Get API keys: OpenAI — platform.openai.com/api-keys, Google AI — aistudio.google.com/app/apikey'
         ]
     },
     llm: {
-        title: 'Local LLM Mode',
+        title: 'LLM Mode',
         description:
-            'Responses are generated through your local Ollama runtime. Winky communicates with the Ollama HTTP server, so everything stays on-device.',
+            'Choose how your voice input is processed by a large language model. In API mode, requests are sent to cloud providers. In Local mode, everything runs on your machine via Ollama.',
         bullets: [
-            'Requires Ollama to be installed and running in the background.',
-            'LLM weights are downloaded once per model and stored locally.',
-            'Without a discrete GPU (CUDA/Metal) expect inference and warmup to take significantly longer, especially on 20B+ models.',
-            'Completely offline after download — no API keys or internet connection required.'
+            'API mode: Set your OpenAI or Google AI API key below, then select a model (GPT-4o, GPT-4o-mini, Gemini 2.0 Flash, etc.). Charges depend on the provider\'s pricing.',
+            'Local mode: Install Ollama and download a model. Runs offline with no token costs, but requires a capable GPU for good performance.',
+            'The model you pick affects response quality, speed, and cost. Experiment to find the best fit for your workflow.',
+            'Get API keys: OpenAI — platform.openai.com/api-keys, Google AI — aistudio.google.com/app/apikey'
         ]
     }
 };
@@ -154,7 +155,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const [localGlobalLlmPrompt, setLocalGlobalLlmPrompt] = useState(values.globalLlmPrompt);
     const promptDebounceTimerRef = useRef<number | null>(null);
 
-    // Синхронизируем локальное состояние с props при изменении извне
+    // РЎРёРЅС…СЂРѕРЅРёР·РёСЂСѓРµРј Р»РѕРєР°Р»СЊРЅРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ СЃ props РїСЂРё РёР·РјРµРЅРµРЅРёРё РёР·РІРЅРµ
     useEffect(() => {
         setLocalGlobalTranscribePrompt(values.globalTranscribePrompt);
     }, [values.globalTranscribePrompt]);
@@ -163,7 +164,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         setLocalGlobalLlmPrompt(values.globalLlmPrompt);
     }, [values.globalLlmPrompt]);
 
-    // Очищаем таймер при размонтировании
+    // РћС‡РёС‰Р°РµРј С‚Р°Р№РјРµСЂ РїСЂРё СЂР°Р·РјРѕРЅС‚РёСЂРѕРІР°РЅРёРё
     useEffect(() => {
         return () => {
             if (promptDebounceTimerRef.current !== null) {
@@ -200,13 +201,13 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     );
     const safeLlmModel = useMemo<LLMModel>(() => {
         if (llmModelOptions.length === 0) {
-            // Если нет доступных моделей - возвращаем текущую (будет ошибка, но не сломаем UI)
+            // Р•СЃР»Рё РЅРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РјРѕРґРµР»РµР№ - РІРѕР·РІСЂР°С‰Р°РµРј С‚РµРєСѓС‰СѓСЋ (Р±СѓРґРµС‚ РѕС€РёР±РєР°, РЅРѕ РЅРµ СЃР»РѕРјР°РµРј UI)
             return values.llmModel;
         }
         if (llmModelOptions.includes(values.llmModel)) {
             return values.llmModel;
         }
-        // Автоматически переключаем на первую доступную модель
+        // РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРё РїРµСЂРµРєР»СЋС‡Р°РµРј РЅР° РїРµСЂРІСѓСЋ РґРѕСЃС‚СѓРїРЅСѓСЋ РјРѕРґРµР»СЊ
         return llmModelOptions[0];
     }, [llmModelOptions, values.llmModel]);
     const {status: localServerStatus} = useLocalSpeechStatus({
@@ -326,7 +327,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         setLocalModelError(null);
 
         const checkModel = async () => {
-            console.log(`[ModelConfigForm] Запуск проверки модели: ${normalized}`);
             setCheckingLocalModel(true);
             setLocalModelError(null);
             try {
@@ -392,10 +392,10 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         const run = async () => {
             try {
                 const result = await warmupLocalSpeechModel(normalized);
-                // Если модель была пропущена из-за занятости, сбрасываем ref чтобы 
-                // можно было попробовать снова позже (но не сразу)
+                // Р•СЃР»Рё РјРѕРґРµР»СЊ Р±С‹Р»Р° РїСЂРѕРїСѓС‰РµРЅР° РёР·-Р·Р° Р·Р°РЅСЏС‚РѕСЃС‚Рё, СЃР±СЂР°СЃС‹РІР°РµРј ref С‡С‚РѕР±С‹ 
+                // РјРѕР¶РЅРѕ Р±С‹Р»Рѕ РїРѕРїСЂРѕР±РѕРІР°С‚СЊ СЃРЅРѕРІР° РїРѕР·Р¶Рµ (РЅРѕ РЅРµ СЃСЂР°Р·Сѓ)
                 if (result.device === 'busy' && result.compute_type === 'skipped') {
-                    // Не сбрасываем сразу - подождем 5 секунд чтобы избежать спама
+                    // РќРµ СЃР±СЂР°СЃС‹РІР°РµРј СЃСЂР°Р·Сѓ - РїРѕРґРѕР¶РґРµРј 5 СЃРµРєСѓРЅРґ С‡С‚РѕР±С‹ РёР·Р±РµР¶Р°С‚СЊ СЃРїР°РјР°
                     if (!cancelled) {
                         setTimeout(() => {
                             if (warmupRequestRef.current === normalized) {
@@ -406,12 +406,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 }
             } catch (error: any) {
                 console.error('[ModelConfigForm] Failed to warmup model', error);
-                // Не показываем ошибку для 409 - это нормальная ситуация
+                // РќРµ РїРѕРєР°Р·С‹РІР°РµРј РѕС€РёР±РєСѓ РґР»СЏ 409 - СЌС‚Рѕ РЅРѕСЂРјР°Р»СЊРЅР°СЏ СЃРёС‚СѓР°С†РёСЏ
                 const status = error?.response?.status;
                 if (!cancelled && status !== 409) {
                     setLocalModelError('Failed to warm up the model. Please try again later.');
                 }
-                // Сбрасываем ref с задержкой чтобы избежать бесконечного цикла
+                // РЎР±СЂР°СЃС‹РІР°РµРј ref СЃ Р·Р°РґРµСЂР¶РєРѕР№ С‡С‚РѕР±С‹ РёР·Р±РµР¶Р°С‚СЊ Р±РµСЃРєРѕРЅРµС‡РЅРѕРіРѕ С†РёРєР»Р°
                 if (!cancelled) {
                     setTimeout(() => {
                         if (warmupRequestRef.current === normalized) {
@@ -445,7 +445,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         }
         const metadata = getLocalSpeechModelMetadata(values.transcribeModel);
         if (metadata) {
-            console.info(`[ModelConfigForm] Скачиваем ${metadata.label} (${metadata.size})…`);
         }
         setLocalModelError(null);
         setDownloadingLocalModel(true);
@@ -454,7 +453,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             const downloaded = await checkLocalModelDownloaded(values.transcribeModel, {force: true});
             setLocalModelDownloaded(downloaded);
             if (metadata) {
-                console.info(`[ModelConfigForm] ${metadata.label} (${metadata.size}) скачана.`);
             }
             try {
                 await warmupLocalSpeechModel(values.transcribeModel);
@@ -498,7 +496,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     }, [values.llmMode, safeLlmModel, ollamaDownloadingModel, refreshOllamaModels]);
 
     const selectedLocalLLMDescription = useMemo(() => {
-        // Не показываем описание если нет доступных моделей (нет ключей)
+        // РќРµ РїРѕРєР°Р·С‹РІР°РµРј РѕРїРёСЃР°РЅРёРµ РµСЃР»Рё РЅРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РјРѕРґРµР»РµР№ (РЅРµС‚ РєР»СЋС‡РµР№)
         if (values.llmMode === LLM_MODES.API && llmModelOptions.length === 0) {
             return null;
         }
@@ -508,7 +506,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const emitChange = useCallback((partial: Partial<ModelConfigFormData>) => {
         const nextValues = {...values, ...partial};
 
-        // Подхватываем корректную модель сразу при смене режима, чтобы Select не мигал пустым значением.
+        // РџРѕРґС…РІР°С‚С‹РІР°РµРј РєРѕСЂСЂРµРєС‚РЅСѓСЋ РјРѕРґРµР»СЊ СЃСЂР°Р·Сѓ РїСЂРё СЃРјРµРЅРµ СЂРµР¶РёРјР°, С‡С‚РѕР±С‹ Select РЅРµ РјРёРіР°Р» РїСѓСЃС‚С‹Рј Р·РЅР°С‡РµРЅРёРµРј.
         if (partial.transcribeMode && partial.transcribeModel === undefined) {
             const options = resolveTranscribeOptions(partial.transcribeMode, partial.openaiKey ?? values.openaiKey, partial.googleKey ?? values.googleKey);
             const currentModel = nextValues.transcribeModel;
@@ -535,7 +533,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
 
         onChange(nextValues);
 
-        // Для промптов не вызываем автосохранение сразу - оно будет через дебаунс
+        // Р”Р»СЏ РїСЂРѕРјРїС‚РѕРІ РЅРµ РІС‹Р·С‹РІР°РµРј Р°РІС‚РѕСЃРѕС…СЂР°РЅРµРЅРёРµ СЃСЂР°Р·Сѓ - РѕРЅРѕ Р±СѓРґРµС‚ С‡РµСЂРµР· РґРµР±Р°СѓРЅСЃ
         const isPromptChange = 'globalTranscribePrompt' in partial || 'globalLlmPrompt' in partial;
         if (shouldAutoSave && onAutoSave && !isPromptChange) {
             void onAutoSave(nextValues);
@@ -552,7 +550,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     }, [values.transcribeMode, values.transcribeModel, selectedLocalModelMeta, emitChange]);
 
     useEffect(() => {
-        // Не меняем модель если нет доступных опций (нет ключей) - показываем сообщение
+        // РќРµ РјРµРЅСЏРµРј РјРѕРґРµР»СЊ РµСЃР»Рё РЅРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РѕРїС†РёР№ (РЅРµС‚ РєР»СЋС‡РµР№) - РїРѕРєР°Р·С‹РІР°РµРј СЃРѕРѕР±С‰РµРЅРёРµ
         if (values.transcribeMode === SPEECH_MODES.API && transcribeModelOptions.length === 0) {
             return;
         }
@@ -562,7 +560,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     }, [transcribeModelOptions, values.transcribeModel, values.transcribeMode, emitChange]);
 
     useEffect(() => {
-        // Не меняем модель если нет доступных опций (нет ключей) - показываем сообщение
+        // РќРµ РјРµРЅСЏРµРј РјРѕРґРµР»СЊ РµСЃР»Рё РЅРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РѕРїС†РёР№ (РЅРµС‚ РєР»СЋС‡РµР№) - РїРѕРєР°Р·С‹РІР°РµРј СЃРѕРѕР±С‰РµРЅРёРµ
         if (values.llmMode === LLM_MODES.API && llmModelOptions.length === 0) {
             return;
         }
@@ -589,17 +587,17 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             disabled={disabledButton}
             sx={{
                 position: 'absolute',
-                right: 12,
+                right: 40,
                 top: '50%',
                 transform: 'translateY(-50%)',
                 borderRadius: '50%',
                 width: 28,
                 height: 28,
                 backgroundColor: 'transparent',
-                color: 'rgba(0,0,0,0.3)',
+                color: 'var(--color-text-secondary)',
                 boxShadow: 'none',
                 '&:hover': {
-                    color: 'rgba(0,0,0,1)',
+                    color: 'var(--color-text-primary)',
                     backgroundColor: 'transparent',
                     boxShadow: 'none'
                 },
@@ -607,7 +605,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                     boxShadow: 'none'
                 },
                 '&.Mui-disabled': {
-                    color: 'rgba(0,0,0,0.12)',
+                    color: 'var(--color-text-tertiary)',
                     boxShadow: 'none'
                 },
                 '&:focus-visible': {
@@ -615,7 +613,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 }
             }}
             aria-label={
-                type === 'transcribe' ? 'Local transcribe mode details' : 'Local LLM mode details'
+                type === 'transcribe' ? 'Transcribe mode details' : 'LLM mode details'
             }
         >
             <ErrorOutlineRoundedIcon fontSize="small"/>
@@ -652,33 +650,33 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         values.transcribeMode !== SPEECH_MODES.LOCAL || values.llmMode !== LLM_MODES.LOCAL;
     const isLocalLLMMode = values.llmMode === LLM_MODES.LOCAL;
     const checkingMessage = selectedLocalModelDescription
-        ? `Checking if ${selectedLocalModelDescription} is available…`
-        : 'Checking if the model is available…';
+        ? `Checking if ${selectedLocalModelDescription} is availableвЂ¦`
+        : 'Checking if the model is availableвЂ¦';
     const downloadedMessage = selectedLocalModelDescription
         ? `${selectedLocalModelDescription} is downloaded and ready to use.`
         : 'The model is downloaded and ready to use.';
     const downloadButtonLabel = selectedLocalModelDescription
         ? downloadingLocalModel
-            ? `Downloading ${selectedLocalModelDescription}…`
+            ? `Downloading ${selectedLocalModelDescription}вЂ¦`
             : `Download ${selectedLocalModelDescription}`
         : downloadingLocalModel
-            ? 'Downloading…'
+            ? 'DownloadingвЂ¦'
             : 'Download model';
     const warmupWarningMessage = selectedLocalModelDescription
         ? `${selectedLocalModelDescription} is warming up. Using the microphone is temporarily unavailable.`
         : 'The model is warming up. Using the microphone is temporarily unavailable.';
     const llmCheckingMessage = selectedLocalLLMDescription
-        ? `Checking if ${selectedLocalLLMDescription} is available…`
-        : 'Checking if the model is available…';
+        ? `Checking if ${selectedLocalLLMDescription} is availableвЂ¦`
+        : 'Checking if the model is availableвЂ¦';
     const llmDownloadedMessage = selectedLocalLLMDescription
         ? `${selectedLocalLLMDescription} is downloaded and ready to use.`
         : 'The model is downloaded and ready to use.';
     const llmDownloadButtonLabel = selectedLocalLLMDescription
         ? ollamaDownloadingModel
-            ? `Downloading ${selectedLocalLLMDescription}…`
+            ? `Downloading ${selectedLocalLLMDescription}вЂ¦`
             : `Download ${selectedLocalLLMDescription}`
         : ollamaDownloadingModel
-            ? 'Downloading…'
+            ? 'DownloadingвЂ¦'
             : 'Download model';
     const llmWarmupWarningMessage = selectedLocalLLMDescription
         ? `${selectedLocalLLMDescription} is warming up. Using the microphone is temporarily unavailable.`
@@ -690,15 +688,19 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             <Box
                 component={shouldAutoSave ? 'div' : 'form'}
                 onSubmit={shouldAutoSave ? undefined : onSubmit}
-                sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2,
-                    borderRadius: 4,
-                    border: '1px solid rgba(244,63,94,0.15)',
-                    backgroundColor: '#fff',
-                    p: {xs: 3, md: 4},
-                    boxShadow: '0 30px 60px rgba(255, 255, 255, 0.03)'
+                sx={(theme) => {
+                    const isDark = theme.palette.mode === 'dark';
+                    const darkSurface = alpha('#6f6f6f', 0.3);
+                    return {
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2,
+                        borderRadius: 4,
+                        border: isDark ? `1px solid ${darkSurface}` : '1px solid var(--color-border-light)',
+                        backgroundColor: isDark ? theme.palette.background.default : 'var(--color-bg-elevated)',
+                        p: {xs: 3, md: 4},
+                        boxShadow: isDark ? 'none' : 'var(--shadow-primary-sm)'
+                    };
                 }}
             >
                 <Stack spacing={2}>
@@ -763,7 +765,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                             sx={{display: 'flex', alignItems: 'center', gap: 1}}
                                         >
                                             <CircularProgress size={16} thickness={5} color="inherit"/>
-                                            Checking Ollama installation and model availability…
+                                            Checking Ollama installation and model availabilityвЂ¦
                                         </Typography>
                                     )}
                                     {!ollamaChecking && ollamaInstalled === false && (
@@ -905,7 +907,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 {!shouldAutoSave && onSubmit && (
                     <Box display="flex" justifyContent="flex-end" mt={2}>
                         <Button type="submit" variant="contained" size="large" disabled={saving} sx={{px: 4}}>
-                            {saving ? 'Saving…' : submitButtonText}
+                            {saving ? 'SavingвЂ¦' : submitButtonText}
                         </Button>
                     </Box>
                 )}
@@ -960,3 +962,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
 };
 
 export default ModelConfigForm;
+
+
+

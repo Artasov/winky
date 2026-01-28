@@ -1,9 +1,10 @@
-import React, {useEffect, useRef, useState} from 'react';
+﻿import React, {useEffect, useRef, useState} from 'react';
 import ReactMarkdown from 'react-markdown';
 import TitleBar from '../components/TitleBar';
 import {clipboardBridge, resultBridge} from '../services/winkyBridge';
 import {emit, listen} from '@tauri-apps/api/event';
 import {getCurrentWindow} from '@tauri-apps/api/window';
+import {alpha, useTheme} from '@mui/material/styles';
 
 const ResultWindowPage: React.FC = () => {
     const [requestText, setRequestText] = useState('');
@@ -11,6 +12,9 @@ const ResultWindowPage: React.FC = () => {
     const [isStreaming, setIsStreaming] = useState(false);
     const [copiedRequest, setCopiedRequest] = useState(false);
     const [copiedResponse, setCopiedResponse] = useState(false);
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const darkSurface = alpha('#6f6f6f', 0.3);
 
     const contentRef = useRef<HTMLDivElement>(null);
 
@@ -19,17 +23,13 @@ const ResultWindowPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        console.log('[ResultWindowPage] Initializing result window...');
         
-        // Устанавливаем подписку на данные
+        // РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РїРѕРґРїРёСЃРєСѓ РЅР° РґР°РЅРЅС‹Рµ
         const unsubscribe = resultBridge.subscribe((data) => {
-            console.log('[ResultWindowPage] Received data:', data);
             if (data.transcription !== undefined) {
-                console.log('[ResultWindowPage] Setting transcription:', data.transcription);
                 setRequestText(data.transcription);
             }
             if (data.llmResponse !== undefined) {
-                console.log('[ResultWindowPage] Setting LLM response:', data.llmResponse);
                 setLLMResponse(data.llmResponse);
             }
             if (data.isStreaming !== undefined) {
@@ -37,20 +37,18 @@ const ResultWindowPage: React.FC = () => {
             }
         });
         
-        // Функция для отправки события готовности
+        // Р¤СѓРЅРєС†РёСЏ РґР»СЏ РѕС‚РїСЂР°РІРєРё СЃРѕР±С‹С‚РёСЏ РіРѕС‚РѕРІРЅРѕСЃС‚Рё
         const sendReady = () => {
-            console.log('[ResultWindowPage] Emitting result:ready event');
             void emit('result:ready');
         };
         
-        // Отправляем событие готовности после установки подписки
-        // Используем небольшую задержку, чтобы убедиться, что подписка полностью установлена
+        // РћС‚РїСЂР°РІР»СЏРµРј СЃРѕР±С‹С‚РёРµ РіРѕС‚РѕРІРЅРѕСЃС‚Рё РїРѕСЃР»Рµ СѓСЃС‚Р°РЅРѕРІРєРё РїРѕРґРїРёСЃРєРё
+        // РСЃРїРѕР»СЊР·СѓРµРј РЅРµР±РѕР»СЊС€СѓСЋ Р·Р°РґРµСЂР¶РєСѓ, С‡С‚РѕР±С‹ СѓР±РµРґРёС‚СЊСЃСЏ, С‡С‚Рѕ РїРѕРґРїРёСЃРєР° РїРѕР»РЅРѕСЃС‚СЊСЋ СѓСЃС‚Р°РЅРѕРІР»РµРЅР°
         const readyTimeout = setTimeout(sendReady, 50);
         
-        // Также слушаем запрос на отправку ready (для случая, когда окно уже открыто)
+        // РўР°РєР¶Рµ СЃР»СѓС€Р°РµРј Р·Р°РїСЂРѕСЃ РЅР° РѕС‚РїСЂР°РІРєСѓ ready (РґР»СЏ СЃР»СѓС‡Р°СЏ, РєРѕРіРґР° РѕРєРЅРѕ СѓР¶Рµ РѕС‚РєСЂС‹С‚Рѕ)
         let requestReadyUnlisten: (() => void) | null = null;
         void listen('result:request-ready', () => {
-            console.log('[ResultWindowPage] Received result:request-ready, sending result:ready');
             sendReady();
         }).then((unlisten) => {
             requestReadyUnlisten = unlisten;
@@ -78,10 +76,8 @@ const ResultWindowPage: React.FC = () => {
     };
 
     const handleClose = async () => {
-        console.log('[ResultWindowPage] Close button clicked');
         try {
             await resultBridge.close();
-            console.log('[ResultWindowPage] Close request sent');
         } catch (error) {
             console.error('[ResultWindowPage] Error closing window:', error);
         } finally {
@@ -112,7 +108,7 @@ const ResultWindowPage: React.FC = () => {
                             <button
                                 type='button'
                                 onClick={handleCopyRequest}
-                                className='flex h-7 w-7 items-center justify-center rounded-lg border border-primary-200 bg-white text-text-primary transition-[background-color,border-color] duration-base hover:border-primary hover:bg-primary-50'
+                                className='flex h-7 w-7 items-center justify-center rounded-lg border border-primary-200 bg-bg-elevated text-text-primary transition-[background-color,border-color] duration-base hover:border-primary hover:bg-primary-50'
                                 aria-label='Copy request'
                             >
                                 {copiedRequest ? (
@@ -136,7 +132,13 @@ const ResultWindowPage: React.FC = () => {
                             </button>
                         </div>
                         <div
-                            className='rounded-lg border border-primary-200 bg-white shadow-primary-sm p-4 text-sm leading-relaxed text-text-primary min-h-24'>
+                            className='rounded-lg border border-primary-200 bg-bg-elevated shadow-primary-sm p-4 text-sm leading-relaxed text-text-primary min-h-24'
+                            style={isDark ? {
+                                borderColor: darkSurface,
+                                backgroundColor: theme.palette.background.default,
+                                boxShadow: 'none'
+                            } : undefined}
+                        >
                             {requestText ||
                                 <span className='text-text-tertiary animate-pulse-soft'>Preparing request...</span>}
                         </div>
@@ -154,7 +156,7 @@ const ResultWindowPage: React.FC = () => {
                                     type='button'
                                     onClick={handleCopyResponse}
                                     disabled={isStreaming}
-                                    className='flex h-7 w-7 items-center justify-center rounded-lg border border-primary-200 bg-white text-text-primary transition-[background-color,border-color] duration-base hover:border-primary hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50'
+                                    className='flex h-7 w-7 items-center justify-center rounded-lg border border-primary-200 bg-bg-elevated text-text-primary transition-[background-color,border-color] duration-base hover:border-primary hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50'
                                     aria-label='Copy response'
                                 >
                                     {copiedResponse ? (
@@ -178,7 +180,13 @@ const ResultWindowPage: React.FC = () => {
                                 </button>
                             </div>
                             <div
-                                className='rounded-lg border border-primary-200 bg-white shadow-primary-sm p-4 text-text-primary min-h-48'>
+                                className='rounded-lg border border-primary-200 bg-bg-elevated shadow-primary-sm p-4 text-text-primary min-h-48'
+                                style={isDark ? {
+                                    borderColor: darkSurface,
+                                    backgroundColor: theme.palette.background.default,
+                                    boxShadow: 'none'
+                                } : undefined}
+                            >
                                 <div className='markdown-compact'>
                                     <ReactMarkdown>{llmResponse}</ReactMarkdown>
                                 </div>
@@ -193,4 +201,5 @@ const ResultWindowPage: React.FC = () => {
 };
 
 export default ResultWindowPage;
+
 

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {Box, Chip, IconButton, Typography} from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
@@ -34,61 +34,91 @@ const GroupCard: React.FC<Props> = ({
     return (
         <Box
             className={'winky-group-card'}
-            sx={{
-                width: '100%',
-                borderRadius: 3,
-                border: '2px solid',
-                borderColor: groupColor + '40',
-                background: '#fff',
-                overflow: 'hidden',
-                transition: 'border-color 260ms ease, box-shadow 260ms ease',
-                '&:hover': {
-                    borderColor: groupColor + '80',
-                    boxShadow: `0 8px 32px ${groupColor}15`
-                },
-                '&:hover .group-card__actions': {
-                    opacity: 1,
-                    pointerEvents: 'auto',
-                    transform: 'translateX(0)'
-                }
+            sx={(theme) => {
+                const isDark = theme.palette.mode === 'dark';
+                return {
+                    width: '100%',
+                    borderRadius: 3,
+                    border: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '2px solid',
+                    borderColor: isDark ? undefined : `${groupColor}40`,
+                    background: isDark
+                        ? 'rgba(0, 0, 0, 0.4)'
+                        : theme.palette.background.paper,
+                    backdropFilter: isDark ? 'blur(12px)' : undefined,
+                    WebkitBackdropFilter: isDark ? 'blur(12px)' : undefined,
+                    overflow: 'hidden',
+                    transition: 'border-color 260ms ease, box-shadow 260ms ease',
+                    '&:hover': {
+                        borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : `${groupColor}80`,
+                        boxShadow: isDark ? 'none' : `0 8px 32px ${groupColor}15`
+                    },
+                    '&:hover .group-card__actions': {
+                        opacity: 1,
+                        pointerEvents: 'auto',
+                        transform: 'translateX(0)'
+                    }
+                };
             }}
         >
             {/* Group Header */}
             <Box
                 className={'frsc gap-3'}
-                sx={{
-                    px: 1.5,
-                    pt: 1.4,
-                    pb: 1.2,
-                    background: `linear-gradient(135deg, ${groupColor}08, ${groupColor}15)`,
-                    borderBottom: '1px solid',
-                    borderColor: groupColor + '20',
+                sx={(theme) => {
+                    const isDark = theme.palette.mode === 'dark';
+                    return {
+                        px: 1.5,
+                        pt: 1.4,
+                        pb: 1.2,
+                        background: isDark
+                            ? 'rgba(255, 255, 255, 0.03)'
+                            : `linear-gradient(135deg, ${groupColor}08, ${groupColor}15)`,
+                        borderBottom: '1px solid',
+                        borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : `${groupColor}20`
+                    };
                 }}
             >
                 <Box
-                    sx={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 2,
-                        background: `linear-gradient(135deg, ${groupColor}20, ${groupColor}30)`,
-                        border: `1px solid ${groupColor}30`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
+                    sx={(theme) => {
+                        const isDark = theme.palette.mode === 'dark';
+                        return {
+                            width: 44,
+                            height: 44,
+                            borderRadius: 2,
+                            background: isDark
+                                ? 'rgba(255, 255, 255, 0.1)'
+                                : `linear-gradient(135deg, ${groupColor}20, ${groupColor}30)`,
+                            border: isDark ? 'none' : `1px solid ${groupColor}30`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                        };
                     }}
                 >
                     {isSystemGroup ? (
-                        <StarsRoundedIcon sx={{fontSize: 26, color: groupColor}}/>
+                        <StarsRoundedIcon
+                            sx={(theme) => ({
+                                fontSize: 26,
+                                color: theme.palette.mode === 'dark' ? '#ffffff' : groupColor
+                            })}
+                        />
                     ) : group.icon_details?.svg ? (
                         <Box
                             component="img"
                             src={getMediaUrl(group.icon_details.svg)}
                             alt={group.icon_details.name || ''}
-                            sx={{width: 26, height: 26}}
+                            sx={(theme) => ({
+                                width: 26,
+                                height: 26,
+                                filter: theme.palette.mode === 'dark' ? 'brightness(0) invert(1)' : 'none'
+                            })}
                         />
                     ) : (
-                        <Typography variant="h5">📁</Typography>
+                        <Typography variant="h5" sx={(theme) => ({
+                            color: theme.palette.mode === 'dark' ? '#ffffff' : undefined
+                        })}>
+                            рџ“Ѓ
+                        </Typography>
                     )}
                 </Box>
 
@@ -120,10 +150,12 @@ const GroupCard: React.FC<Props> = ({
                             <IconButton
                                 size="small"
                                 onClick={() => onEditGroup(group)}
-                                sx={{
-                                    bgcolor: 'rgba(0,0,0,0.04)',
-                                    '&:hover': {bgcolor: 'rgba(0,0,0,0.08)'}
-                                }}
+                                sx={(theme) => ({
+                                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0,0,0,0.04)',
+                                    '&:hover': {
+                                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0,0,0,0.08)'
+                                    }
+                                })}
                             >
                                 <EditOutlinedIcon fontSize="small"/>
                             </IconButton>
@@ -132,10 +164,14 @@ const GroupCard: React.FC<Props> = ({
                                 color="error"
                                 disabled={isDeleting}
                                 onClick={() => onDeleteGroup(group.id, group.name)}
-                                sx={{
-                                    bgcolor: 'rgba(244,63,94,0.06)',
-                                    '&:hover': {bgcolor: 'rgba(244,63,94,0.15)'}
-                                }}
+                                sx={(theme) => ({
+                                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(244,63,94,0.06)',
+                                    '&:hover': {
+                                        bgcolor: theme.palette.mode === 'dark'
+                                            ? 'rgba(244, 63, 94, 0.3)'
+                                            : 'rgba(244,63,94,0.15)'
+                                    }
+                                })}
                             >
                                 <DeleteOutlineIcon fontSize="small"/>
                             </IconButton>
@@ -145,11 +181,15 @@ const GroupCard: React.FC<Props> = ({
                         <Chip
                             size="small"
                             label={`${group.actions.length} / ${MAX_ACTIONS_PER_GROUP}`}
-                            sx={{
-                                bgcolor: groupColor + '15',
-                                color: groupColor,
-                                fontWeight: 600,
-                                fontSize: '0.75rem'
+                            sx={(theme) => {
+                                const isDark = theme.palette.mode === 'dark';
+                                return {
+                                    bgcolor: isDark ? 'rgba(255, 255, 255, 0.1)' : `${groupColor}15`,
+                                    color: isDark ? '#ffffff' : groupColor,
+                                    border: 'none',
+                                    fontWeight: 600,
+                                    fontSize: '0.75rem'
+                                };
                             }}
                         />
                     </>
@@ -201,3 +241,6 @@ const GroupCard: React.FC<Props> = ({
 };
 
 export default GroupCard;
+
+
+

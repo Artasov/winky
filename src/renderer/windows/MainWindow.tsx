@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {useConfig} from '../context/ConfigContext';
 
 const MainWindow: React.FC = () => {
@@ -16,7 +16,7 @@ const MainWindow: React.FC = () => {
                 </p>
             </div>
             {!config?.setupCompleted && (
-                <div className="rounded-xl border border-border/60 bg-white/5 px-6 py-3 text-sm text-text-secondary">
+                <div className="rounded-xl border border-border/60 bg-bg-elevated/60 px-6 py-3 text-sm text-text-secondary">
                     Finish onboarding to activate the voice interface and quick actions.
                 </div>
             )}
@@ -25,3 +25,4 @@ const MainWindow: React.FC = () => {
 };
 
 export default MainWindow;
+

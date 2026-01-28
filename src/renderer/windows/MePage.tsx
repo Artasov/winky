@@ -1,4 +1,5 @@
 import React from 'react';
+import {alpha, useTheme} from '@mui/material/styles';
 import {useUser} from '../context/UserContext';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
@@ -9,6 +10,9 @@ const MePage: React.FC = () => {
     const {config} = useConfig();
     const {showToast} = useToast();
     const auth = useAuth();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const neutralBorder = alpha('#6f6f6f', 0.22);
     const hasToken = config?.auth.access || config?.auth.accessToken;
     const isAuthorized = Boolean(hasToken);
 
@@ -33,7 +37,7 @@ const MePage: React.FC = () => {
             ? balanceRaw.toLocaleString(undefined, {maximumFractionDigits: 2})
             : typeof balanceRaw === 'string'
                 ? balanceRaw
-                : '—';
+                : '-';
 
     const featureSchema: Array<{ code: string; label?: string; kind?: string }> =
         Array.isArray(winkyToken?.feature_schema) ? winkyToken?.feature_schema : [];
@@ -46,7 +50,7 @@ const MePage: React.FC = () => {
                 const formatted =
                     typeof value === 'boolean'
                         ? value ? 'Enabled' : 'Disabled'
-                        : value ?? '—';
+                        : value ?? '-';
                 return {label, value: formatted};
             })
             : Object.keys(activeFeatures).map((code) => ({
@@ -132,24 +136,52 @@ const MePage: React.FC = () => {
             ) : (
                 <div className="fc gap-4">
                     <section
-                        className="card-animated rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 via-white to-primary-100 shadow-primary-sm p-6">
+                        className="card-animated rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 via-bg-elevated to-primary-100 shadow-primary-sm p-6"
+                        style={isDark ? {
+                            borderColor: neutralBorder,
+                            backgroundColor: theme.palette.background.default,
+                            backgroundImage: 'none',
+                            boxShadow: 'none'
+                        } : undefined}
+                    >
                         <div className="mb-3 flex items-center justify-between gap-4">
                             <div>
                                 <p className="text-xs uppercase tracking-[0.24em] text-primary-700">WINKY access</p>
                                 <h2 className="text-xl font-semibold text-text-primary">Features & balance</h2>
                             </div>
                             <div
-                                className="rounded-full bg-primary-200 px-3 py-1 text-xs font-semibold text-primary-800 shadow-primary-sm">
-                                Tier: {tierLabel || '—'}
+                                className="rounded-full bg-primary-200 px-3 py-1 text-xs font-semibold text-primary-800 shadow-primary-sm"
+                                style={isDark ? {
+                                    backgroundColor: theme.palette.background.default,
+                                    border: `1px solid ${neutralBorder}`,
+                                    color: theme.palette.text.primary,
+                                    boxShadow: 'none'
+                                } : undefined}
+                            >
+                                Tier: {tierLabel || '-'}
                             </div>
                         </div>
                         <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="rounded-xl border border-primary-200/60 bg-white/70 p-4 shadow-primary-sm">
+                            <div
+                                className="rounded-xl border border-primary-200/60 bg-bg-elevated p-4 shadow-primary-sm"
+                                style={isDark ? {
+                                    borderColor: neutralBorder,
+                                    backgroundColor: theme.palette.background.default,
+                                    boxShadow: 'none'
+                                } : undefined}
+                            >
                                 <p className="text-xs uppercase tracking-[0.2em] text-text-secondary">Balance</p>
                                 <p className="mt-1 text-2xl font-bold text-primary-900">{balance}</p>
                                 <p className="text-xs text-text-secondary">Token: WINKY</p>
                             </div>
-                            <div className="rounded-xl border border-primary-200/60 bg-white/70 p-4 shadow-primary-sm">
+                            <div
+                                className="rounded-xl border border-primary-200/60 bg-bg-elevated p-4 shadow-primary-sm"
+                                style={isDark ? {
+                                    borderColor: neutralBorder,
+                                    backgroundColor: theme.palette.background.default,
+                                    boxShadow: 'none'
+                                } : undefined}
+                            >
                                 <p className="text-xs uppercase tracking-[0.2em] text-text-secondary">Tier</p>
                                 <p className="mt-1 text-lg font-semibold text-text-primary">{tierLabel}</p>
                                 <p className="text-xs text-text-secondary">Access level for premium features.</p>
@@ -164,8 +196,13 @@ const MePage: React.FC = () => {
                                     {parsedFeatures.map((feature) => (
                                         <span
                                             key={feature.label}
-                                            className="rounded-full border border-primary-200 bg-white px-3 py-1 text-xs font-medium text-text-primary shadow-primary-sm"
+                                            className="rounded-full border border-primary-200 bg-bg-elevated px-3 py-1 text-xs font-medium text-text-primary shadow-primary-sm"
                                             title={feature.label}
+                                            style={isDark ? {
+                                                borderColor: neutralBorder,
+                                                backgroundColor: theme.palette.background.default,
+                                                boxShadow: 'none'
+                                            } : undefined}
                                         >
                                             {feature.label}: {String(feature.value)}
                                         </span>
@@ -181,3 +218,4 @@ const MePage: React.FC = () => {
 };
 
 export default MePage;
+

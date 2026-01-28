@@ -1,9 +1,12 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {getVersion} from '@tauri-apps/api/app';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
 import BugReportModal from './feedback/BugReportModal';
 import {submitBugReport} from '../services/bugReport';
 import {useConfig} from '../context/ConfigContext';
+import {useThemeMode} from '../context/ThemeModeContext';
 
 interface TitleBarProps {
     title?: string;
@@ -13,6 +16,7 @@ interface TitleBarProps {
 
 const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugReportButton = false}) => {
     const {config} = useConfig();
+    const {themeMode, isDark, toggleThemeMode} = useThemeMode();
     const accessToken = config?.auth?.access || config?.auth?.accessToken;
     const [isBugModalOpen, setBugModalOpen] = useState(false);
     const [version, setVersion] = useState<string>('');
@@ -46,11 +50,22 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
 
     return (
         <div
-            className="app-region-drag flex h-16 w-full items-center justify-between border-b border-primary-200/60 bg-white/95 px-4 text-xs uppercase tracking-[0.3em] text-text-tertiary backdrop-blur shadow-sm"
+            className={`app-region-drag flex h-16 w-full items-center justify-between border-b px-4 text-xs uppercase tracking-[0.3em] text-text-tertiary ${
+                isDark
+                    ? 'border-white/15 bg-transparent'
+                    : 'border-primary-200/60 bg-white/95 backdrop-blur shadow-sm'
+            }`}
             aria-label={title}>
             <div className="app-region-drag pointer-events-none select-none flex items-center gap-2">
-                <img src="./resources/winky-pink-signature.png" alt="Winky" className="h-10 pointer-events-none pt-1"
-                     draggable="false"/>
+                <img
+                    src="./resources/winky-pink-signature.png"
+                    alt="Winky"
+                    className="h-10 pointer-events-none pt-1"
+                    draggable="false"
+                    style={isDark ? {
+                        filter: 'grayscale(100%) brightness(2) contrast(1.2)'
+                    } : undefined}
+                />
                 {version ? (
                     <span style={{
                         marginBottom: -12,
@@ -72,6 +87,17 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
                         <BugReportIcon fontSize="small" />
                     </button>
                 ) : null}
+                <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={toggleThemeMode}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+                    aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+                    title={isDark ? 'Light theme' : 'Dark theme'}
+                    data-theme-mode={themeMode}
+                >
+                    {isDark ? <LightModeIcon fontSize="small"/> : <DarkModeIcon fontSize="small"/>}
+                </button>
                 <button
                     type="button"
                     onClick={handleMinimize}

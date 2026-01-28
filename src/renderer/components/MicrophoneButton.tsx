@@ -37,7 +37,7 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
                 sizeClasses[size],
                 isRecording
                     ? 'bg-rose-600 text-white hover:bg-rose-500'
-                    : 'bg-white text-white',
+                    : 'bg-bg-base text-text-primary',
                 disabled && 'opacity-60',
                 disabled && 'cursor-not-allowed'
             )}
@@ -50,7 +50,7 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
             <svg
                 viewBox="0 0 24 24"
                 className={classNames(
-                    'absolute h-10 w-10 fill-current pointer-events-none text-black transition-opacity duration-300',
+                    'absolute h-10 w-10 fill-current pointer-events-none text-text-primary transition-opacity duration-300',
                     isRecording ? 'opacity-0' : 'opacity-100'
                 )}
             >

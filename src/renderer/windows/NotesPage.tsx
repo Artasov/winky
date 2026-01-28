@@ -12,6 +12,7 @@ import {
     Switch,
     TextField
 } from '@mui/material';
+import {alpha, useTheme} from '@mui/material/styles';
 import type {WinkyNote} from '@shared/types';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
@@ -44,6 +45,9 @@ const formatTimestamp = (value: string): string => {
 const NotesPage: React.FC = () => {
     const {config, updateConfig} = useConfig();
     const {showToast} = useToast();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const darkSurface = alpha('#6f6f6f', 0.12);
     const resolvedMode = resolveNotesStorageMode(config);
     const [storageMode, setStorageMode] = useState<NotesStorageMode>(resolvedMode);
     const [page, setPage] = useState(1);
@@ -254,7 +258,7 @@ const NotesPage: React.FC = () => {
                         <div className="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary shadow-primary-sm">
                             {data?.count ?? 0} notes
                         </div>
-                        <div className="flex items-center gap-2 rounded-full border border-primary-200 bg-white px-3 shadow-primary-sm">
+                        <div className="flex items-center gap-2 rounded-full border border-primary-200 bg-bg-elevated px-3 shadow-primary-sm">
                             <span className={storageMode === 'local' ? 'text-xs font-semibold text-primary' : 'text-xs text-text-tertiary'}>
                                 Local
                             </span>
@@ -271,7 +275,7 @@ const NotesPage: React.FC = () => {
                         <GlassTooltip content={infoMessage}>
                             <button
                                 type="button"
-                                className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary-200 bg-white text-text-secondary shadow-primary-sm transition-[background-color,border-color,color] duration-base hover:border-primary hover:bg-primary-50 hover:text-primary"
+                                className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary-200 bg-bg-elevated text-text-secondary shadow-primary-sm transition-[background-color,border-color,color] duration-base hover:border-primary hover:bg-primary-50 hover:text-primary"
                                 aria-label="Notes storage info"
                             >
                                 <svg
@@ -294,7 +298,7 @@ const NotesPage: React.FC = () => {
 
                 <Collapse in={selectionActive} timeout={320} collapsedSize={0}>
                     <div className="pt-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-200 bg-white px-4 py-3 shadow-primary-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-200 bg-bg-elevated px-4 py-3 shadow-primary-sm">
                             <div className="text-sm font-semibold text-text-primary">
                                 Selected: {selectedIds.size}
                             </div>
@@ -319,7 +323,10 @@ const NotesPage: React.FC = () => {
                         </div>
                     ) : (data?.results.length ?? 0) === 0 ? (
                         <div className="flex min-h-[240px] items-center justify-center">
-                            <div className="max-w-lg rounded-2xl border border-dashed border-primary-200 bg-bg-secondary p-8 text-center">
+                            <div
+                                className="max-w-lg rounded-2xl border border-dashed border-primary-200 bg-bg-secondary p-8 text-center"
+                                style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
+                            >
                                 <h2 className="text-lg font-semibold text-text-primary">No notes yet</h2>
                                 <p className="mt-2 text-sm text-text-secondary">
                                     Use the Quick note action to capture your first entry.
@@ -331,12 +338,13 @@ const NotesPage: React.FC = () => {
                             {data?.results.map((note) => (
                                 <section
                                     key={note.id}
-                                    className="relative rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-3 animate-fade-in-up cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+                                    className="relative rounded-2xl border border-primary-200 bg-bg-elevated shadow-primary-sm p-3 animate-fade-in-up cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
                                     role="button"
                                     tabIndex={0}
                                     onClick={() => handleCardActivate(note)}
                                     onMouseEnter={() => setHoveredId(note.id)}
                                     onMouseLeave={() => setHoveredId((prev) => (prev === note.id ? null : prev))}
+                                    style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface, boxShadow: 'none'} : undefined}
                                     onKeyDown={(event) => {
                                         if (event.key === 'Enter' || event.key === ' ') {
                                             event.preventDefault();

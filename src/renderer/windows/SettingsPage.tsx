@@ -1,11 +1,11 @@
-import React, {ChangeEvent, useEffect, useRef, useState} from 'react';
+﻿import React, {ChangeEvent, useEffect, useRef, useState} from 'react';
 import {Box, Button, Checkbox, FormControlLabel, MenuItem, Slider, TextField, Typography} from '@mui/material';
+import {alpha} from '@mui/material/styles';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
 import {LLM_API_MODELS, LLM_MODES, SPEECH_API_MODELS, SPEECH_MODES} from '@shared/constants';
 import ModelConfigForm, {ModelConfigFormData} from '../components/ModelConfigForm';
 import HotkeyInput from '../components/HotkeyInput';
-import theme from "@renderer/theme/muiTheme";
 
 const DEFAULT_MIC_HOTKEY = 'Alt+Q';
 
@@ -91,21 +91,21 @@ const SettingsPage: React.FC = () => {
     const isInitialMountRef = useRef(true);
     const isUserChangingHotkeyRef = useRef(false);
 
-    // Отслеживаем изменения хоткея из конфига
+    // РћС‚СЃР»РµР¶РёРІР°РµРј РёР·РјРµРЅРµРЅРёСЏ С…РѕС‚РєРµСЏ РёР· РєРѕРЅС„РёРіР°
     useEffect(() => {
         if (config?.micHotkey) {
             const currentHotkey = config.micHotkey.trim();
             const previousHotkey = previousHotkeyRef.current;
 
-            // Если это первое монтирование, просто сохраняем
+            // Р•СЃР»Рё СЌС‚Рѕ РїРµСЂРІРѕРµ РјРѕРЅС‚РёСЂРѕРІР°РЅРёРµ, РїСЂРѕСЃС‚Рѕ СЃРѕС…СЂР°РЅСЏРµРј
             if (isInitialMountRef.current) {
                 isInitialMountRef.current = false;
                 previousHotkeyRef.current = currentHotkey;
                 return;
             }
 
-            // Если хоткей изменился не из-за пользователя (например, при изменении модели),
-            // обновляем ref, но не показываем уведомление
+            // Р•СЃР»Рё С…РѕС‚РєРµР№ РёР·РјРµРЅРёР»СЃСЏ РЅРµ РёР·-Р·Р° РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ (РЅР°РїСЂРёРјРµСЂ, РїСЂРё РёР·РјРµРЅРµРЅРёРё РјРѕРґРµР»Рё),
+            // РѕР±РЅРѕРІР»СЏРµРј ref, РЅРѕ РЅРµ РїРѕРєР°Р·С‹РІР°РµРј СѓРІРµРґРѕРјР»РµРЅРёРµ
             if (previousHotkey !== currentHotkey && !isUserChangingHotkeyRef.current) {
                 previousHotkeyRef.current = currentHotkey;
             }
@@ -149,14 +149,14 @@ const SettingsPage: React.FC = () => {
                 const currentHotkey = payload.accelerator.trim();
                 const previousHotkey = previousHotkeyRef.current;
 
-                // Показываем уведомление только если:
-                // 1. Хоткей действительно изменился
-                // 2. Это изменение было инициировано пользователем (не автоматическое обновление конфига)
+                // РџРѕРєР°Р·С‹РІР°РµРј СѓРІРµРґРѕРјР»РµРЅРёРµ С‚РѕР»СЊРєРѕ РµСЃР»Рё:
+                // 1. РҐРѕС‚РєРµР№ РґРµР№СЃС‚РІРёС‚РµР»СЊРЅРѕ РёР·РјРµРЅРёР»СЃСЏ
+                // 2. Р­С‚Рѕ РёР·РјРµРЅРµРЅРёРµ Р±С‹Р»Рѕ РёРЅРёС†РёРёСЂРѕРІР°РЅРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»РµРј (РЅРµ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРѕРµ РѕР±РЅРѕРІР»РµРЅРёРµ РєРѕРЅС„РёРіР°)
                 if (previousHotkey !== currentHotkey && isUserChangingHotkeyRef.current) {
                     previousHotkeyRef.current = currentHotkey;
                     showToast(`Hotkey ready: ${currentHotkey}`, 'success');
                 } else if (previousHotkey !== currentHotkey) {
-                    // Хоткей изменился, но не из-за пользователя - просто обновляем ref
+                    // РҐРѕС‚РєРµР№ РёР·РјРµРЅРёР»СЃСЏ, РЅРѕ РЅРµ РёР·-Р·Р° РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ - РїСЂРѕСЃС‚Рѕ РѕР±РЅРѕРІР»СЏРµРј ref
                     previousHotkeyRef.current = currentHotkey;
                 }
             }
@@ -166,12 +166,12 @@ const SettingsPage: React.FC = () => {
             if (!payload || payload.source !== 'mic') {
                 return;
             }
-            // Показываем уведомление только если очистка была инициирована пользователем
+            // РџРѕРєР°Р·С‹РІР°РµРј СѓРІРµРґРѕРјР»РµРЅРёРµ С‚РѕР»СЊРєРѕ РµСЃР»Рё РѕС‡РёСЃС‚РєР° Р±С‹Р»Р° РёРЅРёС†РёРёСЂРѕРІР°РЅР° РїРѕР»СЊР·РѕРІР°С‚РµР»РµРј
             if (isUserChangingHotkeyRef.current && previousHotkeyRef.current !== null) {
                 previousHotkeyRef.current = null;
                 showToast('Hotkey cleared.', 'success');
             } else if (previousHotkeyRef.current !== null) {
-                // Хоткей очищен, но не из-за пользователя - просто обновляем ref
+                // РҐРѕС‚РєРµР№ РѕС‡РёС‰РµРЅ, РЅРѕ РЅРµ РёР·-Р·Р° РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ - РїСЂРѕСЃС‚Рѕ РѕР±РЅРѕРІР»СЏРµРј ref
                 previousHotkeyRef.current = null;
             }
         };
@@ -219,11 +219,11 @@ const SettingsPage: React.FC = () => {
         setMicHotkey(nextValue);
         try {
             await updateConfig({micHotkey: nextValue.trim()});
-            // Сбрасываем флаг после небольшой задержки, чтобы событие успело обработаться
+            // РЎР±СЂР°СЃС‹РІР°РµРј С„Р»Р°Рі РїРѕСЃР»Рµ РЅРµР±РѕР»СЊС€РѕР№ Р·Р°РґРµСЂР¶РєРё, С‡С‚РѕР±С‹ СЃРѕР±С‹С‚РёРµ СѓСЃРїРµР»Рѕ РѕР±СЂР°Р±РѕС‚Р°С‚СЊСЃСЏ
             setTimeout(() => {
                 isUserChangingHotkeyRef.current = false;
             }, 100);
-            // Уведомление показывается в handleHotkeySuccess после успешной регистрации хоткея
+            // РЈРІРµРґРѕРјР»РµРЅРёРµ РїРѕРєР°Р·С‹РІР°РµС‚СЃСЏ РІ handleHotkeySuccess РїРѕСЃР»Рµ СѓСЃРїРµС€РЅРѕР№ СЂРµРіРёСЃС‚СЂР°С†РёРё С…РѕС‚РєРµСЏ
         } catch (error) {
             console.error('[SettingsPage] Failed to update hotkey', error);
             showToast('Failed to update hotkey.', 'error');
@@ -384,11 +384,11 @@ const SettingsPage: React.FC = () => {
         setShowAvatarVideo(nextValue);
         try {
             await updateConfig({showAvatarVideo: nextValue});
-            showToast(nextValue ? 'Avatar video enabled.' : 'Avatar video hidden.', 'success');
+            showToast(nextValue ? 'Sidebar avatar enabled.' : 'Sidebar avatar hidden.', 'success');
         } catch (error) {
-            console.error('[SettingsPage] Failed to toggle avatar video', error);
+            console.error('[SettingsPage] Failed to toggle sidebar avatar', error);
             setShowAvatarVideo(previousValue);
-            showToast('Failed to update avatar video setting.', 'error');
+            showToast('Failed to update sidebar avatar setting.', 'error');
         }
     };
 
@@ -441,7 +441,7 @@ const SettingsPage: React.FC = () => {
     if (!isAuthorized) {
         return (
             <div className="fccc mx-auto h-full w-full max-w-md gap-4 px-8 py-12 text-center">
-                <div className="text-4xl opacity-60">🔐</div>
+                <div className="text-4xl opacity-60">рџ”ђ</div>
                 <p className="text-sm text-text-secondary">Please sign in to change settings.</p>
             </div>
         );
@@ -466,12 +466,16 @@ const SettingsPage: React.FC = () => {
             <Box
                 className={'fc gap-1'}
                 component="section"
-                sx={{
-                    borderRadius: 4,
-                    border: '1px solid rgba(244,63,94,0.15)',
-                    backgroundColor: '#fff',
-                    p: {xs: 3, md: 4},
-                    boxShadow: '0 30px 60px rgba(255, 255, 255, 0.03)'
+                sx={(theme) => {
+                    const isDark = theme.palette.mode === 'dark';
+                    const darkSurface = alpha('#6f6f6f', 0.3);
+                    return {
+                        borderRadius: 4,
+                        border: isDark ? `1px solid ${darkSurface}` : '1px solid var(--color-border-light)',
+                        backgroundColor: isDark ? theme.palette.background.default : 'var(--color-bg-elevated)',
+                        p: {xs: 3, md: 4},
+                        boxShadow: isDark ? 'none' : 'var(--shadow-primary-sm)'
+                    };
                 }}
             >
                 <div className={'fc'}>
@@ -517,10 +521,10 @@ const SettingsPage: React.FC = () => {
                                 onChange={handleAvatarVideoToggle}
                             />
                         }
-                        label="Show sidebar avatar video"
+                        label="Show sidebar avatar"
                     />
                     <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
-                        Toggle the animated avatar in the sidebar on or off.
+                        Toggle the avatar in the sidebar on or off (video on light theme, image on dark theme).
                     </Typography>
                 </div>
             </Box>
@@ -528,12 +532,16 @@ const SettingsPage: React.FC = () => {
             <Box
                 className={'fc gap-1'}
                 component="section"
-                sx={{
-                    borderRadius: 4,
-                    border: '1px solid rgba(244,63,94,0.15)',
-                    backgroundColor: '#fff',
-                    p: {xs: 3, md: 4},
-                    boxShadow: '0 30px 60px rgba(255, 255, 255, 0.03)'
+                sx={(theme) => {
+                    const isDark = theme.palette.mode === 'dark';
+                    const darkSurface = alpha('#6f6f6f', 0.3);
+                    return {
+                        borderRadius: 4,
+                        border: isDark ? `1px solid ${darkSurface}` : '1px solid var(--color-border-light)',
+                        backgroundColor: isDark ? theme.palette.background.default : 'var(--color-bg-elevated)',
+                        p: {xs: 3, md: 4},
+                        boxShadow: isDark ? 'none' : 'var(--shadow-primary-sm)'
+                    };
                 }}
             >
                 <div className={'fc'}>
@@ -627,12 +635,16 @@ const SettingsPage: React.FC = () => {
             <Box
                 className={'fc gap-1'}
                 component="section"
-                sx={{
-                    borderRadius: 4,
-                    border: '1px solid rgba(244,63,94,0.15)',
-                    backgroundColor: '#fff',
-                    p: {xs: 3, md: 4},
-                    boxShadow: '0 30px 60px rgba(255, 255, 255, 0.03)'
+                sx={(theme) => {
+                    const isDark = theme.palette.mode === 'dark';
+                    const darkSurface = alpha('#6f6f6f', 0.3);
+                    return {
+                        borderRadius: 4,
+                        border: isDark ? `1px solid ${darkSurface}` : '1px solid var(--color-border-light)',
+                        backgroundColor: isDark ? theme.palette.background.default : 'var(--color-bg-elevated)',
+                        p: {xs: 3, md: 4},
+                        boxShadow: isDark ? 'none' : 'var(--shadow-primary-sm)'
+                    };
                 }}
             >
                 <div className={'fc'}>
@@ -691,3 +703,4 @@ const SettingsPage: React.FC = () => {
 };
 
 export default SettingsPage;
+

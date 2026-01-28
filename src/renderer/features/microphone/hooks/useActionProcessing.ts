@@ -12,9 +12,6 @@ const TRANSCRIBE_SLOW_LOG_MS = 15_000;
 // Известные галлюцинации/артефакты Whisper при тихом/шумном аудио
 const KNOWN_WHISPER_HALLUCINATIONS = [
     'hostname, and email are included in the link below.',
-    'thank you for watching',
-    'thanks for watching',
-    'subscribe',
     'like and subscribe',
     'امیدوارم که این ویدیو',
     'ご視聴ありがとうございました',
@@ -23,18 +20,6 @@ const KNOWN_WHISPER_HALLUCINATIONS = [
     'transcript by',
     'captioning by',
     'www.mooji.org',
-    'subtitle credit',
-    'please subscribe',
-    'like this video',
-    'comment below',
-    'www.',
-    'http',
-    'https',
-    '.com',
-    'click the link',
-    'in the description',
-    'see you next time',
-    'goodbye',
 ];
 
 // Проверяет, является ли текст валидной транскрипцией или артефактом

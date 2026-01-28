@@ -31,6 +31,19 @@ export const createCheckboxOverrides = (theme: Theme): Components['MuiCheckbox']
     },
     styleOverrides: {
         root: {
+            ...(theme.palette.mode === 'dark'
+                ? {
+                    '--winky-checkbox-border': 'rgba(255, 255, 255, 0.24)',
+                    '--winky-checkbox-bg': 'rgba(15, 15, 15, 0.92)',
+                    '--winky-checkbox-disabled-border': 'rgba(148, 163, 184, 0.55)',
+                    '--winky-checkbox-disabled-bg': 'rgba(148, 163, 184, 0.26)'
+                }
+                : {
+                    '--winky-checkbox-border': 'rgba(15, 23, 42, 0.25)',
+                    '--winky-checkbox-bg': '#ffffff',
+                    '--winky-checkbox-disabled-border': 'rgba(148, 163, 184, 0.4)',
+                    '--winky-checkbox-disabled-bg': 'rgba(148, 163, 184, 0.15)'
+                }),
             padding: theme.spacing(0.5),
             borderRadius: theme.spacing(1),
             position: 'relative',
@@ -43,8 +56,8 @@ export const createCheckboxOverrides = (theme: Theme): Components['MuiCheckbox']
                 width: 22,
                 height: 22,
                 borderRadius: theme.spacing(1.2),
-                border: '1.5px solid rgba(15, 23, 42, 0.25)',
-                backgroundColor: '#fff',
+                border: '1.5px solid var(--winky-checkbox-border)',
+                backgroundColor: 'var(--winky-checkbox-bg)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -65,8 +78,8 @@ export const createCheckboxOverrides = (theme: Theme): Components['MuiCheckbox']
                 borderColor: theme.palette.primary.main
             },
             '&.Mui-disabled .winky-checkbox__control': {
-                borderColor: 'rgba(148, 163, 184, 0.4)',
-                backgroundColor: 'rgba(148, 163, 184, 0.15)',
+                borderColor: 'var(--winky-checkbox-disabled-border)',
+                backgroundColor: 'var(--winky-checkbox-disabled-bg)',
                 boxShadow: 'none'
             },
             '&.Mui-disabled .winky-checkbox__check': {

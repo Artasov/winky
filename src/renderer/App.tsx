@@ -36,6 +36,7 @@ import {SPEECH_MODES} from '@shared/constants';
 import TitleBar from './components/TitleBar';
 import {checkLocalModelDownloaded, warmupLocalSpeechModel} from './services/localSpeechModels';
 import StyleUsageSentinel from './components/StyleUsageSentinel';
+import {useThemeMode} from './context/ThemeModeContext';
 
 const LOCAL_SERVER_READY_TIMEOUT_MS = 2 * 60 * 1000;
 const LOCAL_SERVER_POLL_INTERVAL_MS = 2_000;
@@ -50,6 +51,8 @@ const AppContent: React.FC = () => {
     const isAuthenticated = Boolean(user);
     const navigate = useNavigate();
     const warmupRequestedModelRef = useRef<string | null>(null);
+    const {isDark} = useThemeMode();
+    const toastTheme = isDark ? 'dark' : 'colored';
     const clearAuthTokens = useCallback(async () => {
         await configBridge.setAuth({
             access: '',
@@ -525,7 +528,7 @@ const AppContent: React.FC = () => {
                         {shouldRenderToasts ? (
                             <ToastContainer
                                 position="top-right"
-                                theme="colored"
+                                theme={toastTheme}
                                 newestOnTop
                                 closeOnClick
                                 pauseOnFocusLoss={false}

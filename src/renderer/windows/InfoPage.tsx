@@ -1,7 +1,8 @@
-import React, {useEffect, useState} from 'react';
+﻿import React, {useEffect, useState} from 'react';
 import {getVersion} from '@tauri-apps/api/app';
 import {open} from '@tauri-apps/plugin-shell';
 import ReactMarkdown from 'react-markdown';
+import {alpha, useTheme} from '@mui/material/styles';
 
 const COMMUNITY_LINKS: Array<{
     id: string;
@@ -47,6 +48,8 @@ const COMMUNITY_LINKS: Array<{
     }
 ];
 
+const DARK_ICON_IDS = new Set(['x', 'github', 'linkedin', 'dexscreener']);
+
 const USAGE_GUIDE_MARKDOWN = `
 ## Usage Guide
 
@@ -88,12 +91,15 @@ This guide covers the essential features and explains things that might not be i
 
 const InfoPage: React.FC = () => {
     const [version, setVersion] = useState<string>('...');
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const darkSurface = alpha('#6f6f6f', 0.3);
 
     useEffect(() => {
         getVersion()
             .then(setVersion)
             .catch(() => {
-                // Fallback если Tauri API недоступен
+                // Fallback if Tauri API is unavailable.
                 setVersion('0.0.0');
             });
     }, []);
@@ -101,25 +107,32 @@ const InfoPage: React.FC = () => {
     return (
         <div className="fc mx-auto w-full max-w-4xl gap-1 px-8 py-6">
             <section
-                className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-4">
+                className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-bg-elevated shadow-primary-sm p-4"
+                style={isDark ? {borderColor: darkSurface, backgroundColor: theme.palette.background.default, boxShadow: 'none'} : undefined}
+            >
                 <div className="flex items-center gap-4">
                     <h3 className="text-lg font-semibold text-text-primary">Community</h3>
                     <div className="flex flex-nowrap gap-2">
-                        {COMMUNITY_LINKS.map((link) => (
-                            <button
-                                key={link.id}
-                                type="button"
-                                onClick={() => void open(link.href)}
-                                className="community-link group flex h-9 w-9 items-center justify-center rounded-lg border border-primary-100 bg-bg-secondary/70 shadow-primary-sm hover:border-primary-200 hover:bg-primary-50"
-                                aria-label={`Open ${link.label}`}
-                            >
-                                <img
-                                    src={link.icon}
-                                    alt={link.label}
-                                    className={`community-link-icon h-5 w-5 object-contain ${link.invert ? 'invert' : ''}`}
-                                />
-                            </button>
-                        ))}
+                        {COMMUNITY_LINKS.map((link) => {
+                            const shouldInvert = !isDark && DARK_ICON_IDS.has(link.id);
+                            return (
+                                <button
+                                    key={link.id}
+                                    type="button"
+                                    onClick={() => void open(link.href)}
+                                    className={`community-link group flex h-9 w-9 items-center justify-center rounded-lg border border-primary-100 bg-bg-secondary/70 shadow-primary-sm ${isDark ? '' : 'hover:border-primary-200 hover:bg-primary-50'}`}
+                                    aria-label={`Open ${link.label}`}
+                                    style={isDark ? {borderColor: darkSurface, backgroundColor: theme.palette.background.default, boxShadow: 'none'} : undefined}
+                                >
+                                    <img
+                                        src={link.icon}
+                                        alt={link.label}
+                                        className="community-link-icon h-5 w-5 object-contain"
+                                        style={shouldInvert ? {filter: 'brightness(0)'} : undefined}
+                                    />
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             </section>
@@ -133,7 +146,7 @@ const InfoPage: React.FC = () => {
                     >
                         Privacy Policy
                     </button>
-                    <span className="text-text-tertiary">•</span>
+                    <span className="text-text-tertiary">|</span>
                     <button
                         type="button"
                         onClick={() => void open('https://winky.pro/winky/terms-of-service')}
@@ -145,7 +158,9 @@ const InfoPage: React.FC = () => {
             </section>
 
             <section
-                className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-white shadow-primary-sm p-6">
+                className="card-animated card-no-lift rounded-2xl border border-primary-200 bg-bg-elevated shadow-primary-sm p-6"
+                style={isDark ? {borderColor: darkSurface, backgroundColor: theme.palette.background.default, boxShadow: 'none'} : undefined}
+            >
                 <div className="markdown-compact text-text-primary">
                     <ReactMarkdown
                         components={{
@@ -169,4 +184,5 @@ const InfoPage: React.FC = () => {
 };
 
 export default InfoPage;
+
 

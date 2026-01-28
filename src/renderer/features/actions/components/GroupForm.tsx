@@ -150,18 +150,20 @@ const GroupForm: React.FC<Props> = ({
                                 <Box
                                     key={color}
                                     onClick={() => setField('color', color)}
-                                    sx={{
+                                    sx={(theme) => ({
                                         width: 32,
                                         height: 32,
                                         borderRadius: 1.5,
                                         bgcolor: color,
                                         cursor: 'pointer',
-                                        border: values.color === color ? '3px solid #0f172a' : '3px solid transparent',
+                                        border: values.color === color
+                                            ? `3px solid ${theme.palette.text.primary}`
+                                            : '3px solid transparent',
                                         transition: 'transform 150ms ease, border-color 150ms ease',
                                         '&:hover': {
                                             transform: 'scale(1.1)'
                                         }
-                                    }}
+                                    })}
                                 />
                             ))}
                         </div>
@@ -221,6 +223,15 @@ const GroupForm: React.FC<Props> = ({
                                                 aria-pressed={isSelected}
                                                 onClick={() => setField('iconId', icon.id)}
                                                 sx={(theme) => ({
+                                                    ...(theme.palette.mode === 'dark'
+                                                        ? {
+                                                            '--winky-group-idle-bg': 'rgba(248, 250, 252, 0.06)',
+                                                            '--winky-group-selected-bg': 'rgba(244, 63, 94, 0.28)'
+                                                        }
+                                                        : {
+                                                            '--winky-group-idle-bg': 'rgba(15, 23, 42, 0.03)',
+                                                            '--winky-group-selected-bg': 'rgba(244, 63, 94, 0.18)'
+                                                        }),
                                                     width: 44,
                                                     height: 44,
                                                     borderStyle: 'solid',
@@ -229,11 +240,11 @@ const GroupForm: React.FC<Props> = ({
                                                         ? theme.palette.primary.main
                                                         : 'transparent',
                                                     backgroundColor: isSelected
-                                                        ? 'rgba(244, 63, 94, 0.18)'
-                                                        : 'rgba(15, 23, 42, 0.03)',
+                                                        ? 'var(--winky-group-selected-bg)'
+                                                        : 'var(--winky-group-idle-bg)',
                                                     transition: 'all 200ms ease',
                                                     '&:hover': {
-                                                        backgroundColor: 'rgba(244, 63, 94, 0.18)',
+                                                        backgroundColor: 'var(--winky-group-selected-bg)',
                                                         borderColor: theme.palette.primary.main
                                                     }
                                                 })}

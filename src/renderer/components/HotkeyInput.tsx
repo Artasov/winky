@@ -133,7 +133,7 @@ const HotkeyInput: React.FC<HotkeyInputProps> = ({value, onChange, onInvalid, pl
                     'flex-1 rounded-md border px-3 py-2 text-sm',
                     'outline-none focus:ring-2 focus:ring-primary-light focus:border-primary',
                     'transition-colors duration-150',
-                    displayValue ? 'cursor-pointer text-text-primary border-primary-200 bg-white' : 'cursor-pointer text-text-tertiary border-primary-200 bg-white/70'
+                    displayValue ? 'cursor-pointer text-text-primary border-primary-200 bg-bg-elevated' : 'cursor-pointer text-text-tertiary border-primary-200 bg-bg-elevated'
                 )}
                 role="button"
                 aria-label="Hotkey input"
@@ -145,7 +145,7 @@ const HotkeyInput: React.FC<HotkeyInputProps> = ({value, onChange, onInvalid, pl
                 <button
                     type="button"
                     onClick={handleClear}
-                    className="rounded-md border border-primary-200 bg-white px-2 py-1 text-xs text-text-secondary hover:border-primary hover:text-primary"
+                    className="rounded-md border border-primary-200 bg-bg-elevated px-2 py-1 text-xs text-text-secondary hover:border-primary hover:text-primary"
                 >
                     Clear
                 </button>

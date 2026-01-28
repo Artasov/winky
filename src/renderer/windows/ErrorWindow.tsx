@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+﻿import React, {useEffect, useState} from 'react';
 
 interface ErrorData {
     title: string;
@@ -37,9 +37,9 @@ const ErrorWindow: React.FC = () => {
     return (
         <div className='fc h-full w-full bg-bg-base'>
             {/* Header */}
-            <div className='frbc border-b border-primary-200 bg-white px-4 py-3 shadow-primary-sm'>
+            <div className='frbc border-b border-primary-200 bg-bg-elevated px-4 py-3 shadow-primary-sm'>
                 <div className='frc gap-2'>
-                    <div className='text-2xl'>⚠️</div>
+                    <div className='text-2xl'>вљ пёЏ</div>
                     <h1 className='text-lg font-semibold text-error'>{errorData.title}</h1>
                 </div>
                 <button
@@ -47,7 +47,7 @@ const ErrorWindow: React.FC = () => {
                     className='button-animated frcc h-8 w-8 rounded-lg text-text-secondary transition-colors hover:bg-primary-50 hover:text-error focus:outline-none'
                     aria-label='Close'
                 >
-                    ✕
+                    вњ•
                 </button>
             </div>
 
@@ -62,7 +62,7 @@ const ErrorWindow: React.FC = () => {
                         <h2 className='text-xs font-semibold text-text-secondary uppercase tracking-wide'>
                             Technical Details
                         </h2>
-                        <div className='rounded-lg border border-primary-200 bg-white p-4'>
+                        <div className='rounded-lg border border-primary-200 bg-bg-elevated p-4'>
               <pre className='text-xs text-text-secondary whitespace-pre-wrap wrap-break-word font-mono'>
                 {errorData.details}
               </pre>
@@ -76,7 +76,7 @@ const ErrorWindow: React.FC = () => {
             </div>
 
             {/* Footer */}
-            <div className='frce border-t border-primary-200 bg-white px-6 py-4'>
+            <div className='frce border-t border-primary-200 bg-bg-elevated px-6 py-4'>
                 <button
                     onClick={handleClose}
                     className='button-animated rounded-lg bg-primary px-6 py-2 text-sm font-medium text-text-inverse shadow-primary-md transition-all hover:bg-primary-dark hover:shadow-primary-lg focus:outline-none'
@@ -89,4 +89,5 @@ const ErrorWindow: React.FC = () => {
 };
 
 export default ErrorWindow;
+
 

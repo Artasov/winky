@@ -62,11 +62,6 @@ export const ModelTranscribeSection: React.FC<ModelTranscribeSectionProps> = ({
                         }}
                         disabled={disableInputs}
                         fullWidth
-                        slotProps={{
-                            select: {
-                                sx: {pr: 8}
-                            }
-                        }}
                     >
                         <MenuItem value={SPEECH_MODES.API}>API</MenuItem>
                         <MenuItem value={SPEECH_MODES.LOCAL}>Local</MenuItem>

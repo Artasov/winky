@@ -1,4 +1,4 @@
-import React, {forwardRef, useState} from 'react';
+﻿import React, {forwardRef, useState} from 'react';
 import {
     Box,
     Button,
@@ -262,13 +262,15 @@ const ActionForm: React.FC<Props> = ({
                             <em>Use default from settings</em>
                         </MenuItem>
                         <ListSubheader
-                            sx={{
-                                backgroundColor: '#fff',
+                            sx={(theme) => ({
+                                backgroundColor: theme.palette.mode === 'dark'
+                                    ? theme.palette.background.default
+                                    : 'var(--color-bg-elevated)',
                                 fontWeight: 600,
                                 fontSize: '0.875rem',
                                 color: 'text.primary',
                                 lineHeight: '36px'
-                            }}
+                            })}
                         >
                             OpenAI
                         </ListSubheader>
@@ -278,13 +280,15 @@ const ActionForm: React.FC<Props> = ({
                             </MenuItem>
                         ))}
                         <ListSubheader
-                            sx={{
-                                backgroundColor: '#fff',
+                            sx={(theme) => ({
+                                backgroundColor: theme.palette.mode === 'dark'
+                                    ? theme.palette.background.default
+                                    : 'var(--color-bg-elevated)',
                                 fontWeight: 600,
                                 fontSize: '0.875rem',
                                 color: 'text.primary',
                                 lineHeight: '36px'
-                            }}
+                            })}
                         >
                             Google Gemini
                         </ListSubheader>
@@ -294,13 +298,15 @@ const ActionForm: React.FC<Props> = ({
                             </MenuItem>
                         ))}
                         <ListSubheader
-                            sx={{
-                                backgroundColor: '#fff',
+                            sx={(theme) => ({
+                                backgroundColor: theme.palette.mode === 'dark'
+                                    ? theme.palette.background.default
+                                    : 'var(--color-bg-elevated)',
                                 fontWeight: 600,
                                 fontSize: '0.875rem',
                                 color: 'text.primary',
                                 lineHeight: '36px'
-                            }}
+                            })}
                         >
                             Ollama (Local)
                         </ListSubheader>
@@ -327,7 +333,7 @@ const ActionForm: React.FC<Props> = ({
                             Icon <Typography component="span" color="error.main">*</Typography>{' '}
                             {selectedIconName && (
                                 <Typography component="span" variant="caption" color="text.secondary">
-                                    • {selectedIconName}
+                                    вЂў {selectedIconName}
                                 </Typography>
                             )}
                         </Typography>
@@ -342,7 +348,7 @@ const ActionForm: React.FC<Props> = ({
                                     color: 'text.secondary'
                                 }}
                             >
-                                Loading icons…
+                                Loading iconsвЂ¦
                             </Box>
                         ) : icons.length === 0 ? (
                             <Box
@@ -387,14 +393,14 @@ const ActionForm: React.FC<Props> = ({
                                                         ? theme.palette.primary.main
                                                         : theme.palette.primary.main + '00',
                                                     backgroundColor: isSelected
-                                                        ? 'rgba(244, 63, 94, 0.18)'
-                                                        : 'rgba(15, 23, 42, 0.03)',
+                                                        ? (theme.palette.mode === 'dark' ? 'rgba(244, 63, 94, 0.28)' : 'rgba(244, 63, 94, 0.18)')
+                                                        : (theme.palette.mode === 'dark' ? 'rgba(248, 250, 252, 0.06)' : 'rgba(15, 23, 42, 0.03)'),
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
                                                     transition: 'all 260ms ease',
                                                     '&:hover': {
-                                                        backgroundColor: 'rgba(244, 63, 94, 0.18)',
+                                                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(244, 63, 94, 0.28)' : 'rgba(244, 63, 94, 0.18)',
                                                         borderColor: theme.palette.primary.main
                                                     },
                                                     boxShadow: 'none'
@@ -409,7 +415,13 @@ const ActionForm: React.FC<Props> = ({
                                                         component="img"
                                                         src={getMediaUrl(icon.svg)}
                                                         alt={icon.name}
-                                                        sx={{width: 24, height: 24}}
+                                                        sx={(theme) => ({
+                                                            width: 24,
+                                                            height: 24,
+                                                            filter: theme.palette.mode === 'dark'
+                                                                ? 'brightness(0) invert(1)'
+                                                                : 'none'
+                                                        })}
                                                     />
                                                 )}
                                             </IconButton>
@@ -460,7 +472,7 @@ const ActionForm: React.FC<Props> = ({
                     variant="contained"
                     disabled={saving || iconsLoading || icons.length === 0 || !values.iconId}
                 >
-                    {saving ? 'Saving…' : isEditMode ? 'Save changes' : 'Create action'}
+                    {saving ? 'SavingвЂ¦' : isEditMode ? 'Save changes' : 'Create action'}
                 </Button>
             </DialogActions>
 
@@ -476,3 +488,5 @@ const ActionForm: React.FC<Props> = ({
 };
 
 export default ActionForm;
+
+

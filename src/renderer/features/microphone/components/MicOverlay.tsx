@@ -183,7 +183,7 @@ const MicOverlay: React.FC<MicOverlayProps> = ({contextTextRef: contextTextRefPr
         return (
             <div className="pointer-events-none relative flex h-full w-full items-center justify-center">
                 <div
-                    className="pointer-events-auto flex flex-col items-center gap-4 rounded-2xl bg-white/95 backdrop-blur-sm px-8 py-6 shadow-lg">
+                    className="pointer-events-auto flex flex-col items-center gap-4 rounded-2xl bg-bg-elevated backdrop-blur-sm px-8 py-6 shadow-lg">
                     <LoadingSpinner size="medium"/>
                     <p className="text-sm font-medium text-text-secondary animate-pulse">Loading...</p>
                 </div>

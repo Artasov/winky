@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+﻿import React, {useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
@@ -34,7 +34,7 @@ const AuthWindow: React.FC = () => {
             } catch (userError) {
                 console.warn('[AuthWindow] Failed to fetch user, but continuing:', userError);
             }
-            // Загружаем группы с экшенами после авторизации
+            // Р—Р°РіСЂСѓР¶Р°РµРј РіСЂСѓРїРїС‹ СЃ СЌРєС€РµРЅР°РјРё РїРѕСЃР»Рµ Р°РІС‚РѕСЂРёР·Р°С†РёРё
             try {
                 await groupsBridge.fetch();
             } catch (groupsError) {
@@ -65,8 +65,8 @@ const AuthWindow: React.FC = () => {
         }
     };
     
-    // Показываем "Waiting for authorization" только когда явно запущен OAuth процесс
-    // Не показываем при 'checking' статусе, так как он может быть при инициализации
+    // РџРѕРєР°Р·С‹РІР°РµРј "Waiting for authorization" С‚РѕР»СЊРєРѕ РєРѕРіРґР° СЏРІРЅРѕ Р·Р°РїСѓС‰РµРЅ OAuth РїСЂРѕС†РµСЃСЃ
+    // РќРµ РїРѕРєР°Р·С‹РІР°РµРј РїСЂРё 'checking' СЃС‚Р°С‚СѓСЃРµ, С‚Р°Рє РєР°Рє РѕРЅ РјРѕР¶РµС‚ Р±С‹С‚СЊ РїСЂРё РёРЅРёС†РёР°Р»РёР·Р°С†РёРё
     const isOAuthPending = auth.status === 'oauth';
 
     return (
@@ -81,7 +81,7 @@ const AuthWindow: React.FC = () => {
                             type="email"
                             value={email}
                             onChange={(event) => setEmail(event.target.value)}
-                            className="input-animated rounded-md border border-primary-200 bg-white px-3 py-2 text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
+                            className="input-animated rounded-md border border-primary-200 bg-bg-elevated px-3 py-2 text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
                         />
                     </label>
                     <label className="flex flex-col gap-2 text-sm text-text-primary">
@@ -90,7 +90,7 @@ const AuthWindow: React.FC = () => {
                             type="password"
                             value={password}
                             onChange={(event) => setPassword(event.target.value)}
-                            className="input-animated rounded-md border border-primary-200 bg-white px-3 py-2 text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
+                            className="input-animated rounded-md border border-primary-200 bg-bg-elevated px-3 py-2 text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light/30"
                         />
                     </label>
                     <button
@@ -120,7 +120,7 @@ const AuthWindow: React.FC = () => {
                             type="button"
                             onClick={() => handleOAuth('google')}
                             disabled={auth.isBusy || isOAuthPending}
-                            className="frcc w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="frcc w-full rounded-lg border border-primary-200 bg-bg-elevated px-4 py-2 text-sm font-medium text-text-primary shadow-primary-sm hover:border-primary hover:bg-bg-tertiary disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <svg className="h-5 w-5" viewBox="0 0 24 24">
                                 <path fill="#4285F4"
@@ -138,7 +138,7 @@ const AuthWindow: React.FC = () => {
                             type="button"
                             onClick={() => handleOAuth('github')}
                             disabled={auth.isBusy || isOAuthPending}
-                            className="frcc w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="frcc w-full rounded-lg border border-primary-200 bg-bg-elevated px-4 py-2 text-sm font-medium text-text-primary shadow-primary-sm hover:border-primary hover:bg-bg-tertiary disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
                                 <path fillRule="evenodd"
@@ -151,7 +151,7 @@ const AuthWindow: React.FC = () => {
                             type="button"
                             onClick={() => handleOAuth('discord')}
                             disabled={auth.isBusy || isOAuthPending}
-                            className="frcc w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="frcc w-full rounded-lg border border-primary-200 bg-bg-elevated px-4 py-2 text-sm font-medium text-text-primary shadow-primary-sm hover:border-primary hover:bg-bg-tertiary disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <svg className="h-5 w-5" fill="#5865F2" viewBox="0 0 24 24">
                                 <path
@@ -166,3 +166,4 @@ const AuthWindow: React.FC = () => {
 };
 
 export default AuthWindow;
+

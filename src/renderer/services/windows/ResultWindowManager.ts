@@ -1,4 +1,4 @@
-import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
+﻿import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
 import {listen, emit} from '@tauri-apps/api/event';
 import {AuxWindowController} from './AuxWindowController';
 
@@ -9,8 +9,8 @@ export type ResultPayload = {
 };
 
 /**
- * Менеджер для управления окном результатов
- * Обеспечивает надежную передачу данных между окнами
+ * РњРµРЅРµРґР¶РµСЂ РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ РѕРєРЅРѕРј СЂРµР·СѓР»СЊС‚Р°С‚РѕРІ
+ * РћР±РµСЃРїРµС‡РёРІР°РµС‚ РЅР°РґРµР¶РЅСѓСЋ РїРµСЂРµРґР°С‡Сѓ РґР°РЅРЅС‹С… РјРµР¶РґСѓ РѕРєРЅР°РјРё
  */
 export class ResultWindowManager {
     private readonly window: AuxWindowController;
@@ -30,9 +30,8 @@ export class ResultWindowManager {
             transparent: true
         });
 
-        // Слушаем событие готовности окна
+        // РЎР»СѓС€Р°РµРј СЃРѕР±С‹С‚РёРµ РіРѕС‚РѕРІРЅРѕСЃС‚Рё РѕРєРЅР°
         void listen('result:ready', () => {
-            console.log('[ResultWindowManager] Window is ready');
             this.isReady = true;
             this.readyWaiters.forEach((waiter) => waiter());
             this.readyWaiters.clear();
@@ -40,7 +39,7 @@ export class ResultWindowManager {
     }
 
     /**
-     * Ожидает готовности окна с таймаутом
+     * РћР¶РёРґР°РµС‚ РіРѕС‚РѕРІРЅРѕСЃС‚Рё РѕРєРЅР° СЃ С‚Р°Р№РјР°СѓС‚РѕРј
      */
     private waitForReady(timeout: number = 5000): Promise<void> {
         if (this.isReady) {
@@ -66,7 +65,7 @@ export class ResultWindowManager {
     }
 
     /**
-     * Отправляет данные в окно
+     * РћС‚РїСЂР°РІР»СЏРµС‚ РґР°РЅРЅС‹Рµ РІ РѕРєРЅРѕ
      */
     private async sendPayload(payload: ResultPayload): Promise<void> {
         this.lastPayload = this.lastPayload ? {...this.lastPayload, ...payload} : payload;
@@ -75,10 +74,9 @@ export class ResultWindowManager {
     }
 
     /**
-     * Открывает окно и ждет его готовности
+     * РћС‚РєСЂС‹РІР°РµС‚ РѕРєРЅРѕ Рё Р¶РґРµС‚ РµРіРѕ РіРѕС‚РѕРІРЅРѕСЃС‚Рё
      */
     async open(): Promise<void> {
-        console.log('[ResultWindowManager] Opening window...');
         
         const existingWindow = await WebviewWindow.getByLabel('result').catch(() => null);
         const isAlreadyOpen = existingWindow !== null;
@@ -95,13 +93,12 @@ export class ResultWindowManager {
         
         try {
             await this.waitForReady();
-            console.log('[ResultWindowManager] Window is ready');
             
-            // Очищаем состояние для нового сеанса
+            // РћС‡РёС‰Р°РµРј СЃРѕСЃС‚РѕСЏРЅРёРµ РґР»СЏ РЅРѕРІРѕРіРѕ СЃРµР°РЅСЃР°
             this.lastPayload = null;
             this.eventHistory = [];
             
-            // Отправляем отложенные данные
+            // РћС‚РїСЂР°РІР»СЏРµРј РѕС‚Р»РѕР¶РµРЅРЅС‹Рµ РґР°РЅРЅС‹Рµ
             if (this.pendingPayload) {
                 const payload = this.pendingPayload;
                 this.pendingPayload = null;
@@ -110,7 +107,6 @@ export class ResultWindowManager {
         } catch (error) {
             console.error('[ResultWindowManager] Failed to wait for ready:', error);
             if (isAlreadyOpen) {
-                console.log('[ResultWindowManager] Window was already open, considering ready');
                 this.isReady = true;
                 this.lastPayload = null;
                 this.eventHistory = [];
@@ -127,10 +123,9 @@ export class ResultWindowManager {
     }
 
     /**
-     * Закрывает окно
+     * Р—Р°РєСЂС‹РІР°РµС‚ РѕРєРЅРѕ
      */
     async close(): Promise<void> {
-        console.log('[ResultWindowManager] Closing window...');
         this.lastPayload = null;
         this.eventHistory = [];
         this.pendingPayload = null;
@@ -141,19 +136,19 @@ export class ResultWindowManager {
     }
 
     /**
-     * Обновляет данные в окне
+     * РћР±РЅРѕРІР»СЏРµС‚ РґР°РЅРЅС‹Рµ РІ РѕРєРЅРµ
      */
     async update(payload: ResultPayload): Promise<void> {
         
-        // Обновляем состояние
+        // РћР±РЅРѕРІР»СЏРµРј СЃРѕСЃС‚РѕСЏРЅРёРµ
         this.lastPayload = this.lastPayload ? {...this.lastPayload, ...payload} : payload;
         this.eventHistory.push(payload);
         
-        // Если окно не готово, сохраняем данные
+        // Р•СЃР»Рё РѕРєРЅРѕ РЅРµ РіРѕС‚РѕРІРѕ, СЃРѕС…СЂР°РЅСЏРµРј РґР°РЅРЅС‹Рµ
         if (!this.isReady) {
             this.pendingPayload = this.pendingPayload ? {...this.pendingPayload, ...payload} : payload;
             
-            // Небольшая задержка для проверки готовности
+            // РќРµР±РѕР»СЊС€Р°СЏ Р·Р°РґРµСЂР¶РєР° РґР»СЏ РїСЂРѕРІРµСЂРєРё РіРѕС‚РѕРІРЅРѕСЃС‚Рё
             await new Promise(resolve => setTimeout(resolve, 50));
             if (this.isReady && this.pendingPayload) {
                 const finalPayload = this.pendingPayload;
@@ -163,30 +158,26 @@ export class ResultWindowManager {
             return;
         }
         
-        // Отправляем данные если окно готово
+        // РћС‚РїСЂР°РІР»СЏРµРј РґР°РЅРЅС‹Рµ РµСЃР»Рё РѕРєРЅРѕ РіРѕС‚РѕРІРѕ
         await this.sendPayload(payload);
     }
     /**
-     * Подписывается на обновления данных
+     * РџРѕРґРїРёСЃС‹РІР°РµС‚СЃСЏ РЅР° РѕР±РЅРѕРІР»РµРЅРёСЏ РґР°РЅРЅС‹С…
      */
     onData(callback: (payload: ResultPayload) => void): () => void {
-        console.log('[ResultWindowManager] Setting up data listener');
         const unlistenPromise = listen<ResultPayload>('result:data', (event) => {
-            console.log('[ResultWindowManager] Received data event:', event.payload);
             callback(event.payload);
         });
         
-        // Отправляем текущее состояние
+        // РћС‚РїСЂР°РІР»СЏРµРј С‚РµРєСѓС‰РµРµ СЃРѕСЃС‚РѕСЏРЅРёРµ
         if (this.lastPayload) {
-            console.log('[ResultWindowManager] Sending current state to subscriber');
             setTimeout(() => {
                 callback(this.lastPayload!);
             }, 0);
         }
         
-        // Отправляем историю событий
+        // РћС‚РїСЂР°РІР»СЏРµРј РёСЃС‚РѕСЂРёСЋ СЃРѕР±С‹С‚РёР№
         if (this.eventHistory.length > 0) {
-            console.log('[ResultWindowManager] Sending event history to subscriber');
             const mergedPayload = this.eventHistory.reduce((acc, entry) => ({...acc, ...entry}), {} as ResultPayload);
             setTimeout(() => {
                 callback(mergedPayload);
@@ -198,4 +189,5 @@ export class ResultWindowManager {
         };
     }
 }
+
 

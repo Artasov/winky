@@ -4,6 +4,7 @@ import classNames from 'classnames';
 import type {SvgIconProps} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
+import {useThemeMode} from '../context/ThemeModeContext';
 import BubbleChartRoundedIcon from '@mui/icons-material/BubbleChartRounded';
 import BookmarkBorderRoundedIcon from '@mui/icons-material/BookmarkBorderRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
@@ -40,7 +41,8 @@ const Sidebar: React.FC = () => {
     const frameCallbackIdRef = useRef<number | null>(null);
     const {config} = useConfig();
     const {user} = useUser();
-    const showAvatarVideo = config?.showAvatarVideo !== false;
+    const {isDark} = useThemeMode();
+    const showAvatarVideo = config?.showAvatarVideo !== false && !isDark;
 
     const handleNavigation = (path: string) => {
         navigate(path);
@@ -235,7 +237,11 @@ const Sidebar: React.FC = () => {
     }, [keepPlayback, restartPlayback, showAvatarVideo]);
 
     return (
-        <aside className="flex h-full w-64 flex-col border-r border-primary-200/60 bg-white/95 backdrop-blur shadow-sm">
+        <aside className={`flex h-full w-64 flex-col border-r ${
+            isDark
+                ? 'border-white/15 bg-transparent'
+                : 'border-primary-200/60 bg-white/95 backdrop-blur shadow-sm'
+        }`}>
             <nav className="flex flex-1 flex-col gap-1 px-3 mt-4">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path;
@@ -247,9 +253,13 @@ const Sidebar: React.FC = () => {
                             className={classNames(
                                 'flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-medium duration-base outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
                                 'transition-[background-color,border-color,box-shadow]',
-                                isActive
-                                    ? 'active bg-primary-50 text-primary shadow-primary-sm ring-1 ring-primary-200'
-                                    : 'text-text-secondary hover:bg-bg-tertiary',
+                                isDark
+                                    ? isActive
+                                        ? 'bg-primary-500/15 text-primary ring-1 ring-primary-500/30'
+                                        : 'text-text-secondary hover:bg-white/10'
+                                    : isActive
+                                        ? 'active bg-primary-50 text-primary shadow-primary-sm ring-1 ring-primary-200'
+                                        : 'text-text-secondary hover:bg-bg-tertiary',
                             )} aria-current={isActive ? 'page' : undefined}
                         >
                             <item.Icon sx={{
@@ -261,7 +271,7 @@ const Sidebar: React.FC = () => {
                         </button>
                     );
                 })}
-                <div className="my-3 mx-4 border-t border-primary-200/60"></div>
+                <div className={`my-3 mx-4 border-t ${isDark ? 'border-white/15' : 'border-primary-200/60'}`}></div>
                 <div className="frcc gap-2 pb-2">
                     {iconOnlyItems.map((item) => {
                         const isActive = location.pathname === item.path;
@@ -275,9 +285,13 @@ const Sidebar: React.FC = () => {
                                 onClick={() => handleNavigation(item.path)}
                                 className={classNames(
                                     'flex h-10 w-10 items-center justify-center rounded-full transition-all duration-base focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
-                                    isActive
-                                        ? 'bg-primary-100 text-primary'
-                                        : 'text-text-secondary hover:bg-bg-tertiary hover:text-primary',
+                                    isDark
+                                        ? isActive
+                                            ? 'bg-primary-500/15 text-primary'
+                                            : 'text-text-secondary hover:bg-white/10 hover:text-primary'
+                                        : isActive
+                                            ? 'bg-primary-100 text-primary'
+                                            : 'text-text-secondary hover:bg-bg-tertiary hover:text-primary',
                                 )}
                                 aria-label={item.label}
                                 aria-current={isActive ? 'page' : undefined}
@@ -298,31 +312,33 @@ const Sidebar: React.FC = () => {
                     })}
                 </div>
             </nav>
-            <div className="p-4 overflow-hidden">
-                {showAvatarVideo ? (
-                    <video
-                        ref={videoRef}
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        preload="auto"
-                        disablePictureInPicture
-                        className="w-full h-auto pointer-events-none select-none"
-                        src="./resources/avatar.mp4"
-                        style={{
-                            imageRendering: '-webkit-optimize-contrast',
-                            WebkitFontSmoothing: 'antialiased',
-                            MozOsxFontSmoothing: 'grayscale',
-                            transform: 'translateY(15px) scale(1.3)',
-                            objectPosition: 'top',
-                            backfaceVisibility: 'hidden',
-                            perspective: 1000,
-                            willChange: 'transform'
-                        }}
-                    />
-                ) : null}
-            </div>
+            {!isDark && (
+                <div className="p-4 overflow-hidden">
+                    {showAvatarVideo ? (
+                        <video
+                            ref={videoRef}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            preload="auto"
+                            disablePictureInPicture
+                            className="w-full h-auto pointer-events-none select-none"
+                            src="./resources/avatar.mp4"
+                            style={{
+                                imageRendering: '-webkit-optimize-contrast',
+                                WebkitFontSmoothing: 'antialiased',
+                                MozOsxFontSmoothing: 'grayscale',
+                                transform: 'translateY(15px) scale(1.3)',
+                                objectPosition: 'top',
+                                backfaceVisibility: 'hidden',
+                                perspective: 1000,
+                                willChange: 'transform'
+                            }}
+                        />
+                    ) : null}
+                </div>
+            )}
         </aside>
     );
 };

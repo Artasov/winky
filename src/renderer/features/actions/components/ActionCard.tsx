@@ -1,7 +1,8 @@
-import React from 'react';
+﻿import React from 'react';
 import {Box, Chip, IconButton, Stack, Typography} from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import StarsRoundedIcon from '@mui/icons-material/StarsRounded';
+import {alpha} from '@mui/material/styles';
 import type {ActionConfig} from '@shared/types';
 import {getMediaUrl} from '@shared/constants';
 
@@ -20,7 +21,7 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
         if (!value) {
             return '';
         }
-        return value.length > limit ? `${value.slice(0, limit).trim()}…` : value;
+        return value.length > limit ? `${value.slice(0, limit).trim()}вЂ¦` : value;
     };
 
     const promptText = action.prompt && action.prompt.trim().length > 0
@@ -38,37 +39,54 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
         <Box
             className={'action-card-wrap'}
             onClick={handleEdit}
-            sx={{
-                borderRadius: 2.5,
-                border: '2px solid ' + 'rgba(255,196,205,0.41)',
-                background: '#fff',
-                color: '#0f172a',
-                p: 2.4,
-                position: 'relative',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                opacity: disabled ? 0.65 : 1,
-                boxShadow: '0 12px 32px ' + 'rgba(255,247,248,0.08)',
-                transition: 'transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease',
-                minWidth: 0,
-                '&:hover': disabled
-                    ? undefined
-                    : {
-                        transform: 'translateY(-2px)',
-                        boxShadow: '0 20px 40px rgba(244, 63, 94, 0.15)',
-                        border: '2px solid ' + 'rgba(255,82,106,0.91)'
-                    },
-                '&:hover .action-card__delete, &:focus-within .action-card__delete': disabled ? undefined : {
-                    opacity: 1,
-                    pointerEvents: 'auto',
-                    transform: 'translateY(0)'
-                }
+            sx={(theme) => {
+                const isDark = theme.palette.mode === 'dark';
+                const neutralColor = '#6f6f6f';
+                const darkSurface = theme.palette.background.default;
+                const baseBorder = isDark
+                    ? alpha(neutralColor, 0.2)
+                    : 'rgba(255,196,205,0.41)';
+                const hoverBorder = isDark
+                    ? alpha(theme.palette.primary.main, 0.65)
+                    : 'rgba(255,82,106,0.91)';
+                const baseShadow = isDark
+                    ? '0 28px 68px rgba(0, 0, 0, 0.82)'
+                    : '0 12px 32px rgba(255,247,248,0.08)';
+                const hoverShadow = isDark
+                    ? '0 34px 84px rgba(0, 0, 0, 0.9)'
+                    : '0 20px 40px rgba(244, 63, 94, 0.15)';
+                return {
+                    borderRadius: 2.5,
+                    border: `2px solid ${baseBorder}`,
+                    background: isDark ? darkSurface : theme.palette.background.paper,
+                    color: theme.palette.text.primary,
+                    p: 2.4,
+                    position: 'relative',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    opacity: disabled ? 0.65 : 1,
+                    boxShadow: baseShadow,
+                    transition: 'transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease',
+                    minWidth: 0,
+                    '&:hover': disabled
+                        ? undefined
+                        : {
+                            transform: 'translateY(-2px)',
+                            boxShadow: hoverShadow,
+                            border: `2px solid ${hoverBorder}`
+                        },
+                    '&:hover .action-card__delete, &:focus-within .action-card__delete': disabled ? undefined : {
+                        opacity: 1,
+                        pointerEvents: 'auto',
+                        transform: 'translateY(0)'
+                    }
+                };
             }}
         >
             {action.is_active === false && (
                 <div className={'w-full h-full absolute top-0 left-0 frcc'}>
                     <Box
                         component="span"
-                        sx={{
+                        sx={(theme) => ({
                             px: 1.5,
                             py: 0.5,
                             borderRadius: 999,
@@ -77,9 +95,11 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                             fontWeight: 700,
                             letterSpacing: 0.6,
                             textTransform: 'uppercase',
-                            background: 'rgba(15,23,42,0.08)',
-                            color: '#0f172a'
-                        }}
+                            background: theme.palette.mode === 'dark'
+                                ? 'rgba(248, 250, 252, 0.16)'
+                                : 'rgba(15,23,42,0.08)',
+                            color: theme.palette.text.primary
+                        })}
                     >
                         Inactive
                     </Box>
@@ -96,16 +116,24 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                             event.stopPropagation();
                             onDelete(action.id, action.name);
                         }}
-                        sx={{
-                            position: 'absolute',
-                            top: 12,
-                            right: 12,
-                            bgcolor: 'rgba(244,63,94,0.06)',
-                            '&:hover': {bgcolor: 'rgba(244,63,94,0.15)'},
-                            transition: 'opacity 260ms ease, transform 260ms ease, background-color 260ms ease',
-                            opacity: disabled ? 0.6 : 0,
-                            pointerEvents: disabled ? 'auto' : 'none',
-                            transform: disabled ? 'translateY(0)' : 'translateY(-4px)'
+                        sx={(theme) => {
+                            const isDark = theme.palette.mode === 'dark';
+                            return {
+                                position: 'absolute',
+                                top: 12,
+                                right: 12,
+                                bgcolor: isDark ? alpha('#6f6f6f', 0.24) : alpha(theme.palette.primary.main, 0.06),
+                                color: isDark ? '#ffffff' : undefined,
+                                '&:hover': {
+                                    bgcolor: isDark
+                                        ? alpha(theme.palette.error.main, 0.38)
+                                        : alpha(theme.palette.primary.main, 0.15)
+                                },
+                                transition: 'opacity 260ms ease, transform 260ms ease, background-color 260ms ease',
+                                opacity: disabled ? 0.6 : 0,
+                                pointerEvents: disabled ? 'auto' : 'none',
+                                transform: disabled ? 'translateY(0)' : 'translateY(-4px)'
+                            };
                         }}
                         aria-label="Delete action"
                     >
@@ -115,15 +143,22 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
 
                 <Stack direction="row" spacing={2} alignItems="center">
                     <Box
-                        sx={{
-                            width: 48,
-                            height: 48,
-                            borderRadius: 2.5,
-                            background: 'linear-gradient(135deg, #ffe4e6, #fff5f7)',
-                            border: '1px solid rgba(244,63,94,0.2)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
+                        sx={(theme) => {
+                            const isDark = theme.palette.mode === 'dark';
+                            const neutralColor = '#6f6f6f';
+                            return {
+                                width: 48,
+                                height: 48,
+                                borderRadius: 2.5,
+                                background: isDark
+                                    ? `linear-gradient(135deg, ${alpha(neutralColor, 0.32)}, ${alpha(neutralColor, 0.16)})`
+                                    : 'linear-gradient(135deg, #ffe4e6, #fff5f7)',
+                                border: `1px solid ${isDark ? alpha(neutralColor, 0.45) : 'rgba(244,63,94,0.2)'}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: isDark ? `inset 0 1px 0 ${alpha(neutralColor, 0.36)}` : undefined
+                            };
                         }}
                     >
                         {action.icon_details?.svg ? (
@@ -131,10 +166,21 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                                 component="img"
                                 src={getMediaUrl(action.icon_details.svg)}
                                 alt={action.icon_details.name || ''}
-                                sx={{width: 30, height: 30}}
+                                sx={(theme) => ({
+                                    width: 30,
+                                    height: 30,
+                                    filter: theme.palette.mode === 'dark' ? 'brightness(0) invert(1)' : 'none'
+                                })}
                             />
                         ) : (
-                            <Typography variant="h4">⚡</Typography>
+                            <Typography
+                                variant="h4"
+                                sx={(theme) => ({
+                                    color: theme.palette.mode === 'dark' ? '#ffffff' : undefined
+                                })}
+                            >
+                                вљЎ
+                            </Typography>
                         )}
                     </Box>
 
@@ -184,3 +230,4 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
 };
 
 export default ActionCard;
+

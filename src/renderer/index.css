@@ -1,4 +1,4 @@
-@import './tailwind.css';
+﻿@import './tailwind.css';
 @import './styles/theme.sass';
 @import './styles/wide-classes.css';
 
@@ -47,6 +47,90 @@
     --transition-timing-function-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
 }
 
+:root,
+html[data-theme='light'] {
+    --color-primary: #e11d48;
+    --color-primary-light: #fb7185;
+    --color-primary-dark: #be123c;
+    --color-primary-hover: #f43f5e;
+    --color-primary-50: #fff1f2;
+    --color-primary-100: #ffe4e6;
+    --color-primary-200: #fecdd3;
+    --color-primary-300: #fda4af;
+    --color-primary-400: #fb7185;
+    --color-primary-500: #f43f5e;
+    --color-primary-600: #e11d48;
+    --color-primary-700: #be123c;
+    --color-primary-800: #9f1239;
+    --color-primary-900: #881337;
+
+    --color-bg-base: #ffffff;
+    --color-bg-secondary: #fef2f2;
+    --color-bg-tertiary: #fee2e2;
+    --color-bg-elevated: #fafafa;
+
+    --color-text-primary: #1e293b;
+    --color-text-secondary: #64748b;
+    --color-text-tertiary: #94a3b8;
+    --color-text-inverse: #ffffff;
+
+    --color-border-light: #fecdd3;
+    --color-border-base: #fda4af;
+    --color-border-strong: #fb7185;
+
+    --shadow-primary-sm: 0 1px 2px 0 rgba(225, 29, 72, 0.05);
+    --shadow-primary: 0 4px 6px -1px rgba(225, 29, 72, 0.1), 0 2px 4px -1px rgba(225, 29, 72, 0.06);
+    --shadow-primary-md: 0 10px 15px -3px rgba(225, 29, 72, 0.1), 0 4px 6px -2px rgba(225, 29, 72, 0.05);
+    --shadow-primary-lg: 0 20px 25px -5px rgba(225, 29, 72, 0.1), 0 10px 10px -5px rgba(225, 29, 72, 0.04);
+    --shadow-primary-xl: 0 25px 50px -12px rgba(225, 29, 72, 0.25);
+
+    --transition-duration-fast: 150ms;
+    --transition-duration-base: 250ms;
+    --transition-duration-slow: 350ms;
+
+    --transition-timing-function-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-timing-function-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --transition-timing-function-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+html[data-theme='dark'] {
+    color-scheme: dark;
+    --color-primary: #f43f5e;
+    --color-primary-light: #fb7185;
+    --color-primary-dark: #e11d48;
+    --color-primary-hover: #fb7185;
+    --color-primary-50: #1a060d;
+    --color-primary-100: #2a0a14;
+    --color-primary-200: #3a0f1c;
+    --color-primary-300: #5a1630;
+    --color-primary-400: #fb7185;
+    --color-primary-500: #f43f5e;
+    --color-primary-600: #e11d48;
+    --color-primary-700: #be123c;
+    --color-primary-800: #9f1239;
+    --color-primary-900: #881337;
+
+    --color-bg-base: #000000;
+    --color-bg-secondary: #050505;
+    --color-bg-tertiary: #0b0b0b;
+    --color-bg-elevated: #111111;
+
+    --color-text-primary: #f8fafc;
+    --color-text-secondary: #e2e8f0;
+    --color-text-tertiary: #94a3b8;
+    --color-text-inverse: #0b0b0b;
+
+    --color-border-light: #3a0f1c;
+    --color-border-base: #5a1630;
+    --color-border-strong: #7a2540;
+
+    --shadow-primary-sm: 0 1px 2px 0 rgba(244, 63, 94, 0.16);
+    --shadow-primary: 0 6px 14px -6px rgba(244, 63, 94, 0.35), 0 4px 10px -6px rgba(244, 63, 94, 0.25);
+    --shadow-primary-md: 0 18px 34px -16px rgba(244, 63, 94, 0.45), 0 12px 24px -14px rgba(244, 63, 94, 0.35);
+    --shadow-primary-lg: 0 28px 60px -28px rgba(244, 63, 94, 0.55), 0 22px 40px -26px rgba(244, 63, 94, 0.45);
+    --shadow-primary-xl: 0 40px 90px -42px rgba(244, 63, 94, 0.7);
+}
+
 html,
 body,
 #root {
@@ -54,8 +138,8 @@ body,
     overflow: hidden;
 }
 
-/* Закругление углов для окон без системных декораций (Windows) */
-/* html и body должны быть прозрачными, закругление на #root */
+/* Р—Р°РєСЂСѓРіР»РµРЅРёРµ СѓРіР»РѕРІ РґР»СЏ РѕРєРѕРЅ Р±РµР· СЃРёСЃС‚РµРјРЅС‹С… РґРµРєРѕСЂР°С†РёР№ (Windows) */
+/* html Рё body РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ РїСЂРѕР·СЂР°С‡РЅС‹РјРё, Р·Р°РєСЂСѓРіР»РµРЅРёРµ РЅР° #root */
 html[data-window-type="main"],
 html[data-window-type="result"],
 html[data-window-type="error"] {
@@ -81,7 +165,7 @@ body {
     @apply bg-bg-base text-text-primary font-sans;
 }
 
-/* Переопределяем фон для прозрачных окон */
+/* РџРµСЂРµРѕРїСЂРµРґРµР»СЏРµРј С„РѕРЅ РґР»СЏ РїСЂРѕР·СЂР°С‡РЅС‹С… РѕРєРѕРЅ */
 html[data-window-type="main"] body,
 html[data-window-type="result"] body,
 html[data-window-type="error"] body {
@@ -248,7 +332,7 @@ html[data-mic-window="true"] body #root {
     box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.25), 0 0 4px rgba(190, 18, 60, 0.4);
 }
 
-/* Тонкий scrollbar для History секций */
+/* РўРѕРЅРєРёР№ scrollbar РґР»СЏ History СЃРµРєС†РёР№ */
 .history-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: #fb7185 rgba(244, 63, 94, 0.12);
@@ -303,7 +387,7 @@ html[data-mic-window="true"] body #root {
     background: linear-gradient(180deg, rgba(244, 63, 94, 1), rgba(190, 18, 60, 0.95));
 }
 
-/* Стили скроллбара для меню MUI Select */
+/* РЎС‚РёР»Рё СЃРєСЂРѕР»Р»Р±Р°СЂР° РґР»СЏ РјРµРЅСЋ MUI Select */
 .MuiMenu-paper,
 .MuiPopover-paper,
 .MuiMenuList-root {
@@ -390,7 +474,7 @@ html[data-mic-window="true"] body #root {
     animation: modal-fade-scale-out 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-/* Fade анимации для микрофона */
+/* Fade Р°РЅРёРјР°С†РёРё РґР»СЏ РјРёРєСЂРѕС„РѕРЅР° */
 @keyframes fade-in {
     from {
         opacity: 0;
@@ -423,7 +507,7 @@ body.fade-out {
     transform-origin: center;
 }
 
-/* Glass Tooltip анимация */
+/* Glass Tooltip Р°РЅРёРјР°С†РёСЏ */
 @keyframes tooltip-fade-in {
     from {
         opacity: 0;
@@ -439,7 +523,7 @@ body.fade-out {
     animation: tooltip-fade-in 0.15s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-/* Глобальные стили для выделения текста (белый текст на красном фоне) */
+/* Р“Р»РѕР±Р°Р»СЊРЅС‹Рµ СЃС‚РёР»Рё РґР»СЏ РІС‹РґРµР»РµРЅРёСЏ С‚РµРєСЃС‚Р° (Р±РµР»С‹Р№ С‚РµРєСЃС‚ РЅР° РєСЂР°СЃРЅРѕРј С„РѕРЅРµ) */
 ::selection {
     background-color: var(--color-primary);
     color: white;
@@ -448,4 +532,61 @@ body.fade-out {
 ::-moz-selection {
     background-color: var(--color-primary);
     color: white;
+}
+
+
+html[data-theme='dark'] .overflow-y-auto {
+    scrollbar-color: #555 #1a1a1a;
+}
+
+html[data-theme='dark'] .overflow-y-auto::-webkit-scrollbar-track {
+    background: linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(26, 26, 26, 0.9));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme='dark'] .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #666, #555) !important;
+    border: 2px solid rgba(0, 0, 0, 0.85) !important;
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-theme='dark'] .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #777, #666) !important;
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.12), 0 0 8px rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-theme='dark'] .history-scrollbar {
+    scrollbar-color: #555 #1a1a1a;
+}
+
+html[data-theme='dark'] .history-scrollbar::-webkit-scrollbar-track {
+    background: linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(26, 26, 26, 0.9));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme='dark'] .history-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #666, #555) !important;
+    border: 1px solid rgba(0, 0, 0, 0.85) !important;
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-theme='dark'] .MuiMenu-paper,
+html[data-theme='dark'] .MuiPopover-paper,
+html[data-theme='dark'] .MuiMenuList-root {
+    scrollbar-color: #555 #1a1a1a;
+}
+
+html[data-theme='dark'] .MuiMenu-paper::-webkit-scrollbar-track,
+html[data-theme='dark'] .MuiPopover-paper::-webkit-scrollbar-track,
+html[data-theme='dark'] .MuiMenuList-root::-webkit-scrollbar-track {
+    background: linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(26, 26, 26, 0.9));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme='dark'] .MuiMenu-paper::-webkit-scrollbar-thumb,
+html[data-theme='dark'] .MuiPopover-paper::-webkit-scrollbar-thumb,
+html[data-theme='dark'] .MuiMenuList-root::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #666, #555) !important;
+    border: 2px solid rgba(0, 0, 0, 0.85) !important;
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.08) !important;
 }

@@ -1,7 +1,9 @@
 import {useEffect} from 'react';
 import type {WindowIdentity} from './useWindowIdentity';
+import {useThemeMode} from '../../context/ThemeModeContext';
 
 export const useWindowChrome = ({isMicWindow, isResultWindow}: Pick<WindowIdentity, 'isMicWindow' | 'isResultWindow'>): void => {
+    const {themeMode} = useThemeMode();
     useEffect(() => {
         if (typeof document === 'undefined') {
             return;
@@ -37,11 +39,11 @@ export const useWindowChrome = ({isMicWindow, isResultWindow}: Pick<WindowIdenti
         }
         if (isResultWindow) {
             const previousBackground = document.body.style.background;
-            document.body.style.background = '#ffffff';
+            document.body.style.background = themeMode === 'dark' ? '#000000' : '#ffffff';
             return () => {
                 document.body.style.background = previousBackground;
             };
         }
         return undefined;
-    }, [isResultWindow]);
+    }, [isResultWindow, themeMode]);
 };

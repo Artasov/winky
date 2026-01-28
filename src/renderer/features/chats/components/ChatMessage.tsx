@@ -143,17 +143,13 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({message, isStreaming}
         <div className={`fc gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
             {/* Message bubble */}
             <div
-                className={`rounded-2xl px-4 py-2 ${
-                    isUser
-                        ? 'bg-primary text-white'
-                        : isDark
-                            ? 'bg-white/10'
-                            : 'bg-bg-tertiary'
-                }`}
+                className={`rounded-2xl px-4 py-2 ${isUser ? 'bg-primary text-white' : ''}`}
                 style={{
                     maxWidth: '85%',
                     minWidth: '80px',
-                    ...(!isUser && isDark ? {backgroundColor: darkSurface} : {})
+                    ...(!isUser && {
+                        backgroundColor: isDark ? darkSurface : 'rgba(0,0,0,0.03)'
+                    })
                 }}
             >
                 <div ref={contentRef} className={isUser ? '' : 'markdown-compact markdown-with-copy'}>

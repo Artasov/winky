@@ -519,7 +519,7 @@ const ChatViewPage: React.FC = () => {
                 className="frbc gap-2 px-3 py-1.5 border-b flex-shrink-0"
                 style={{
                     borderColor: isDark ? darkSurface : 'var(--color-border-light)',
-                    backgroundColor: isDark ? 'transparent' : 'var(--color-bg-elevated)'
+                    backgroundColor: isDark ? 'transparent' : '#ffffff'
                 }}
             >
                 <div className="frsc gap-2 min-w-0 flex-1">
@@ -565,7 +565,7 @@ const ChatViewPage: React.FC = () => {
                 className="px-4 py-3 border-t flex-shrink-0"
                 style={{
                     borderColor: isDark ? darkSurface : 'var(--color-border-light)',
-                    backgroundColor: isDark ? 'transparent' : 'var(--color-bg-elevated)',
+                    backgroundColor: isDark ? 'transparent' : '#ffffff',
                     overflow: 'visible'
                 }}
             >

@@ -338,13 +338,17 @@ const NotesPage: React.FC = () => {
                             {data?.results.map((note) => (
                                 <section
                                     key={note.id}
-                                    className="relative rounded-2xl border border-primary-200 bg-bg-elevated shadow-primary-sm p-3 animate-fade-in-up cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+                                    className="relative rounded-2xl border border-primary-200 shadow-primary-sm p-3 animate-fade-in-up cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
                                     role="button"
                                     tabIndex={0}
                                     onClick={() => handleCardActivate(note)}
                                     onMouseEnter={() => setHoveredId(note.id)}
                                     onMouseLeave={() => setHoveredId((prev) => (prev === note.id ? null : prev))}
-                                    style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface, boxShadow: 'none'} : undefined}
+                                    style={{
+                                        borderColor: isDark ? darkSurface : undefined,
+                                        backgroundColor: isDark ? darkSurface : '#ffffff',
+                                        boxShadow: isDark ? 'none' : undefined
+                                    }}
                                     onKeyDown={(event) => {
                                         if (event.key === 'Enter' || event.key === ' ') {
                                             event.preventDefault();

@@ -183,10 +183,10 @@ const ChatsPage: React.FC = () => {
                             }}
                             role="button"
                             tabIndex={0}
-                            className="cursor-pointer rounded-2xl border border-primary-200 bg-bg-elevated shadow-primary-sm p-4 frbc gap-3 transition-colors duration-base hover:bg-bg-tertiary"
+                            className="cursor-pointer rounded-2xl border border-primary-200 shadow-primary-sm p-4 frbc gap-3 transition-colors duration-base"
                             style={{
                                 borderColor: isDark ? darkSurface : undefined,
-                                backgroundColor: isDark ? darkSurface : undefined,
+                                backgroundColor: isDark ? darkSurface : '#ffffff',
                                 boxShadow: isDark ? 'none' : undefined
                             }}
                         >

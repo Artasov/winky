@@ -788,11 +788,11 @@ const HistoryPage: React.FC = () => {
                                 role="button"
                                 tabIndex={0}
                                 aria-expanded={isOpen}
-                                className="cursor-pointer rounded-2xl border border-primary-200 bg-bg-elevated shadow-primary-sm p-4 animate-fade-in-up max-w-full w-full box-border min-w-0 overflow-hidden"
+                                className="cursor-pointer rounded-2xl border border-primary-200 shadow-primary-sm p-4 animate-fade-in-up max-w-full w-full box-border min-w-0 overflow-hidden"
                                 style={{
                                     maxWidth: '100%',
                                     borderColor: isDark ? darkSurface : undefined,
-                                    backgroundColor: isDark ? darkSurface : undefined,
+                                    backgroundColor: isDark ? darkSurface : '#ffffff',
                                     boxShadow: isDark ? 'none' : undefined
                                 }}
                             >

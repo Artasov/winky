@@ -30,6 +30,7 @@ import ChatViewPage from './windows/ChatViewPage';
 import ResultPage from './windows/ResultPage';
 import ResultWindowPage from './windows/ResultWindowPage';
 import {ResultProvider} from './context/ResultContext';
+import {ChatsProvider} from './context/ChatsContext';
 import {resultPageBridge} from './services/resultPageBridge';
 import ErrorWindow from './windows/ErrorWindow';
 import DesktopShell from './app/layouts/DesktopShell';
@@ -534,47 +535,49 @@ const AppContent: React.FC = () => {
     return (
         <ToastContext.Provider value={toastContextValue}>
             <ConfigContext.Provider value={configContextValue}>
-                {loading ? (
-                    renderPrimaryWindowState(
-                        <div className="animate-pulse-soft text-primary">Loading...</div>
-                    )
-                ) : isLoadingUser ? (
-                    renderPrimaryWindowState(
-                        <div className="fccc gap-4">
-                            <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                        </div>
-                    )
-                ) : preloadError || !window.winky ? (
-                    renderPrimaryWindowState(
-                        <div className="fccc gap-4 px-6 text-center">
-                            <div className="text-2xl font-semibold">Failed to initialize the application</div>
-                            <p className="max-w-md text-sm text-text-secondary">
-                                {preloadError ?? 'The renderer could not access the preload script.'}
-                            </p>
-                            <p className="text-xs text-text-tertiary">
-                                Restart the app. If the problem persists, verify the `dist/main/preload.js` build.
-                            </p>
-                        </div>
-                    )
-                ) : (
-                    <>
-                        <StyleUsageSentinel/>
-                        {routes}
-                        {shouldRenderToasts ? (
-                            <ToastContainer
-                                position="top-right"
-                                theme={toastTheme}
-                                newestOnTop
-                                closeOnClick
-                                pauseOnFocusLoss={false}
-                                pauseOnHover
-                                draggable={false}
-                                autoClose={false}
-                                limit={3}
-                            />
-                        ) : null}
-                    </>
-                )}
+                <ChatsProvider>
+                    {loading ? (
+                        renderPrimaryWindowState(
+                            <div className="animate-pulse-soft text-primary">Loading...</div>
+                        )
+                    ) : isLoadingUser ? (
+                        renderPrimaryWindowState(
+                            <div className="fccc gap-4">
+                                <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                            </div>
+                        )
+                    ) : preloadError || !window.winky ? (
+                        renderPrimaryWindowState(
+                            <div className="fccc gap-4 px-6 text-center">
+                                <div className="text-2xl font-semibold">Failed to initialize the application</div>
+                                <p className="max-w-md text-sm text-text-secondary">
+                                    {preloadError ?? 'The renderer could not access the preload script.'}
+                                </p>
+                                <p className="text-xs text-text-tertiary">
+                                    Restart the app. If the problem persists, verify the `dist/main/preload.js` build.
+                                </p>
+                            </div>
+                        )
+                    ) : (
+                        <>
+                            <StyleUsageSentinel/>
+                            {routes}
+                            {shouldRenderToasts ? (
+                                <ToastContainer
+                                    position="top-right"
+                                    theme={toastTheme}
+                                    newestOnTop
+                                    closeOnClick
+                                    pauseOnFocusLoss={false}
+                                    pauseOnHover
+                                    draggable={false}
+                                    autoClose={false}
+                                    limit={3}
+                                />
+                            ) : null}
+                        </>
+                    )}
+                </ChatsProvider>
             </ConfigContext.Provider>
         </ToastContext.Provider>
     );

@@ -9,6 +9,7 @@ import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import type {WinkyChatMessage} from '@shared/types';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
+import {useChats} from '../context/ChatsContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ChatActions from '../features/chats/components/ChatActions';
 import ChatMessage from '../features/chats/components/ChatMessage';
@@ -17,8 +18,7 @@ import {
     fetchWinkyChat,
     winkyLLMStream,
     winkyTranscribe,
-    updateWinkyChat,
-    deleteWinkyChat
+    updateWinkyChat
 } from '../services/winkyAiApi';
 
 // Компонент волн вокруг кнопки микрофона
@@ -191,6 +191,7 @@ const ChatViewPage: React.FC = () => {
     const navigate = useNavigate();
     const {showToast} = useToast();
     const {config} = useConfig();
+    const {addChat, updateChat: updateChatInContext, deleteChat: deleteChatFromContext} = useChats();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const darkSurface = alpha('#6f6f6f', 0.12);
@@ -317,6 +318,15 @@ const ChatViewPage: React.FC = () => {
             if (!currentChatId && result.chat_id) {
                 setCurrentChatId(result.chat_id);
                 navigate(`/chats/${result.chat_id}`, {replace: true});
+                // Добавляем новый чат в контекст
+                addChat({
+                    id: result.chat_id,
+                    title: text.slice(0, 50) + (text.length > 50 ? '...' : ''),
+                    additional_context: '',
+                    message_count: 2,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
             }
 
             // Создаем реальные сообщения
@@ -367,7 +377,7 @@ const ChatViewPage: React.FC = () => {
             setSending(false);
             setStreamingContent('');
         }
-    }, [inputText, accessToken, sending, currentBranch, currentChatId, navigate, showToast]);
+    }, [inputText, accessToken, sending, currentBranch, currentChatId, navigate, showToast, addChat]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -494,18 +504,19 @@ const ChatViewPage: React.FC = () => {
         try {
             await updateWinkyChat(currentChatId, {title: newTitle}, accessToken);
             setChatTitle(newTitle);
+            updateChatInContext(currentChatId, {title: newTitle});
             showToast('Chat renamed.', 'success');
         } catch (error) {
             console.error('[ChatViewPage] Failed to rename chat', error);
             showToast('Failed to rename chat.', 'error');
             throw error;
         }
-    }, [accessToken, currentChatId, showToast]);
+    }, [accessToken, currentChatId, showToast, updateChatInContext]);
 
     const handleDeleteChat = useCallback(async () => {
-        if (!accessToken || !currentChatId) return;
+        if (!currentChatId) return;
         try {
-            await deleteWinkyChat(currentChatId, accessToken);
+            await deleteChatFromContext(currentChatId);
             showToast('Chat deleted.', 'success');
             navigate('/chats');
         } catch (error) {
@@ -513,7 +524,7 @@ const ChatViewPage: React.FC = () => {
             showToast('Failed to delete chat.', 'error');
             throw error;
         }
-    }, [accessToken, currentChatId, navigate, showToast]);
+    }, [currentChatId, navigate, showToast, deleteChatFromContext]);
 
     return (
         <div className="fc h-full w-full">

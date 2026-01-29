@@ -1,13 +1,13 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {alpha, useTheme} from '@mui/material/styles';
 import {Button, TextField} from '@mui/material';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import type {WinkyChat} from '@shared/types';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
+import {useChats} from '../context/ChatsContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import {fetchWinkyChats, deleteWinkyChat, updateWinkyChat} from '../services/winkyAiApi';
+import {updateWinkyChat} from '../services/winkyAiApi';
 import ChatActions from '../features/chats/components/ChatActions';
 
 const formatDate = (value: string): string => {
@@ -21,37 +21,15 @@ const ChatsPage: React.FC = () => {
     const navigate = useNavigate();
     const {showToast} = useToast();
     const {config} = useConfig();
+    const {chats, loading, updateChat, deleteChat} = useChats();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const darkSurface = alpha('#6f6f6f', 0.12);
     const darkSurfaceSoft = alpha('#6f6f6f', 0.1);
 
-    const [chats, setChats] = useState<WinkyChat[]>([]);
-    const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
 
     const accessToken = config?.auth?.access || config?.auth?.accessToken || '';
-
-    const loadChats = useCallback(async () => {
-        if (!accessToken) {
-            setLoading(false);
-            return;
-        }
-        setLoading(true);
-        try {
-            const response = await fetchWinkyChats(accessToken);
-            setChats(response.items);
-        } catch (error) {
-            console.error('[ChatsPage] Failed to load chats', error);
-            showToast('Failed to load chats.', 'error');
-        } finally {
-            setLoading(false);
-        }
-    }, [accessToken, showToast]);
-
-    useEffect(() => {
-        void loadChats();
-    }, [loadChats]);
 
     const handleCreateChat = useCallback(() => {
         navigate('/chats/new');
@@ -61,27 +39,25 @@ const ChatsPage: React.FC = () => {
         if (!accessToken) return;
         try {
             const updated = await updateWinkyChat(chatId, {title: newTitle}, accessToken);
-            setChats((prev) => prev.map((c) => (c.id === chatId ? updated : c)));
+            updateChat(chatId, updated);
             showToast('Chat renamed.', 'success');
         } catch (error) {
             console.error('[ChatsPage] Failed to rename chat', error);
             showToast('Failed to rename chat.', 'error');
             throw error;
         }
-    }, [accessToken, showToast]);
+    }, [accessToken, showToast, updateChat]);
 
     const handleDeleteChat = useCallback(async (chatId: string) => {
-        if (!accessToken) return;
         try {
-            await deleteWinkyChat(chatId, accessToken);
-            setChats((prev) => prev.filter((c) => c.id !== chatId));
+            await deleteChat(chatId);
             showToast('Chat deleted.', 'success');
         } catch (error) {
             console.error('[ChatsPage] Failed to delete chat', error);
             showToast('Failed to delete chat.', 'error');
             throw error;
         }
-    }, [accessToken, showToast]);
+    }, [showToast, deleteChat]);
 
     const handleChatClick = useCallback((chatId: string) => {
         navigate(`/chats/${chatId}`);

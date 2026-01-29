@@ -5,6 +5,7 @@ import type {SvgIconProps} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
 import {useThemeMode} from '../context/ThemeModeContext';
+import {useChats} from '../context/ChatsContext';
 import BubbleChartRoundedIcon from '@mui/icons-material/BubbleChartRounded';
 import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
 import BookmarkBorderRoundedIcon from '@mui/icons-material/BookmarkBorderRounded';
@@ -24,9 +25,9 @@ interface NavItem {
 
 const navItems: NavItem[] = [
     {id: 'actions', label: 'Actions', Icon: BubbleChartRoundedIcon, path: '/actions'},
-    {id: 'chats', label: 'Chats', Icon: ChatRoundedIcon, path: '/chats'},
     {id: 'history', label: 'History', Icon: MenuBookRoundedIcon, path: '/history'},
-    {id: 'notes', label: 'Notes', Icon: BookmarkBorderRoundedIcon, path: '/notes'}
+    {id: 'notes', label: 'Notes', Icon: BookmarkBorderRoundedIcon, path: '/notes'},
+    {id: 'chats', label: 'Chats', Icon: ChatRoundedIcon, path: '/chats'}
 ];
 
 const iconOnlyItems: NavItem[] = [
@@ -47,6 +48,7 @@ const Sidebar: React.FC = () => {
     const {user} = useUser();
     const {isDark} = useThemeMode();
     const {isActive: hasResult} = useResult();
+    const {chats} = useChats();
     const showAvatarVideo = config?.showAvatarVideo !== false && !isDark;
 
     // Динамически добавляем Result если есть данные
@@ -250,15 +252,21 @@ const Sidebar: React.FC = () => {
         };
     }, [keepPlayback, restartPlayback, showAvatarVideo]);
 
+    // Padding снизу в тёмной теме, если включен showAvatarVideo
+    const darkAvatarPadding = isDark && config?.showAvatarVideo !== false;
+
     return (
-        <aside className={`flex h-full w-64 flex-col border-r ${
-            isDark
-                ? 'border-white/15 bg-transparent'
-                : 'border-primary-200/60 bg-white/95 backdrop-blur shadow-sm'
-        }`}>
-            <nav className="flex flex-1 flex-col gap-1 px-3 mt-4">
+        <aside
+            className={`flex h-full w-64 flex-col border-r ${
+                isDark
+                    ? 'border-white/15 bg-transparent'
+                    : 'border-primary-200/60 bg-white/95 backdrop-blur shadow-sm'
+            }`}
+            style={darkAvatarPadding ? {paddingBottom: 190} : undefined}
+        >
+            {/* Top navigation */}
+            <nav className="fc gap-1 px-3 mt-4 flex-shrink-0">
                 {dynamicNavItems.map((item) => {
-                    // Для /chats также активен при /chats/:chatId
                     const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
                     return (
                         <button
@@ -286,7 +294,46 @@ const Sidebar: React.FC = () => {
                         </button>
                     );
                 })}
-                <div className={`my-3 mx-4 border-t ${isDark ? 'border-white/15' : 'border-primary-200/60'}`}></div>
+            </nav>
+
+            {/* Chats list - scrollable section */}
+            {chats.length > 0 && (
+                <div className="fc flex-1 min-h-0 mt-2">
+                    <div className={`mx-4 mb-2 border-t ${isDark ? 'border-white/15' : 'border-primary-200/60'}`}/>
+                    <div className="flex-1 overflow-y-auto px-3">
+                        <div className="fc gap-0.5">
+                            {chats.map((chat) => {
+                                const isActive = location.pathname === `/chats/${chat.id}`;
+                                return (
+                                    <button
+                                        key={chat.id}
+                                        type="button"
+                                        onClick={() => handleNavigation(`/chats/${chat.id}`)}
+                                        className={classNames(
+                                            'rounded-lg px-3 py-1.5 text-left transition-all duration-base outline-none focus:outline-none',
+                                            isDark
+                                                ? isActive
+                                                    ? 'bg-primary-500/15 text-primary'
+                                                    : 'text-text-secondary bg-white/[0.03] hover:bg-white/10'
+                                                : isActive
+                                                    ? 'bg-primary-50 text-primary'
+                                                    : 'text-text-secondary bg-black/[0.01] hover:bg-bg-tertiary',
+                                        )}
+                                    >
+                                        <span className="text-xs font-medium truncate block">
+                                            {chat.title || 'Untitled chat'}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Bottom section */}
+            <div className="fc flex-shrink-0 px-3">
+                <div className={`my-3 mx-4 border-t ${isDark ? 'border-white/15' : 'border-primary-200/60'}`}/>
                 <div className="frcc gap-2 pb-2">
                     {iconOnlyItems.map((item) => {
                         const isActive = location.pathname === item.path;
@@ -326,9 +373,11 @@ const Sidebar: React.FC = () => {
                         );
                     })}
                 </div>
-            </nav>
+            </div>
+
+            {/* Avatar video */}
             {!isDark && (
-                <div className="p-4 overflow-hidden">
+                <div className="p-4 overflow-hidden flex-shrink-0">
                     {showAvatarVideo ? (
                         <video
                             ref={videoRef}

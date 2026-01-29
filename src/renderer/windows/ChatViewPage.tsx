@@ -164,6 +164,7 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
                             siblingsTotal={mayHaveSiblings ? totalSiblings : undefined}
                             onSiblingPrev={mayHaveSiblings ? () => onSiblingNavigate(message, 'prev') : undefined}
                             onSiblingNext={mayHaveSiblings ? () => onSiblingNavigate(message, 'next') : undefined}
+                            navigatorDisabled={!!switchingBranchAtMessageId}
                         />
                         {isSwitchingBranch && (
                             <div className="flex justify-center py-4">

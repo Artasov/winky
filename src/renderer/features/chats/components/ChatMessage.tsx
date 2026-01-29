@@ -30,6 +30,7 @@ interface ChatMessageProps {
     siblingsTotal?: number;
     onSiblingPrev?: () => void;
     onSiblingNext?: () => void;
+    navigatorDisabled?: boolean;
 }
 
 const formatTime = (value: string): string => {
@@ -134,9 +135,10 @@ interface BranchNavigatorProps {
     onPrev: () => void;
     onNext: () => void;
     isDark: boolean;
+    disabled?: boolean;
 }
 
-const BranchNavigator: React.FC<BranchNavigatorProps> = ({currentIndex, total, onPrev, onNext, isDark}) => {
+const BranchNavigator: React.FC<BranchNavigatorProps> = ({currentIndex, total, onPrev, onNext, isDark, disabled}) => {
     // total = 0 означает что siblings ещё не загружены
     const isLoaded = total > 0;
     const displayIndex = isLoaded ? currentIndex + 1 : '?';
@@ -147,7 +149,7 @@ const BranchNavigator: React.FC<BranchNavigatorProps> = ({currentIndex, total, o
             <IconButton
                 size="small"
                 onClick={onPrev}
-                disabled={!isLoaded || currentIndex <= 0}
+                disabled={disabled || !isLoaded || currentIndex <= 0}
                 sx={{
                     padding: '2px',
                     '&:hover': {
@@ -163,7 +165,7 @@ const BranchNavigator: React.FC<BranchNavigatorProps> = ({currentIndex, total, o
             <IconButton
                 size="small"
                 onClick={onNext}
-                disabled={!isLoaded || currentIndex >= total - 1}
+                disabled={disabled || !isLoaded || currentIndex >= total - 1}
                 sx={{
                     padding: '2px',
                     '&:hover': {
@@ -189,7 +191,8 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     siblingIndex,
     siblingsTotal,
     onSiblingPrev,
-    onSiblingNext
+    onSiblingNext,
+    navigatorDisabled
 }) => {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
@@ -403,6 +406,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                         onPrev={onSiblingPrev}
                         onNext={onSiblingNext}
                         isDark={isDark}
+                        disabled={navigatorDisabled}
                     />
                 )}
             </div>
@@ -417,7 +421,8 @@ const ChatMessage = memo(ChatMessageComponent, (prevProps, nextProps) => {
            prevProps.isEditing === nextProps.isEditing &&
            prevProps.editText === nextProps.editText &&
            prevProps.siblingIndex === nextProps.siblingIndex &&
-           prevProps.siblingsTotal === nextProps.siblingsTotal;
+           prevProps.siblingsTotal === nextProps.siblingsTotal &&
+           prevProps.navigatorDisabled === nextProps.navigatorDisabled;
 });
 
 export default ChatMessage;

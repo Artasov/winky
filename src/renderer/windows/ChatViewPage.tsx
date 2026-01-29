@@ -23,6 +23,34 @@ import {
     updateWinkyChat
 } from '../services/winkyAiApi';
 
+const CHAT_BRANCHES_STORAGE_KEY = 'winky_chat_branches';
+
+const getStoredLeafMessageId = (chatId: string): string | null => {
+    try {
+        const stored = localStorage.getItem(CHAT_BRANCHES_STORAGE_KEY);
+        if (!stored) return null;
+        const branches = JSON.parse(stored) as Record<string, string>;
+        return branches[chatId] || null;
+    } catch {
+        return null;
+    }
+};
+
+const saveLeafMessageId = (chatId: string, leafMessageId: string | null) => {
+    try {
+        const stored = localStorage.getItem(CHAT_BRANCHES_STORAGE_KEY);
+        const branches = stored ? JSON.parse(stored) as Record<string, string> : {};
+        if (leafMessageId) {
+            branches[chatId] = leafMessageId;
+        } else {
+            delete branches[chatId];
+        }
+        localStorage.setItem(CHAT_BRANCHES_STORAGE_KEY, JSON.stringify(branches));
+    } catch {
+        // Ignore storage errors
+    }
+};
+
 interface MicWavesProps {
     isRecording: boolean;
     normalizedVolume: number;
@@ -305,8 +333,12 @@ const ChatViewPage: React.FC = () => {
             setChatTitle(chatResponse.title || '');
             setCurrentChatId(chatId);
 
+            // Приоритет: локально сохранённая ветка > последняя ветка с backend
+            const storedLeafId = getStoredLeafMessageId(chatId);
+            const leafToLoad = storedLeafId || chatResponse.last_leaf_message_id || undefined;
+
             const branchResponse = await fetchWinkyChatBranch(chatId, accessToken, {
-                leafMessageId: chatResponse.last_leaf_message_id || undefined,
+                leafMessageId: leafToLoad,
                 limit: 20
             });
 
@@ -314,6 +346,11 @@ const ChatViewPage: React.FC = () => {
             setLeafMessageId(branchResponse.leaf_message_id);
             setHasMoreMessages(branchResponse.has_more);
             setNextCursor(branchResponse.next_cursor);
+
+            // Сохраняем текущую ветку локально
+            if (branchResponse.leaf_message_id) {
+                saveLeafMessageId(chatId, branchResponse.leaf_message_id);
+            }
         } catch (error) {
             console.error('[ChatViewPage] Failed to load messages', error);
             showToast('Failed to load messages.', 'error');
@@ -470,6 +507,12 @@ const ChatViewPage: React.FC = () => {
             setLeafMessageId(result.assistant_message_id);
             setStreamingContent('');
 
+            // Сохраняем ветку локально
+            const chatIdToSave = currentChatId || result.chat_id;
+            if (chatIdToSave) {
+                saveLeafMessageId(chatIdToSave, result.assistant_message_id);
+            }
+
             // Загружаем siblings для нового сообщения чтобы показать навигатор
             if (parentMessageId) {
                 const siblingsResponse = await loadSiblings(parentMessageId);
@@ -597,6 +640,10 @@ const ChatViewPage: React.FC = () => {
             const lastMessage = newBranchFromSwitch[newBranchFromSwitch.length - 1];
             if (lastMessage) {
                 setLeafMessageId(lastMessage.id);
+                // Сохраняем выбранную ветку локально
+                if (currentChatId) {
+                    saveLeafMessageId(currentChatId, lastMessage.id);
+                }
             }
 
             // Обновляем siblingsData - новое сообщение теперь текущее
@@ -712,6 +759,12 @@ const ChatViewPage: React.FC = () => {
 
             setLeafMessageId(result.assistant_message_id);
             setStreamingContent('');
+
+            // Сохраняем ветку локально
+            const chatIdToSave = currentChatId || result.chat_id;
+            if (chatIdToSave) {
+                saveLeafMessageId(chatIdToSave, result.assistant_message_id);
+            }
         } catch (error: any) {
             console.error('[ChatViewPage] Failed to send message', error);
             setCurrentBranch((prev) => prev.filter((m) => !m.id.startsWith('temp-')));

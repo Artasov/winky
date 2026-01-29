@@ -231,6 +231,8 @@ export interface WinkyChatMessage {
     model_level: 'low' | 'high' | 'transcribe';
     tokens: number;
     has_children: boolean;
+    sibling_count: number;
+    sibling_index: number;
     created_at: string;
 }
 

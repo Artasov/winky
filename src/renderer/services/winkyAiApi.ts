@@ -14,6 +14,27 @@ const WINKY_AI_LLM_WS_ENDPOINT = `${WS_BASE_URL}/ws/ai/llm/`;
 const WINKY_AI_CHATS_ENDPOINT = `${API_BASE_URL}/ai/chats/`;
 const WINKY_AI_MESSAGES_ENDPOINT = `${API_BASE_URL}/ai/messages/`;
 
+const LOG_PREFIX = 'WinkyAI';
+
+const logRequest = (method: string, url: string, paramsOrData?: any) => {
+    console.log(`${LOG_PREFIX} → [${method}] ${url}`);
+    if (paramsOrData) {
+        const label = method === 'GET' ? '  📤 Request params:' : '  📤 Request data:';
+        console.log(label, paramsOrData);
+    }
+};
+
+const logResponse = (method: string, url: string, status: number, data: any) => {
+    console.log(`${LOG_PREFIX} ← [${method}] ${url} [${status}]`);
+    console.log('  📥 Response data:', data);
+};
+
+const logError = (method: string, url: string, error: any) => {
+    const status = error.response?.status || 'ERR';
+    console.error(`${LOG_PREFIX} ← [${method}] ${url} [${status}]`);
+    console.error('  ❌ Error:', error.message || error);
+};
+
 export interface WinkyTranscribeResult {
     id: string;
     text: string;
@@ -51,18 +72,25 @@ export const winkyTranscribe = async (
     formData.append('file', blob, `audio.${extension}`);
     if (options?.language) formData.append('language', options.language);
 
-    const {data} = await axios.post<WinkyTranscribeResult>(
-        WINKY_AI_TRANSCRIBE_ENDPOINT,
-        formData,
-        {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-                Authorization: `Bearer ${accessToken}`
-            },
-            timeout: 120_000
-        }
-    );
-    return data;
+    logRequest('POST', WINKY_AI_TRANSCRIBE_ENDPOINT, {mimeType, language: options?.language});
+    try {
+        const response = await axios.post<WinkyTranscribeResult>(
+            WINKY_AI_TRANSCRIBE_ENDPOINT,
+            formData,
+            {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    Authorization: `Bearer ${accessToken}`
+                },
+                timeout: 120_000
+            }
+        );
+        logResponse('POST', WINKY_AI_TRANSCRIBE_ENDPOINT, response.status, response.data);
+        return response.data;
+    } catch (error) {
+        logError('POST', WINKY_AI_TRANSCRIBE_ENDPOINT, error);
+        throw error;
+    }
 };
 
 type AIWSEvent =
@@ -80,6 +108,8 @@ export const winkyLLMStream = async (
 ): Promise<WinkyLLMResult> => {
     return new Promise((resolve, reject) => {
         const wsUrl = `${WINKY_AI_LLM_WS_ENDPOINT}?token=${accessToken}`;
+        console.log(`${LOG_PREFIX} → [WS] ${WINKY_AI_LLM_WS_ENDPOINT}`);
+        console.log('  📤 Request params:', {prompt: params.prompt.slice(0, 100) + '...', model_level: params.model_level, chat_id: params.chat_id, parent_message_id: params.parent_message_id});
         const ws = new WebSocket(wsUrl);
 
         let fullContent = '';
@@ -128,6 +158,7 @@ export const winkyLLMStream = async (
                         chatId = data.chat_id;
                         userMessageId = data.user_message_id;
                         modelLevel = data.model_level as 'low' | 'high';
+                        console.log(`${LOG_PREFIX} ← [WS] start`, {chat_id: chatId, user_message_id: userMessageId});
                         break;
 
                     case 'delta':
@@ -138,6 +169,7 @@ export const winkyLLMStream = async (
                     case 'done':
                         assistantMessageId = data.message_id;
                         credits = parseFloat(data.credits) || 0;
+                        console.log(`${LOG_PREFIX} ← [WS] done`, {chat_id: chatId, assistant_message_id: assistantMessageId, credits});
                         cleanup();
                         if (!resolved) {
                             resolved = true;
@@ -153,6 +185,7 @@ export const winkyLLMStream = async (
                         break;
 
                     case 'cancelled':
+                        console.log(`${LOG_PREFIX} ← [WS] cancelled`);
                         cleanup();
                         if (!resolved) {
                             resolved = true;
@@ -161,6 +194,7 @@ export const winkyLLMStream = async (
                         break;
 
                     case 'error':
+                        console.error(`${LOG_PREFIX} ← [WS] error`, {code: data.code, message: data.message});
                         cleanup();
                         if (!resolved) {
                             resolved = true;
@@ -176,6 +210,7 @@ export const winkyLLMStream = async (
         };
 
         ws.onerror = () => {
+            console.error(`${LOG_PREFIX} ← [WS] connection error`);
             cleanup();
             if (!resolved) {
                 resolved = true;
@@ -208,11 +243,20 @@ export const fetchWinkyChats = async (
     page: number = 1,
     pageSize: number = 20
 ): Promise<WinkyChatsPaginated> => {
-    const {data} = await axios.get<WinkyChatsPaginated>(WINKY_AI_CHATS_ENDPOINT, {
-        headers: {Authorization: `Bearer ${accessToken}`},
-        params: {page, page_size: pageSize}
-    });
-    return data;
+    const url = WINKY_AI_CHATS_ENDPOINT;
+    const params = {page, page_size: pageSize};
+    logRequest('GET', url, params);
+    try {
+        const response = await axios.get<WinkyChatsPaginated>(url, {
+            headers: {Authorization: `Bearer ${accessToken}`},
+            params
+        });
+        logResponse('GET', url, response.status, response.data);
+        return response.data;
+    } catch (error) {
+        logError('GET', url, error);
+        throw error;
+    }
 };
 
 export const fetchWinkyChatMessages = async (
@@ -221,14 +265,20 @@ export const fetchWinkyChatMessages = async (
     page: number = 1,
     pageSize: number = 50
 ): Promise<WinkyChatMessagesPaginated> => {
-    const {data} = await axios.get<WinkyChatMessagesPaginated>(
-        `${WINKY_AI_CHATS_ENDPOINT}${chatId}/messages/`,
-        {
+    const url = `${WINKY_AI_CHATS_ENDPOINT}${chatId}/messages/`;
+    const params = {page, page_size: pageSize};
+    logRequest('GET', url, params);
+    try {
+        const response = await axios.get<WinkyChatMessagesPaginated>(url, {
             headers: {Authorization: `Bearer ${accessToken}`},
-            params: {page, page_size: pageSize}
-        }
-    );
-    return data;
+            params
+        });
+        logResponse('GET', url, response.status, response.data);
+        return response.data;
+    } catch (error) {
+        logError('GET', url, error);
+        throw error;
+    }
 };
 
 export const updateWinkyChat = async (
@@ -236,37 +286,65 @@ export const updateWinkyChat = async (
     updates: Partial<Pick<WinkyChat, 'title' | 'additional_context'>>,
     accessToken: string
 ): Promise<WinkyChat> => {
-    const {data} = await axios.patch<WinkyChat>(
-        `${WINKY_AI_CHATS_ENDPOINT}${chatId}/`,
-        updates,
-        {headers: {Authorization: `Bearer ${accessToken}`}}
-    );
-    return data;
+    const url = `${WINKY_AI_CHATS_ENDPOINT}${chatId}/`;
+    logRequest('PATCH', url, updates);
+    try {
+        const response = await axios.patch<WinkyChat>(url, updates, {
+            headers: {Authorization: `Bearer ${accessToken}`}
+        });
+        logResponse('PATCH', url, response.status, response.data);
+        return response.data;
+    } catch (error) {
+        logError('PATCH', url, error);
+        throw error;
+    }
 };
 
 export const deleteWinkyChat = async (chatId: string, accessToken: string): Promise<void> => {
-    await axios.delete(`${WINKY_AI_CHATS_ENDPOINT}${chatId}/`, {
-        headers: {Authorization: `Bearer ${accessToken}`}
-    });
+    const url = `${WINKY_AI_CHATS_ENDPOINT}${chatId}/`;
+    logRequest('DELETE', url);
+    try {
+        const response = await axios.delete(url, {
+            headers: {Authorization: `Bearer ${accessToken}`}
+        });
+        console.log(`${LOG_PREFIX} ← [DELETE] ${url} [${response.status}]`);
+    } catch (error) {
+        logError('DELETE', url, error);
+        throw error;
+    }
 };
 
 export const fetchWinkyChat = async (chatId: string, accessToken: string): Promise<WinkyChat> => {
-    const {data} = await axios.get<WinkyChat>(
-        `${WINKY_AI_CHATS_ENDPOINT}${chatId}/`,
-        {headers: {Authorization: `Bearer ${accessToken}`}}
-    );
-    return data;
+    const url = `${WINKY_AI_CHATS_ENDPOINT}${chatId}/`;
+    logRequest('GET', url);
+    try {
+        const response = await axios.get<WinkyChat>(url, {
+            headers: {Authorization: `Bearer ${accessToken}`}
+        });
+        logResponse('GET', url, response.status, response.data);
+        return response.data;
+    } catch (error) {
+        logError('GET', url, error);
+        throw error;
+    }
 };
 
 export const fetchMessageChildren = async (
     messageId: string,
     accessToken: string
 ): Promise<MessageChildrenResponse> => {
-    const {data} = await axios.get<MessageChildrenResponse>(
-        `${WINKY_AI_MESSAGES_ENDPOINT}${messageId}/children/`,
-        {headers: {Authorization: `Bearer ${accessToken}`}}
-    );
-    return data;
+    const url = `${WINKY_AI_MESSAGES_ENDPOINT}${messageId}/children/`;
+    logRequest('GET', url);
+    try {
+        const response = await axios.get<MessageChildrenResponse>(url, {
+            headers: {Authorization: `Bearer ${accessToken}`}
+        });
+        logResponse('GET', url, response.status, response.data);
+        return response.data;
+    } catch (error) {
+        logError('GET', url, error);
+        throw error;
+    }
 };
 
 export interface MessageBranchResponse {
@@ -278,11 +356,18 @@ export const fetchMessageBranch = async (
     messageId: string,
     accessToken: string
 ): Promise<MessageBranchResponse> => {
-    const {data} = await axios.get<MessageBranchResponse>(
-        `${WINKY_AI_MESSAGES_ENDPOINT}${messageId}/branch/`,
-        {headers: {Authorization: `Bearer ${accessToken}`}}
-    );
-    return data;
+    const url = `${WINKY_AI_MESSAGES_ENDPOINT}${messageId}/branch/`;
+    logRequest('GET', url);
+    try {
+        const response = await axios.get<MessageBranchResponse>(url, {
+            headers: {Authorization: `Bearer ${accessToken}`}
+        });
+        logResponse('GET', url, response.status, response.data);
+        return response.data;
+    } catch (error) {
+        logError('GET', url, error);
+        throw error;
+    }
 };
 
 export const fetchWinkyChatBranch = async (
@@ -294,17 +379,22 @@ export const fetchWinkyChatBranch = async (
         limit?: number;
     }
 ): Promise<WinkyChatBranchResponse> => {
+    const url = `${WINKY_AI_CHATS_ENDPOINT}${chatId}/branch/`;
     const params: Record<string, string | number> = {};
     if (options?.leafMessageId) params.leaf_message_id = options.leafMessageId;
     if (options?.cursor) params.cursor = options.cursor;
     if (options?.limit) params.limit = options.limit;
 
-    const {data} = await axios.get<WinkyChatBranchResponse>(
-        `${WINKY_AI_CHATS_ENDPOINT}${chatId}/branch/`,
-        {
+    logRequest('GET', url, params);
+    try {
+        const response = await axios.get<WinkyChatBranchResponse>(url, {
             headers: {Authorization: `Bearer ${accessToken}`},
             params
-        }
-    );
-    return data;
+        });
+        logResponse('GET', url, response.status, response.data);
+        return response.data;
+    } catch (error) {
+        logError('GET', url, error);
+        throw error;
+    }
 };

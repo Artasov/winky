@@ -86,6 +86,7 @@ interface MessagesListProps {
     editingMessageId: string | null;
     editText: string;
     siblingsData: Map<string, {items: WinkyChatMessage[]; total: number; currentIndex: number}>;
+    switchingBranchAtMessageId: string | null;
     onEditStart: (message: WinkyChatMessage) => void;
     onEditChange: (text: string) => void;
     onEditSubmit: () => void;
@@ -101,6 +102,7 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
     editingMessageId,
     editText,
     siblingsData,
+    switchingBranchAtMessageId,
     onEditStart,
     onEditChange,
     onEditSubmit,
@@ -137,23 +139,38 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
             {messages.map((message) => {
                 const siblingInfo = siblingsData.get(message.id);
                 const isEditing = editingMessageId === message.id;
-                const hasSiblings = siblingInfo && siblingInfo.total > 1;
+                const isSwitchingBranch = switchingBranchAtMessageId === message.id;
+
+                // Показываем навигатор если есть siblings (из siblingsData или из sibling_count с backend)
+                const mayHaveSiblings = siblingInfo
+                    ? siblingInfo.total > 1
+                    : (message.sibling_count > 0);
+
+                // Используем данные из siblingsData если есть, иначе из message (с backend)
+                const currentIndex = siblingInfo?.currentIndex ?? message.sibling_index;
+                const totalSiblings = siblingInfo?.total ?? (message.sibling_count + 1);
 
                 return (
-                    <ChatMessage
-                        key={message.id}
-                        message={message}
-                        isEditing={isEditing}
-                        editText={isEditing ? editText : undefined}
-                        onEditStart={onEditStart}
-                        onEditChange={onEditChange}
-                        onEditSubmit={onEditSubmit}
-                        onEditCancel={onEditCancel}
-                        siblingIndex={hasSiblings ? siblingInfo.currentIndex : undefined}
-                        siblingsTotal={hasSiblings ? siblingInfo.total : undefined}
-                        onSiblingPrev={hasSiblings ? () => onSiblingNavigate(message, 'prev') : undefined}
-                        onSiblingNext={hasSiblings ? () => onSiblingNavigate(message, 'next') : undefined}
-                    />
+                    <React.Fragment key={message.id}>
+                        <ChatMessage
+                            message={message}
+                            isEditing={isEditing}
+                            editText={isEditing ? editText : undefined}
+                            onEditStart={onEditStart}
+                            onEditChange={onEditChange}
+                            onEditSubmit={onEditSubmit}
+                            onEditCancel={onEditCancel}
+                            siblingIndex={mayHaveSiblings ? currentIndex : undefined}
+                            siblingsTotal={mayHaveSiblings ? totalSiblings : undefined}
+                            onSiblingPrev={mayHaveSiblings ? () => onSiblingNavigate(message, 'prev') : undefined}
+                            onSiblingNext={mayHaveSiblings ? () => onSiblingNavigate(message, 'next') : undefined}
+                        />
+                        {isSwitchingBranch && (
+                            <div className="flex justify-center py-4">
+                                <CircularProgress size={24}/>
+                            </div>
+                        )}
+                    </React.Fragment>
                 );
             })}
 
@@ -167,6 +184,8 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
                         model_level: 'high',
                         tokens: 0,
                         has_children: false,
+                        sibling_count: 0,
+                        sibling_index: 0,
                         created_at: new Date().toISOString()
                     }}
                     isStreaming
@@ -209,6 +228,7 @@ const ChatViewPage: React.FC = () => {
     const [editText, setEditText] = useState('');
 
     const [siblingsData, setSiblingsData] = useState<Map<string, {items: WinkyChatMessage[]; total: number; currentIndex: number}>>(new Map());
+    const [switchingBranchAtMessageId, setSwitchingBranchAtMessageId] = useState<string | null>(null);
 
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -305,10 +325,11 @@ const ChatViewPage: React.FC = () => {
     }, [loadMessages]);
 
     useEffect(() => {
-        if (!loadingMore) {
+        // Не скроллим при загрузке старых сообщений или при переключении веток
+        if (!loadingMore && !switchingBranchAtMessageId) {
             scrollToBottom();
         }
-    }, [currentBranch, streamingContent, scrollToBottom, loadingMore]);
+    }, [currentBranch, streamingContent, scrollToBottom, loadingMore, switchingBranchAtMessageId]);
 
     useEffect(() => {
         return () => {
@@ -377,6 +398,8 @@ const ChatViewPage: React.FC = () => {
             model_level: 'high',
             tokens: 0,
             has_children: false,
+            sibling_count: 0,
+            sibling_index: 0,
             created_at: new Date().toISOString()
         };
 
@@ -420,6 +443,8 @@ const ChatViewPage: React.FC = () => {
                 model_level: 'high',
                 tokens: 0,
                 has_children: true,
+                sibling_count: 1,
+                sibling_index: 1,
                 created_at: new Date().toISOString()
             };
 
@@ -431,6 +456,7 @@ const ChatViewPage: React.FC = () => {
                 model_level: result.model_level,
                 tokens: 0,
                 has_children: false,
+                sibling_count: 0,
                 created_at: new Date().toISOString()
             };
 
@@ -489,7 +515,7 @@ const ChatViewPage: React.FC = () => {
 
         if (!siblingInfo) {
             const response = await loadSiblings(message.parent_id);
-            if (!response || response.items.length <= 1) return;
+            if (!response) return;
 
             const currentIndex = response.items.findIndex(m => m.id === message.id);
             siblingInfo = {
@@ -498,6 +524,7 @@ const ChatViewPage: React.FC = () => {
                 currentIndex: currentIndex >= 0 ? currentIndex : 0
             };
 
+            // Сохраняем siblingsData даже если total = 1, чтобы скрыть навигатор
             setSiblingsData(prev => {
                 const newMap = new Map(prev);
                 response.items.forEach((item, idx) => {
@@ -509,6 +536,9 @@ const ChatViewPage: React.FC = () => {
                 });
                 return newMap;
             });
+
+            // Если только один sibling - выходим после сохранения данных
+            if (response.items.length <= 1) return;
         }
 
         const newIndex = direction === 'prev'
@@ -522,12 +552,20 @@ const ChatViewPage: React.FC = () => {
         const messageIndex = currentBranch.findIndex(m => m.id === message.id);
         if (messageIndex < 0) return;
 
-        setLoading(true);
+        // Сохраняем оригинальную ветку для восстановления при ошибке
+        const originalBranch = [...currentBranch];
+
+        // Сразу обрезаем ветку до точки переключения (не включая само переключаемое сообщение)
+        const messagesBeforeSwitch = currentBranch.slice(0, messageIndex);
+        setCurrentBranch(messagesBeforeSwitch);
+
+        // Показываем индикатор после последнего оставшегося сообщения
+        const lastRemainingMessage = messagesBeforeSwitch[messagesBeforeSwitch.length - 1];
+        setSwitchingBranchAtMessageId(lastRemainingMessage?.id || null);
+
         try {
             // Используем fetchMessageBranch который строит полную ветку через сообщение до leaf
             const branchResponse = await fetchMessageBranch(newMessage.id, accessToken);
-
-            const messagesBeforeSwitch = currentBranch.slice(0, messageIndex);
 
             // Фильтруем сообщения которые уже есть в ветке до переключения
             const existingIds = new Set(messagesBeforeSwitch.map(m => m.id));
@@ -564,8 +602,10 @@ const ChatViewPage: React.FC = () => {
         } catch (error) {
             console.error('[ChatViewPage] Failed to switch branch', error);
             showToast('Failed to switch branch.', 'error');
+            // Восстанавливаем оригинальную ветку при ошибке
+            setCurrentBranch(originalBranch);
         } finally {
-            setLoading(false);
+            setSwitchingBranchAtMessageId(null);
         }
     }, [siblingsData, loadSiblings, currentBranch, currentChatId, accessToken, showToast]);
 
@@ -588,6 +628,8 @@ const ChatViewPage: React.FC = () => {
             model_level: 'high',
             tokens: 0,
             has_children: false,
+            sibling_count: 0,
+            sibling_index: 0,
             created_at: new Date().toISOString()
         };
 
@@ -629,6 +671,7 @@ const ChatViewPage: React.FC = () => {
                 model_level: 'high',
                 tokens: 0,
                 has_children: true,
+                sibling_count: 0,
                 created_at: new Date().toISOString()
             };
 
@@ -640,6 +683,7 @@ const ChatViewPage: React.FC = () => {
                 model_level: result.model_level,
                 tokens: 0,
                 has_children: false,
+                sibling_count: 0,
                 created_at: new Date().toISOString()
             };
 
@@ -864,6 +908,7 @@ const ChatViewPage: React.FC = () => {
                     editingMessageId={editingMessageId}
                     editText={editText}
                     siblingsData={siblingsData}
+                    switchingBranchAtMessageId={switchingBranchAtMessageId}
                     onEditStart={handleEditStart}
                     onEditChange={handleEditChange}
                     onEditSubmit={handleEditSubmit}

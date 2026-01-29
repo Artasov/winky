@@ -137,14 +137,17 @@ interface BranchNavigatorProps {
 }
 
 const BranchNavigator: React.FC<BranchNavigatorProps> = ({currentIndex, total, onPrev, onNext, isDark}) => {
-    if (total <= 1) return null;
+    // total = 0 означает что siblings ещё не загружены
+    const isLoaded = total > 0;
+    const displayIndex = isLoaded ? currentIndex + 1 : '?';
+    const displayTotal = isLoaded ? total : '?';
 
     return (
         <div className="frsc gap-0.5">
             <IconButton
                 size="small"
                 onClick={onPrev}
-                disabled={currentIndex <= 0}
+                disabled={!isLoaded || currentIndex <= 0}
                 sx={{
                     padding: '2px',
                     '&:hover': {
@@ -155,12 +158,12 @@ const BranchNavigator: React.FC<BranchNavigatorProps> = ({currentIndex, total, o
                 <ChevronLeftRoundedIcon sx={{fontSize: 16, color: 'text.secondary'}}/>
             </IconButton>
             <span className="text-xs text-text-tertiary min-w-[32px] text-center">
-                {currentIndex + 1}/{total}
+                {displayIndex}/{displayTotal}
             </span>
             <IconButton
                 size="small"
                 onClick={onNext}
-                disabled={currentIndex >= total - 1}
+                disabled={!isLoaded || currentIndex >= total - 1}
                 sx={{
                     padding: '2px',
                     '&:hover': {
@@ -393,10 +396,10 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                     </span>
                 )}
 
-                {siblingsTotal !== undefined && siblingsTotal > 1 && onSiblingPrev && onSiblingNext && (
+                {onSiblingPrev && onSiblingNext && (
                     <BranchNavigator
                         currentIndex={siblingIndex ?? 0}
-                        total={siblingsTotal}
+                        total={siblingsTotal ?? 0}
                         onPrev={onSiblingPrev}
                         onNext={onSiblingNext}
                         isDark={isDark}

@@ -238,6 +238,7 @@ const ChatViewPage: React.FC = () => {
     const analyserRef = useRef<AnalyserNode | null>(null);
     const animationFrameRef = useRef<number | undefined>(undefined);
     const scrollHeightBeforeLoad = useRef<number>(0);
+    const skipNextScrollToBottom = useRef<boolean>(false);
 
     const accessToken = config?.auth?.access || config?.auth?.accessToken || '';
 
@@ -326,6 +327,10 @@ const ChatViewPage: React.FC = () => {
 
     useEffect(() => {
         // Не скроллим при загрузке старых сообщений или при переключении веток
+        if (skipNextScrollToBottom.current) {
+            skipNextScrollToBottom.current = false;
+            return;
+        }
         if (!loadingMore && !switchingBranchAtMessageId) {
             scrollToBottom();
         }
@@ -555,24 +560,37 @@ const ChatViewPage: React.FC = () => {
         // Сохраняем оригинальную ветку для восстановления при ошибке
         const originalBranch = [...currentBranch];
 
-        // Сразу обрезаем ветку до точки переключения (не включая само переключаемое сообщение)
-        const messagesBeforeSwitch = currentBranch.slice(0, messageIndex);
-        setCurrentBranch(messagesBeforeSwitch);
+        // Сохраняем позицию скролла относительно контейнера
+        const container = messagesContainerRef.current;
+        const scrollTopBefore = container?.scrollTop || 0;
 
-        // Показываем индикатор после последнего оставшегося сообщения
-        const lastRemainingMessage = messagesBeforeSwitch[messagesBeforeSwitch.length - 1];
-        setSwitchingBranchAtMessageId(lastRemainingMessage?.id || null);
+        // Оставляем сообщение с которого переключаемся, убираем только то что ниже
+        const messagesUpToSwitch = currentBranch.slice(0, messageIndex + 1);
+        setCurrentBranch(messagesUpToSwitch);
+
+        // Показываем индикатор под сообщением с которого переключаемся
+        setSwitchingBranchAtMessageId(message.id);
 
         try {
             // Используем fetchMessageBranch который строит полную ветку через сообщение до leaf
             const branchResponse = await fetchMessageBranch(newMessage.id, accessToken);
 
-            // Фильтруем сообщения которые уже есть в ветке до переключения
+            // Берем сообщения ДО переключаемого (без него самого)
+            const messagesBeforeSwitch = currentBranch.slice(0, messageIndex);
             const existingIds = new Set(messagesBeforeSwitch.map(m => m.id));
             const newBranchFromSwitch = branchResponse.items.filter(m => !existingIds.has(m.id));
 
             const newFullBranch = [...messagesBeforeSwitch, ...newBranchFromSwitch];
             setCurrentBranch(newFullBranch);
+
+            // Восстанавливаем позицию скролла и снимаем флаг загрузки
+            requestAnimationFrame(() => {
+                if (container) {
+                    container.scrollTop = scrollTopBefore;
+                }
+                skipNextScrollToBottom.current = true;
+                setSwitchingBranchAtMessageId(null);
+            });
 
             // Обновляем leaf - последнее сообщение в новой ветке
             const lastMessage = newBranchFromSwitch[newBranchFromSwitch.length - 1];
@@ -604,7 +622,6 @@ const ChatViewPage: React.FC = () => {
             showToast('Failed to switch branch.', 'error');
             // Восстанавливаем оригинальную ветку при ошибке
             setCurrentBranch(originalBranch);
-        } finally {
             setSwitchingBranchAtMessageId(null);
         }
     }, [siblingsData, loadSiblings, currentBranch, currentChatId, accessToken, showToast]);

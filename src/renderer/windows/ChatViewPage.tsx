@@ -949,7 +949,7 @@ const ChatViewPage: React.FC = () => {
                         onChange={(e) => setInputText(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder={isRecording ? 'Recording...' : isTranscribing ? 'Transcribing...' : 'Type a message...'}
-                        disabled={sending || isTranscribing}
+                        disabled={isTranscribing}
                         fullWidth
                         multiline
                         maxRows={10}
@@ -1009,7 +1009,7 @@ const ChatViewPage: React.FC = () => {
                         <MicWaves isRecording={isRecording} normalizedVolume={normalizedVolume}/>
                         <IconButton
                             onClick={handleMicClick}
-                            disabled={sending || isTranscribing}
+                            disabled={isTranscribing}
                             sx={{
                                 position: 'relative',
                                 zIndex: 1,

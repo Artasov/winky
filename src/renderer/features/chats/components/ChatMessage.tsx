@@ -4,20 +4,32 @@ import type {Components} from 'react-markdown';
 import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter';
 import {oneDark, oneLight} from 'react-syntax-highlighter/dist/esm/styles/prism';
 import {alpha, useTheme} from '@mui/material/styles';
-import {IconButton, Tooltip} from '@mui/material';
+import {Button, IconButton, TextField, Tooltip} from '@mui/material';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import TextFieldsRoundedIcon from '@mui/icons-material/TextFieldsRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
+import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import type {WinkyChatMessage} from '@shared/types';
 import {clipboardBridge} from '../../../services/winkyBridge';
 
-// Кешированные компоненты для light и dark темы (создаются один раз)
 const markdownComponentsCache = new Map<boolean, Components>();
 
 interface ChatMessageProps {
     message: WinkyChatMessage;
     isStreaming?: boolean;
+    isEditing?: boolean;
+    editText?: string;
+    onEditStart?: (message: WinkyChatMessage) => void;
+    onEditChange?: (text: string) => void;
+    onEditSubmit?: () => void;
+    onEditCancel?: () => void;
+    siblingIndex?: number;
+    siblingsTotal?: number;
+    onSiblingPrev?: () => void;
+    onSiblingNext?: () => void;
 }
 
 const formatTime = (value: string): string => {
@@ -27,7 +39,6 @@ const formatTime = (value: string): string => {
     return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 };
 
-// Компонент кнопки копирования для блоков кода
 const CodeBlockCopyButton: React.FC<{code: string}> = ({code}) => {
     const [copied, setCopied] = useState(false);
 
@@ -54,9 +65,7 @@ const CodeBlockCopyButton: React.FC<{code: string}> = ({code}) => {
     );
 };
 
-// Кастомный рендерер для блоков кода с кнопкой копирования и подсветкой синтаксиса
 const getMarkdownComponents = (isDark: boolean): Components => {
-    // Возвращаем из кеша если уже создано
     const cached = markdownComponentsCache.get(isDark);
     if (cached) return cached;
 
@@ -65,8 +74,6 @@ const getMarkdownComponents = (isDark: boolean): Components => {
             const match = /language-(\w+)/.exec(className || '');
             const language = match ? match[1] : '';
             const codeString = String(children).replace(/\n$/, '');
-
-            // Inline code (no language specified and no newlines)
             const isInline = !match && !codeString.includes('\n');
 
             if (isInline) {
@@ -77,7 +84,6 @@ const getMarkdownComponents = (isDark: boolean): Components => {
                 );
             }
 
-            // Code block with syntax highlighting
             return (
                 <div className="code-block-wrapper">
                     <CodeBlockCopyButton code={codeString}/>
@@ -122,7 +128,66 @@ const getMarkdownComponents = (isDark: boolean): Components => {
     return components;
 };
 
-const ChatMessageComponent: React.FC<ChatMessageProps> = ({message, isStreaming}) => {
+interface BranchNavigatorProps {
+    currentIndex: number;
+    total: number;
+    onPrev: () => void;
+    onNext: () => void;
+    isDark: boolean;
+}
+
+const BranchNavigator: React.FC<BranchNavigatorProps> = ({currentIndex, total, onPrev, onNext, isDark}) => {
+    if (total <= 1) return null;
+
+    return (
+        <div className="frsc gap-0.5">
+            <IconButton
+                size="small"
+                onClick={onPrev}
+                disabled={currentIndex <= 0}
+                sx={{
+                    padding: '2px',
+                    '&:hover': {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                    }
+                }}
+            >
+                <ChevronLeftRoundedIcon sx={{fontSize: 16, color: 'text.secondary'}}/>
+            </IconButton>
+            <span className="text-xs text-text-tertiary min-w-[32px] text-center">
+                {currentIndex + 1}/{total}
+            </span>
+            <IconButton
+                size="small"
+                onClick={onNext}
+                disabled={currentIndex >= total - 1}
+                sx={{
+                    padding: '2px',
+                    '&:hover': {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                    }
+                }}
+            >
+                <ChevronRightRoundedIcon sx={{fontSize: 16, color: 'text.secondary'}}/>
+            </IconButton>
+        </div>
+    );
+};
+
+const ChatMessageComponent: React.FC<ChatMessageProps> = ({
+    message,
+    isStreaming,
+    isEditing,
+    editText,
+    onEditStart,
+    onEditChange,
+    onEditSubmit,
+    onEditCancel,
+    siblingIndex,
+    siblingsTotal,
+    onSiblingPrev,
+    onSiblingNext
+}) => {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const darkSurface = alpha('#6f6f6f', 0.12);
@@ -146,12 +211,92 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({message, isStreaming}
         setTimeout(() => setCopiedText(false), 2000);
     }, [message.content]);
 
-    // Используем кешированные компоненты для избежания пересоздания
+    const handleEditClick = useCallback(() => {
+        onEditStart?.(message);
+    }, [message, onEditStart]);
+
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            onEditSubmit?.();
+        } else if (e.key === 'Escape') {
+            onEditCancel?.();
+        }
+    }, [onEditSubmit, onEditCancel]);
+
     const markdownComponents = getMarkdownComponents(isDark);
+
+    if (isEditing && isUser) {
+        return (
+            <div className="fc gap-2 items-end w-full">
+                <div
+                    className="rounded-2xl px-4 py-3 w-full"
+                    style={{
+                        maxWidth: '85%',
+                        backgroundColor: isDark ? alpha('#6f6f6f', 0.2) : 'rgba(0,0,0,0.05)',
+                        marginLeft: 'auto'
+                    }}
+                >
+                    <TextField
+                        value={editText}
+                        onChange={(e) => onEditChange?.(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        fullWidth
+                        multiline
+                        maxRows={10}
+                        minRows={2}
+                        autoFocus
+                        placeholder="Edit message..."
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                borderRadius: '8px',
+                                backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.8)',
+                                fontSize: '0.875rem',
+                                '& fieldset': {
+                                    borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'
+                                },
+                                '&:hover fieldset': {
+                                    borderColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)'
+                                },
+                                '&.Mui-focused fieldset': {
+                                    borderColor: 'primary.main',
+                                    borderWidth: '1px'
+                                }
+                            }
+                        }}
+                    />
+                    <div className="frec gap-2 mt-2">
+                        <Button
+                            size="small"
+                            onClick={onEditCancel}
+                            sx={{
+                                textTransform: 'none',
+                                color: 'text.secondary',
+                                fontSize: '0.8125rem'
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            size="small"
+                            variant="contained"
+                            onClick={onEditSubmit}
+                            disabled={!editText?.trim()}
+                            sx={{
+                                textTransform: 'none',
+                                fontSize: '0.8125rem'
+                            }}
+                        >
+                            Send
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={`fc gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
-            {/* Message bubble */}
             <div
                 className={`rounded-2xl px-4 py-2 ${isUser ? 'bg-primary text-white' : ''}`}
                 style={{
@@ -178,17 +323,31 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({message, isStreaming}
                 </div>
             </div>
 
-            {/* Footer: LLM = время, иконки | User = иконки, время (справа) */}
             <div className={`frsc gap-1 px-2 ${isUser ? 'justify-end' : ''}`}>
-                {/* Для LLM: время первым */}
                 {!isUser && (
                     <span className="text-xs text-text-tertiary">
                         {formatTime(message.created_at)}
                     </span>
                 )}
 
-                {/* Copy buttons - всегда видны */}
                 <div className="frsc gap-0.5">
+                    {isUser && onEditStart && !message.id.startsWith('temp-') && (
+                        <Tooltip title="Edit" arrow placement="top">
+                            <IconButton
+                                size="small"
+                                onClick={handleEditClick}
+                                sx={{
+                                    padding: '3px',
+                                    '&:hover': {
+                                        backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                                    }
+                                }}
+                            >
+                                <EditRoundedIcon sx={{fontSize: 14, color: 'text.secondary'}}/>
+                            </IconButton>
+                        </Tooltip>
+                    )}
+
                     <Tooltip title={copiedRaw ? 'Copied!' : 'Copy Markdown'} arrow placement="top">
                         <IconButton
                             size="small"
@@ -228,22 +387,34 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({message, isStreaming}
                     </Tooltip>
                 </div>
 
-                {/* Для User: время последним */}
                 {isUser && (
                     <span className="text-xs text-text-tertiary">
                         {formatTime(message.created_at)}
                     </span>
+                )}
+
+                {siblingsTotal !== undefined && siblingsTotal > 1 && onSiblingPrev && onSiblingNext && (
+                    <BranchNavigator
+                        currentIndex={siblingIndex ?? 0}
+                        total={siblingsTotal}
+                        onPrev={onSiblingPrev}
+                        onNext={onSiblingNext}
+                        isDark={isDark}
+                    />
                 )}
             </div>
         </div>
     );
 };
 
-// Мемоизированный компонент - перерендерится только при изменении message или isStreaming
 const ChatMessage = memo(ChatMessageComponent, (prevProps, nextProps) => {
     return prevProps.message.id === nextProps.message.id &&
            prevProps.message.content === nextProps.message.content &&
-           prevProps.isStreaming === nextProps.isStreaming;
+           prevProps.isStreaming === nextProps.isStreaming &&
+           prevProps.isEditing === nextProps.isEditing &&
+           prevProps.editText === nextProps.editText &&
+           prevProps.siblingIndex === nextProps.siblingIndex &&
+           prevProps.siblingsTotal === nextProps.siblingsTotal;
 });
 
 export default ChatMessage;

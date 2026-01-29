@@ -218,6 +218,7 @@ export interface WinkyChat {
     title: string;
     additional_context: string;
     message_count: number;
+    last_leaf_message_id: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -247,4 +248,19 @@ export interface WinkyChatMessagesPaginated {
     page: number;
     page_size: number;
     pages: number;
+}
+
+export interface WinkyChatBranchResponse {
+    chat_id: string;
+    leaf_message_id: string | null;
+    items: WinkyChatMessage[];
+    has_more: boolean;
+    next_cursor: string | null;
+}
+
+export interface MessageChildrenResponse {
+    chat_id: string;
+    parent_id: string;
+    items: WinkyChatMessage[];
+    total: number;
 }

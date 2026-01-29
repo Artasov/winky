@@ -6,7 +6,7 @@ import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
-import type {WinkyChatMessage} from '@shared/types';
+import type {WinkyChatMessage, MessageChildrenResponse} from '@shared/types';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
 import {useChats} from '../context/ChatsContext';
@@ -14,39 +14,33 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import ChatActions from '../features/chats/components/ChatActions';
 import ChatMessage from '../features/chats/components/ChatMessage';
 import {
-    fetchWinkyChatMessages,
+    fetchWinkyChatBranch,
     fetchWinkyChat,
+    fetchMessageChildren,
+    fetchMessageBranch,
     winkyLLMStream,
     winkyTranscribe,
     updateWinkyChat
 } from '../services/winkyAiApi';
 
-// Компонент волн вокруг кнопки микрофона
 interface MicWavesProps {
     isRecording: boolean;
     normalizedVolume: number;
 }
 
 const MicWavesComponent: React.FC<MicWavesProps> = ({isRecording, normalizedVolume}) => {
-    // 2 кольца, близко к кнопке
     const ringMultipliers = [2, 1];
     const buttonSize = 40;
     const firstRingSize = buttonSize + 4;
-
-    // Усиливаем громкость для большей чувствительности
     const amplifiedVolume = Math.min(1, normalizedVolume * 5);
     const sqrtVolume = Math.sqrt(amplifiedVolume);
-
     const baseWaveScale = 1.02;
     const maxAdditionalScale = 0.25;
     const waveScale = baseWaveScale + sqrtVolume * maxAdditionalScale;
-
-    // Очень низкий порог для срабатывания при тихих звуках
     const minVolumeThreshold = 0.02;
 
     if (!isRecording) return null;
 
-    // rose-600 = rgb(225, 29, 72)
     const roseColor = '225, 29, 72';
 
     return (
@@ -84,14 +78,35 @@ const MicWavesComponent: React.FC<MicWavesProps> = ({isRecording, normalizedVolu
 
 const MicWaves = React.memo(MicWavesComponent);
 
-// Мемоизированный список сообщений - не перерендеривается при изменении inputText
 interface MessagesListProps {
     messages: WinkyChatMessage[];
     streamingContent: string;
     loading: boolean;
+    loadingMore: boolean;
+    editingMessageId: string | null;
+    editText: string;
+    siblingsData: Map<string, {items: WinkyChatMessage[]; total: number; currentIndex: number}>;
+    onEditStart: (message: WinkyChatMessage) => void;
+    onEditChange: (text: string) => void;
+    onEditSubmit: () => void;
+    onEditCancel: () => void;
+    onSiblingNavigate: (message: WinkyChatMessage, direction: 'prev' | 'next') => void;
 }
 
-const MessagesListComponent: React.FC<MessagesListProps> = ({messages, streamingContent, loading}) => {
+const MessagesListComponent: React.FC<MessagesListProps> = ({
+    messages,
+    streamingContent,
+    loading,
+    loadingMore,
+    editingMessageId,
+    editText,
+    siblingsData,
+    onEditStart,
+    onEditChange,
+    onEditSubmit,
+    onEditCancel,
+    onSiblingNavigate
+}) => {
     if (loading) {
         return (
             <div className="flex h-full items-center justify-center">
@@ -113,9 +128,34 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({messages, streaming
 
     return (
         <div className="fc gap-4">
-            {messages.map((message) => (
-                <ChatMessage key={message.id} message={message}/>
-            ))}
+            {loadingMore && (
+                <div className="flex justify-center py-2">
+                    <CircularProgress size={20}/>
+                </div>
+            )}
+
+            {messages.map((message) => {
+                const siblingInfo = siblingsData.get(message.id);
+                const isEditing = editingMessageId === message.id;
+                const hasSiblings = siblingInfo && siblingInfo.total > 1;
+
+                return (
+                    <ChatMessage
+                        key={message.id}
+                        message={message}
+                        isEditing={isEditing}
+                        editText={isEditing ? editText : undefined}
+                        onEditStart={onEditStart}
+                        onEditChange={onEditChange}
+                        onEditSubmit={onEditSubmit}
+                        onEditCancel={onEditCancel}
+                        siblingIndex={hasSiblings ? siblingInfo.currentIndex : undefined}
+                        siblingsTotal={hasSiblings ? siblingInfo.total : undefined}
+                        onSiblingPrev={hasSiblings ? () => onSiblingNavigate(message, 'prev') : undefined}
+                        onSiblingNext={hasSiblings ? () => onSiblingNavigate(message, 'next') : undefined}
+                    />
+                );
+            })}
 
             {streamingContent && (
                 <ChatMessage
@@ -138,53 +178,6 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({messages, streaming
 
 const MessagesList = memo(MessagesListComponent);
 
-// Тип сообщения с детьми для построения дерева
-type MessageNode = WinkyChatMessage & {children: MessageNode[]};
-
-// Построение дерева сообщений
-const buildMessageTree = (messages: WinkyChatMessage[]) => {
-    const byId = new Map<string, MessageNode>();
-    const roots: MessageNode[] = [];
-
-    for (const m of messages) {
-        byId.set(m.id, {...m, children: []});
-    }
-
-    for (const m of messages) {
-        const node = byId.get(m.id)!;
-        if (!m.parent_id) {
-            roots.push(node);
-        } else {
-            const parent = byId.get(m.parent_id);
-            if (parent) {
-                parent.children.push(node);
-            }
-        }
-    }
-
-    return {roots, byId};
-};
-
-// Получение ветки по умолчанию (последние сообщения по времени)
-const getDefaultBranch = (roots: MessageNode[]): WinkyChatMessage[] => {
-    if (roots.length === 0) return [];
-
-    const branch: WinkyChatMessage[] = [];
-    let current: MessageNode | undefined = roots.sort((a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )[0];
-
-    while (current) {
-        branch.push(current);
-        if (current.children.length === 0) break;
-        current = current.children.sort((a, b) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )[0];
-    }
-
-    return branch;
-};
-
 const ChatViewPage: React.FC = () => {
     const {chatId} = useParams<{chatId: string}>();
     const isNewChat = chatId === 'new';
@@ -196,7 +189,6 @@ const ChatViewPage: React.FC = () => {
     const isDark = theme.palette.mode === 'dark';
     const darkSurface = alpha('#6f6f6f', 0.12);
 
-    const [allMessages, setAllMessages] = useState<WinkyChatMessage[]>([]);
     const [currentBranch, setCurrentBranch] = useState<WinkyChatMessage[]>([]);
     const [loading, setLoading] = useState(!isNewChat);
     const [sending, setSending] = useState(false);
@@ -208,6 +200,16 @@ const ChatViewPage: React.FC = () => {
     const [normalizedVolume, setNormalizedVolume] = useState(0);
     const [chatTitle, setChatTitle] = useState('');
 
+    const [leafMessageId, setLeafMessageId] = useState<string | null>(null);
+    const [hasMoreMessages, setHasMoreMessages] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
+
+    const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+    const [editText, setEditText] = useState('');
+
+    const [siblingsData, setSiblingsData] = useState<Map<string, {items: WinkyChatMessage[]; total: number; currentIndex: number}>>(new Map());
+
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -215,6 +217,7 @@ const ChatViewPage: React.FC = () => {
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
     const animationFrameRef = useRef<number | undefined>(undefined);
+    const scrollHeightBeforeLoad = useRef<number>(0);
 
     const accessToken = config?.auth?.access || config?.auth?.accessToken || '';
 
@@ -225,6 +228,50 @@ const ChatViewPage: React.FC = () => {
         }
     }, []);
 
+    const loadBranch = useCallback(async (leafId?: string, cursor?: string) => {
+        if (!accessToken || !currentChatId) return;
+
+        const isLoadingMore = !!cursor;
+        if (isLoadingMore) {
+            setLoadingMore(true);
+            scrollHeightBeforeLoad.current = messagesContainerRef.current?.scrollHeight || 0;
+        }
+
+        try {
+            const response = await fetchWinkyChatBranch(currentChatId, accessToken, {
+                leafMessageId: leafId,
+                cursor,
+                limit: 20
+            });
+
+            if (isLoadingMore) {
+                setCurrentBranch(prev => [...response.items, ...prev]);
+                requestAnimationFrame(() => {
+                    const container = messagesContainerRef.current;
+                    if (container) {
+                        const newScrollHeight = container.scrollHeight;
+                        container.scrollTop = newScrollHeight - scrollHeightBeforeLoad.current;
+                    }
+                });
+            } else {
+                setCurrentBranch(response.items);
+                setLeafMessageId(response.leaf_message_id);
+            }
+
+            setHasMoreMessages(response.has_more);
+            setNextCursor(response.next_cursor);
+        } catch (error) {
+            console.error('[ChatViewPage] Failed to load branch', error);
+            if (!isLoadingMore) {
+                showToast('Failed to load messages.', 'error');
+            }
+        } finally {
+            if (isLoadingMore) {
+                setLoadingMore(false);
+            }
+        }
+    }, [accessToken, currentChatId, showToast]);
+
     const loadMessages = useCallback(async () => {
         if (!accessToken || !chatId || isNewChat) {
             setLoading(false);
@@ -232,17 +279,19 @@ const ChatViewPage: React.FC = () => {
         }
         setLoading(true);
         try {
-            const [messagesResponse, chatResponse] = await Promise.all([
-                fetchWinkyChatMessages(chatId, accessToken),
-                fetchWinkyChat(chatId, accessToken)
-            ]);
-            const messages = messagesResponse.items;
-            setAllMessages(messages);
+            const chatResponse = await fetchWinkyChat(chatId, accessToken);
             setChatTitle(chatResponse.title || '');
+            setCurrentChatId(chatId);
 
-            const {roots} = buildMessageTree(messages);
-            const branch = getDefaultBranch(roots);
-            setCurrentBranch(branch);
+            const branchResponse = await fetchWinkyChatBranch(chatId, accessToken, {
+                leafMessageId: chatResponse.last_leaf_message_id || undefined,
+                limit: 20
+            });
+
+            setCurrentBranch(branchResponse.items);
+            setLeafMessageId(branchResponse.leaf_message_id);
+            setHasMoreMessages(branchResponse.has_more);
+            setNextCursor(branchResponse.next_cursor);
         } catch (error) {
             console.error('[ChatViewPage] Failed to load messages', error);
             showToast('Failed to load messages.', 'error');
@@ -256,10 +305,11 @@ const ChatViewPage: React.FC = () => {
     }, [loadMessages]);
 
     useEffect(() => {
-        scrollToBottom();
-    }, [currentBranch, streamingContent, scrollToBottom]);
+        if (!loadingMore) {
+            scrollToBottom();
+        }
+    }, [currentBranch, streamingContent, scrollToBottom, loadingMore]);
 
-    // Остановка записи при размонтировании компонента (смена вкладки)
     useEffect(() => {
         return () => {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -274,6 +324,251 @@ const ChatViewPage: React.FC = () => {
         };
     }, []);
 
+    const handleScroll = useCallback(() => {
+        const container = messagesContainerRef.current;
+        if (!container || loadingMore || !hasMoreMessages || !nextCursor) return;
+
+        if (container.scrollTop < 100) {
+            void loadBranch(leafMessageId || undefined, nextCursor);
+        }
+    }, [loadingMore, hasMoreMessages, nextCursor, leafMessageId, loadBranch]);
+
+    useEffect(() => {
+        const container = messagesContainerRef.current;
+        if (container) {
+            container.addEventListener('scroll', handleScroll);
+            return () => container.removeEventListener('scroll', handleScroll);
+        }
+    }, [handleScroll]);
+
+    const handleEditStart = useCallback((message: WinkyChatMessage) => {
+        setEditingMessageId(message.id);
+        setEditText(message.content);
+    }, []);
+
+    const handleEditChange = useCallback((text: string) => {
+        setEditText(text);
+    }, []);
+
+    const handleEditCancel = useCallback(() => {
+        setEditingMessageId(null);
+        setEditText('');
+    }, []);
+
+    const handleEditSubmit = useCallback(async () => {
+        const text = editText.trim();
+        if (!text || !accessToken || sending || !editingMessageId) return;
+
+        const editingMessage = currentBranch.find(m => m.id === editingMessageId);
+        if (!editingMessage) return;
+
+        const parentMessageId = editingMessage.parent_id;
+
+        setSending(true);
+        setEditingMessageId(null);
+        setEditText('');
+        setStreamingContent('');
+
+        const tempUserMessage: WinkyChatMessage = {
+            id: `temp-user-${Date.now()}`,
+            parent_id: parentMessageId,
+            role: 'user',
+            content: text,
+            model_level: 'high',
+            tokens: 0,
+            has_children: false,
+            created_at: new Date().toISOString()
+        };
+
+        const editingIndex = currentBranch.findIndex(m => m.id === editingMessageId);
+        const messagesBeforeEdit = editingIndex > 0 ? currentBranch.slice(0, editingIndex) : [];
+        setCurrentBranch([...messagesBeforeEdit, tempUserMessage]);
+
+        try {
+            const result = await winkyLLMStream(
+                {
+                    prompt: text,
+                    model_level: 'high',
+                    chat_id: currentChatId || undefined,
+                    parent_message_id: parentMessageId
+                },
+                accessToken,
+                (chunk) => {
+                    setStreamingContent((prev) => prev + chunk);
+                }
+            );
+
+            if (!currentChatId && result.chat_id) {
+                setCurrentChatId(result.chat_id);
+                navigate(`/chats/${result.chat_id}`, {replace: true});
+                addChat({
+                    id: result.chat_id,
+                    title: text.slice(0, 50) + (text.length > 50 ? '...' : ''),
+                    additional_context: '',
+                    message_count: 2,
+                    last_leaf_message_id: result.assistant_message_id,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
+            }
+
+            const userMessage: WinkyChatMessage = {
+                id: result.user_message_id,
+                parent_id: parentMessageId,
+                role: 'user',
+                content: text,
+                model_level: 'high',
+                tokens: 0,
+                has_children: true,
+                created_at: new Date().toISOString()
+            };
+
+            const assistantMessage: WinkyChatMessage = {
+                id: result.assistant_message_id,
+                parent_id: result.user_message_id,
+                role: 'assistant',
+                content: result.content,
+                model_level: result.model_level,
+                tokens: 0,
+                has_children: false,
+                created_at: new Date().toISOString()
+            };
+
+            setCurrentBranch([...messagesBeforeEdit, userMessage, assistantMessage]);
+            setLeafMessageId(result.assistant_message_id);
+            setStreamingContent('');
+
+            // Загружаем siblings для нового сообщения чтобы показать навигатор
+            if (parentMessageId) {
+                const siblingsResponse = await loadSiblings(parentMessageId);
+                if (siblingsResponse && siblingsResponse.total > 1) {
+                    setSiblingsData(prev => {
+                        const newMap = new Map(prev);
+                        siblingsResponse.items.forEach((item, idx) => {
+                            newMap.set(item.id, {
+                                items: siblingsResponse.items,
+                                total: siblingsResponse.total,
+                                currentIndex: idx
+                            });
+                        });
+                        return newMap;
+                    });
+                }
+            }
+        } catch (error: any) {
+            console.error('[ChatViewPage] Failed to send edited message', error);
+            setCurrentBranch(currentBranch);
+
+            if (error?.response?.status === 402) {
+                showToast('Not enough credits. Top up your balance.', 'error');
+            } else {
+                showToast(error?.message || 'Failed to send message.', 'error');
+            }
+        } finally {
+            setSending(false);
+            setStreamingContent('');
+        }
+    }, [editText, accessToken, sending, editingMessageId, currentBranch, currentChatId, navigate, showToast, addChat]);
+
+    const loadSiblings = useCallback(async (parentId: string): Promise<MessageChildrenResponse | null> => {
+        if (!accessToken) return null;
+
+        try {
+            const response = await fetchMessageChildren(parentId, accessToken);
+            return response;
+        } catch (error) {
+            console.error('[ChatViewPage] Failed to load siblings', error);
+            return null;
+        }
+    }, [accessToken]);
+
+    const handleSiblingNavigate = useCallback(async (message: WinkyChatMessage, direction: 'prev' | 'next') => {
+        if (!message.parent_id) return;
+
+        let siblingInfo = siblingsData.get(message.id);
+
+        if (!siblingInfo) {
+            const response = await loadSiblings(message.parent_id);
+            if (!response || response.items.length <= 1) return;
+
+            const currentIndex = response.items.findIndex(m => m.id === message.id);
+            siblingInfo = {
+                items: response.items,
+                total: response.total,
+                currentIndex: currentIndex >= 0 ? currentIndex : 0
+            };
+
+            setSiblingsData(prev => {
+                const newMap = new Map(prev);
+                response.items.forEach((item, idx) => {
+                    newMap.set(item.id, {
+                        items: response.items,
+                        total: response.total,
+                        currentIndex: idx
+                    });
+                });
+                return newMap;
+            });
+        }
+
+        const newIndex = direction === 'prev'
+            ? siblingInfo.currentIndex - 1
+            : siblingInfo.currentIndex + 1;
+
+        if (newIndex < 0 || newIndex >= siblingInfo.items.length) return;
+
+        const newMessage = siblingInfo.items[newIndex];
+
+        const messageIndex = currentBranch.findIndex(m => m.id === message.id);
+        if (messageIndex < 0) return;
+
+        setLoading(true);
+        try {
+            // Используем fetchMessageBranch который строит полную ветку через сообщение до leaf
+            const branchResponse = await fetchMessageBranch(newMessage.id, accessToken);
+
+            const messagesBeforeSwitch = currentBranch.slice(0, messageIndex);
+
+            // Фильтруем сообщения которые уже есть в ветке до переключения
+            const existingIds = new Set(messagesBeforeSwitch.map(m => m.id));
+            const newBranchFromSwitch = branchResponse.items.filter(m => !existingIds.has(m.id));
+
+            const newFullBranch = [...messagesBeforeSwitch, ...newBranchFromSwitch];
+            setCurrentBranch(newFullBranch);
+
+            // Обновляем leaf - последнее сообщение в новой ветке
+            const lastMessage = newBranchFromSwitch[newBranchFromSwitch.length - 1];
+            if (lastMessage) {
+                setLeafMessageId(lastMessage.id);
+            }
+
+            // Обновляем siblingsData - новое сообщение теперь текущее
+            if (siblingInfo) {
+                const siblingsToUpdate = siblingInfo;
+                setSiblingsData(prev => {
+                    const newMap = new Map(prev);
+                    siblingsToUpdate.items.forEach((item, idx) => {
+                        newMap.set(item.id, {
+                            items: siblingsToUpdate.items,
+                            total: siblingsToUpdate.total,
+                            currentIndex: idx
+                        });
+                    });
+                    return newMap;
+                });
+            }
+
+            // Сбрасываем пагинацию
+            setHasMoreMessages(false);
+            setNextCursor(null);
+        } catch (error) {
+            console.error('[ChatViewPage] Failed to switch branch', error);
+            showToast('Failed to switch branch.', 'error');
+        } finally {
+            setLoading(false);
+        }
+    }, [siblingsData, loadSiblings, currentBranch, currentChatId, accessToken, showToast]);
+
     const handleSendMessage = useCallback(async () => {
         const text = inputText.trim();
         if (!text || !accessToken || sending) return;
@@ -282,11 +577,9 @@ const ChatViewPage: React.FC = () => {
         setInputText('');
         setStreamingContent('');
 
-        // Определяем parent_message_id (последнее сообщение в текущей ветке)
         const lastMessage = currentBranch.length > 0 ? currentBranch[currentBranch.length - 1] : null;
         const parentMessageId = lastMessage?.id || null;
 
-        // Добавляем пользовательское сообщение оптимистично
         const tempUserMessage: WinkyChatMessage = {
             id: `temp-user-${Date.now()}`,
             parent_id: parentMessageId,
@@ -314,22 +607,20 @@ const ChatViewPage: React.FC = () => {
                 }
             );
 
-            // Если это был новый чат, обновляем chatId и URL
             if (!currentChatId && result.chat_id) {
                 setCurrentChatId(result.chat_id);
                 navigate(`/chats/${result.chat_id}`, {replace: true});
-                // Добавляем новый чат в контекст
                 addChat({
                     id: result.chat_id,
                     title: text.slice(0, 50) + (text.length > 50 ? '...' : ''),
                     additional_context: '',
                     message_count: 2,
+                    last_leaf_message_id: result.assistant_message_id,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 });
             }
 
-            // Создаем реальные сообщения
             const userMessage: WinkyChatMessage = {
                 id: result.user_message_id,
                 parent_id: parentMessageId,
@@ -352,20 +643,15 @@ const ChatViewPage: React.FC = () => {
                 created_at: new Date().toISOString()
             };
 
-            // Обновляем ветку
             setCurrentBranch((prev) => {
                 const filtered = prev.filter((m) => !m.id.startsWith('temp-'));
                 return [...filtered, userMessage, assistantMessage];
             });
 
-            // Обновляем все сообщения
-            setAllMessages((prev) => [...prev, userMessage, assistantMessage]);
-
+            setLeafMessageId(result.assistant_message_id);
             setStreamingContent('');
         } catch (error: any) {
             console.error('[ChatViewPage] Failed to send message', error);
-
-            // Удаляем временное сообщение при ошибке
             setCurrentBranch((prev) => prev.filter((m) => !m.id.startsWith('temp-')));
 
             if (error?.response?.status === 402) {
@@ -454,7 +740,6 @@ const ChatViewPage: React.FC = () => {
                     const result = await winkyTranscribe(arrayBuffer, accessToken, {mimeType: 'audio/webm'});
                     if (result.text.trim()) {
                         setInputText((prev) => prev + (prev ? ' ' : '') + result.text.trim());
-                        // Фокус на textarea после успешной транскрибации
                         setTimeout(() => inputRef.current?.focus(), 0);
                     }
                 } catch (error: any) {
@@ -528,7 +813,6 @@ const ChatViewPage: React.FC = () => {
 
     return (
         <div className="fc h-full w-full">
-            {/* Header */}
             <div
                 className="frbc gap-2 px-3 py-1.5 border-b flex-shrink-0"
                 style={{
@@ -567,7 +851,6 @@ const ChatViewPage: React.FC = () => {
                 )}
             </div>
 
-            {/* Messages */}
             <div
                 ref={messagesContainerRef}
                 className="flex-1 overflow-y-auto px-4 py-4"
@@ -577,10 +860,18 @@ const ChatViewPage: React.FC = () => {
                     messages={currentBranch}
                     streamingContent={streamingContent}
                     loading={loading}
+                    loadingMore={loadingMore}
+                    editingMessageId={editingMessageId}
+                    editText={editText}
+                    siblingsData={siblingsData}
+                    onEditStart={handleEditStart}
+                    onEditChange={handleEditChange}
+                    onEditSubmit={handleEditSubmit}
+                    onEditCancel={handleEditCancel}
+                    onSiblingNavigate={handleSiblingNavigate}
                 />
             </div>
 
-            {/* Input */}
             <div
                 className="px-4 py-3 border-t flex-shrink-0"
                 style={{

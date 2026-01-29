@@ -4,7 +4,9 @@ import type {
     WinkyChat,
     WinkyChatMessage,
     WinkyChatsPaginated,
-    WinkyChatMessagesPaginated
+    WinkyChatMessagesPaginated,
+    WinkyChatBranchResponse,
+    MessageChildrenResponse
 } from '@shared/types';
 
 const WINKY_AI_TRANSCRIBE_ENDPOINT = `${API_BASE_URL}/ai/transcribe/`;
@@ -256,12 +258,6 @@ export const fetchWinkyChat = async (chatId: string, accessToken: string): Promi
     return data;
 };
 
-export interface MessageChildrenResponse {
-    chat_id: string;
-    parent_id: string;
-    items: WinkyChatMessage[];
-}
-
 export const fetchMessageChildren = async (
     messageId: string,
     accessToken: string
@@ -285,6 +281,30 @@ export const fetchMessageBranch = async (
     const {data} = await axios.get<MessageBranchResponse>(
         `${WINKY_AI_MESSAGES_ENDPOINT}${messageId}/branch/`,
         {headers: {Authorization: `Bearer ${accessToken}`}}
+    );
+    return data;
+};
+
+export const fetchWinkyChatBranch = async (
+    chatId: string,
+    accessToken: string,
+    options?: {
+        leafMessageId?: string;
+        cursor?: string;
+        limit?: number;
+    }
+): Promise<WinkyChatBranchResponse> => {
+    const params: Record<string, string | number> = {};
+    if (options?.leafMessageId) params.leaf_message_id = options.leafMessageId;
+    if (options?.cursor) params.cursor = options.cursor;
+    if (options?.limit) params.limit = options.limit;
+
+    const {data} = await axios.get<WinkyChatBranchResponse>(
+        `${WINKY_AI_CHATS_ENDPOINT}${chatId}/branch/`,
+        {
+            headers: {Authorization: `Bearer ${accessToken}`},
+            params
+        }
     );
     return data;
 };

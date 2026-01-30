@@ -283,7 +283,7 @@ export const fetchWinkyChatMessages = async (
 
 export const updateWinkyChat = async (
     chatId: string,
-    updates: Partial<Pick<WinkyChat, 'title' | 'additional_context'>>,
+    updates: Partial<Pick<WinkyChat, 'title' | 'additional_context'>> & {pinned?: boolean},
     accessToken: string
 ): Promise<WinkyChat> => {
     const url = `${WINKY_AI_CHATS_ENDPOINT}${chatId}/`;

@@ -473,6 +473,7 @@ const ChatViewPage: React.FC = () => {
                     additional_context: '',
                     message_count: 2,
                     last_leaf_message_id: result.assistant_message_id,
+                    pinned_at: null,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 });
@@ -724,6 +725,7 @@ const ChatViewPage: React.FC = () => {
                     additional_context: '',
                     message_count: 2,
                     last_leaf_message_id: result.assistant_message_id,
+                    pinned_at: null,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 });

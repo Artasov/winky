@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import classNames from 'classnames';
 import {Tooltip} from '@mui/material';
@@ -15,9 +15,13 @@ import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
-import ViewColumnRoundedIcon from '@mui/icons-material/ViewColumnRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import PushPinRoundedIcon from '@mui/icons-material/PushPinRounded';
 import {useResult} from '../context/ResultContext';
+import {updateWinkyChat} from '../services/winkyAiApi';
+import SidebarChatActions from '../features/chats/components/SidebarChatActions';
+
+const PANELS_STORAGE_KEY = 'winky_chat_panels';
 
 interface NavItem {
     id: string;
@@ -39,6 +43,26 @@ const iconOnlyItems: NavItem[] = [
     {id: 'info', label: 'Info', Icon: InfoRoundedIcon, path: '/info'}
 ];
 
+interface PanelState {
+    panelId: string;
+    chatId: string;
+    leafMessageId: string | null;
+}
+
+const getOpenPanelChatIds = (): Set<string> => {
+    try {
+        const stored = localStorage.getItem(PANELS_STORAGE_KEY);
+        if (!stored) return new Set();
+        const parsed = JSON.parse(stored) as PanelState[];
+        if (Array.isArray(parsed)) {
+            return new Set(parsed.map(p => p.chatId).filter(Boolean));
+        }
+        return new Set();
+    } catch {
+        return new Set();
+    }
+};
+
 const Sidebar: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -51,11 +75,41 @@ const Sidebar: React.FC = () => {
     const {user} = useUser();
     const {isDark} = useThemeMode();
     const {isActive: hasResult} = useResult();
-    const {chats} = useChats();
+    const {chats, refreshChats, deleteChat: deleteChatFromContext} = useChats();
     const showAvatarVideo = config?.showAvatarVideo !== false && !isDark;
 
+    // Отслеживаем открытые панели через localStorage
+    const [openPanelChatIds, setOpenPanelChatIds] = useState<Set<string>>(() => getOpenPanelChatIds());
+
+    // Подписываемся на изменения localStorage
+    useEffect(() => {
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === PANELS_STORAGE_KEY) {
+                setOpenPanelChatIds(getOpenPanelChatIds());
+            }
+        };
+
+        // Также слушаем кастомное событие для обновления в той же вкладке
+        const handlePanelsChange = () => {
+            setOpenPanelChatIds(getOpenPanelChatIds());
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+        window.addEventListener('chat-panels:changed', handlePanelsChange);
+
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('chat-panels:changed', handlePanelsChange);
+        };
+    }, []);
+
+    // Обновляем панели при навигации
+    useEffect(() => {
+        setOpenPanelChatIds(getOpenPanelChatIds());
+    }, [location.pathname]);
+
     // Динамически добавляем Result если есть данные
-    const dynamicNavItems = React.useMemo(() => {
+    const dynamicNavItems = useMemo(() => {
         const items = [...navItems];
         if (hasResult) {
             items.push({id: 'result', label: 'Result', Icon: AutoAwesomeRoundedIcon, path: '/result'});
@@ -63,36 +117,75 @@ const Sidebar: React.FC = () => {
         return items;
     }, [hasResult]);
 
+    // Определяем находимся ли мы в многопанельном режиме (/chats/:chatId)
+    const isInMultiPanelMode = location.pathname.startsWith('/chats/');
+
     const handleNavigation = (path: string) => {
         navigate(path);
     };
 
-    const handleChatClick = (chatId: string) => {
-        // Клик всегда открывает чат в одиночном режиме
-        if (location.pathname.startsWith('/chats')) {
-            // Если уже на странице чатов - отправляем событие для замены всех панелей на одну
+    const handleChatClick = useCallback((chatId: string) => {
+        if (isInMultiPanelMode) {
+            // Мы в многопанельном режиме - отправляем событие для замены панели
             window.dispatchEvent(new CustomEvent('chat-panels:open-single', {detail: {chatId}}));
+            // Обновляем список открытых панелей
+            setTimeout(() => setOpenPanelChatIds(getOpenPanelChatIds()), 50);
         } else {
-            // Если нет - навигируем
+            // Мы на странице списка чатов или любой другой - навигируем
             navigate(`/chats/${chatId}`);
         }
-    };
+    }, [isInMultiPanelMode, navigate]);
 
-    const handleAddChatToPanel = useCallback((chatId: string, e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleAddChatToPanel = useCallback((chatId: string) => {
         // Добавляем чат как новую панель (не заменяем существующие)
         window.dispatchEvent(new CustomEvent('chat-panels:add', {detail: {chatId}}));
+        // Обновляем список открытых панелей
+        setTimeout(() => setOpenPanelChatIds(getOpenPanelChatIds()), 50);
     }, []);
 
+    const handleTogglePin = useCallback(async (chatId: string, isPinned: boolean) => {
+        const accessToken = config?.auth?.access || config?.auth?.accessToken || '';
+        if (!accessToken) return;
+
+        try {
+            await updateWinkyChat(chatId, {pinned: !isPinned}, accessToken);
+            await refreshChats();
+        } catch (err) {
+            console.error('[Sidebar] Failed to toggle pin:', err);
+        }
+    }, [config, refreshChats]);
+
+    const handleRenameChat = useCallback(async (chatId: string, newTitle: string) => {
+        const accessToken = config?.auth?.access || config?.auth?.accessToken || '';
+        if (!accessToken) return;
+
+        try {
+            await updateWinkyChat(chatId, {title: newTitle}, accessToken);
+            await refreshChats();
+        } catch (err) {
+            console.error('[Sidebar] Failed to rename chat:', err);
+            throw err;
+        }
+    }, [config, refreshChats]);
+
+    const handleDeleteChat = useCallback(async (chatId: string) => {
+        try {
+            await deleteChatFromContext(chatId);
+        } catch (err) {
+            console.error('[Sidebar] Failed to delete chat:', err);
+            throw err;
+        }
+    }, [deleteChatFromContext]);
+
     const handleNewChat = useCallback(() => {
-        if (location.pathname.startsWith('/chats')) {
-            // Если на странице чатов - добавляем новую панель
+        if (isInMultiPanelMode) {
+            // Если в многопанельном режиме - добавляем новую панель
             window.dispatchEvent(new CustomEvent('chat-panels:add', {detail: {chatId: 'new'}}));
         } else {
             // Если нет - навигируем
             navigate('/chats/new');
         }
-    }, [location.pathname, navigate]);
+    }, [isInMultiPanelMode, navigate]);
 
     const shouldPlay = () => typeof document !== 'undefined' && !document.hidden;
 
@@ -356,9 +449,15 @@ const Sidebar: React.FC = () => {
                     <div className="flex-1 overflow-y-auto px-3">
                         <div className="fc gap-0.5">
                             {chats.map((chat) => {
-                                const isActive = location.pathname === `/chats/${chat.id}`;
+                                // Чат активен если он открыт в какой-либо панели (в многопанельном режиме)
+                                // или если URL совпадает (в обычном режиме)
+                                const isOpenInPanel = openPanelChatIds.has(chat.id);
+                                const isUrlActive = location.pathname === `/chats/${chat.id}`;
+                                const isActive = isInMultiPanelMode ? isOpenInPanel : isUrlActive;
+
                                 const title = chat.title || 'Untitled chat';
-                                const isOnChatsPage = location.pathname.startsWith('/chats/');
+                                const isPinned = Boolean(chat.pinned_at);
+
                                 return (
                                     <div
                                         key={chat.id}
@@ -374,26 +473,30 @@ const Sidebar: React.FC = () => {
                                         )}
                                         onClick={() => handleChatClick(chat.id)}
                                     >
+                                        {/* Иконка закрепления - всегда видна если закреплён */}
+                                        {isPinned && (
+                                            <PushPinRoundedIcon
+                                                sx={{fontSize: 12, mr: 0.5}}
+                                                className="text-primary flex-shrink-0"
+                                            />
+                                        )}
                                         <span className="text-xs font-medium truncate flex-1">
                                             {title}
                                         </span>
-                                        {/* Кнопка добавления в панель - видна при hover и только на странице чатов */}
-                                        {isOnChatsPage && (
-                                            <Tooltip title="Добавить в панель" placement="right" arrow>
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => handleAddChatToPanel(chat.id, e)}
-                                                    className={classNames(
-                                                        'opacity-0 group-hover:opacity-100 ml-1 w-5 h-5 rounded-full frcc transition-all',
-                                                        isDark
-                                                            ? 'hover:bg-white/20 text-text-secondary hover:text-primary'
-                                                            : 'hover:bg-primary-100 text-text-secondary hover:text-primary'
-                                                    )}
-                                                >
-                                                    <ViewColumnRoundedIcon sx={{fontSize: 14}}/>
-                                                </button>
-                                            </Tooltip>
-                                        )}
+                                        {/* Меню действий - видно при hover */}
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <SidebarChatActions
+                                                chatId={chat.id}
+                                                chatTitle={title}
+                                                isPinned={isPinned}
+                                                isInPanel={isOpenInPanel}
+                                                showAddToPanel={isInMultiPanelMode}
+                                                onRename={handleRenameChat}
+                                                onDelete={handleDeleteChat}
+                                                onTogglePin={handleTogglePin}
+                                                onAddToPanel={handleAddChatToPanel}
+                                            />
+                                        </div>
                                     </div>
                                 );
                             })}

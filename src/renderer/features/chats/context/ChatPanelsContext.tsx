@@ -59,6 +59,8 @@ const loadPanelsFromStorage = (): ChatPanelState[] => {
 const savePanelsToStorage = (panels: ChatPanelState[]) => {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(panels));
+        // Уведомляем Sidebar об изменении панелей
+        window.dispatchEvent(new CustomEvent('chat-panels:changed'));
     } catch {
         // Ignore storage errors
     }

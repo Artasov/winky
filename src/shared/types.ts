@@ -219,6 +219,7 @@ export interface WinkyChat {
     additional_context: string;
     message_count: number;
     last_leaf_message_id: string | null;
+    pinned_at: string | null;
     created_at: string;
     updated_at: string;
 }

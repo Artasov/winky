@@ -14,6 +14,7 @@ import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
+import ViewColumnRoundedIcon from '@mui/icons-material/ViewColumnRounded';
 import {useResult} from '../context/ResultContext';
 
 interface NavItem {
@@ -63,6 +64,23 @@ const Sidebar: React.FC = () => {
     const handleNavigation = (path: string) => {
         navigate(path);
     };
+
+    const handleChatClick = (chatId: string) => {
+        // Клик всегда открывает чат в одиночном режиме
+        if (location.pathname.startsWith('/chats')) {
+            // Если уже на странице чатов - отправляем событие для замены всех панелей на одну
+            window.dispatchEvent(new CustomEvent('chat-panels:open-single', {detail: {chatId}}));
+        } else {
+            // Если нет - навигируем
+            navigate(`/chats/${chatId}`);
+        }
+    };
+
+    const handleAddChatToPanel = useCallback((chatId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        // Добавляем чат как новую панель (не заменяем существующие)
+        window.dispatchEvent(new CustomEvent('chat-panels:add', {detail: {chatId}}));
+    }, []);
 
     const shouldPlay = () => typeof document !== 'undefined' && !document.hidden;
 
@@ -304,13 +322,13 @@ const Sidebar: React.FC = () => {
                         <div className="fc gap-0.5">
                             {chats.map((chat) => {
                                 const isActive = location.pathname === `/chats/${chat.id}`;
+                                const title = chat.title || 'Untitled chat';
+                                const isOnChatsPage = location.pathname.startsWith('/chats/');
                                 return (
-                                    <button
+                                    <div
                                         key={chat.id}
-                                        type="button"
-                                        onClick={() => handleNavigation(`/chats/${chat.id}`)}
                                         className={classNames(
-                                            'rounded-lg px-3 py-1.5 text-left transition-all duration-base outline-none focus:outline-none',
+                                            'group frbc rounded-lg px-3 py-1.5 transition-all duration-base cursor-pointer',
                                             isDark
                                                 ? isActive
                                                     ? 'bg-primary-500/15 text-primary'
@@ -319,11 +337,28 @@ const Sidebar: React.FC = () => {
                                                     ? 'bg-primary-50 text-primary'
                                                     : 'text-text-secondary bg-black/[0.01] hover:bg-bg-tertiary',
                                         )}
+                                        onClick={() => handleChatClick(chat.id)}
                                     >
-                                        <span className="text-xs font-medium truncate block">
-                                            {chat.title || 'Untitled chat'}
+                                        <span className="text-xs font-medium truncate flex-1">
+                                            {title}
                                         </span>
-                                    </button>
+                                        {/* Кнопка добавления в панель - видна при hover и только на странице чатов */}
+                                        {isOnChatsPage && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => handleAddChatToPanel(chat.id, e)}
+                                                className={classNames(
+                                                    'opacity-0 group-hover:opacity-100 ml-1 p-0.5 rounded transition-all',
+                                                    isDark
+                                                        ? 'hover:bg-white/20 text-text-secondary hover:text-primary'
+                                                        : 'hover:bg-primary-100 text-text-secondary hover:text-primary'
+                                                )}
+                                                title="Добавить в панель"
+                                            >
+                                                <ViewColumnRoundedIcon sx={{fontSize: 16}}/>
+                                            </button>
+                                        )}
+                                    </div>
                                 );
                             })}
                         </div>

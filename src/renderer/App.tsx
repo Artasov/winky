@@ -27,6 +27,7 @@ import NotesPage from './windows/NotesPage';
 import InfoPage from './windows/InfoPage';
 import ChatsPage from './windows/ChatsPage';
 import ChatViewPage from './windows/ChatViewPage';
+import ChatsMultiViewPage from './windows/ChatsMultiViewPage';
 import ResultPage from './windows/ResultPage';
 import ResultWindowPage from './windows/ResultWindowPage';
 import {ResultProvider} from './context/ResultContext';
@@ -505,7 +506,7 @@ const AppContent: React.FC = () => {
                         <Route path="/me" element={<MePage/>}/>
                         <Route path="/actions" element={<ActionsPage/>}/>
                         <Route path="/chats" element={<ChatsPage/>}/>
-                        <Route path="/chats/:chatId" element={<ChatViewPage/>}/>
+                        <Route path="/chats/:chatId" element={<ChatsMultiViewPage/>}/>
                         <Route path="/settings" element={<SettingsPage/>}/>
                         <Route path="/history" element={<HistoryPage/>}/>
                         <Route path="/notes" element={<NotesPage/>}/>

@@ -1,18 +1,18 @@
 import React, {useCallback, useEffect, useRef, useState, memo} from 'react';
-import {useNavigate, useParams} from 'react-router-dom';
 import {alpha, useTheme} from '@mui/material/styles';
 import {CircularProgress, IconButton, TextField} from '@mui/material';
-import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
 import type {WinkyChatMessage, MessageChildrenResponse} from '@shared/types';
-import {useConfig} from '../context/ConfigContext';
-import {useToast} from '../context/ToastContext';
-import {useChats} from '../context/ChatsContext';
-import LoadingSpinner from '../components/LoadingSpinner';
-import ChatActions from '../features/chats/components/ChatActions';
-import ChatMessage from '../features/chats/components/ChatMessage';
+import {useConfig} from '../../../context/ConfigContext';
+import {useToast} from '../../../context/ToastContext';
+import {useChats} from '../../../context/ChatsContext';
+import LoadingSpinner from '../../../components/LoadingSpinner';
+import ChatActions from './ChatActions';
+import ChatMessage from './ChatMessage';
 import {
     fetchWinkyChatBranch,
     fetchWinkyChat,
@@ -21,35 +21,7 @@ import {
     winkyLLMStream,
     winkyTranscribe,
     updateWinkyChat
-} from '../services/winkyAiApi';
-
-const CHAT_BRANCHES_STORAGE_KEY = 'winky_chat_branches';
-
-const getStoredLeafMessageId = (chatId: string): string | null => {
-    try {
-        const stored = localStorage.getItem(CHAT_BRANCHES_STORAGE_KEY);
-        if (!stored) return null;
-        const branches = JSON.parse(stored) as Record<string, string>;
-        return branches[chatId] || null;
-    } catch {
-        return null;
-    }
-};
-
-const saveLeafMessageId = (chatId: string, leafMessageId: string | null) => {
-    try {
-        const stored = localStorage.getItem(CHAT_BRANCHES_STORAGE_KEY);
-        const branches = stored ? JSON.parse(stored) as Record<string, string> : {};
-        if (leafMessageId) {
-            branches[chatId] = leafMessageId;
-        } else {
-            delete branches[chatId];
-        }
-        localStorage.setItem(CHAT_BRANCHES_STORAGE_KEY, JSON.stringify(branches));
-    } catch {
-        // Ignore storage errors
-    }
-};
+} from '../../../services/winkyAiApi';
 
 interface MicWavesProps {
     isRecording: boolean;
@@ -169,12 +141,10 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
                 const isEditing = editingMessageId === message.id;
                 const isSwitchingBranch = switchingBranchAtMessageId === message.id;
 
-                // Показываем навигатор если есть siblings (из siblingsData или из sibling_count с backend)
                 const mayHaveSiblings = siblingInfo
                     ? siblingInfo.total > 1
                     : (message.sibling_count > 0);
 
-                // Используем данные из siblingsData если есть, иначе из message (с backend)
                 const currentIndex = siblingInfo?.currentIndex ?? message.sibling_index;
                 const totalSiblings = siblingInfo?.total ?? (message.sibling_count + 1);
 
@@ -226,10 +196,30 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
 
 const MessagesList = memo(MessagesListComponent);
 
-const ChatViewPage: React.FC = () => {
-    const {chatId} = useParams<{chatId: string}>();
+export interface ChatPanelProps {
+    panelId: string;
+    chatId: string;
+    initialLeafMessageId?: string | null;
+    onLeafChange?: (panelId: string, leafMessageId: string | null) => void;
+    onClose?: (panelId: string) => void;
+    onChatCreated?: (chatId: string, title: string) => void;
+    canClose?: boolean;
+    showDragHandle?: boolean;
+    dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
+}
+
+const ChatPanelComponent: React.FC<ChatPanelProps> = ({
+    panelId,
+    chatId,
+    initialLeafMessageId,
+    onLeafChange,
+    onClose,
+    onChatCreated,
+    canClose = true,
+    showDragHandle = false,
+    dragHandleProps
+}) => {
     const isNewChat = chatId === 'new';
-    const navigate = useNavigate();
     const {showToast} = useToast();
     const {config} = useConfig();
     const {addChat, updateChat: updateChatInContext, deleteChat: deleteChatFromContext} = useChats();
@@ -244,11 +234,11 @@ const ChatViewPage: React.FC = () => {
     const [streamingContent, setStreamingContent] = useState('');
     const [isRecording, setIsRecording] = useState(false);
     const [isTranscribing, setIsTranscribing] = useState(false);
-    const [currentChatId, setCurrentChatId] = useState<string | null>(isNewChat ? null : chatId || null);
+    const [currentChatId, setCurrentChatId] = useState<string | null>(isNewChat ? null : chatId);
     const [normalizedVolume, setNormalizedVolume] = useState(0);
     const [chatTitle, setChatTitle] = useState('');
 
-    const [leafMessageId, setLeafMessageId] = useState<string | null>(null);
+    const [leafMessageId, setLeafMessageId] = useState<string | null>(initialLeafMessageId || null);
     const [hasMoreMessages, setHasMoreMessages] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -306,12 +296,13 @@ const ChatViewPage: React.FC = () => {
             } else {
                 setCurrentBranch(response.items);
                 setLeafMessageId(response.leaf_message_id);
+                onLeafChange?.(panelId, response.leaf_message_id);
             }
 
             setHasMoreMessages(response.has_more);
             setNextCursor(response.next_cursor);
         } catch (error) {
-            console.error('[ChatViewPage] Failed to load branch', error);
+            console.error('[ChatPanel] Failed to load branch', error);
             if (!isLoadingMore) {
                 showToast('Failed to load messages.', 'error');
             }
@@ -320,7 +311,11 @@ const ChatViewPage: React.FC = () => {
                 setLoadingMore(false);
             }
         }
-    }, [accessToken, currentChatId, showToast]);
+    }, [accessToken, currentChatId, showToast, panelId, onLeafChange]);
+
+    // Используем ref для initialLeafMessageId, чтобы избежать повторных загрузок
+    // когда onLeafChange обновляет leafMessageId в панели
+    const initialLeafRef = useRef(initialLeafMessageId);
 
     const loadMessages = useCallback(async () => {
         if (!accessToken || !chatId || isNewChat) {
@@ -333,9 +328,7 @@ const ChatViewPage: React.FC = () => {
             setChatTitle(chatResponse.title || '');
             setCurrentChatId(chatId);
 
-            // Приоритет: локально сохранённая ветка > последняя ветка с backend
-            const storedLeafId = getStoredLeafMessageId(chatId);
-            const leafToLoad = storedLeafId || chatResponse.last_leaf_message_id || undefined;
+            const leafToLoad = initialLeafRef.current || chatResponse.last_leaf_message_id || undefined;
 
             const branchResponse = await fetchWinkyChatBranch(chatId, accessToken, {
                 leafMessageId: leafToLoad,
@@ -347,24 +340,39 @@ const ChatViewPage: React.FC = () => {
             setHasMoreMessages(branchResponse.has_more);
             setNextCursor(branchResponse.next_cursor);
 
-            // Сохраняем текущую ветку локально
             if (branchResponse.leaf_message_id) {
-                saveLeafMessageId(chatId, branchResponse.leaf_message_id);
+                onLeafChange?.(panelId, branchResponse.leaf_message_id);
             }
         } catch (error) {
-            console.error('[ChatViewPage] Failed to load messages', error);
+            console.error('[ChatPanel] Failed to load messages', error);
             showToast('Failed to load messages.', 'error');
         } finally {
             setLoading(false);
         }
-    }, [accessToken, chatId, isNewChat, showToast]);
+    }, [accessToken, chatId, isNewChat, showToast, panelId, onLeafChange]);
+
+    // Синхронизируем состояние при смене chatId prop
+    const prevChatIdRef = useRef(chatId);
+    useEffect(() => {
+        if (chatId !== prevChatIdRef.current) {
+            prevChatIdRef.current = chatId;
+            // Обновляем ref для initial leaf при смене чата
+            initialLeafRef.current = initialLeafMessageId;
+            setCurrentChatId(isNewChat ? null : chatId);
+            // Сбрасываем состояние для нового чата
+            setCurrentBranch([]);
+            setChatTitle('');
+            setLeafMessageId(null);
+            setSiblingsData(new Map());
+            setLoading(!isNewChat);
+        }
+    }, [chatId, isNewChat, initialLeafMessageId]);
 
     useEffect(() => {
         void loadMessages();
     }, [loadMessages]);
 
     useEffect(() => {
-        // Не скроллим при загрузке старых сообщений или при переключении веток
         if (skipNextScrollToBottom.current) {
             skipNextScrollToBottom.current = false;
             return;
@@ -419,6 +427,18 @@ const ChatViewPage: React.FC = () => {
         setEditText('');
     }, []);
 
+    const loadSiblings = useCallback(async (parentId: string): Promise<MessageChildrenResponse | null> => {
+        if (!accessToken) return null;
+
+        try {
+            const response = await fetchMessageChildren(parentId, accessToken);
+            return response;
+        } catch (error) {
+            console.error('[ChatPanel] Failed to load siblings', error);
+            return null;
+        }
+    }, [accessToken]);
+
     const handleEditSubmit = useCallback(async () => {
         const text = editText.trim();
         if (!text || !accessToken || sending || !editingMessageId) return;
@@ -466,16 +486,17 @@ const ChatViewPage: React.FC = () => {
 
             if (!currentChatId && result.chat_id) {
                 setCurrentChatId(result.chat_id);
-                navigate(`/chats/${result.chat_id}`, {replace: true});
+                const newTitle = text.slice(0, 50) + (text.length > 50 ? '...' : '');
                 addChat({
                     id: result.chat_id,
-                    title: text.slice(0, 50) + (text.length > 50 ? '...' : ''),
+                    title: newTitle,
                     additional_context: '',
                     message_count: 2,
                     last_leaf_message_id: result.assistant_message_id,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 });
+                onChatCreated?.(result.chat_id, newTitle);
             }
 
             const userMessage: WinkyChatMessage = {
@@ -508,13 +529,11 @@ const ChatViewPage: React.FC = () => {
             setLeafMessageId(result.assistant_message_id);
             setStreamingContent('');
 
-            // Сохраняем ветку локально
             const chatIdToSave = currentChatId || result.chat_id;
             if (chatIdToSave) {
-                saveLeafMessageId(chatIdToSave, result.assistant_message_id);
+                onLeafChange?.(panelId, result.assistant_message_id);
             }
 
-            // Загружаем siblings для нового сообщения чтобы показать навигатор
             if (parentMessageId) {
                 const siblingsResponse = await loadSiblings(parentMessageId);
                 if (siblingsResponse && siblingsResponse.total > 1) {
@@ -532,7 +551,7 @@ const ChatViewPage: React.FC = () => {
                 }
             }
         } catch (error: any) {
-            console.error('[ChatViewPage] Failed to send edited message', error);
+            console.error('[ChatPanel] Failed to send edited message', error);
             setCurrentBranch(currentBranch);
 
             if (error?.response?.status === 402) {
@@ -544,19 +563,7 @@ const ChatViewPage: React.FC = () => {
             setSending(false);
             setStreamingContent('');
         }
-    }, [editText, accessToken, sending, editingMessageId, currentBranch, currentChatId, navigate, showToast, addChat]);
-
-    const loadSiblings = useCallback(async (parentId: string): Promise<MessageChildrenResponse | null> => {
-        if (!accessToken) return null;
-
-        try {
-            const response = await fetchMessageChildren(parentId, accessToken);
-            return response;
-        } catch (error) {
-            console.error('[ChatViewPage] Failed to load siblings', error);
-            return null;
-        }
-    }, [accessToken]);
+    }, [editText, accessToken, sending, editingMessageId, currentBranch, currentChatId, showToast, addChat, loadSiblings, panelId, onLeafChange, onChatCreated]);
 
     const handleSiblingNavigate = useCallback(async (message: WinkyChatMessage, direction: 'prev' | 'next') => {
         if (!message.parent_id) return;
@@ -574,7 +581,6 @@ const ChatViewPage: React.FC = () => {
                 currentIndex: currentIndex >= 0 ? currentIndex : 0
             };
 
-            // Сохраняем siblingsData даже если total = 1, чтобы скрыть навигатор
             setSiblingsData(prev => {
                 const newMap = new Map(prev);
                 response.items.forEach((item, idx) => {
@@ -587,7 +593,6 @@ const ChatViewPage: React.FC = () => {
                 return newMap;
             });
 
-            // Если только один sibling - выходим после сохранения данных
             if (response.items.length <= 1) return;
         }
 
@@ -602,25 +607,17 @@ const ChatViewPage: React.FC = () => {
         const messageIndex = currentBranch.findIndex(m => m.id === message.id);
         if (messageIndex < 0) return;
 
-        // Сохраняем оригинальную ветку для восстановления при ошибке
         const originalBranch = [...currentBranch];
-
-        // Сохраняем позицию скролла относительно контейнера
         const container = messagesContainerRef.current;
         const scrollTopBefore = container?.scrollTop || 0;
 
-        // Оставляем сообщение с которого переключаемся, убираем только то что ниже
         const messagesUpToSwitch = currentBranch.slice(0, messageIndex + 1);
         setCurrentBranch(messagesUpToSwitch);
-
-        // Показываем индикатор под сообщением с которого переключаемся
         setSwitchingBranchAtMessageId(message.id);
 
         try {
-            // Используем fetchMessageBranch который строит полную ветку через сообщение до leaf
             const branchResponse = await fetchMessageBranch(newMessage.id, accessToken);
 
-            // Берем сообщения ДО переключаемого (без него самого)
             const messagesBeforeSwitch = currentBranch.slice(0, messageIndex);
             const existingIds = new Set(messagesBeforeSwitch.map(m => m.id));
             const newBranchFromSwitch = branchResponse.items.filter(m => !existingIds.has(m.id));
@@ -628,7 +625,6 @@ const ChatViewPage: React.FC = () => {
             const newFullBranch = [...messagesBeforeSwitch, ...newBranchFromSwitch];
             setCurrentBranch(newFullBranch);
 
-            // Восстанавливаем позицию скролла и снимаем флаг загрузки
             requestAnimationFrame(() => {
                 if (container) {
                     container.scrollTop = scrollTopBefore;
@@ -637,17 +633,12 @@ const ChatViewPage: React.FC = () => {
                 setSwitchingBranchAtMessageId(null);
             });
 
-            // Обновляем leaf - последнее сообщение в новой ветке
             const lastMessage = newBranchFromSwitch[newBranchFromSwitch.length - 1];
             if (lastMessage) {
                 setLeafMessageId(lastMessage.id);
-                // Сохраняем выбранную ветку локально
-                if (currentChatId) {
-                    saveLeafMessageId(currentChatId, lastMessage.id);
-                }
+                onLeafChange?.(panelId, lastMessage.id);
             }
 
-            // Обновляем siblingsData - новое сообщение теперь текущее
             if (siblingInfo) {
                 const siblingsToUpdate = siblingInfo;
                 setSiblingsData(prev => {
@@ -663,17 +654,15 @@ const ChatViewPage: React.FC = () => {
                 });
             }
 
-            // Сбрасываем пагинацию
             setHasMoreMessages(false);
             setNextCursor(null);
         } catch (error) {
-            console.error('[ChatViewPage] Failed to switch branch', error);
+            console.error('[ChatPanel] Failed to switch branch', error);
             showToast('Failed to switch branch.', 'error');
-            // Восстанавливаем оригинальную ветку при ошибке
             setCurrentBranch(originalBranch);
             setSwitchingBranchAtMessageId(null);
         }
-    }, [siblingsData, loadSiblings, currentBranch, currentChatId, accessToken, showToast]);
+    }, [siblingsData, loadSiblings, currentBranch, accessToken, showToast, panelId, onLeafChange]);
 
     const handleSendMessage = useCallback(async () => {
         const text = inputText.trim();
@@ -717,16 +706,17 @@ const ChatViewPage: React.FC = () => {
 
             if (!currentChatId && result.chat_id) {
                 setCurrentChatId(result.chat_id);
-                navigate(`/chats/${result.chat_id}`, {replace: true});
+                const newTitle = text.slice(0, 50) + (text.length > 50 ? '...' : '');
                 addChat({
                     id: result.chat_id,
-                    title: text.slice(0, 50) + (text.length > 50 ? '...' : ''),
+                    title: newTitle,
                     additional_context: '',
                     message_count: 2,
                     last_leaf_message_id: result.assistant_message_id,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 });
+                onChatCreated?.(result.chat_id, newTitle);
             }
 
             const userMessage: WinkyChatMessage = {
@@ -763,13 +753,12 @@ const ChatViewPage: React.FC = () => {
             setLeafMessageId(result.assistant_message_id);
             setStreamingContent('');
 
-            // Сохраняем ветку локально
             const chatIdToSave = currentChatId || result.chat_id;
             if (chatIdToSave) {
-                saveLeafMessageId(chatIdToSave, result.assistant_message_id);
+                onLeafChange?.(panelId, result.assistant_message_id);
             }
         } catch (error: any) {
-            console.error('[ChatViewPage] Failed to send message', error);
+            console.error('[ChatPanel] Failed to send message', error);
             setCurrentBranch((prev) => prev.filter((m) => !m.id.startsWith('temp-')));
 
             if (error?.response?.status === 402) {
@@ -781,7 +770,7 @@ const ChatViewPage: React.FC = () => {
             setSending(false);
             setStreamingContent('');
         }
-    }, [inputText, accessToken, sending, currentBranch, currentChatId, navigate, showToast, addChat]);
+    }, [inputText, accessToken, sending, currentBranch, currentChatId, showToast, addChat, panelId, onLeafChange, onChatCreated]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -828,7 +817,7 @@ const ChatViewPage: React.FC = () => {
             audioContextRef.current = audioContext;
             analyserRef.current = analyser;
         } catch (error) {
-            console.error('[ChatViewPage] Failed to initialize volume monitor', error);
+            console.error('[ChatPanel] Failed to initialize volume monitor', error);
         }
     }, []);
 
@@ -861,7 +850,7 @@ const ChatViewPage: React.FC = () => {
                         setTimeout(() => inputRef.current?.focus(), 0);
                     }
                 } catch (error: any) {
-                    console.error('[ChatViewPage] Transcription failed', error);
+                    console.error('[ChatPanel] Transcription failed', error);
                     if (error?.response?.status === 402) {
                         showToast('Not enough credits. Top up your balance.', 'error');
                     } else {
@@ -877,7 +866,7 @@ const ChatViewPage: React.FC = () => {
             startVolumeMonitor(stream);
             setIsRecording(true);
         } catch (error) {
-            console.error('[ChatViewPage] Failed to start recording', error);
+            console.error('[ChatPanel] Failed to start recording', error);
             showToast('Microphone access denied.', 'error');
         }
     }, [accessToken, showToast, startVolumeMonitor, stopVolumeMonitor]);
@@ -898,10 +887,6 @@ const ChatViewPage: React.FC = () => {
         }
     }, [isRecording, startRecording, stopRecording]);
 
-    const handleBack = useCallback(() => {
-        navigate('/chats');
-    }, [navigate]);
-
     const handleRenameChat = useCallback(async (newTitle: string) => {
         if (!accessToken || !currentChatId) return;
         try {
@@ -910,7 +895,7 @@ const ChatViewPage: React.FC = () => {
             updateChatInContext(currentChatId, {title: newTitle});
             showToast('Chat renamed.', 'success');
         } catch (error) {
-            console.error('[ChatViewPage] Failed to rename chat', error);
+            console.error('[ChatPanel] Failed to rename chat', error);
             showToast('Failed to rename chat.', 'error');
             throw error;
         }
@@ -921,16 +906,21 @@ const ChatViewPage: React.FC = () => {
         try {
             await deleteChatFromContext(currentChatId);
             showToast('Chat deleted.', 'success');
-            navigate('/chats');
+            onClose?.(panelId);
         } catch (error) {
-            console.error('[ChatViewPage] Failed to delete chat', error);
+            console.error('[ChatPanel] Failed to delete chat', error);
             showToast('Failed to delete chat.', 'error');
             throw error;
         }
-    }, [currentChatId, navigate, showToast, deleteChatFromContext]);
+    }, [currentChatId, showToast, deleteChatFromContext, onClose, panelId]);
+
+    const handleClosePanel = useCallback(() => {
+        onClose?.(panelId);
+    }, [onClose, panelId]);
 
     return (
-        <div className="fc h-full w-full">
+        <div className="fc h-full w-full border-r last:border-r-0" style={{borderColor: isDark ? darkSurface : 'var(--color-border-light)'}}>
+            {/* Header */}
             <div
                 className="frbc gap-2 px-3 py-1.5 border-b flex-shrink-0"
                 style={{
@@ -939,39 +929,49 @@ const ChatViewPage: React.FC = () => {
                 }}
             >
                 <div className="frsc gap-2 min-w-0 flex-1">
-                    <IconButton
-                        onClick={handleBack}
-                        size="small"
-                        sx={{
-                            padding: '3px',
-                            backgroundColor: 'transparent',
-                            boxShadow: 'none',
-                            '&:hover': {
-                                backgroundColor: 'transparent',
-                                boxShadow: 'none'
-                            }
-                        }}
-                    >
-                        <ArrowBackRoundedIcon sx={{fontSize: 18}}/>
-                    </IconButton>
-                    <h1 className="text-base font-semibold text-text-primary truncate">
+                    {showDragHandle && (
+                        <div
+                            {...dragHandleProps}
+                            className="cursor-grab active:cursor-grabbing p-0.5 -ml-1 rounded hover:bg-black/5 dark:hover:bg-white/10"
+                        >
+                            <DragIndicatorRoundedIcon sx={{fontSize: 18, color: 'text.secondary'}}/>
+                        </div>
+                    )}
+                    <h1 className="text-sm font-semibold text-text-primary truncate">
                         {isNewChat ? 'New Chat' : chatTitle || 'Chat'}
                     </h1>
                 </div>
-                {!isNewChat && currentChatId && (
-                    <ChatActions
-                        chatTitle={chatTitle || 'Chat'}
-                        onRename={handleRenameChat}
-                        onDelete={handleDeleteChat}
-                        disabled={sending}
-                        compact
-                    />
-                )}
+                <div className="frsc gap-1">
+                    {!isNewChat && currentChatId && (
+                        <ChatActions
+                            chatTitle={chatTitle || 'Chat'}
+                            onRename={handleRenameChat}
+                            onDelete={handleDeleteChat}
+                            disabled={sending}
+                            compact
+                        />
+                    )}
+                    {canClose && (
+                        <IconButton
+                            onClick={handleClosePanel}
+                            size="small"
+                            sx={{
+                                padding: '3px',
+                                '&:hover': {
+                                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                                }
+                            }}
+                        >
+                            <CloseRoundedIcon sx={{fontSize: 16}}/>
+                        </IconButton>
+                    )}
+                </div>
             </div>
 
+            {/* Messages */}
             <div
                 ref={messagesContainerRef}
-                className="flex-1 overflow-y-auto px-4 py-4"
+                className="flex-1 overflow-y-auto px-3 py-3"
                 style={{backgroundColor: isDark ? 'transparent' : '#ffffff'}}
             >
                 <MessagesList
@@ -991,8 +991,9 @@ const ChatViewPage: React.FC = () => {
                 />
             </div>
 
+            {/* Input */}
             <div
-                className="px-4 py-3 border-t flex-shrink-0"
+                className="px-3 py-2 border-t flex-shrink-0"
                 style={{
                     borderColor: isDark ? darkSurface : 'var(--color-border-light)',
                     backgroundColor: isDark ? 'transparent' : '#ffffff',
@@ -1008,55 +1009,33 @@ const ChatViewPage: React.FC = () => {
                         disabled={isTranscribing}
                         fullWidth
                         multiline
-                        maxRows={10}
+                        maxRows={6}
                         minRows={1}
                         slotProps={{htmlInput: {ref: inputRef}}}
                         sx={{
                             '& .MuiOutlinedInput-root': {
-                                borderRadius: '12px',
+                                borderRadius: '10px',
                                 backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)',
-                                padding: '10px 14px 3px 14px',
-                                minHeight: '42px',
-                                transition: 'background-color 0.2s ease, backdrop-filter 0.2s ease',
-                                boxShadow: 'none !important',
-                                '& fieldset, & .MuiOutlinedInput-notchedOutline': {
-                                    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)',
-                                    boxShadow: 'none !important'
+                                padding: '8px 12px 2px 12px',
+                                minHeight: '38px',
+                                fontSize: '0.875rem',
+                                '& fieldset': {
+                                    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'
                                 },
-                                '&:hover fieldset, &:hover .MuiOutlinedInput-notchedOutline': {
+                                '&:hover fieldset': {
                                     borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'
                                 },
                                 '&.Mui-focused': {
-                                    backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)',
-                                    backdropFilter: 'blur(12px)',
-                                    boxShadow: 'none !important',
-                                    outline: 'none'
+                                    backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)'
                                 },
-                                '&.Mui-focused fieldset, &.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                '&.Mui-focused fieldset': {
                                     borderColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)',
-                                    borderWidth: '1px',
-                                    boxShadow: 'none !important'
-                                },
-                                '&.Mui-error fieldset': {
-                                    borderColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'
+                                    borderWidth: '1px'
                                 }
                             },
                             '& .MuiInputBase-input': {
                                 padding: 0,
-                                lineHeight: 1.5,
-                                '&::-webkit-scrollbar': {
-                                    width: '2px'
-                                },
-                                '&::-webkit-scrollbar-track': {
-                                    background: 'transparent'
-                                },
-                                '&::-webkit-scrollbar-thumb': {
-                                    background: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
-                                    borderRadius: '2px'
-                                },
-                                '&::-webkit-scrollbar-thumb:hover': {
-                                    background: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'
-                                }
+                                lineHeight: 1.4
                             }
                         }}
                     />
@@ -1066,6 +1045,7 @@ const ChatViewPage: React.FC = () => {
                         <IconButton
                             onClick={handleMicClick}
                             disabled={isTranscribing}
+                            size="small"
                             sx={{
                                 position: 'relative',
                                 zIndex: 1,
@@ -1080,11 +1060,11 @@ const ChatViewPage: React.FC = () => {
                             }}
                         >
                             {isRecording ? (
-                                <StopRoundedIcon sx={{color: 'white'}}/>
+                                <StopRoundedIcon sx={{fontSize: 20, color: 'white'}}/>
                             ) : isTranscribing ? (
-                                <CircularProgress size={24} color="inherit"/>
+                                <CircularProgress size={20} color="inherit"/>
                             ) : (
-                                <MicRoundedIcon/>
+                                <MicRoundedIcon sx={{fontSize: 20}}/>
                             )}
                         </IconButton>
                     </div>
@@ -1093,6 +1073,7 @@ const ChatViewPage: React.FC = () => {
                         onClick={handleSendMessage}
                         disabled={!inputText.trim() || sending || isRecording || isTranscribing}
                         color="primary"
+                        size="small"
                         sx={{
                             backgroundColor: 'primary.main',
                             color: 'white',
@@ -1106,9 +1087,9 @@ const ChatViewPage: React.FC = () => {
                         }}
                     >
                         {sending ? (
-                            <CircularProgress size={24} color="inherit"/>
+                            <CircularProgress size={20} color="inherit"/>
                         ) : (
-                            <SendRoundedIcon sx={{transform: 'translateX(6%)'}}/>
+                            <SendRoundedIcon sx={{fontSize: 20, transform: 'translateX(6%)'}}/>
                         )}
                     </IconButton>
                 </div>
@@ -1117,4 +1098,5 @@ const ChatViewPage: React.FC = () => {
     );
 };
 
-export default ChatViewPage;
+export const ChatPanel = memo(ChatPanelComponent);
+export default ChatPanel;

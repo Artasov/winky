@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useRef} from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import classNames from 'classnames';
+import {Tooltip} from '@mui/material';
 import type {SvgIconProps} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
@@ -15,6 +16,7 @@ import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import ViewColumnRoundedIcon from '@mui/icons-material/ViewColumnRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import {useResult} from '../context/ResultContext';
 
 interface NavItem {
@@ -81,6 +83,16 @@ const Sidebar: React.FC = () => {
         // Добавляем чат как новую панель (не заменяем существующие)
         window.dispatchEvent(new CustomEvent('chat-panels:add', {detail: {chatId}}));
     }, []);
+
+    const handleNewChat = useCallback(() => {
+        if (location.pathname.startsWith('/chats')) {
+            // Если на странице чатов - добавляем новую панель
+            window.dispatchEvent(new CustomEvent('chat-panels:add', {detail: {chatId: 'new'}}));
+        } else {
+            // Если нет - навигируем
+            navigate('/chats/new');
+        }
+    }, [location.pathname, navigate]);
 
     const shouldPlay = () => typeof document !== 'undefined' && !document.hidden;
 
@@ -286,38 +298,61 @@ const Sidebar: React.FC = () => {
             <nav className="fc gap-1 px-3 mt-4 flex-shrink-0">
                 {dynamicNavItems.map((item) => {
                     const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+                    const isChatsItem = item.id === 'chats';
+
                     return (
-                        <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => handleNavigation(item.path)}
-                            className={classNames(
-                                'flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-medium duration-base outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
-                                'transition-[background-color,border-color,box-shadow]',
-                                isDark
-                                    ? isActive
-                                        ? 'bg-primary-500/15 text-primary ring-1 ring-primary-500/30'
-                                        : 'text-text-secondary hover:bg-white/10'
-                                    : isActive
-                                        ? 'active bg-primary-50 text-primary shadow-primary-sm ring-1 ring-primary-200'
-                                        : 'text-text-secondary hover:bg-bg-tertiary',
-                            )} aria-current={isActive ? 'page' : undefined}
-                        >
-                            <item.Icon sx={{
-                                fontSize: 24,
-                                transform: (item.id === 'actions' || item.id === 'notes')
-                                    ? 'scale(1.12)' : 'none'
-                            }}/>
-                            <span className="truncate">{item.label}</span>
-                        </button>
+                        <div key={item.id} className="group/nav relative">
+                            <button
+                                type="button"
+                                onClick={() => handleNavigation(item.path)}
+                                className={classNames(
+                                    'w-full flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-medium duration-base outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
+                                    'transition-[background-color,border-color,box-shadow]',
+                                    isDark
+                                        ? isActive
+                                            ? 'bg-primary-500/15 text-primary ring-1 ring-primary-500/30'
+                                            : 'text-text-secondary hover:bg-white/10'
+                                        : isActive
+                                            ? 'active bg-primary-50 text-primary shadow-primary-sm ring-1 ring-primary-200'
+                                            : 'text-text-secondary hover:bg-bg-tertiary',
+                                )} aria-current={isActive ? 'page' : undefined}
+                            >
+                                <item.Icon sx={{
+                                    fontSize: 24,
+                                    transform: (item.id === 'actions' || item.id === 'notes')
+                                        ? 'scale(1.12)' : 'none'
+                                }}/>
+                                <span className="truncate flex-1 text-left">{item.label}</span>
+                            </button>
+                            {/* Кнопка New Chat внутри вкладки Chats */}
+                            {isChatsItem && (
+                                <Tooltip title="New Chat" placement="right" arrow>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleNewChat();
+                                        }}
+                                        className={classNames(
+                                            'absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full frcc transition-all',
+                                            isDark
+                                                ? 'bg-white/10 hover:bg-primary/20 text-primary hover:text-primary'
+                                                : 'bg-primary-100 hover:bg-primary-200 text-primary hover:text-primary'
+                                        )}
+                                    >
+                                        <AddRoundedIcon sx={{fontSize: 16}}/>
+                                    </button>
+                                </Tooltip>
+                            )}
+                        </div>
                     );
                 })}
             </nav>
 
             {/* Chats list - scrollable section */}
-            {chats.length > 0 && (
-                <div className="fc flex-1 min-h-0 mt-2">
-                    <div className={`mx-4 mb-2 border-t ${isDark ? 'border-white/15' : 'border-primary-200/60'}`}/>
+            <div className="fc flex-1 min-h-0 mt-2">
+                <div className={`mx-4 mb-2 border-t ${isDark ? 'border-white/15' : 'border-primary-200/60'}`}/>
+                {chats.length > 0 && (
                     <div className="flex-1 overflow-y-auto px-3">
                         <div className="fc gap-0.5">
                             {chats.map((chat) => {
@@ -344,27 +379,28 @@ const Sidebar: React.FC = () => {
                                         </span>
                                         {/* Кнопка добавления в панель - видна при hover и только на странице чатов */}
                                         {isOnChatsPage && (
-                                            <button
-                                                type="button"
-                                                onClick={(e) => handleAddChatToPanel(chat.id, e)}
-                                                className={classNames(
-                                                    'opacity-0 group-hover:opacity-100 ml-1 p-0.5 rounded transition-all',
-                                                    isDark
-                                                        ? 'hover:bg-white/20 text-text-secondary hover:text-primary'
-                                                        : 'hover:bg-primary-100 text-text-secondary hover:text-primary'
-                                                )}
-                                                title="Добавить в панель"
-                                            >
-                                                <ViewColumnRoundedIcon sx={{fontSize: 16}}/>
-                                            </button>
+                                            <Tooltip title="Добавить в панель" placement="right" arrow>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => handleAddChatToPanel(chat.id, e)}
+                                                    className={classNames(
+                                                        'opacity-0 group-hover:opacity-100 ml-1 w-5 h-5 rounded-full frcc transition-all',
+                                                        isDark
+                                                            ? 'hover:bg-white/20 text-text-secondary hover:text-primary'
+                                                            : 'hover:bg-primary-100 text-text-secondary hover:text-primary'
+                                                    )}
+                                                >
+                                                    <ViewColumnRoundedIcon sx={{fontSize: 14}}/>
+                                                </button>
+                                            </Tooltip>
                                         )}
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
 
             {/* Bottom section */}
             <div className="fc flex-shrink-0 px-3">

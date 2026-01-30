@@ -222,7 +222,7 @@ const ChatsMultiViewContent: React.FC = () => {
     }
 
     return (
-        <div className="h-full w-full">
+        <div className="h-full w-full overflow-hidden">
             <DndContext
                 sensors={sensors}
                 onDragStart={handleDragStart}
@@ -232,7 +232,7 @@ const ChatsMultiViewContent: React.FC = () => {
                     items={panels.map(p => p.panelId)}
                     strategy={horizontalListSortingStrategy}
                 >
-                    <div className="fr h-full w-full">
+                    <div className="fr h-full w-full overflow-hidden">
                         {panels.map((panel) => (
                             <SortablePanel
                                 key={panel.panelId}

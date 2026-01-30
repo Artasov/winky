@@ -996,8 +996,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
                 className="px-3 py-2 border-t flex-shrink-0"
                 style={{
                     borderColor: isDark ? darkSurface : 'var(--color-border-light)',
-                    backgroundColor: isDark ? 'transparent' : '#ffffff',
-                    overflow: 'visible'
+                    backgroundColor: isDark ? 'transparent' : '#ffffff'
                 }}
             >
                 <div className="frsc gap-2">
@@ -1019,6 +1018,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
                                 padding: '8px 12px 2px 12px',
                                 minHeight: '38px',
                                 fontSize: '0.875rem',
+                                outline: 'none',
+                                boxShadow: 'none',
                                 '& fieldset': {
                                     borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'
                                 },
@@ -1026,29 +1027,52 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
                                     borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'
                                 },
                                 '&.Mui-focused': {
-                                    backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)'
+                                    backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)',
+                                    outline: 'none',
+                                    boxShadow: 'none'
                                 },
                                 '&.Mui-focused fieldset': {
                                     borderColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)',
-                                    borderWidth: '1px'
+                                    borderWidth: '1px',
+                                    boxShadow: 'none'
                                 }
                             },
                             '& .MuiInputBase-input': {
                                 padding: 0,
-                                lineHeight: 1.4
+                                lineHeight: 1.4,
+                                outline: 'none',
+                                boxShadow: 'none',
+                                '&:focus': {
+                                    outline: 'none',
+                                    boxShadow: 'none'
+                                },
+                                '&::-webkit-scrollbar': {
+                                    width: '2px'
+                                },
+                                '&::-webkit-scrollbar-track': {
+                                    background: 'transparent'
+                                },
+                                '&::-webkit-scrollbar-thumb': {
+                                    background: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)',
+                                    borderRadius: '1px'
+                                }
                             }
                         }}
                     />
 
-                    <div className="relative" style={{overflow: 'visible'}}>
+                    <div style={{position: 'relative', flexShrink: 0, width: 34, height: 34}}>
                         <MicWaves isRecording={isRecording} normalizedVolume={normalizedVolume}/>
                         <IconButton
                             onClick={handleMicClick}
                             disabled={isTranscribing}
-                            size="small"
                             sx={{
-                                position: 'relative',
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
                                 zIndex: 1,
+                                width: 34,
+                                height: 34,
+                                padding: 0,
                                 backgroundColor: isRecording
                                     ? '#e11d48'
                                     : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',

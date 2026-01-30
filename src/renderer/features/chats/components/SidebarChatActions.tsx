@@ -1,6 +1,7 @@
 import React, {useCallback, useState} from 'react';
 import {
     Button,
+    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
@@ -52,6 +53,7 @@ const SidebarChatActions: React.FC<SidebarChatActionsProps> = ({
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [newTitle, setNewTitle] = useState('');
     const [saving, setSaving] = useState(false);
+    const [pinning, setPinning] = useState(false);
 
     const handleMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
         event.stopPropagation();
@@ -59,13 +61,23 @@ const SidebarChatActions: React.FC<SidebarChatActionsProps> = ({
     }, []);
 
     const handleMenuClose = useCallback(() => {
+        if (pinning) return; // Не закрываем меню во время pin/unpin
+        setAnchorEl(null);
+    }, [pinning]);
+
+    const forceMenuClose = useCallback(() => {
         setAnchorEl(null);
     }, []);
 
     const handlePinClick = useCallback(async () => {
-        handleMenuClose();
-        await onTogglePin(chatId, isPinned);
-    }, [chatId, isPinned, onTogglePin, handleMenuClose]);
+        setPinning(true);
+        try {
+            await onTogglePin(chatId, isPinned);
+        } finally {
+            setPinning(false);
+            forceMenuClose();
+        }
+    }, [chatId, isPinned, onTogglePin, forceMenuClose]);
 
     const handleAddToPanelClick = useCallback(() => {
         handleMenuClose();
@@ -144,15 +156,17 @@ const SidebarChatActions: React.FC<SidebarChatActionsProps> = ({
                 transformOrigin={{vertical: 'top', horizontal: 'right'}}
                 onClick={(e) => e.stopPropagation()}
             >
-                <MenuItem onClick={handlePinClick}>
+                <MenuItem onClick={handlePinClick} disabled={pinning}>
                     <ListItemIcon>
-                        {isPinned ? (
+                        {pinning ? (
+                            <CircularProgress size={20}/>
+                        ) : isPinned ? (
                             <PushPinOutlinedIcon fontSize="small"/>
                         ) : (
                             <PushPinRoundedIcon fontSize="small"/>
                         )}
                     </ListItemIcon>
-                    <ListItemText>{isPinned ? 'Unpin' : 'Pin'}</ListItemText>
+                    <ListItemText>{pinning ? (isPinned ? 'Unpinning...' : 'Pinning...') : (isPinned ? 'Unpin' : 'Pin')}</ListItemText>
                 </MenuItem>
                 {showAddToPanelItem && (
                     <MenuItem onClick={handleAddToPanelClick}>

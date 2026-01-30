@@ -318,13 +318,14 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                         <p className="whitespace-pre-wrap break-words text-sm">
                             {message.content}
                         </p>
+                    ) : isStreaming ? (
+                        <ReactMarkdown components={markdownComponents}>
+                            {message.content + ' ▍'}
+                        </ReactMarkdown>
                     ) : (
                         <ReactMarkdown components={markdownComponents}>
                             {message.content}
                         </ReactMarkdown>
-                    )}
-                    {isStreaming && (
-                        <span className="inline-block w-2 h-4 ml-1 bg-primary animate-pulse"/>
                     )}
                 </div>
             </div>

@@ -1,9 +1,12 @@
 import React from 'react';
 import {alpha, useTheme} from '@mui/material/styles';
+import {Button} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 import {useUser} from '../context/UserContext';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
 import {useAuth} from '../auth';
+import {SITE_BASE_URL} from '@shared/constants';
 
 const MePage: React.FC = () => {
     const {user, loading, clearUser} = useUser();
@@ -170,10 +173,47 @@ const MePage: React.FC = () => {
                                     boxShadow: 'none'
                                 } : undefined}
                             >
-                                <p className="text-xs uppercase tracking-[0.2em] text-text-secondary">Balance</p>
-                                <p className="mt-1 text-2xl font-bold text-primary-900">{balance}</p>
-                                <p className="text-xs text-text-secondary">Token: WINKY</p>
+                                <p className="text-xs uppercase tracking-[0.2em] text-text-secondary">AI Credits</p>
+                                <p className="mt-1 text-2xl font-bold text-primary-900">
+                                    {typeof user?.balance_credits === 'number'
+                                        ? user.balance_credits.toLocaleString(undefined, {maximumFractionDigits: 0})
+                                        : '0'}
+                                </p>
+                                <div className="frbc mt-2">
+                                    <p className="text-xs text-text-secondary">For LLM requests</p>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<AddIcon sx={{fontSize: 16}}/>}
+                                        onClick={() => {
+                                            window.open(`${SITE_BASE_URL}/profile?tab=general&topup=1`, '_blank');
+                                        }}
+                                        sx={{
+                                            fontSize: 11,
+                                            py: 0.25,
+                                            px: 1,
+                                            minWidth: 0,
+                                            borderRadius: 2,
+                                        }}
+                                    >
+                                        Top Up
+                                    </Button>
+                                </div>
                             </div>
+                            <div
+                                className="rounded-xl border border-primary-200/60 bg-bg-elevated p-4 shadow-primary-sm"
+                                style={isDark ? {
+                                    borderColor: neutralBorder,
+                                    backgroundColor: theme.palette.background.default,
+                                    boxShadow: 'none'
+                                } : undefined}
+                            >
+                                <p className="text-xs uppercase tracking-[0.2em] text-text-secondary">Token Balance</p>
+                                <p className="mt-1 text-2xl font-bold text-primary-900">{balance}</p>
+                                <p className="text-xs text-text-secondary">WINKY tokens</p>
+                            </div>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2 mt-4">
                             <div
                                 className="rounded-xl border border-primary-200/60 bg-bg-elevated p-4 shadow-primary-sm"
                                 style={isDark ? {

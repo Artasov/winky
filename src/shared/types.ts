@@ -63,6 +63,8 @@ export interface User {
     is_email_confirmed?: boolean;
     is_active?: boolean;
     date_joined?: string;
+    // AI кредиты для оплаты LLM запросов
+    balance_credits?: number | null;
     // Дополнительные поля с расширенной информацией о тарифе/балансе
     features?: string[];
     available_features?: string[];
@@ -229,7 +231,7 @@ export interface WinkyChatMessage {
     parent_id: string | null;
     role: 'user' | 'assistant';
     content: string;
-    model_level: 'low' | 'high' | 'transcribe';
+    model_level: 'low' | 'mid' | 'high' | 'transcribe';
     tokens: number;
     has_children: boolean;
     sibling_count: number;

@@ -11,11 +11,11 @@ type AIWSEvent =
     | {event: 'error'; code: string; message: string};
 
 export abstract class WinkyLLMServiceBase implements BaseLLMService {
-    protected readonly modelLevel: 'low' | 'high';
+    protected readonly modelLevel: 'low' | 'mid' | 'high';
     protected readonly accessToken: string;
     public supportsStreaming: boolean = true;
 
-    protected constructor(modelLevel: 'low' | 'high', accessToken: string) {
+    protected constructor(modelLevel: 'low' | 'mid' | 'high', accessToken: string) {
         this.modelLevel = modelLevel;
         this.accessToken = accessToken;
     }
@@ -82,6 +82,7 @@ export abstract class WinkyLLMServiceBase implements BaseLLMService {
                                 resolved = true;
                                 const error = new Error(data.message);
                                 (error as any).code = data.code;
+                                (error as any).isCreditsError = data.code === 'not_enough_credits' || data.code === '402';
                                 reject(error);
                             }
                             break;

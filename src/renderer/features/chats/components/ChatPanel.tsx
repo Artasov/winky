@@ -555,8 +555,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
             console.error('[ChatPanel] Failed to send edited message', error);
             setCurrentBranch(currentBranch);
 
-            if (error?.response?.status === 402) {
-                showToast('Not enough credits. Top up your balance.', 'error');
+            if (error?.isCreditsError || error?.code === 'not_enough_credits' || error?.response?.status === 402) {
+                showToast('Not enough credits. Click "Top Up" on the Me page.', 'error');
             } else {
                 showToast(error?.message || 'Failed to send message.', 'error');
             }
@@ -763,8 +763,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
             console.error('[ChatPanel] Failed to send message', error);
             setCurrentBranch((prev) => prev.filter((m) => !m.id.startsWith('temp-')));
 
-            if (error?.response?.status === 402) {
-                showToast('Not enough credits. Top up your balance.', 'error');
+            if (error?.isCreditsError || error?.code === 'not_enough_credits' || error?.response?.status === 402) {
+                showToast('Not enough credits. Click "Top Up" on the Me page.', 'error');
             } else {
                 showToast(error?.message || 'Failed to send message.', 'error');
             }
@@ -853,8 +853,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
                     }
                 } catch (error: any) {
                     console.error('[ChatPanel] Transcription failed', error);
-                    if (error?.response?.status === 402) {
-                        showToast('Not enough credits. Top up your balance.', 'error');
+                    if (error?.isCreditsError || error?.code === 'not_enough_credits' || error?.response?.status === 402) {
+                        showToast('Not enough credits. Click "Top Up" on the Me page.', 'error');
                     } else {
                         showToast('Transcription failed.', 'error');
                     }

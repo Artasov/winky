@@ -47,7 +47,7 @@ export const LLM_GEMINI_API_MODELS = [
     'gemini-1.0-pro'
 ] as const;
 
-export const LLM_WINKY_API_MODELS = ['winky-high', 'winky-low'] as const;
+export const LLM_WINKY_API_MODELS = ['winky-high', 'winky-mid', 'winky-low'] as const;
 
 export const LLM_API_MODELS = [
     ...LLM_WINKY_API_MODELS,

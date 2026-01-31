@@ -17,6 +17,7 @@ import Gpt5NanoLLMService from './models/api/Gpt5NanoLLMService';
 import Gpt5MiniLLMService from './models/api/Gpt5MiniLLMService';
 import GeminiLLMService from './models/api/GeminiLLMService';
 import WinkyHighLLMService from './models/api/WinkyHighLLMService';
+import WinkyMidLLMService from './models/api/WinkyMidLLMService';
 import WinkyLowLLMService from './models/api/WinkyLowLLMService';
 
 // Local models
@@ -57,6 +58,11 @@ export const createLLMService = (
                     throw new Error('Authentication is required to use Winky models.');
                 }
                 return new WinkyHighLLMService(options.accessToken);
+            case 'winky-mid':
+                if (!options.accessToken) {
+                    throw new Error('Authentication is required to use Winky models.');
+                }
+                return new WinkyMidLLMService(options.accessToken);
             case 'winky-low':
                 if (!options.accessToken) {
                     throw new Error('Authentication is required to use Winky models.');

@@ -2,6 +2,7 @@ import React from 'react';
 import {alpha, useTheme} from '@mui/material/styles';
 import {Button} from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import {open} from '@tauri-apps/plugin-shell';
 import {useUser} from '../context/UserContext';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
@@ -87,7 +88,8 @@ const MePage: React.FC = () => {
         <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 px-8 py-6">
             <div className="frbc gap-4">
                 <div className="frcc gap-3">
-                    <div className="fcc h-12 w-12 rounded-full bg-primary text-white text-lg font-semibold overflow-hidden">
+                    <div
+                        className="fcc h-12 w-12 rounded-full bg-primary text-white text-lg font-semibold overflow-hidden">
                         {user?.avatar ? (
                             <img
                                 src={user.avatar}
@@ -139,7 +141,7 @@ const MePage: React.FC = () => {
             ) : (
                 <div className="fc gap-4">
                     <section
-                        className="card-animated rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 via-bg-elevated to-primary-100 shadow-primary-sm p-6"
+                        className="rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 via-bg-elevated to-primary-100 shadow-primary-sm p-6"
                         style={isDark ? {
                             borderColor: neutralBorder,
                             backgroundColor: theme.palette.background.default,
@@ -173,21 +175,13 @@ const MePage: React.FC = () => {
                                     boxShadow: 'none'
                                 } : undefined}
                             >
-                                <p className="text-xs uppercase tracking-[0.2em] text-text-secondary">AI Credits</p>
-                                <p className="mt-1 text-2xl font-bold text-primary-900">
-                                    {typeof user?.balance_credits === 'number'
-                                        ? user.balance_credits.toLocaleString(undefined, {maximumFractionDigits: 0})
-                                        : '0'}
-                                </p>
-                                <div className="frbc mt-2">
-                                    <p className="text-xs text-text-secondary">For LLM requests</p>
+                                <div className="frbc">
+                                    <p className="text-xs uppercase tracking-[0.2em] text-text-secondary">Credits</p>
                                     <Button
                                         size="small"
                                         variant="outlined"
                                         startIcon={<AddIcon sx={{fontSize: 16}}/>}
-                                        onClick={() => {
-                                            window.open(`${SITE_BASE_URL}/profile?tab=general&topup=1`, '_blank');
-                                        }}
+                                        onClick={() => void open(`${SITE_BASE_URL}/profile/general?open_top_up=1`)}
                                         sx={{
                                             fontSize: 11,
                                             py: 0.25,
@@ -199,6 +193,11 @@ const MePage: React.FC = () => {
                                         Top Up
                                     </Button>
                                 </div>
+                                <p className="mt-1 text-2xl font-bold text-primary-900">
+                                    {typeof user?.balance_credits === 'number'
+                                        ? user.balance_credits.toLocaleString(undefined, {maximumFractionDigits: 0})
+                                        : '0'}
+                                </p>
                             </div>
                             <div
                                 className="rounded-xl border border-primary-200/60 bg-bg-elevated p-4 shadow-primary-sm"

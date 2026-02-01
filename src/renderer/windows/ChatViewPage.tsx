@@ -11,6 +11,7 @@ import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
 import {useChats} from '../context/ChatsContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import NoCreditsModal from '../components/NoCreditsModal';
 import ChatActions from '../features/chats/components/ChatActions';
 import ChatMessage from '../features/chats/components/ChatMessage';
 import {
@@ -258,6 +259,7 @@ const ChatViewPage: React.FC = () => {
 
     const [siblingsData, setSiblingsData] = useState<Map<string, {items: WinkyChatMessage[]; total: number; currentIndex: number}>>(new Map());
     const [switchingBranchAtMessageId, setSwitchingBranchAtMessageId] = useState<string | null>(null);
+    const [showNoCreditsModal, setShowNoCreditsModal] = useState(false);
 
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -537,7 +539,7 @@ const ChatViewPage: React.FC = () => {
             setCurrentBranch(currentBranch);
 
             if (error?.response?.status === 402) {
-                showToast('Not enough credits. Top up your balance.', 'error');
+                setShowNoCreditsModal(true);
             } else {
                 showToast(error?.message || 'Failed to send message.', 'error');
             }
@@ -775,7 +777,7 @@ const ChatViewPage: React.FC = () => {
             setCurrentBranch((prev) => prev.filter((m) => !m.id.startsWith('temp-')));
 
             if (error?.response?.status === 402) {
-                showToast('Not enough credits. Top up your balance.', 'error');
+                setShowNoCreditsModal(true);
             } else {
                 showToast(error?.message || 'Failed to send message.', 'error');
             }
@@ -865,7 +867,7 @@ const ChatViewPage: React.FC = () => {
                 } catch (error: any) {
                     console.error('[ChatViewPage] Transcription failed', error);
                     if (error?.response?.status === 402) {
-                        showToast('Not enough credits. Top up your balance.', 'error');
+                        setShowNoCreditsModal(true);
                     } else {
                         showToast('Transcription failed.', 'error');
                     }
@@ -932,6 +934,7 @@ const ChatViewPage: React.FC = () => {
     }, [currentChatId, navigate, showToast, deleteChatFromContext]);
 
     return (
+        <>
         <div className="fc h-full w-full">
             <div
                 className="frbc gap-2 px-3 py-1.5 border-b flex-shrink-0"
@@ -1116,6 +1119,11 @@ const ChatViewPage: React.FC = () => {
                 </div>
             </div>
         </div>
+        <NoCreditsModal
+            open={showNoCreditsModal}
+            onClose={() => setShowNoCreditsModal(false)}
+        />
+        </>
     );
 };
 

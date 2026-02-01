@@ -11,6 +11,7 @@ import {useConfig} from '../../../context/ConfigContext';
 import {useToast} from '../../../context/ToastContext';
 import {useChats} from '../../../context/ChatsContext';
 import LoadingSpinner from '../../../components/LoadingSpinner';
+import NoCreditsModal from '../../../components/NoCreditsModal';
 import ChatActions from './ChatActions';
 import ChatMessage from './ChatMessage';
 import {
@@ -248,6 +249,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
 
     const [siblingsData, setSiblingsData] = useState<Map<string, {items: WinkyChatMessage[]; total: number; currentIndex: number}>>(new Map());
     const [switchingBranchAtMessageId, setSwitchingBranchAtMessageId] = useState<string | null>(null);
+    const [showNoCreditsModal, setShowNoCreditsModal] = useState(false);
 
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -556,7 +558,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
             setCurrentBranch(currentBranch);
 
             if (error?.isCreditsError || error?.code === 'not_enough_credits' || error?.response?.status === 402) {
-                showToast('Not enough credits. Click "Top Up" on the Me page.', 'error');
+                setShowNoCreditsModal(true);
             } else {
                 showToast(error?.message || 'Failed to send message.', 'error');
             }
@@ -764,7 +766,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
             setCurrentBranch((prev) => prev.filter((m) => !m.id.startsWith('temp-')));
 
             if (error?.isCreditsError || error?.code === 'not_enough_credits' || error?.response?.status === 402) {
-                showToast('Not enough credits. Click "Top Up" on the Me page.', 'error');
+                setShowNoCreditsModal(true);
             } else {
                 showToast(error?.message || 'Failed to send message.', 'error');
             }
@@ -854,7 +856,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
                 } catch (error: any) {
                     console.error('[ChatPanel] Transcription failed', error);
                     if (error?.isCreditsError || error?.code === 'not_enough_credits' || error?.response?.status === 402) {
-                        showToast('Not enough credits. Click "Top Up" on the Me page.', 'error');
+                        setShowNoCreditsModal(true);
                     } else {
                         showToast('Transcription failed.', 'error');
                     }
@@ -921,6 +923,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
     }, [onClose, panelId]);
 
     return (
+        <>
         <div className="fc h-full w-full border-r last:border-r-0" style={{borderColor: isDark ? darkSurface : 'var(--color-border-light)'}}>
             {/* Header */}
             <div
@@ -1121,6 +1124,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
                 </div>
             </div>
         </div>
+        <NoCreditsModal
+            open={showNoCreditsModal}
+            onClose={() => setShowNoCreditsModal(false)}
+        />
+        </>
     );
 };
 

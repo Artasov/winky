@@ -117,6 +117,18 @@ const Sidebar: React.FC = () => {
         return items;
     }, [hasResult]);
 
+    // Сортируем чаты: закреплённые сверху, потом по дате создания
+    const sortedChats = useMemo(() => {
+        return [...chats].sort((a, b) => {
+            const aPinned = Boolean(a.pinned_at);
+            const bPinned = Boolean(b.pinned_at);
+            if (aPinned && !bPinned) return -1;
+            if (!aPinned && bPinned) return 1;
+            // Внутри каждой группы сортируем по дате (новые сверху)
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+    }, [chats]);
+
     // Определяем находимся ли мы в многопанельном режиме (/chats/:chatId)
     const isInMultiPanelMode = location.pathname.startsWith('/chats/');
 
@@ -445,10 +457,10 @@ const Sidebar: React.FC = () => {
             {/* Chats list - scrollable section */}
             <div className="fc flex-1 min-h-0 mt-2">
                 <div className={`mx-4 mb-2 border-t ${isDark ? 'border-white/15' : 'border-primary-200/60'}`}/>
-                {chats.length > 0 && (
+                {sortedChats.length > 0 && (
                     <div className="flex-1 overflow-y-auto px-3">
                         <div className="fc gap-0.5">
-                            {chats.map((chat) => {
+                            {sortedChats.map((chat) => {
                                 // Чат активен если он открыт в какой-либо панели (в многопанельном режиме)
                                 // или если URL совпадает (в обычном режиме)
                                 const isOpenInPanel = openPanelChatIds.has(chat.id);

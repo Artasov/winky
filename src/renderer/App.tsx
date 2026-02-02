@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef} from 'react';
 import {Route, Routes, useNavigate} from 'react-router-dom';
+import {getCurrentWindow} from '@tauri-apps/api/window';
 import {ConfigContext} from './context/ConfigContext';
 import {ToastContext, type ToastType} from './context/ToastContext';
 import {UserProvider, useUser} from './context/UserContext';
@@ -436,7 +437,8 @@ const AppContent: React.FC = () => {
 
         const handleOpenResult = () => {
             // Показываем главное окно и переходим на /result
-            window.winky?.main?.show?.();
+            void getCurrentWindow().show();
+            void getCurrentWindow().setFocus();
             navigate('/result');
         };
 

@@ -1,5 +1,6 @@
 import {useCallback, type RefObject} from 'react';
 import type {ActionConfig, AppConfig} from '@shared/types';
+import {getCurrentWindow} from '@tauri-apps/api/window';
 import {LLM_WINKY_API_MODELS, SPEECH_WINKY_API_MODELS} from '@shared/constants';
 import {createNoteForMode, deriveNoteTitle, resolveNotesStorageMode} from '../../../services/notesService';
 import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, speechBridge} from '../../../services/winkyBridge';
@@ -384,7 +385,8 @@ export const useActionProcessing = ({
 
                     // Переходим в чат если show_results
                     if (action.show_results && result.chat_id) {
-                        window.winky?.main?.show?.();
+                        void getCurrentWindow().show();
+                        void getCurrentWindow().setFocus();
                         window.dispatchEvent(new CustomEvent('navigate-to-chat', {detail: {chatId: result.chat_id}}));
                     }
 

@@ -46,7 +46,7 @@ export interface WinkyTranscribeResult {
 
 export interface WinkyLLMParams {
     prompt: string;
-    model_level: 'low' | 'high';
+    model_level: 'low' | 'mid' | 'high';
     chat_id?: string;
     parent_message_id?: string | null;
 }
@@ -57,7 +57,7 @@ export interface WinkyLLMResult {
     assistant_message_id: string;
     content: string;
     credits: number;
-    model_level: 'low' | 'high';
+    model_level: 'low' | 'mid' | 'high';
 }
 
 export const winkyTranscribe = async (
@@ -157,7 +157,7 @@ export const winkyLLMStream = async (
                     case 'start':
                         chatId = data.chat_id;
                         userMessageId = data.user_message_id;
-                        modelLevel = data.model_level as 'low' | 'high';
+                        modelLevel = data.model_level as 'low' | 'mid' | 'high';
                         console.log(`${LOG_PREFIX} ← [WS] start`, {chat_id: chatId, user_message_id: userMessageId});
                         break;
 

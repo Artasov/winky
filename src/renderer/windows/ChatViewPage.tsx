@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState, memo} from 'react';
+import React, {useCallback, useEffect, useRef, useState, memo, useMemo} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {alpha, useTheme} from '@mui/material/styles';
 import {CircularProgress, IconButton, TextField} from '@mui/material';
@@ -110,6 +110,7 @@ const MicWaves = React.memo(MicWavesComponent);
 interface MessagesListProps {
     messages: WinkyChatMessage[];
     streamingContent: string;
+    streamingModelLevel: 'low' | 'mid' | 'high' | 'transcribe';
     loading: boolean;
     loadingMore: boolean;
     editingMessageId: string | null;
@@ -126,6 +127,7 @@ interface MessagesListProps {
 const MessagesListComponent: React.FC<MessagesListProps> = ({
     messages,
     streamingContent,
+    streamingModelLevel,
     loading,
     loadingMore,
     editingMessageId,
@@ -211,7 +213,7 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
                         parent_id: null,
                         role: 'assistant',
                         content: streamingContent,
-                        model_level: 'high',
+                        model_level: streamingModelLevel,
                         tokens: 0,
                         has_children: false,
                         sibling_count: 0,
@@ -272,6 +274,13 @@ const ChatViewPage: React.FC = () => {
     const skipNextScrollToBottom = useRef<boolean>(false);
 
     const accessToken = config?.auth?.access || config?.auth?.accessToken || '';
+
+    const modelLevel = useMemo((): 'low' | 'mid' | 'high' => {
+        const llmModel = config?.llm?.model;
+        if (llmModel === 'winky-low') return 'low';
+        if (llmModel === 'winky-mid') return 'mid';
+        return 'high';
+    }, [config?.llm?.model]);
 
     const scrollToBottom = useCallback(() => {
         const container = messagesContainerRef.current;
@@ -440,7 +449,7 @@ const ChatViewPage: React.FC = () => {
             parent_id: parentMessageId,
             role: 'user',
             content: text,
-            model_level: 'high',
+            model_level: modelLevel,
             tokens: 0,
             has_children: false,
             sibling_count: 0,
@@ -456,7 +465,7 @@ const ChatViewPage: React.FC = () => {
             const result = await winkyLLMStream(
                 {
                     prompt: text,
-                    model_level: 'high',
+                    model_level: modelLevel,
                     chat_id: currentChatId || undefined,
                     parent_message_id: parentMessageId
                 },
@@ -486,7 +495,7 @@ const ChatViewPage: React.FC = () => {
                 parent_id: parentMessageId,
                 role: 'user',
                 content: text,
-                model_level: 'high',
+                model_level: modelLevel,
                 tokens: 0,
                 has_children: true,
                 sibling_count: 1,
@@ -694,7 +703,7 @@ const ChatViewPage: React.FC = () => {
             parent_id: parentMessageId,
             role: 'user',
             content: text,
-            model_level: 'high',
+            model_level: modelLevel,
             tokens: 0,
             has_children: false,
             sibling_count: 0,
@@ -708,7 +717,7 @@ const ChatViewPage: React.FC = () => {
             const result = await winkyLLMStream(
                 {
                     prompt: text,
-                    model_level: 'high',
+                    model_level: modelLevel,
                     chat_id: currentChatId || undefined,
                     parent_message_id: parentMessageId
                 },
@@ -738,7 +747,7 @@ const ChatViewPage: React.FC = () => {
                 parent_id: parentMessageId,
                 role: 'user',
                 content: text,
-                model_level: 'high',
+                model_level: modelLevel,
                 tokens: 0,
                 has_children: true,
                 sibling_count: 0,
@@ -982,6 +991,7 @@ const ChatViewPage: React.FC = () => {
                 <MessagesList
                     messages={currentBranch}
                     streamingContent={streamingContent}
+                    streamingModelLevel={modelLevel}
                     loading={loading}
                     loadingMore={loadingMore}
                     editingMessageId={editingMessageId}

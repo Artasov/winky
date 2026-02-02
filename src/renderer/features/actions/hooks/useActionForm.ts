@@ -188,7 +188,7 @@ export const useActionForm = ({
         event.preventDefault();
         const validation = formSchema.safeParse(values);
         if (!validation.success) {
-            const firstError = validation.error.errors[0]?.message ?? 'Please complete the form correctly.';
+            const firstError = validation.error.issues[0]?.message ?? 'Please complete the form correctly.';
             showToast(firstError, 'error');
             return;
         }

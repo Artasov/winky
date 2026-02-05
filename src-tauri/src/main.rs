@@ -713,6 +713,15 @@ fn action_hotkeys_clear(
 }
 
 #[tauri::command]
+fn hotkeys_set_recording_active(
+    hotkeys_state: State<'_, Arc<HotkeyState>>,
+    active: bool,
+) -> Result<(), String> {
+    hotkeys_state.set_recording_active(active);
+    Ok(())
+}
+
+#[tauri::command]
 async fn window_open_devtools(_app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(feature = "devtools")]
     {
@@ -978,6 +987,7 @@ fn main() {
             gemini_generate_content_stream,
             action_hotkeys_register,
             action_hotkeys_clear,
+            hotkeys_set_recording_active,
             window_open_devtools,
             window_open_main,
             window_set_ignore_cursor_events

@@ -1,14 +1,17 @@
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use serde::Deserialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 #[derive(Debug, Default)]
 pub struct HotkeyState {
     mic: Mutex<Option<String>>,
     actions: Mutex<HashMap<String, String>>,
+    mic_action_overrides: Mutex<HashMap<String, String>>,
+    recording_active: AtomicBool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -20,6 +23,30 @@ pub struct ActionHotkeyInput {
 impl HotkeyState {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    fn normalize_accelerator(accelerator: &str) -> String {
+        accelerator
+            .split_whitespace()
+            .collect::<String>()
+            .to_ascii_lowercase()
+    }
+
+    fn action_for_mic_accelerator(&self, accelerator: &str) -> Option<String> {
+        let normalized = Self::normalize_accelerator(accelerator);
+        self.mic_action_overrides
+            .lock()
+            .unwrap()
+            .get(&normalized)
+            .cloned()
+    }
+
+    pub fn set_recording_active(&self, active: bool) {
+        self.recording_active.store(active, Ordering::Relaxed);
+    }
+
+    fn is_recording_active(&self) -> bool {
+        self.recording_active.load(Ordering::Relaxed)
     }
 
     pub fn register_mic(&self, app: &AppHandle, accelerator: Option<String>) {
@@ -72,7 +99,19 @@ impl HotkeyState {
         // Регистрируем новый хоткей
         let accelerator = new_accelerator.unwrap();
         let accelerator_clone = accelerator.clone();
+        let accelerator_for_handler = accelerator.clone();
         match manager.on_shortcut(accelerator.as_str(), move |app_handle, _, _| {
+            if let Some(hotkeys) = app_handle.try_state::<Arc<HotkeyState>>() {
+                if hotkeys.is_recording_active() {
+                    if let Some(action_id) = hotkeys.action_for_mic_accelerator(&accelerator_for_handler) {
+                        let _ = app_handle.emit(
+                            "hotkey:action-triggered",
+                            serde_json::json!({"actionId": action_id}),
+                        );
+                        return;
+                    }
+                }
+            }
             let _ = app_handle.emit("mic:shortcut", serde_json::json!({"reason": "shortcut"}));
         }) {
             Ok(_) => {
@@ -107,13 +146,20 @@ impl HotkeyState {
 
         let manager = app.global_shortcut();
         let mut used = HashMap::new();
+        let mic_hotkey = self
+            .mic
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|value| Self::normalize_accelerator(value));
 
         for entry in hotkeys {
             let accelerator = entry.accelerator.trim();
             if accelerator.is_empty() {
                 continue;
             }
-            if used.contains_key(accelerator) {
+            let normalized = Self::normalize_accelerator(accelerator);
+            if used.contains_key(&normalized) {
                 let _ = app.emit(
                     "hotkey:register-error",
                     &serde_json::json!({
@@ -123,6 +169,14 @@ impl HotkeyState {
                         "reason": "duplicate"
                     }),
                 );
+                continue;
+            }
+            if mic_hotkey.as_ref() == Some(&normalized) {
+                used.insert(normalized.clone(), entry.id.clone());
+                self.mic_action_overrides
+                    .lock()
+                    .unwrap()
+                    .insert(normalized, entry.id.clone());
                 continue;
             }
             let action_id = entry.id.clone();
@@ -135,7 +189,7 @@ impl HotkeyState {
                 );
             }) {
                 Ok(_) => {
-                    used.insert(accelerator_str.clone(), entry.id.clone());
+                    used.insert(normalized, entry.id.clone());
                     self.actions
                         .lock()
                         .unwrap()
@@ -159,6 +213,7 @@ impl HotkeyState {
 
     pub fn clear_action_hotkeys(&self, app: &AppHandle) {
         let manager = app.global_shortcut();
+        self.mic_action_overrides.lock().unwrap().clear();
         for (_, accelerator) in self.actions.lock().unwrap().drain() {
             let _ = manager.unregister(accelerator.as_str());
         }

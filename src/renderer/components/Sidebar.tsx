@@ -67,10 +67,6 @@ const Sidebar: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const videoRef = useRef<HTMLVideoElement | null>(null);
-    const lastProgressTimeRef = useRef<number>(0);
-    const lastProgressAtRef = useRef<number>(0);
-    const stallTimeoutRef = useRef<number | null>(null);
-    const frameCallbackIdRef = useRef<number | null>(null);
     const {config} = useConfig();
     const {user} = useUser();
     const {isDark} = useThemeMode();
@@ -199,15 +195,18 @@ const Sidebar: React.FC = () => {
         }
     }, [isInMultiPanelMode, navigate]);
 
-    const shouldPlay = () => typeof document !== 'undefined' && !document.hidden;
-
-    const restartPlayback = useCallback(() => {
+    const syncAvatarPlayback = useCallback(() => {
         const video = videoRef.current;
-        if (!video || !shouldPlay()) {
+        if (!video) {
             return;
         }
-        video.pause();
-        video.currentTime = 0;
+        if (typeof document !== 'undefined' && document.hidden) {
+            video.pause();
+            return;
+        }
+        if (!video.paused) {
+            return;
+        }
         const playPromise = video.play();
         if (playPromise) {
             playPromise.catch(() => {
@@ -216,176 +215,41 @@ const Sidebar: React.FC = () => {
         }
     }, []);
 
-    const keepPlayback = useCallback(() => {
-        if (!showAvatarVideo) {
-            return;
-        }
-        const video = videoRef.current;
-        if (!video || !shouldPlay()) {
-            return;
-        }
-        if (video.ended || video.currentTime >= video.duration) {
-            restartPlayback();
-            return;
-        }
-        if (video.paused || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-            const playPromise = video.play();
-            if (playPromise) {
-                playPromise.catch(() => {
-                    /* autoplay can fail silently; ignore */
-                });
-            }
-        }
-    }, [restartPlayback, showAvatarVideo]);
-
     useEffect(() => {
-        const STALL_TIMEOUT_MS = 6000;
-
         if (!showAvatarVideo) {
-            const video = videoRef.current;
-            if (video) {
-                video.pause();
-            }
-            if (stallTimeoutRef.current) {
-                window.clearTimeout(stallTimeoutRef.current);
-                stallTimeoutRef.current = null;
-            }
-            if (frameCallbackIdRef.current && video && typeof video.cancelVideoFrameCallback === 'function') {
-                video.cancelVideoFrameCallback(frameCallbackIdRef.current);
-                frameCallbackIdRef.current = null;
-            }
+            videoRef.current?.pause();
             return;
         }
+
         const video = videoRef.current;
         if (!video) {
             return;
         }
+
         video.playbackRate = 1;
         video.playsInline = true;
         video.muted = true;
         video.loop = true;
 
-        const armStallTimeout = () => {
-            if (stallTimeoutRef.current) {
-                window.clearTimeout(stallTimeoutRef.current);
-            }
-            stallTimeoutRef.current = window.setTimeout(() => {
-                if (!video || !shouldPlay() || document.hidden) {
-                    return;
-                }
-                const stalledForMs = Date.now() - lastProgressAtRef.current;
-                if (!video.paused && stalledForMs >= STALL_TIMEOUT_MS) {
-                    restartPlayback();
-                    lastProgressTimeRef.current = video.currentTime;
-                    lastProgressAtRef.current = Date.now();
-                    armStallTimeout();
-                }
-            }, STALL_TIMEOUT_MS);
-        };
-
         const handleVisibilityChange = () => {
-            if (document.hidden) {
-                video.pause();
-                if (stallTimeoutRef.current) {
-                    window.clearTimeout(stallTimeoutRef.current);
-                    stallTimeoutRef.current = null;
-                }
-                if (frameCallbackIdRef.current && typeof video.cancelVideoFrameCallback === 'function') {
-                    video.cancelVideoFrameCallback(frameCallbackIdRef.current);
-                    frameCallbackIdRef.current = null;
-                }
-                return;
-            }
-            restartPlayback();
-            lastProgressTimeRef.current = video.currentTime;
-            lastProgressAtRef.current = Date.now();
-            armStallTimeout();
-            trackFrames();
+            syncAvatarPlayback();
         };
 
         const handleCanPlay = () => {
-            if (!document.hidden) {
-                keepPlayback();
-                armStallTimeout();
-                trackFrames();
-            }
+            syncAvatarPlayback();
         };
-
-        const handlePlaybackIssue = () => {
-            if (!video || !shouldPlay() || document.hidden) {
-                return;
-            }
-            if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-                video.pause();
-                video.currentTime = 0;
-            }
-            keepPlayback();
-            armStallTimeout();
-            trackFrames();
-        };
-
-        const handleProgress = () => {
-            if (!video) {
-                return;
-            }
-            lastProgressTimeRef.current = video.currentTime;
-            lastProgressAtRef.current = Date.now();
-            armStallTimeout();
-        };
-
-        const trackFrames = () => {
-            if (!video || document.hidden || !shouldPlay()) {
-                return;
-            }
-            if (typeof video.requestVideoFrameCallback !== 'function') {
-                return;
-            }
-            frameCallbackIdRef.current = video.requestVideoFrameCallback(() => {
-                handleProgress();
-                trackFrames();
-            });
-        };
-
-        const monitoredEvents: Array<keyof HTMLMediaElementEventMap> = [
-            'pause',
-            'ended',
-            'stalled',
-            'suspend',
-            'waiting',
-            'error'
-        ];
 
         video.addEventListener('canplay', handleCanPlay);
-        video.addEventListener('playing', handleProgress);
-        video.addEventListener('timeupdate', handleProgress);
-        monitoredEvents.forEach((event) => video.addEventListener(event, handlePlaybackIssue));
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
-        if (!document.hidden) {
-            handleProgress();
-            keepPlayback();
-            trackFrames();
-        }
-
-        armStallTimeout();
+        syncAvatarPlayback();
 
         return () => {
             video.removeEventListener('canplay', handleCanPlay);
-            video.removeEventListener('playing', handleProgress);
-            video.removeEventListener('timeupdate', handleProgress);
-            monitoredEvents.forEach((event) => video.removeEventListener(event, handlePlaybackIssue));
             document.removeEventListener('visibilitychange', handleVisibilityChange);
-            if (stallTimeoutRef.current) {
-                window.clearTimeout(stallTimeoutRef.current);
-                stallTimeoutRef.current = null;
-            }
-            if (frameCallbackIdRef.current && typeof video.cancelVideoFrameCallback === 'function') {
-                video.cancelVideoFrameCallback(frameCallbackIdRef.current);
-                frameCallbackIdRef.current = null;
-            }
             video.pause();
         };
-    }, [keepPlayback, restartPlayback, showAvatarVideo]);
+    }, [showAvatarVideo, syncAvatarPlayback]);
 
     // Padding снизу в тёмной теме, если включен showAvatarVideo
     const darkAvatarPadding = isDark && config?.showAvatarVideo !== false;
@@ -571,7 +435,7 @@ const Sidebar: React.FC = () => {
                             loop
                             muted
                             playsInline
-                            preload="auto"
+                            preload="metadata"
                             disablePictureInPicture
                             className="w-full h-auto pointer-events-none select-none"
                             src="./resources/avatar.mp4"
@@ -582,8 +446,7 @@ const Sidebar: React.FC = () => {
                                 transform: 'translateY(15px) scale(1.3)',
                                 objectPosition: 'top',
                                 backfaceVisibility: 'hidden',
-                                perspective: 1000,
-                                willChange: 'transform'
+                                perspective: 1000
                             }}
                         />
                     ) : null}

@@ -220,6 +220,8 @@ declare global {
         register(hotkeys: Array<{ id: string; accelerator: string }>): Promise<void>;
 
         clear(): Promise<void>;
+
+        setRecordingActive(active: boolean): Promise<void>;
     }
 
     interface WinkyHistoryAPI {

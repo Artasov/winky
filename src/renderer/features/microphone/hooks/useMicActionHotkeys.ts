@@ -1,4 +1,4 @@
-import {useEffect} from 'react';
+import {useEffect, useRef} from 'react';
 import type {ActionConfig} from '@shared/types';
 import {actionHotkeysBridge} from '../../../services/winkyBridge';
 
@@ -14,6 +14,106 @@ type UseMicActionHotkeysParams = {
     lastGlobalActionHotkeyTsRef: MutableRef<number>;
 };
 
+const HOTKEY_DEDUP_MS = 150;
+const platform = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+const isMac = /mac|ipod|iphone|ipad/i.test(platform);
+
+const normalizeHotkeyToken = (token: string): string => {
+    const normalized = token.trim();
+    if (!normalized) {
+        return '';
+    }
+    const lower = normalized.toLowerCase();
+    if (lower === 'ctrl' || lower === 'control') {
+        return 'CTRL';
+    }
+    if (lower === 'alt' || lower === 'option') {
+        return 'ALT';
+    }
+    if (lower === 'shift') {
+        return 'SHIFT';
+    }
+    if (lower === 'cmd' || lower === 'command' || lower === 'meta' || lower === 'win' || lower === 'super') {
+        return 'META';
+    }
+    if (normalized === ' ') {
+        return 'SPACE';
+    }
+    if (lower === 'space') {
+        return 'SPACE';
+    }
+    if (lower === 'esc' || lower === 'escape') {
+        return 'ESCAPE';
+    }
+    if (lower === 'arrowup' || lower === 'up') {
+        return 'UP';
+    }
+    if (lower === 'arrowdown' || lower === 'down') {
+        return 'DOWN';
+    }
+    if (lower === 'arrowleft' || lower === 'left') {
+        return 'LEFT';
+    }
+    if (lower === 'arrowright' || lower === 'right') {
+        return 'RIGHT';
+    }
+    return normalized.length === 1 ? normalized.toUpperCase() : normalized.toUpperCase();
+};
+
+const normalizeHotkey = (hotkey: string): string => {
+    const parts = hotkey.split('+').map((part) => normalizeHotkeyToken(part)).filter(Boolean);
+    if (parts.length === 0) {
+        return '';
+    }
+    const modifiers = new Set<string>();
+    let key = '';
+    parts.forEach((part) => {
+        if (part === 'CTRL' || part === 'ALT' || part === 'SHIFT' || part === 'META') {
+            modifiers.add(part);
+            return;
+        }
+        key = part;
+    });
+    const ordered: string[] = [];
+    if (modifiers.has('CTRL')) {
+        ordered.push('CTRL');
+    }
+    if (modifiers.has('ALT')) {
+        ordered.push('ALT');
+    }
+    if (modifiers.has('SHIFT')) {
+        ordered.push('SHIFT');
+    }
+    if (modifiers.has('META')) {
+        ordered.push('META');
+    }
+    if (key) {
+        ordered.push(key);
+    }
+    return ordered.join('+');
+};
+
+const getEventHotkey = (event: KeyboardEvent): string => {
+    const parts: string[] = [];
+    if (event.ctrlKey) {
+        parts.push('CTRL');
+    }
+    if (event.altKey) {
+        parts.push('ALT');
+    }
+    if (event.shiftKey) {
+        parts.push('SHIFT');
+    }
+    if (event.metaKey) {
+        parts.push('META');
+    }
+    const keyToken = normalizeHotkeyToken(event.key === 'Meta' ? (isMac ? 'Cmd' : 'Win') : event.key);
+    if (keyToken && keyToken !== 'CTRL' && keyToken !== 'ALT' && keyToken !== 'SHIFT' && keyToken !== 'META') {
+        parts.push(keyToken);
+    }
+    return parts.join('+');
+};
+
 export const useMicActionHotkeys = ({
     activeActions,
     isMicOverlay,
@@ -23,62 +123,65 @@ export const useMicActionHotkeys = ({
     lastDomActionHotkeyTsRef,
     lastGlobalActionHotkeyTsRef
 }: UseMicActionHotkeysParams): void => {
+    const activeActionsRef = useRef<ActionConfig[]>(activeActions);
+    const handleActionClickRef = useRef(handleActionClick);
+    const hotkeysSignatureRef = useRef('');
+
+    useEffect(() => {
+        activeActionsRef.current = activeActions;
+    }, [activeActions]);
+
+    useEffect(() => {
+        handleActionClickRef.current = handleActionClick;
+    }, [handleActionClick]);
+
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
             return;
         }
         const handler = (event: KeyboardEvent) => {
-            if (!isRecordingRef.current || activeActions.length === 0 || event.repeat) {
+            if (!isRecordingRef.current || activeActionsRef.current.length === 0 || event.repeat) {
                 return;
             }
-            const action = activeActions.find((a) => {
+            const normalizedEventHotkey = getEventHotkey(event);
+            if (!normalizedEventHotkey) {
+                return;
+            }
+            const action = activeActionsRef.current.find((a) => {
                 if (!a.hotkey) {
                     return false;
                 }
-                const normalizedActionHotkey = a.hotkey.trim().replace(/\s+/g, '');
-                const parts: string[] = [];
-                if (event.ctrlKey || event.metaKey) {
-                    parts.push('Ctrl');
-                }
-                if (event.altKey) {
-                    parts.push('Alt');
-                }
-                if (event.shiftKey) {
-                    parts.push('Shift');
-                }
-                if (event.key) {
-                    parts.push(event.key.toUpperCase());
-                }
-                const normalizedEventHotkey = parts.join('');
-                return normalizedActionHotkey.toLowerCase() === normalizedEventHotkey.toLowerCase();
+                const normalizedActionHotkey = normalizeHotkey(a.hotkey);
+                return normalizedActionHotkey === normalizedEventHotkey;
             });
             if (!action) {
                 return;
             }
             const now = Date.now();
             lastDomActionHotkeyTsRef.current = now;
-            if (now - lastGlobalActionHotkeyTsRef.current < 150) {
+            if (now - lastGlobalActionHotkeyTsRef.current < HOTKEY_DEDUP_MS) {
                 return;
             }
             event.preventDefault();
             event.stopPropagation();
-            void handleActionClick(action);
+            void handleActionClickRef.current(action);
         };
-        window.addEventListener('keydown', handler);
+        window.addEventListener('keydown', handler, true);
         return () => {
-            window.removeEventListener('keydown', handler);
+            window.removeEventListener('keydown', handler, true);
         };
-    }, [activeActions, handleActionClick, isMicOverlay, isRecording, isRecordingRef, lastDomActionHotkeyTsRef, lastGlobalActionHotkeyTsRef]);
+    }, [isMicOverlay, isRecordingRef, lastDomActionHotkeyTsRef, lastGlobalActionHotkeyTsRef]);
 
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
             return;
         }
         if (!isRecording) {
+            hotkeysSignatureRef.current = '';
             void actionHotkeysBridge.clear();
             return;
         }
-        const hotkeys = activeActions
+        const hotkeys = activeActionsRef.current
             .filter((action) => typeof action.hotkey === 'string' && action.hotkey.trim().length > 0)
             .map((action) => ({
                 id: action.id,
@@ -86,42 +189,64 @@ export const useMicActionHotkeys = ({
             }));
 
         if (hotkeys.length === 0) {
+            hotkeysSignatureRef.current = '';
             void actionHotkeysBridge.clear();
             return;
         }
 
+        const signature = hotkeys
+            .map((item) => `${item.id}:${normalizeHotkey(item.accelerator)}`)
+            .sort()
+            .join('|');
+        if (signature === hotkeysSignatureRef.current) {
+            return;
+        }
+        hotkeysSignatureRef.current = signature;
         void actionHotkeysBridge.register(hotkeys);
-
-        return () => {
-            void actionHotkeysBridge.clear();
-        };
     }, [activeActions, isMicOverlay, isRecording]);
 
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
             return;
         }
-        if (!isRecordingRef.current) {
+        void actionHotkeysBridge.setRecordingActive(isRecording);
+        return () => {
+            void actionHotkeysBridge.setRecordingActive(false);
+        };
+    }, [isMicOverlay, isRecording]);
+
+    useEffect(() => {
+        if (!isMicOverlay || typeof window === 'undefined') {
             return;
         }
         const handler = (payload: {actionId?: string}) => {
             if (!payload?.actionId || !isRecordingRef.current) {
                 return;
             }
-            const action = activeActions.find((item) => item.id === payload.actionId);
+            const action = activeActionsRef.current.find((item) => item.id === payload.actionId);
             if (!action) {
                 return;
             }
             const now = Date.now();
-            if (now - lastDomActionHotkeyTsRef.current < 150) {
+            if (now - lastDomActionHotkeyTsRef.current < HOTKEY_DEDUP_MS) {
                 return;
             }
             lastGlobalActionHotkeyTsRef.current = now;
-            void handleActionClick(action);
+            void handleActionClickRef.current(action);
         };
         const unsubscribe = window.winky?.on?.('hotkey:action-triggered', handler as any);
         return () => {
             unsubscribe?.();
         };
-    }, [activeActions, handleActionClick, isMicOverlay, isRecording, lastDomActionHotkeyTsRef, lastGlobalActionHotkeyTsRef]);
+    }, [isMicOverlay, isRecordingRef, lastDomActionHotkeyTsRef, lastGlobalActionHotkeyTsRef]);
+
+    useEffect(() => {
+        if (!isMicOverlay || typeof window === 'undefined') {
+            return;
+        }
+        return () => {
+            hotkeysSignatureRef.current = '';
+            void actionHotkeysBridge.clear();
+        };
+    }, [isMicOverlay]);
 };

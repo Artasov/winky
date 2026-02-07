@@ -263,7 +263,7 @@ const MicOverlay: React.FC<MicOverlayProps> = ({contextTextRef: contextTextRefPr
                                 isRecording={isRecording}
                                 onToggle={handleMicrophoneToggle}
                                 disabled={processing}
-                                size={isRecording ? 'compact' : 'default'}
+                                size="compact"
                             />
                         </div>
                         <div

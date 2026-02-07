@@ -36,6 +36,19 @@ const isLocalServerUnavailableMessage = (message?: string): boolean => {
         || (normalized.includes('локал') && normalized.includes('сервер'));
 };
 
+const createSilentAudioBlob = (): Blob => {
+    // Minimal valid WAV payload (mono PCM16, 16kHz, empty data section).
+    const header = new Uint8Array([
+        0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00,
+        0x57, 0x41, 0x56, 0x45, 0x66, 0x6d, 0x74, 0x20,
+        0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
+        0x80, 0x3e, 0x00, 0x00, 0x00, 0x7d, 0x00, 0x00,
+        0x02, 0x00, 0x10, 0x00, 0x64, 0x61, 0x74, 0x61,
+        0x00, 0x00, 0x00, 0x00
+    ]);
+    return new Blob([header], {type: 'audio/wav'});
+};
+
 export const useSpeechRecording = ({config, showToast, isMicOverlay, contextTextRef}: UseSpeechRecordingParams) => {
     const recorderRef = useRef<SpeechRecorder | null>(null);
     const autoStartPendingRef = useRef(false);
@@ -409,14 +422,11 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
         } finally {
             setActiveActionId(null);
             resetInteractive();
-            if (isMicOverlay && config?.micHideOnStopRecording !== false) {
-                void micBridge.hide({reason: 'action'});
-            }
         }
     }, [ensureSpeechServiceOnce, finishRecording, isRecording, showToast, startVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 
     const handleActionClick = useCallback(async (action: ActionConfig) => {
-        if (processingRef.current || processing || !isRecordingRef.current || !isRecording) {
+        if (processingRef.current || processing) {
             return;
         }
 
@@ -435,7 +445,9 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
                 return;
             }
 
-            const blob = await finishRecording(false);
+            const blob = isRecordingRef.current
+                ? await finishRecording(false)
+                : createSilentAudioBlob();
             if (blob) {
                 await processAction(action, blob);
             }
@@ -457,7 +469,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
                 });
             }
         }
-    }, [processing, isRecording, ensureSpeechServiceOnce, finishRecording, processAction, stopVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
+    }, [processing, ensureSpeechServiceOnce, finishRecording, processAction, stopVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 
     const groups = useMemo<ActionGroup[]>(() => config?.groups ?? [], [config?.groups]);
     const actions = useMemo<ActionConfig[]>(() => config?.actions ?? [], [config?.actions]);
@@ -494,9 +506,6 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
     }, []);
 
     const displayedActions = useMemo<ActionConfig[]>(() => {
-        if (!isRecording) {
-            return [];
-        }
 
         // Находим системную группу для добавления её экшенов
         const systemGroup = groups.find((g) => g.is_system || g.id === SYSTEM_GROUP_ID);
@@ -525,7 +534,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
             return [];
         }
         return activeActions.slice(0, MAX_ACTIONS_AROUND_MIC);
-    }, [activeActions, groups, selectedGroupId, isRecording]);
+    }, [activeActions, groups, selectedGroupId]);
 
     // Увеличиваем чувствительность - умножаем на больший коэффициент
     const normalizedVolume = Math.min(volume * 5.0, 1);
@@ -549,8 +558,6 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
     useMicActionHotkeys({
         activeActions,
         isMicOverlay,
-        isRecording,
-        isRecordingRef,
         handleActionClick,
         lastDomActionHotkeyTsRef,
         lastGlobalActionHotkeyTsRef

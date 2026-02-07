@@ -7,8 +7,6 @@ type MutableRef<T> = {current: T};
 type UseMicActionHotkeysParams = {
     activeActions: ActionConfig[];
     isMicOverlay: boolean;
-    isRecording: boolean;
-    isRecordingRef: MutableRef<boolean>;
     handleActionClick: (action: ActionConfig) => Promise<void> | void;
     lastDomActionHotkeyTsRef: MutableRef<number>;
     lastGlobalActionHotkeyTsRef: MutableRef<number>;
@@ -117,8 +115,6 @@ const getEventHotkey = (event: KeyboardEvent): string => {
 export const useMicActionHotkeys = ({
     activeActions,
     isMicOverlay,
-    isRecording,
-    isRecordingRef,
     handleActionClick,
     lastDomActionHotkeyTsRef,
     lastGlobalActionHotkeyTsRef
@@ -140,7 +136,7 @@ export const useMicActionHotkeys = ({
             return;
         }
         const handler = (event: KeyboardEvent) => {
-            if (!isRecordingRef.current || activeActionsRef.current.length === 0 || event.repeat) {
+            if (activeActionsRef.current.length === 0 || event.repeat) {
                 return;
             }
             const normalizedEventHotkey = getEventHotkey(event);
@@ -170,15 +166,10 @@ export const useMicActionHotkeys = ({
         return () => {
             window.removeEventListener('keydown', handler, true);
         };
-    }, [isMicOverlay, isRecordingRef, lastDomActionHotkeyTsRef, lastGlobalActionHotkeyTsRef]);
+    }, [isMicOverlay, lastDomActionHotkeyTsRef, lastGlobalActionHotkeyTsRef]);
 
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
-            return;
-        }
-        if (!isRecording) {
-            hotkeysSignatureRef.current = '';
-            void actionHotkeysBridge.clear();
             return;
         }
         const hotkeys = activeActionsRef.current
@@ -203,24 +194,24 @@ export const useMicActionHotkeys = ({
         }
         hotkeysSignatureRef.current = signature;
         void actionHotkeysBridge.register(hotkeys);
-    }, [activeActions, isMicOverlay, isRecording]);
+    }, [activeActions, isMicOverlay]);
 
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
             return;
         }
-        void actionHotkeysBridge.setRecordingActive(isRecording);
+        void actionHotkeysBridge.setRecordingActive(true);
         return () => {
             void actionHotkeysBridge.setRecordingActive(false);
         };
-    }, [isMicOverlay, isRecording]);
+    }, [isMicOverlay]);
 
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {
             return;
         }
         const handler = (payload: {actionId?: string}) => {
-            if (!payload?.actionId || !isRecordingRef.current) {
+            if (!payload?.actionId) {
                 return;
             }
             const action = activeActionsRef.current.find((item) => item.id === payload.actionId);
@@ -238,7 +229,7 @@ export const useMicActionHotkeys = ({
         return () => {
             unsubscribe?.();
         };
-    }, [isMicOverlay, isRecordingRef, lastDomActionHotkeyTsRef, lastGlobalActionHotkeyTsRef]);
+    }, [isMicOverlay, lastDomActionHotkeyTsRef, lastGlobalActionHotkeyTsRef]);
 
     useEffect(() => {
         if (!isMicOverlay || typeof window === 'undefined') {

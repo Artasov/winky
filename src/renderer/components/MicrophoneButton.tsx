@@ -33,16 +33,16 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
             onClick={disabled ? undefined : onToggle}
             className={classNames(
                 'pointer-events-auto relative z-10 touch-none select-none app-region-no-drag',
-                'flex items-center justify-center rounded-full text-3xl shadow-xl outline-none',
+                'flex items-center justify-center rounded-full text-3xl outline-none',
                 sizeClasses[size],
                 isRecording
-                    ? 'bg-rose-600 text-white hover:bg-rose-500'
-                    : 'bg-bg-base text-text-primary',
+                    ? 'bg-rose-600 text-white hover:bg-rose-500 shadow-[0_0_24px_rgba(239,68,68,0.45)]'
+                    : 'bg-bg-base text-text-primary shadow-none',
                 disabled && 'opacity-60',
                 disabled && 'cursor-not-allowed'
             )}
             style={{
-                transform: isRecording ? 'scale(0.7)' : 'scale(1)',
+                transform: size === 'compact' ? (isRecording ? 'scale(0.7)' : 'scale(0.78)') : (isRecording ? 'scale(0.7)' : 'scale(1)'),
                 transition: 'transform 0.3s ease-in-out, background-color 0.3s ease-in-out'
             }}
         >
@@ -50,7 +50,8 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
             <svg
                 viewBox="0 0 24 24"
                 className={classNames(
-                    'absolute h-10 w-10 fill-current pointer-events-none text-text-primary transition-opacity duration-300',
+                    'absolute fill-current pointer-events-none text-text-primary transition-opacity duration-300',
+                    isRecording ? 'h-10 w-10' : 'h-8 w-8',
                     isRecording ? 'opacity-0' : 'opacity-100'
                 )}
             >

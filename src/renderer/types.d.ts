@@ -254,9 +254,9 @@ declare global {
             results: WinkyNote[];
         }>;
 
-        create(payload: { title: string; description?: string }): Promise<WinkyNote>;
+        create(payload: { title: string; description?: string; x_username?: string }): Promise<WinkyNote>;
 
-        update(payload: { id: string; title?: string; description?: string }): Promise<WinkyNote>;
+        update(payload: { id: string; title?: string; description?: string; x_username?: string }): Promise<WinkyNote>;
 
         delete(id: string): Promise<void>;
 

@@ -138,6 +138,7 @@ export interface WinkyNote {
     profile: string;
     title: string;
     description: string;
+    x_username?: string | null;
     created_at: string;
     updated_at: string;
 }

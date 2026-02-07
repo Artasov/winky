@@ -7,6 +7,7 @@ interface GlassTooltipProps {
     delay?: number;
     offset?: number;
     placement?: 'auto' | 'top' | 'bottom';
+    contentClassName?: string;
 }
 
 const GlassTooltip: React.FC<GlassTooltipProps> = ({
@@ -14,7 +15,8 @@ const GlassTooltip: React.FC<GlassTooltipProps> = ({
     children,
     delay = 400,
     offset = 8,
-    placement = 'auto'
+    placement = 'auto',
+    contentClassName = ''
 }) => {
     const [visible, setVisible] = useState(false);
     const [position, setPosition] = useState<{top: number; left: number}>({top: 0, left: 0});
@@ -167,7 +169,7 @@ const GlassTooltip: React.FC<GlassTooltipProps> = ({
                 transform: 'translate(-50%, 0)'
             }}
         >
-            <div className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-white/90 whitespace-nowrap backdrop-blur-xl bg-black/75 border border-white/10 shadow-lg shadow-black/25 animate-tooltip-fade-in">
+            <div className={`px-2.5 py-1.5 rounded-lg text-xs font-medium text-white/90 whitespace-nowrap backdrop-blur-xl bg-black/75 border border-white/10 shadow-lg shadow-black/25 animate-tooltip-fade-in ${contentClassName}`}>
                 {content}
             </div>
         </div>

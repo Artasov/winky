@@ -215,7 +215,7 @@ export const fetchNotesPage = async (page: number = 1, pageSize: number = 20): P
     });
 };
 
-export const createNote = async (payload: {title: string; description?: string}): Promise<WinkyNote> => {
+export const createNote = async (payload: {title: string; description?: string; x_username?: string}): Promise<WinkyNote> => {
     return withAuthClient(async (client) => {
         const {data} = await client.post<WinkyNote>(NOTES_API_PATH, payload);
         return data;
@@ -224,7 +224,7 @@ export const createNote = async (payload: {title: string; description?: string})
 
 export const updateNote = async (
     noteId: string,
-    payload: {title?: string; description?: string}
+    payload: {title?: string; description?: string; x_username?: string}
 ): Promise<WinkyNote> => {
     return withAuthClient(async (client) => {
         const {data} = await client.patch<WinkyNote>(`${NOTES_API_PATH}${noteId}/`, payload);

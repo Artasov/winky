@@ -18,6 +18,8 @@ pub struct NoteEntry {
     pub profile: String,
     pub title: String,
     pub description: String,
+    #[serde(default)]
+    pub x_username: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -36,6 +38,7 @@ pub struct NoteListResponse {
 pub struct NoteCreateInput {
     pub title: String,
     pub description: Option<String>,
+    pub x_username: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,6 +47,7 @@ pub struct NoteUpdateInput {
     pub id: String,
     pub title: Option<String>,
     pub description: Option<String>,
+    pub x_username: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -147,6 +151,11 @@ pub async fn create_note(app: &AppHandle, payload: NoteCreateInput) -> Result<No
         return Err(anyhow!("Title cannot be empty"));
     }
     let description = payload.description.unwrap_or_default();
+    let x_username = payload
+        .x_username
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     let now = Utc::now().to_rfc3339();
 
     let entry = NoteEntry {
@@ -154,6 +163,7 @@ pub async fn create_note(app: &AppHandle, payload: NoteCreateInput) -> Result<No
         profile: LOCAL_PROFILE_ID.to_string(),
         title: trimmed_title.to_string(),
         description,
+        x_username,
         created_at: now.clone(),
         updated_at: now,
     };
@@ -178,6 +188,9 @@ pub async fn update_note(app: &AppHandle, payload: NoteUpdateInput) -> Result<No
             }
             if let Some(description) = payload.description.as_ref() {
                 entry.description = description.clone();
+            }
+            if let Some(x_username) = payload.x_username.as_ref() {
+                entry.x_username = x_username.trim().to_string();
             }
             entry.updated_at = Utc::now().to_rfc3339();
             updated_entry = Some(entry.clone());

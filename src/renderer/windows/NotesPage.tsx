@@ -12,6 +12,7 @@ import {
     Switch,
     TextField
 } from '@mui/material';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import {alpha, useTheme} from '@mui/material/styles';
 import type {WinkyNote} from '@shared/types';
 import {useConfig} from '../context/ConfigContext';
@@ -20,6 +21,7 @@ import GlassTooltip from '../components/GlassTooltip';
 import LoadingSpinner from '../components/LoadingSpinner';
 import {
     bulkDeleteNotesForMode,
+    createNoteForMode,
     deleteNoteForMode,
     fetchNotes,
     resolveNotesStorageMode,
@@ -57,6 +59,11 @@ const NotesPage: React.FC = () => {
     const [editingNote, setEditingNote] = useState<WinkyNote | null>(null);
     const [editTitle, setEditTitle] = useState('');
     const [editDescription, setEditDescription] = useState('');
+    const [editXUsername, setEditXUsername] = useState('');
+    const [createOpen, setCreateOpen] = useState(false);
+    const [createTitle, setCreateTitle] = useState('');
+    const [createDescription, setCreateDescription] = useState('');
+    const [createXUsername, setCreateXUsername] = useState('');
     const [pendingDelete, setPendingDelete] = useState<WinkyNote | null>(null);
     const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
     const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -136,12 +143,53 @@ const NotesPage: React.FC = () => {
         setEditingNote(note);
         setEditTitle(note.title);
         setEditDescription(note.description ?? '');
+        setEditXUsername(note.x_username ?? '');
     };
 
     const handleEditClose = () => {
         setEditingNote(null);
         setEditTitle('');
         setEditDescription('');
+        setEditXUsername('');
+    };
+
+    const handleCreateOpen = () => {
+        setCreateOpen(true);
+    };
+
+    const handleCreateClose = () => {
+        setCreateOpen(false);
+        setCreateTitle('');
+        setCreateDescription('');
+        setCreateXUsername('');
+    };
+
+    const handleCreateSave = async () => {
+        const trimmedTitle = createTitle.trim();
+        if (!trimmedTitle) {
+            showToast('Title cannot be empty.', 'error');
+            return;
+        }
+        setSaving(true);
+        try {
+            await createNoteForMode(storageMode, {
+                title: trimmedTitle,
+                description: createDescription,
+                x_username: createXUsername.trim()
+            });
+            showToast('Note created.', 'success');
+            handleCreateClose();
+            if (page !== 1) {
+                setPage(1);
+                return;
+            }
+            await loadNotes(storageMode, page);
+        } catch (error) {
+            console.error('[NotesPage] Failed to create note', error);
+            showToast('Failed to create note.', 'error');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleEditSave = async () => {
@@ -157,7 +205,8 @@ const NotesPage: React.FC = () => {
         try {
             await updateNoteForMode(storageMode, editingNote.id, {
                 title: trimmedTitle,
-                description: editDescription
+                description: editDescription,
+                x_username: editXUsername.trim()
             });
             showToast('Note updated.', 'success');
             handleEditClose();
@@ -254,11 +303,11 @@ const NotesPage: React.FC = () => {
                             Quick notes captured from your actions.
                         </p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                         <div className="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary shadow-primary-sm">
                             {data?.count ?? 0} notes
                         </div>
-                        <div className="flex items-center gap-2 rounded-full border border-primary-200 bg-bg-elevated px-3 shadow-primary-sm">
+                        <div className="flex items-center gap-1 rounded-full bg-bg-secondary px-2 py-0.5 shadow-primary-sm">
                             <span className={storageMode === 'local' ? 'text-xs font-semibold text-primary' : 'text-xs text-text-tertiary'}>
                                 Local
                             </span>
@@ -266,16 +315,50 @@ const NotesPage: React.FC = () => {
                                 checked={storageMode === 'api'}
                                 onChange={handleModeToggle}
                                 color="secondary"
+                                size="small"
                                 inputProps={{'aria-label': 'Toggle notes storage mode'}}
+                                sx={{
+                                    m: 0,
+                                    p: 0,
+                                    width: 36,
+                                    height: 20,
+                                    '& .MuiSwitch-switchBase': {
+                                        p: '2px',
+                                        '&.Mui-checked': {
+                                            transform: 'translateX(16px)'
+                                        }
+                                    },
+                                    '& .MuiSwitch-thumb': {
+                                        width: 16,
+                                        height: 16
+                                    },
+                                    '& .MuiSwitch-track': {
+                                        borderRadius: '10px',
+                                        opacity: '1 !important',
+                                        backgroundColor: alpha(theme.palette.common.black, isDark ? 0.5 : 0.36)
+                                    },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                        opacity: '1 !important',
+                                        backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.7 : 0.58)
+                                    }
+                                }}
                             />
                             <span className={storageMode === 'api' ? 'text-xs font-semibold text-primary' : 'text-xs text-text-tertiary'}>
                                 API
                             </span>
                         </div>
-                        <GlassTooltip content={infoMessage}>
+                        <button
+                            type="button"
+                            onClick={handleCreateOpen}
+                            className="frcc h-8 w-8 rounded-lg bg-bg-elevated text-text-secondary shadow-primary-sm transition-[background-color,color] duration-base hover:bg-primary-50 hover:text-primary"
+                            aria-label="Create note"
+                        >
+                            <AddRoundedIcon sx={{fontSize: 20}}/>
+                        </button>
+                        <GlassTooltip content={infoMessage} contentClassName="px-2 py-1">
                             <button
                                 type="button"
-                                className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary-200 bg-bg-elevated text-text-secondary shadow-primary-sm transition-[background-color,border-color,color] duration-base hover:border-primary hover:bg-primary-50 hover:text-primary"
+                                className="frcc h-8 w-8 rounded-lg bg-bg-elevated text-text-secondary shadow-primary-sm transition-[background-color,color] duration-base hover:bg-primary-50 hover:text-primary"
                                 aria-label="Notes storage info"
                             >
                                 <svg
@@ -377,6 +460,11 @@ const NotesPage: React.FC = () => {
                                             <p className="mt-1 text-xs text-text-tertiary">
                                                 {formatTimestamp(note.created_at)}
                                             </p>
+                                            {note.x_username ? (
+                                                <p className="mt-1 text-xs font-medium text-primary">
+                                                    @{note.x_username}
+                                                </p>
+                                            ) : null}
                                         </div>
                                     </div>
                                     {/*<div className="mt-4 max-h-64 overflow-auto whitespace-pre-wrap text-sm text-text-primary">*/}
@@ -399,6 +487,54 @@ const NotesPage: React.FC = () => {
                     ) : null}
                 </div>
             </div>
+
+            <Dialog
+                open={createOpen}
+                onClose={handleCreateClose}
+                maxWidth="sm"
+                fullWidth
+                slotProps={{
+                    paper: {
+                        sx: {border: 'none'}
+                    }
+                }}
+            >
+                <DialogTitle sx={{fontSize: 24, fontWeight: 700}}>New Note</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={2} sx={{pt: 1}}>
+                        <TextField
+                            label="Title"
+                            value={createTitle}
+                            onChange={(event) => setCreateTitle(event.target.value)}
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            label="Description"
+                            value={createDescription}
+                            onChange={(event) => setCreateDescription(event.target.value)}
+                            fullWidth
+                            multiline
+                            minRows={5}
+                        />
+                        <TextField
+                            label="X"
+                            placeholder="X"
+                            value={createXUsername}
+                            onChange={(event) => setCreateXUsername(event.target.value)}
+                            fullWidth
+                        />
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{px: 3, py: 2}}>
+                    <Button onClick={handleCreateClose} color="inherit">
+                        Cancel
+                    </Button>
+                    <Button onClick={handleCreateSave} variant="contained" disabled={saving}>
+                        {saving ? 'Saving...' : 'Create'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             <Dialog open={Boolean(editingNote)} onClose={handleEditClose} maxWidth="sm" fullWidth>
                 <DialogTitle>
@@ -423,6 +559,13 @@ const NotesPage: React.FC = () => {
                             fullWidth
                             multiline
                             minRows={5}
+                        />
+                        <TextField
+                            label="X"
+                            placeholder="X"
+                            value={editXUsername}
+                            onChange={(event) => setEditXUsername(event.target.value)}
+                            fullWidth
                         />
                     </Stack>
                 </DialogContent>

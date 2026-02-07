@@ -18,12 +18,14 @@ export type NotesUpdateEvent =
 type NoteCreatePayload = {
     title: string;
     description?: string;
+    x_username?: string;
 };
 
 type NoteUpdatePayload = {
     id: string;
     title?: string;
     description?: string;
+    x_username?: string;
 };
 
 export const notesBridge = {

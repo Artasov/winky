@@ -72,7 +72,7 @@ export const fetchNotes = async (
 
 export const createNoteForMode = async (
     mode: NotesStorageMode,
-    payload: {title: string; description?: string}
+    payload: {title: string; description?: string; x_username?: string}
 ): Promise<WinkyNote> => {
     if (mode === 'local') {
         return notesBridge.create(payload);
@@ -85,7 +85,7 @@ export const createNoteForMode = async (
 export const updateNoteForMode = async (
     mode: NotesStorageMode,
     noteId: string,
-    payload: {title?: string; description?: string}
+    payload: {title?: string; description?: string; x_username?: string}
 ): Promise<WinkyNote> => {
     if (mode === 'local') {
         return notesBridge.update({id: noteId, ...payload});

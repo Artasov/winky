@@ -5,6 +5,7 @@ import ActionButton from '../../../components/ActionButton';
 interface MicActionOrbitProps {
     actions: ActionConfig[];
     actionsVisible: boolean;
+    isRecording: boolean;
     processing: boolean;
     activeActionId: string | null;
     onActionClick: (action: ActionConfig) => Promise<void> | void;
@@ -13,6 +14,7 @@ interface MicActionOrbitProps {
 const MicActionOrbitComponent: React.FC<MicActionOrbitProps> = ({
                                                                     actions,
                                                                     actionsVisible,
+                                                                    isRecording,
                                                                     processing,
                                                                     activeActionId,
                                                                     onActionClick
@@ -27,10 +29,10 @@ const MicActionOrbitComponent: React.FC<MicActionOrbitProps> = ({
     }), [actionsVisible, processing]);
 
     const actionsAuraStyle = useMemo<React.CSSProperties>(() => ({
-        opacity: actionsVisible ? 1 : 0,
+        opacity: actionsVisible && isRecording ? 1 : 0,
         transform: `scale(${actionsVisible ? 1 : 0.85})`,
         transition: 'opacity 220ms ease, transform 240ms ease'
-    }), [actionsVisible]);
+    }), [actionsVisible, isRecording]);
 
     const orderedActions = useMemo(() => [...actions].reverse(), [actions]);
 
@@ -93,8 +95,13 @@ const MicActionOrbitComponent: React.FC<MicActionOrbitProps> = ({
     return (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div
-                className="pointer-events-none absolute rounded-full bg-rose-500/20 blur-md"
-                style={{width: '64px', height: '64px', ...actionsAuraStyle}}
+                className="pointer-events-none absolute rounded-full blur-md"
+                style={{
+                    width: '64px',
+                    height: '64px',
+                    backgroundColor: isRecording ? 'rgba(244, 63, 94, 0.2)' : 'transparent',
+                    ...actionsAuraStyle
+                }}
             />
             <div className="absolute left-1/2 top-1/2" style={actionsWrapperStyle}>
                 {positions.map(({action, offsetX, offsetY}) => (

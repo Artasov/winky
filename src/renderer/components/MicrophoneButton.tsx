@@ -51,7 +51,7 @@ const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({isRecording, onToggl
                 viewBox="0 0 24 24"
                 className={classNames(
                     'absolute fill-current pointer-events-none text-text-primary transition-opacity duration-300',
-                    isRecording ? 'h-10 w-10' : 'h-8 w-8',
+                    isRecording ? 'h-10 w-10' : 'h-7 w-7',
                     isRecording ? 'opacity-0' : 'opacity-100'
                 )}
             >

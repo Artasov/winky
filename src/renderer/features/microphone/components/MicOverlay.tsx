@@ -273,6 +273,7 @@ const MicOverlay: React.FC<MicOverlayProps> = ({contextTextRef: contextTextRefPr
                             <MicActionOrbit
                                 actions={displayedActions}
                                 actionsVisible={actionsVisible}
+                                isRecording={isRecording}
                                 processing={processing}
                                 activeActionId={activeActionId}
                                 onActionClick={handleActionClick}

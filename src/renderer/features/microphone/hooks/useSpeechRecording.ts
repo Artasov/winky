@@ -421,7 +421,6 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
             await finishRecording();
         } finally {
             setActiveActionId(null);
-            resetInteractive();
         }
     }, [ensureSpeechServiceOnce, finishRecording, isRecording, showToast, startVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 

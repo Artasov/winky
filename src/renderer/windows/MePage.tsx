@@ -7,7 +7,7 @@ import {useUser} from '../context/UserContext';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
 import {useAuth} from '../auth';
-import {SITE_BASE_URL} from '@shared/constants';
+import {getSiteBaseUrl} from '@shared/constants';
 
 const MePage: React.FC = () => {
     const {user, loading, clearUser} = useUser();
@@ -181,7 +181,7 @@ const MePage: React.FC = () => {
                                         size="small"
                                         variant="outlined"
                                         startIcon={<AddIcon sx={{fontSize: 16}}/>}
-                                        onClick={() => void open(`${SITE_BASE_URL}/profile/general?open_top_up=1`)}
+                                        onClick={() => void open(`${getSiteBaseUrl()}/profile/general?open_top_up=1`)}
                                         sx={{
                                             fontSize: 11,
                                             py: 0.25,

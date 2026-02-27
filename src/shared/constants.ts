@@ -1,10 +1,65 @@
 export const APP_NAME = 'Winky';
-export const SITE_BASE_URL = 'https://xlartas.com';
-export const WS_BASE_URL = 'wss://xlartas.com';
-export const API_BASE_URL = `${SITE_BASE_URL}/api/v1`;
-export const AUTH_ENDPOINT = `${API_BASE_URL}/auth/login/`;
-export const AUTH_REFRESH_ENDPOINT = `${API_BASE_URL}/auth/refresh/`;
-export const ME_ENDPOINT = `${API_BASE_URL}/me/`;
+export const BACKEND_DOMAINS = ['xlartas.com', 'xlartas.ru'] as const;
+export type BackendDomain = (typeof BACKEND_DOMAINS)[number];
+export const DEFAULT_BACKEND_DOMAIN: BackendDomain = 'xlartas.com';
+
+const BACKEND_DOMAIN_STORAGE_KEY = 'winky.backend.domain';
+
+const resolveBackendDomain = (domain: string | null | undefined): BackendDomain =>
+    domain === 'xlartas.ru' ? 'xlartas.ru' : DEFAULT_BACKEND_DOMAIN;
+
+const readStoredBackendDomain = (): BackendDomain => {
+    if (typeof window === 'undefined') return DEFAULT_BACKEND_DOMAIN;
+    try {
+        return resolveBackendDomain(window.localStorage?.getItem(BACKEND_DOMAIN_STORAGE_KEY));
+    } catch {
+        return DEFAULT_BACKEND_DOMAIN;
+    }
+};
+
+const persistBackendDomain = (domain: BackendDomain): void => {
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage?.setItem(BACKEND_DOMAIN_STORAGE_KEY, domain);
+    } catch {
+        // Ignore persistence failures (private mode, blocked storage).
+    }
+};
+
+let currentBackendDomain: BackendDomain = readStoredBackendDomain();
+
+export let SITE_BASE_URL = `https://${currentBackendDomain}`;
+export let WS_BASE_URL = `wss://${currentBackendDomain}`;
+export let API_BASE_URL = `${SITE_BASE_URL}/api/v1`;
+export let AUTH_ENDPOINT = `${API_BASE_URL}/auth/login/`;
+export let AUTH_REFRESH_ENDPOINT = `${API_BASE_URL}/auth/refresh/`;
+export let ME_ENDPOINT = `${API_BASE_URL}/me/`;
+
+const syncBaseUrls = (): void => {
+    SITE_BASE_URL = `https://${currentBackendDomain}`;
+    WS_BASE_URL = `wss://${currentBackendDomain}`;
+    API_BASE_URL = `${SITE_BASE_URL}/api/v1`;
+    AUTH_ENDPOINT = `${API_BASE_URL}/auth/login/`;
+    AUTH_REFRESH_ENDPOINT = `${API_BASE_URL}/auth/refresh/`;
+    ME_ENDPOINT = `${API_BASE_URL}/me/`;
+};
+
+export const getBackendDomain = (): BackendDomain => currentBackendDomain;
+
+export const setBackendDomain = (domain: string | null | undefined): BackendDomain => {
+    const resolved = resolveBackendDomain(domain);
+    currentBackendDomain = resolved;
+    persistBackendDomain(resolved);
+    syncBaseUrls();
+    return resolved;
+};
+
+export const getSiteBaseUrl = (domain?: string | null): string => `https://${resolveBackendDomain(domain ?? currentBackendDomain)}`;
+export const getWsBaseUrl = (domain?: string | null): string => `wss://${resolveBackendDomain(domain ?? currentBackendDomain)}`;
+export const getApiBaseUrl = (domain?: string | null): string => `${getSiteBaseUrl(domain)}/api/v1`;
+export const getAuthEndpoint = (domain?: string | null): string => `${getApiBaseUrl(domain)}/auth/login/`;
+export const getAuthRefreshEndpoint = (domain?: string | null): string => `${getApiBaseUrl(domain)}/auth/refresh/`;
+export const getMeEndpoint = (domain?: string | null): string => `${getApiBaseUrl(domain)}/me/`;
 export const FAST_WHISPER_PORT = 8868;
 export const FAST_WHISPER_BASE_URL = `http://127.0.0.1:${FAST_WHISPER_PORT}`;
 export const FAST_WHISPER_TRANSCRIBE_ENDPOINT = `${FAST_WHISPER_BASE_URL}/v1/audio/transcriptions`;
@@ -119,5 +174,5 @@ export const SYSTEM_GROUP_ID = '00000000-0000-0000-0000-000000000000';
 export const getMediaUrl = (path: string | undefined | null): string | undefined => {
     if (!path) return undefined;
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    return `${SITE_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+    return `${getSiteBaseUrl()}${path.startsWith('/') ? '' : '/'}${path}`;
 };

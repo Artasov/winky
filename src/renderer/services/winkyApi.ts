@@ -5,7 +5,6 @@ import {
     FAST_WHISPER_TRANSCRIBE_ENDPOINT,
     FAST_WHISPER_TRANSCRIBE_TIMEOUT,
     LLM_GEMINI_API_MODELS,
-    ME_ENDPOINT,
     SPEECH_MODES
 } from '@shared/constants';
 import type {ActionConfig, ActionGroup, ActionIcon, AppConfig, User, WinkyNote, WinkyProfile} from '@shared/types';
@@ -90,7 +89,7 @@ const withAuthClient = async <T>(operation: (client: AxiosInstance, config: AppC
     if (!token) {
         throw new Error('Authentication is required.');
     }
-    const client = createApiClient(token);
+    const client = createApiClient(token, undefined, config.backendDomain);
     return operation(client, config);
 };
 

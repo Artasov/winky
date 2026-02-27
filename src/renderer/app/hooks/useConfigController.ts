@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useState} from 'react';
 import type {AppConfig} from '@shared/types';
+import {setBackendDomain} from '@shared/constants';
 
 const missingPreloadMessage = 'Preload script is not loaded.';
 
@@ -30,6 +31,7 @@ export const useConfigController = (): ConfigController => {
     const refreshConfig = useCallback(async () => {
         const api = ensurePreload();
         const result = await api.config.get();
+        setBackendDomain(result.backendDomain);
         setConfigState(result);
         setPreloadError(null);
         return result;
@@ -38,12 +40,14 @@ export const useConfigController = (): ConfigController => {
     const updateConfig = useCallback(async (partial: Partial<AppConfig>) => {
         const api = ensurePreload();
         const result = await api.config.update(partial);
+        setBackendDomain(result.backendDomain);
         setConfigState(result);
         setPreloadError(null);
         return result;
     }, [ensurePreload]);
 
     const setConfig = useCallback((next: AppConfig) => {
+        setBackendDomain(next.backendDomain);
         setConfigState(next);
     }, []);
 
@@ -53,6 +57,7 @@ export const useConfigController = (): ConfigController => {
             return;
         }
         const unsubscribe = subscribe((nextConfig: AppConfig) => {
+            setBackendDomain(nextConfig.backendDomain);
             setConfigState(nextConfig);
         });
         return () => {

@@ -1,7 +1,7 @@
 import type {BaseLLMService} from '../BaseLLMService';
-import {WS_BASE_URL} from '@shared/constants';
+import {getWsBaseUrl} from '@shared/constants';
 
-const WINKY_AI_LLM_WS_ENDPOINT = `${WS_BASE_URL}/ws/ai/llm/`;
+const getWinkyAiLlmWsEndpoint = (): string => `${getWsBaseUrl()}/ws/ai/llm/`;
 
 type AIWSEvent =
     | {event: 'start'; chat_id: string; user_message_id: string; model_level: string}
@@ -30,7 +30,7 @@ export abstract class WinkyLLMServiceBase implements BaseLLMService {
 
     async processStream(text: string, prompt: string, onChunk: (chunk: string) => void): Promise<string> {
         return new Promise((resolve, reject) => {
-            const wsUrl = `${WINKY_AI_LLM_WS_ENDPOINT}?token=${this.accessToken}`;
+            const wsUrl = `${getWinkyAiLlmWsEndpoint()}?token=${this.accessToken}`;
             const ws = new WebSocket(wsUrl);
 
             let fullContent = '';

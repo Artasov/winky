@@ -1,5 +1,8 @@
 #[allow(dead_code)]
 pub const APP_NAME: &str = "Winky";
+pub const BACKEND_DOMAIN_COM: &str = "xlartas.com";
+pub const BACKEND_DOMAIN_RU: &str = "xlartas.ru";
+pub const DEFAULT_BACKEND_DOMAIN: &str = BACKEND_DOMAIN_COM;
 pub const SITE_BASE_URL: &str = "https://xlartas.com";
 #[allow(dead_code)]
 pub const API_BASE_URL: &str = "https://xlartas.com/api/v1";

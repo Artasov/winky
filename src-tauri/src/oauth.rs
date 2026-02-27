@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::constants::SITE_BASE_URL;
+use crate::constants::{BACKEND_DOMAIN_RU, DEFAULT_BACKEND_DOMAIN};
 use crate::oauth_server;
 
 fn normalize_base(input: Option<String>) -> Option<String> {
@@ -18,6 +18,15 @@ fn normalize_base(input: Option<String>) -> Option<String> {
 
 fn env(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|value| !value.trim().is_empty())
+}
+
+fn resolve_site_base_by_domain(backend_domain: Option<&str>) -> String {
+    let resolved_domain = if backend_domain == Some(BACKEND_DOMAIN_RU) {
+        BACKEND_DOMAIN_RU
+    } else {
+        DEFAULT_BACKEND_DOMAIN
+    };
+    format!("https://{resolved_domain}")
 }
 
 /// Проверяет, запущено ли приложение с правами администратора
@@ -58,7 +67,7 @@ pub fn is_running_as_admin() -> bool {
 
 /// Строит URL для OAuth с учётом режима работы.
 /// При запуске от администратора использует HTTP callback вместо deep link.
-pub fn build_oauth_start_url(provider: &str) -> Result<String> {
+pub fn build_oauth_start_url(provider: &str, backend_domain: Option<&str>) -> Result<String> {
     let provider_lower = provider.to_lowercase();
     let key = format!("OAUTH_PROVIDER_URL_{}", provider_lower.to_uppercase());
     if let Some(override_url) = env(&key) {
@@ -69,7 +78,7 @@ pub fn build_oauth_start_url(provider: &str) -> Result<String> {
         .or_else(|| normalize_base(env("OAUTH_SITE_URL")))
         .or_else(|| normalize_base(env("OAUTH_BASE_URL")))
         .or_else(|| normalize_base(env("APP_BASE_URL")))
-        .unwrap_or_else(|| SITE_BASE_URL.to_string());
+        .unwrap_or_else(|| resolve_site_base_by_domain(backend_domain));
     
     let mut url = url::Url::parse(&base)?;
     url.set_path(&format!("/auth/oauth/{}/start", provider_lower));

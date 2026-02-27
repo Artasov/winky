@@ -3,9 +3,18 @@ import {Box, Button, Checkbox, FormControlLabel, MenuItem, Slider, TextField, Ty
 import {alpha} from '@mui/material/styles';
 import {useConfig} from '../context/ConfigContext';
 import {useToast} from '../context/ToastContext';
-import {LLM_API_MODELS, LLM_MODES, SPEECH_API_MODELS, SPEECH_MODES} from '@shared/constants';
+import {
+    getBackendDomain,
+    LLM_API_MODELS,
+    LLM_MODES,
+    setBackendDomain as applyBackendDomain,
+    SPEECH_API_MODELS,
+    SPEECH_MODES
+} from '@shared/constants';
+import type {BackendDomain} from '@shared/types';
 import ModelConfigForm, {ModelConfigFormData} from '../components/ModelConfigForm';
 import HotkeyInput from '../components/HotkeyInput';
+import BackendDomainSelect from '../components/BackendDomainSelect';
 
 const DEFAULT_MIC_HOTKEY = 'Alt+Q';
 
@@ -36,6 +45,7 @@ const SettingsPage: React.FC = () => {
     const [showAvatarVideo, setShowAvatarVideo] = useState(true);
     const [saveAudioHistory, setSaveAudioHistory] = useState(false);
     const [trimSilenceOnActions, setTrimSilenceOnActions] = useState(false);
+    const [backendDomain, setBackendDomainState] = useState<BackendDomain>(getBackendDomain());
     const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
 
     useEffect(() => {
@@ -61,6 +71,7 @@ const SettingsPage: React.FC = () => {
             setShowAvatarVideo(config.showAvatarVideo !== false);
             setSaveAudioHistory(Boolean(config.saveAudioHistory));
             setTrimSilenceOnActions(Boolean(config.trimSilenceOnActions));
+            setBackendDomainState(config.backendDomain);
         }
     }, [config]);
 
@@ -426,6 +437,22 @@ const SettingsPage: React.FC = () => {
         }
     };
 
+    const handleBackendDomainChange = async (nextValue: BackendDomain) => {
+        if (nextValue === backendDomain) return;
+        const previousValue = backendDomain;
+        setBackendDomainState(nextValue);
+        applyBackendDomain(nextValue);
+        try {
+            await updateConfig({backendDomain: nextValue});
+            showToast('Primary backend domain updated.', 'success');
+        } catch (error) {
+            console.error('[SettingsPage] Failed to update backend domain', error);
+            setBackendDomainState(previousValue);
+            applyBackendDomain(previousValue);
+            showToast('Failed to update backend domain.', 'error');
+        }
+    };
+
     const handleMicrophoneChange = async (event: ChangeEvent<HTMLInputElement>) => {
         const nextValue = event.target.value;
         try {
@@ -478,14 +505,16 @@ const SettingsPage: React.FC = () => {
                     };
                 }}
             >
-                <div className={'fc'}>
+                <div className={'fc mb-2'}>
                     <Typography variant="h6" color="text.primary" fontWeight={600}>
                         Application
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                        Control how Winky behaves together with your operating system.
-                    </Typography>
                 </div>
+
+                <BackendDomainSelect
+                    value={backendDomain}
+                    onChange={(nextValue) => void handleBackendDomainChange(nextValue)}
+                />
 
                 <div className={'fc gap-2'}>
                     <FormControlLabel
@@ -703,4 +732,3 @@ const SettingsPage: React.FC = () => {
 };
 
 export default SettingsPage;
-

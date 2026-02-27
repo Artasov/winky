@@ -317,6 +317,7 @@ async fn auth_consume_pending(
 #[tauri::command]
 async fn auth_start_oauth(
     app: tauri::AppHandle,
+    config_state: State<'_, Arc<ConfigState>>,
     queue: State<'_, Arc<AuthQueue>>,
     oauth_state: State<'_, Arc<OAuthServerState>>,
     provider: String,
@@ -357,7 +358,9 @@ async fn auth_start_oauth(
         logging::log_message("[auth_start_oauth] Not running as admin, using deep link");
     }
     
-    let url = oauth::build_oauth_start_url(&provider).map_err(|error| error.to_string())?;
+    let config = config_state.get().await;
+    let url = oauth::build_oauth_start_url(&provider, Some(config.backend_domain.as_str()))
+        .map_err(|error| error.to_string())?;
     logging::log_message(&format!("[auth_start_oauth] Opening OAuth URL: {}", url));
     app.opener()
         .open_url(url, None::<String>)

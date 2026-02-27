@@ -1,7 +1,7 @@
 import React from 'react';
 import {Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography} from '@mui/material';
 import {open} from '@tauri-apps/plugin-shell';
-import {SITE_BASE_URL} from '@shared/constants';
+import {getSiteBaseUrl} from '@shared/constants';
 
 interface NoCreditsModalProps {
     open: boolean;
@@ -10,7 +10,7 @@ interface NoCreditsModalProps {
 
 const NoCreditsModal: React.FC<NoCreditsModalProps> = ({open: isOpen, onClose}) => {
     const handleTopUp = () => {
-        void open(`${SITE_BASE_URL}/profile/general?open_top_up=1`);
+        void open(`${getSiteBaseUrl()}/profile/general?open_top_up=1`);
         onClose();
     };
 

@@ -2,7 +2,13 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::constants::{DEFAULT_LLM_MODEL, DEFAULT_MIC_ANCHOR, DEFAULT_SPEECH_MODEL};
+use crate::constants::{
+    BACKEND_DOMAIN_RU,
+    DEFAULT_BACKEND_DOMAIN,
+    DEFAULT_LLM_MODEL,
+    DEFAULT_MIC_ANCHOR,
+    DEFAULT_SPEECH_MODEL,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -88,6 +94,8 @@ pub struct WindowPosition {
 pub struct AppConfig {
     #[serde(default)]
     pub auth: AuthTokens,
+    #[serde(default = "default_backend_domain")]
+    pub backend_domain: String,
     #[serde(default)]
     pub setup_completed: bool,
     #[serde(default)]
@@ -142,6 +150,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             auth: AuthTokens::default(),
+            backend_domain: default_backend_domain(),
             setup_completed: false,
             speech: SpeechConfig::default(),
             llm: LlmConfig::default(),
@@ -194,8 +203,15 @@ fn default_notes_storage_mode() -> String {
     "api".to_string()
 }
 
+fn default_backend_domain() -> String {
+    DEFAULT_BACKEND_DOMAIN.to_string()
+}
+
 impl AppConfig {
     pub fn normalize(&mut self) {
+        if self.backend_domain != DEFAULT_BACKEND_DOMAIN && self.backend_domain != BACKEND_DOMAIN_RU {
+            self.backend_domain = default_backend_domain();
+        }
         if self.speech.mode.trim().is_empty() {
             self.speech.mode = speech_mode_default();
         }

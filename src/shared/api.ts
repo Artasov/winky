@@ -1,5 +1,5 @@
 import axios from 'axios';
-import {API_BASE_URL} from './constants';
+import {getApiBaseUrl} from './constants';
 
 type UnauthorizedHandler = () => void;
 const unauthorizedHandlers = new Set<UnauthorizedHandler>();
@@ -21,9 +21,13 @@ const emitUnauthorized = () => {
     });
 };
 
-export const createApiClient = (accessToken?: string, sendToRenderer?: (message: string, data?: any) => void) => {
+export const createApiClient = (
+    accessToken?: string,
+    sendToRenderer?: (message: string, data?: any) => void,
+    backendDomain?: string | null
+) => {
     const instance = axios.create({
-        baseURL: API_BASE_URL,
+        baseURL: getApiBaseUrl(backendDomain),
         headers: {
             'Content-Type': 'application/json'
         }

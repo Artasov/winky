@@ -1,4 +1,5 @@
 import {
+    BACKEND_DOMAINS,
     LLM_GEMINI_API_MODELS,
     LLM_LOCAL_MODELS,
     LLM_MODES,
@@ -12,6 +13,7 @@ import {
 
 export type TranscribeMode = (typeof SPEECH_MODES)[keyof typeof SPEECH_MODES];
 export type LLMMode = (typeof LLM_MODES)[keyof typeof LLM_MODES];
+export type BackendDomain = (typeof BACKEND_DOMAINS)[number];
 export type LLMModel =
     | (typeof LLM_WINKY_API_MODELS)[number]
     | (typeof LLM_OPENAI_API_MODELS)[number]
@@ -157,6 +159,7 @@ export interface ApiKeys {
 
 export interface AppConfig {
     auth: AuthTokens;
+    backendDomain: BackendDomain;
     setupCompleted: boolean;
     speech: {
         mode: TranscribeMode;

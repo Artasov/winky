@@ -1,5 +1,5 @@
 import axios, {AxiosRequestConfig} from 'axios';
-import {API_BASE_URL, AUTH_ENDPOINT, AUTH_REFRESH_ENDPOINT, ME_ENDPOINT} from '@shared/constants';
+import {getApiBaseUrl, getAuthEndpoint, getAuthRefreshEndpoint, getMeEndpoint} from '@shared/constants';
 import type {AuthTokens, User} from '@shared/types';
 import {TokenStorage} from './TokenStorage';
 
@@ -74,10 +74,8 @@ const normalizeError = (error: unknown): AuthError => {
 export class AuthService {
     private tokens: AuthTokens | null = null;
     private refreshPromise: Promise<string | null> | null = null;
-    private readonly baseUrl: string;
 
-    constructor(baseUrl: string = API_BASE_URL) {
-        this.baseUrl = baseUrl.replace(/\/$/, '');
+    constructor() {
         this.tokens = TokenStorage.read();
     }
 
@@ -101,7 +99,7 @@ export class AuthService {
 
     async login(email: string, password: string): Promise<User> {
         try {
-            const {data} = await axios.post(AUTH_ENDPOINT, {email, password}, {
+            const {data} = await axios.post(getAuthEndpoint(), {email, password}, {
                 headers: {'Content-Type': 'application/json', Accept: 'application/json'}
             });
             const tokens = this.parseTokenResponse(data);
@@ -130,7 +128,7 @@ export class AuthService {
 
         this.refreshPromise = (async () => {
             try {
-                const {data} = await axios.post(AUTH_REFRESH_ENDPOINT, {refresh: refreshToken}, {
+                const {data} = await axios.post(getAuthRefreshEndpoint(), {refresh: refreshToken}, {
                     headers: {'Content-Type': 'application/json'}
                 });
                 const tokens = this.parseTokenResponse(data);
@@ -148,7 +146,8 @@ export class AuthService {
     }
 
     async getCurrentUser(includeExtras: boolean = false): Promise<User> {
-        const url = includeExtras ? `${ME_ENDPOINT}?tiers_and_features=WINKY` : ME_ENDPOINT;
+        const baseMeEndpoint = getMeEndpoint();
+        const url = includeExtras ? `${baseMeEndpoint}?tiers_and_features=WINKY` : baseMeEndpoint;
         console.log('[AuthService] → [GET]', url);
         try {
             const result = await this.authenticatedRequest<User>({url, method: 'GET'});
@@ -170,7 +169,7 @@ export class AuthService {
         try {
             const response = await axios.request<T>({
                 ...config,
-                baseURL: this.baseUrl,
+                baseURL: getApiBaseUrl(),
                 headers: {
                     ...(config.headers ?? {}),
                     Authorization: `Bearer ${accessToken}`

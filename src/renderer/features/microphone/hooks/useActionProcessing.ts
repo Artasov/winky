@@ -1,7 +1,7 @@
 import {useCallback, type RefObject} from 'react';
 import type {ActionConfig, AppConfig} from '@shared/types';
 import {getCurrentWindow} from '@tauri-apps/api/window';
-import {LLM_WINKY_API_MODELS, SPEECH_WINKY_API_MODELS} from '@shared/constants';
+import {getSiteBaseUrl, LLM_WINKY_API_MODELS, SPEECH_WINKY_API_MODELS} from '@shared/constants';
 import {createNoteForMode, deriveNoteTitle, resolveNotesStorageMode} from '../../../services/notesService';
 import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, speechBridge} from '../../../services/winkyBridge';
 import {resultPageBridge} from '../../../services/resultPageBridge';
@@ -502,7 +502,7 @@ export const useActionProcessing = ({
 
             // Обработка ошибки 402 - недостаточно кредитов
             if (error?.response?.status === 402) {
-                errorMessage = 'Not enough credits. Top up your balance at xlartas.com/billing';
+                errorMessage = `Not enough credits. Top up your balance at ${getSiteBaseUrl()}/billing`;
                 showToast(errorMessage, 'error');
                 return;
             }

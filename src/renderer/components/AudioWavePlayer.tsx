@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useTheme} from '@mui/material/styles';
 
 const WAVE_MIN_HEIGHT = 3;
 const WAVE_MAX_HEIGHT = 20;
@@ -35,6 +36,8 @@ const AudioWavePlayer: React.FC<AudioWavePlayerProps> = ({
     onRetry,
     durationOverride
 }) => {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const rafRef = useRef<number | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -92,16 +95,16 @@ const AudioWavePlayer: React.FC<AudioWavePlayerProps> = ({
             setDuration((prev) => (Number.isFinite(audio.duration) ? audio.duration : prev));
             setCurrentTime(0);
         };
-    const handleDurationChange = () => {
-        setDuration((prev) => (Number.isFinite(audio.duration) ? audio.duration : prev));
-    };
+        const handleDurationChange = () => {
+            setDuration((prev) => (Number.isFinite(audio.duration) ? audio.duration : prev));
+        };
         const handleSeeked = () => {
             setCurrentTime(audio.currentTime);
         };
-    const handleTimeUpdate = () => {
-        setCurrentTime(audio.currentTime);
-        setDuration((prev) => (prev > 0 || !Number.isFinite(audio.duration) ? prev : audio.duration));
-    };
+        const handleTimeUpdate = () => {
+            setCurrentTime(audio.currentTime);
+            setDuration((prev) => (prev > 0 || !Number.isFinite(audio.duration) ? prev : audio.duration));
+        };
 
         audio.addEventListener('play', handlePlay);
         audio.addEventListener('pause', handlePause);
@@ -207,6 +210,8 @@ const AudioWavePlayer: React.FC<AudioWavePlayerProps> = ({
     const effectiveDuration = durationOverride && durationOverride > 0 ? durationOverride : duration;
     const progress = effectiveDuration > 0 ? clamp(currentTime / effectiveDuration, 0, 1) : 0;
     const activeBars = Math.round(progress * bars.length);
+    const activeBarClassName = isDark ? 'bg-white' : 'bg-primary-600';
+    const inactiveBarClassName = isDark ? 'bg-white/35' : 'bg-primary-200/70';
 
     return (
         <div className="frsc gap-3 w-full min-w-0">
@@ -249,7 +254,7 @@ const AudioWavePlayer: React.FC<AudioWavePlayerProps> = ({
                         return (
                             <span
                                 key={`wave-${index}`}
-                                className={`block w-full max-w-[6px] justify-self-center rounded-full transition-colors duration-150 ${active ? 'bg-primary-600' : 'bg-primary-200/70'}`}
+                                className={`block w-full max-w-[6px] justify-self-center rounded-full transition-colors duration-150 ${active ? activeBarClassName : inactiveBarClassName}`}
                                 style={{height: `${height}px`}}
                             />
                         );

@@ -442,18 +442,9 @@ const AppContent: React.FC = () => {
             navigate('/result');
         };
 
-        const handleNavigateToChat = (event: CustomEvent<{chatId: string}>) => {
-            const chatId = event.detail?.chatId;
-            if (chatId) {
-                navigate(`/chats/${chatId}`);
-            }
-        };
-
         window.addEventListener('result-page:open', handleOpenResult);
-        window.addEventListener('navigate-to-chat', handleNavigateToChat as EventListener);
         return () => {
             window.removeEventListener('result-page:open', handleOpenResult);
-            window.removeEventListener('navigate-to-chat', handleNavigateToChat as EventListener);
         };
     }, [windowIdentity.isAuxWindow, navigate]);
 

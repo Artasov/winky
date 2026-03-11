@@ -33,6 +33,8 @@ use history::{
     save_history_audio,
     ActionHistoryEntry,
     ActionHistoryInput,
+    ActionHistoryUpdateInput,
+    update_history,
 };
 use notes::{
     bulk_delete_notes,
@@ -193,6 +195,19 @@ async fn history_add(
         .await
         .map_err(|error| error.to_string())?;
     app.emit("history:updated", json!({"type": "added", "entry": &entry}))
+        .map_err(|error| error.to_string())?;
+    Ok(entry)
+}
+
+#[tauri::command]
+async fn history_update(
+    app: tauri::AppHandle,
+    payload: ActionHistoryUpdateInput,
+) -> Result<ActionHistoryEntry, String> {
+    let entry = update_history(&app, payload)
+        .await
+        .map_err(|error| error.to_string())?;
+    app.emit("history:updated", json!({"type": "updated", "entry": &entry}))
         .map_err(|error| error.to_string())?;
     Ok(entry)
 }
@@ -954,6 +969,7 @@ fn main() {
             config_path,
             history_get,
             history_add,
+            history_update,
             history_clear,
             history_save_audio,
             history_read_audio,

@@ -14,12 +14,21 @@ type TrimResult = {
     isSilent: boolean;
 };
 
+type SilenceAnalysis = {
+    isSilent: boolean;
+    maxRms: number;
+};
+
 const DEFAULT_THRESHOLD = 0.015;
 const DEFAULT_THRESHOLD_RATIO = 0.05;
 const DEFAULT_MIN_THRESHOLD = 0.01;
 const DEFAULT_PADDING_MS = 10;
 const DEFAULT_MIN_DURATION_MS = 120;
 const DEFAULT_MIN_SEGMENT_MS = 80;
+const SPEECH_WINDOW_THRESHOLD = 0.05;
+const AVG_RMS_THRESHOLD = 0.025;
+const LOUD_WINDOWS_PERCENT_THRESHOLD = 8;
+const MAX_RMS_THRESHOLD = 0.15;
 
 const resolveAudioContext = () => {
     const AudioContextCtor = (window as typeof window & {webkitAudioContext?: typeof AudioContext}).AudioContext
@@ -36,11 +45,56 @@ const decodeAudioBuffer = async (data: ArrayBuffer): Promise<AudioBuffer | null>
         return null;
     }
     try {
-        const cloned = data.slice(0);
-        return await audioContext.decodeAudioData(cloned);
+        return await audioContext.decodeAudioData(data.slice(0));
     } finally {
         audioContext.close().catch(() => {});
     }
+};
+
+const toStandaloneArrayBuffer = (data: ArrayBuffer | Uint8Array): ArrayBuffer => {
+    if (data instanceof Uint8Array) {
+        return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    }
+    return data.slice(0);
+};
+
+const analyzeSilence = (buffer: AudioBuffer): SilenceAnalysis => {
+    const channelData = buffer.getChannelData(0);
+    const sampleRate = buffer.sampleRate;
+    const windowSize = Math.max(256, Math.floor(sampleRate * 0.02));
+    let maxRms = 0;
+    let sumRms = 0;
+    let windowCount = 0;
+    let loudWindows = 0;
+
+    for (let offset = 0; offset < channelData.length; offset += windowSize) {
+        const end = Math.min(channelData.length, offset + windowSize);
+        let sumSquares = 0;
+        for (let i = offset; i < end; i += 1) {
+            const value = channelData[i];
+            sumSquares += value * value;
+        }
+        const rms = Math.sqrt(sumSquares / Math.max(1, end - offset));
+        sumRms += rms;
+        windowCount += 1;
+        if (rms >= SPEECH_WINDOW_THRESHOLD) {
+            loudWindows += 1;
+        }
+        if (rms > maxRms) {
+            maxRms = rms;
+        }
+    }
+
+    const avgRms = windowCount > 0 ? sumRms / windowCount : 0;
+    const loudWindowsPercent = windowCount > 0 ? (loudWindows / windowCount) * 100 : 0;
+    const isSilentByAverage = avgRms < AVG_RMS_THRESHOLD;
+    const isSilentByLoudWindows = loudWindowsPercent < LOUD_WINDOWS_PERCENT_THRESHOLD;
+    const hasLoudPeaks = maxRms >= MAX_RMS_THRESHOLD;
+
+    return {
+        isSilent: isSilentByAverage && isSilentByLoudWindows && !hasLoudPeaks,
+        maxRms
+    };
 };
 
 const findTrimSegments = (
@@ -105,23 +159,6 @@ const findTrimSegments = (
     }
 
     return merged;
-};
-
-const sliceAudioBuffer = (buffer: AudioBuffer, start: number, end: number) => {
-    const length = Math.max(0, end - start);
-    if (length <= 0) {
-        return null;
-    }
-    const trimmed = new AudioBuffer({
-        length,
-        numberOfChannels: buffer.numberOfChannels,
-        sampleRate: buffer.sampleRate
-    });
-    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
-        const source = buffer.getChannelData(channel).subarray(start, end);
-        trimmed.getChannelData(channel).set(source);
-    }
-    return trimmed;
 };
 
 const concatAudioSegments = (buffer: AudioBuffer, segments: Array<{start: number; end: number}>) => {
@@ -206,55 +243,28 @@ const encodeWav = (buffer: AudioBuffer): ArrayBuffer => {
 
 export const isAudioSilent = async (blob: Blob): Promise<boolean> => {
     try {
-        const buffer = await blob.arrayBuffer();
-        const decoded = await decodeAudioBuffer(buffer);
+        const decoded = await decodeAudioBuffer(await blob.arrayBuffer());
         if (!decoded) {
             console.warn('[audioProcessing] isAudioSilent: failed to decode, treating as silent');
             return true;
         }
-
-        const channelData = decoded.getChannelData(0);
-        const sampleRate = decoded.sampleRate;
-        const windowSize = Math.max(256, Math.floor(sampleRate * 0.02));
-
-        let maxRms = 0;
-        let sumRms = 0;
-        let windowCount = 0;
-        const rmsValues: number[] = [];
-
-        for (let offset = 0; offset < channelData.length; offset += windowSize) {
-            const end = Math.min(channelData.length, offset + windowSize);
-            let sumSquares = 0;
-            for (let i = offset; i < end; i += 1) {
-                const value = channelData[i];
-                sumSquares += value * value;
-            }
-            const rms = Math.sqrt(sumSquares / Math.max(1, end - offset));
-            rmsValues.push(rms);
-            sumRms += rms;
-            windowCount += 1;
-            if (rms > maxRms) {
-                maxRms = rms;
-            }
-        }
-
-        const avgRms = windowCount > 0 ? sumRms / windowCount : 0;
-        const SPEECH_WINDOW_THRESHOLD = 0.05;
-        const loudWindows = rmsValues.filter(rms => rms >= SPEECH_WINDOW_THRESHOLD).length;
-        const loudWindowsPercent = windowCount > 0 ? (loudWindows / windowCount) * 100 : 0;
-
-        const AVG_RMS_THRESHOLD = 0.025;
-        const LOUD_WINDOWS_PERCENT_THRESHOLD = 8;
-        const MAX_RMS_THRESHOLD = 0.15;
-
-        const isSilentByAverage = avgRms < AVG_RMS_THRESHOLD;
-        const isSilentByLoudWindows = loudWindowsPercent < LOUD_WINDOWS_PERCENT_THRESHOLD;
-        const hasLoudPeaks = maxRms >= MAX_RMS_THRESHOLD;
-
-        const isSilent = isSilentByAverage && isSilentByLoudWindows && !hasLoudPeaks;
-        return isSilent;
+        return analyzeSilence(decoded).isSilent;
     } catch (error) {
         console.warn('[audioProcessing] Failed to check if audio is silent', error);
+        return true;
+    }
+};
+
+export const isAudioDataSilent = async (data: ArrayBuffer | Uint8Array): Promise<boolean> => {
+    try {
+        const decoded = await decodeAudioBuffer(toStandaloneArrayBuffer(data));
+        if (!decoded) {
+            console.warn('[audioProcessing] isAudioDataSilent: failed to decode, treating as silent');
+            return true;
+        }
+        return analyzeSilence(decoded).isSilent;
+    } catch (error) {
+        console.warn('[audioProcessing] Failed to check raw audio data for silence', error);
         return true;
     }
 };
@@ -269,63 +279,15 @@ export const trimSilenceFromAudioBlob = async (
     const thresholdRatio = options.thresholdRatio ?? DEFAULT_THRESHOLD_RATIO;
     const minThreshold = options.minThreshold ?? DEFAULT_MIN_THRESHOLD;
     const explicitThreshold = options.threshold ?? DEFAULT_THRESHOLD;
-    const originalBuffer = await blob.arrayBuffer();
 
     try {
-        const decoded = await decodeAudioBuffer(originalBuffer);
+        const decoded = await decodeAudioBuffer(await blob.arrayBuffer());
         if (!decoded) {
             const silentBuffer = createSilentBuffer(16000, minDurationMs);
             return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
         }
 
-        const channelData = decoded.getChannelData(0);
-        const sampleRate = decoded.sampleRate;
-        const windowSize = Math.max(256, Math.floor(sampleRate * 0.02));
-
-        let maxRms = 0;
-        let sumRms = 0;
-        let windowCount = 0;
-        const rmsValues: number[] = [];
-
-        for (let offset = 0; offset < channelData.length; offset += windowSize) {
-            const end = Math.min(channelData.length, offset + windowSize);
-            let sumSquares = 0;
-            for (let i = offset; i < end; i += 1) {
-                const value = channelData[i];
-                sumSquares += value * value;
-            }
-            const rms = Math.sqrt(sumSquares / Math.max(1, end - offset));
-            rmsValues.push(rms);
-            sumRms += rms;
-            windowCount += 1;
-            if (rms > maxRms) {
-                maxRms = rms;
-            }
-        }
-
-        // Вычисляем статистику для более надежного определения тишины
-        const avgRms = windowCount > 0 ? sumRms / windowCount : 0;
-
-        // Считаем процент "громких" окон (где есть речь или громкие звуки)
-        const SPEECH_WINDOW_THRESHOLD = 0.05; // Порог для определения "громкого" окна (снижен для тихой речи)
-        const loudWindows = rmsValues.filter(rms => rms >= SPEECH_WINDOW_THRESHOLD).length;
-        const loudWindowsPercent = windowCount > 0 ? (loudWindows / windowCount) * 100 : 0;
-
-        // Проверяем, является ли аудио тишиной по нескольким критериям:
-        // 1. Средний RMS должен быть низким (основной критерий)
-        // 2. Процент громких окон должен быть низким (защита от случайных щелчков)
-        // 3. Максимальный RMS не должен быть слишком высоким (если есть явная речь)
-        const AVG_RMS_THRESHOLD = 0.025; // Средний RMS для речи обычно > 0.03-0.05
-        const LOUD_WINDOWS_PERCENT_THRESHOLD = 8; // Если > 8% окон громкие, вероятно есть речь
-        const MAX_RMS_THRESHOLD = 0.15; // Если максимум высокий, точно не тишина
-
-        const isSilentByAverage = avgRms < AVG_RMS_THRESHOLD;
-        const isSilentByLoudWindows = loudWindowsPercent < LOUD_WINDOWS_PERCENT_THRESHOLD;
-        const hasLoudPeaks = maxRms >= MAX_RMS_THRESHOLD;
-
-        // Тишина только если средний низкий И мало громких окон И нет явных пиков речи
-        const isSilent = isSilentByAverage && isSilentByLoudWindows && !hasLoudPeaks;
-
+        const {isSilent, maxRms} = analyzeSilence(decoded);
         if (isSilent) {
             const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
             return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
@@ -352,8 +314,7 @@ export const trimSilenceFromAudioBlob = async (
             return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
         }
 
-        const wavData = encodeWav(combined);
-        return {audioData: wavData, mimeType: 'audio/wav', trimmed: true, isSilent: false};
+        return {audioData: encodeWav(combined), mimeType: 'audio/wav', trimmed: true, isSilent: false};
     } catch (error) {
         console.warn('[audioProcessing] Failed to trim silence, sending minimal audio', error);
         const silentBuffer = createSilentBuffer(16000, minDurationMs);

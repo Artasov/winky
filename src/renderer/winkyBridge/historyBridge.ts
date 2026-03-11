@@ -4,6 +4,7 @@ import type {ActionHistoryEntry} from '@shared/types';
 
 export type HistoryUpdateEvent =
     | { type: 'added'; entry: ActionHistoryEntry }
+    | { type: 'updated'; entry: ActionHistoryEntry }
     | { type: 'cleared' };
 
 type HistoryAddPayload = {
@@ -12,14 +13,28 @@ type HistoryAddPayload = {
     action_prompt?: string | null;
     transcription: string;
     llm_response?: string | null;
+    is_streaming?: boolean;
     result_text: string;
     audio_path?: string | null;
+};
+
+type HistoryUpdatePayload = {
+    id: string;
+    action_name?: string;
+    action_prompt?: string;
+    transcription?: string;
+    llm_response?: string;
+    is_streaming?: boolean;
+    result_text?: string;
+    audio_path?: string;
 };
 
 export const historyBridge = {
     get: (): Promise<ActionHistoryEntry[]> => invoke('history_get'),
     add: (payload: HistoryAddPayload): Promise<ActionHistoryEntry> =>
         invoke('history_add', {payload}),
+    update: (payload: HistoryUpdatePayload): Promise<ActionHistoryEntry> =>
+        invoke('history_update', {payload}),
     saveAudio: (audioData: ArrayBuffer, mimeType?: string): Promise<string> => {
         const audio = new Uint8Array(audioData);
         return invoke('history_save_audio', {payload: {audio, mimeType}});

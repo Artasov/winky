@@ -131,6 +131,7 @@ export interface ActionHistoryEntry {
     action_prompt?: string | null;
     transcription: string;
     llm_response?: string | null;
+    is_streaming?: boolean;
     result_text: string;
     audio_path?: string | null;
 }

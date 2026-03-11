@@ -21,6 +21,8 @@ pub struct ActionHistoryEntry {
     pub action_prompt: Option<String>,
     pub transcription: String,
     pub llm_response: Option<String>,
+    #[serde(default)]
+    pub is_streaming: bool,
     pub result_text: String,
     pub audio_path: Option<String>,
 }
@@ -33,7 +35,21 @@ pub struct ActionHistoryInput {
     pub action_prompt: Option<String>,
     pub transcription: String,
     pub llm_response: Option<String>,
+    pub is_streaming: Option<bool>,
     pub result_text: String,
+    pub audio_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ActionHistoryUpdateInput {
+    pub id: String,
+    pub action_name: Option<String>,
+    pub action_prompt: Option<String>,
+    pub transcription: Option<String>,
+    pub llm_response: Option<String>,
+    pub is_streaming: Option<bool>,
+    pub result_text: Option<String>,
     pub audio_path: Option<String>,
 }
 
@@ -128,6 +144,7 @@ pub async fn append_history(app: &AppHandle, payload: ActionHistoryInput) -> Res
         action_prompt: payload.action_prompt,
         transcription: payload.transcription,
         llm_response: payload.llm_response,
+        is_streaming: payload.is_streaming.unwrap_or(false),
         result_text: payload.result_text,
         audio_path: payload.audio_path,
     };
@@ -135,6 +152,40 @@ pub async fn append_history(app: &AppHandle, payload: ActionHistoryInput) -> Res
     entries.insert(0, entry.clone());
     write_history(app, &entries).await?;
     Ok(entry)
+}
+
+pub async fn update_history(app: &AppHandle, payload: ActionHistoryUpdateInput) -> Result<ActionHistoryEntry> {
+    let mut entries = read_history(app).await?;
+    let entry = entries
+        .iter_mut()
+        .find(|entry| entry.id == payload.id)
+        .ok_or_else(|| anyhow!("History entry {} not found", payload.id))?;
+
+    if let Some(action_name) = payload.action_name {
+        entry.action_name = action_name;
+    }
+    if let Some(action_prompt) = payload.action_prompt {
+        entry.action_prompt = Some(action_prompt);
+    }
+    if let Some(transcription) = payload.transcription {
+        entry.transcription = transcription;
+    }
+    if let Some(llm_response) = payload.llm_response {
+        entry.llm_response = Some(llm_response);
+    }
+    if let Some(is_streaming) = payload.is_streaming {
+        entry.is_streaming = is_streaming;
+    }
+    if let Some(result_text) = payload.result_text {
+        entry.result_text = result_text;
+    }
+    if let Some(audio_path) = payload.audio_path {
+        entry.audio_path = Some(audio_path);
+    }
+
+    let updated_entry = entry.clone();
+    write_history(app, &entries).await?;
+    Ok(updated_entry)
 }
 
 pub async fn clear_history(app: &AppHandle) -> Result<()> {

@@ -113,6 +113,8 @@ declare global {
         openSettings(): Promise<void>;
 
         navigate(route: string): Promise<void>;
+
+        openRoute(route: string): Promise<void>;
     }
 
     interface WinkyNotificationsAPI {
@@ -233,8 +235,20 @@ declare global {
             action_prompt?: string | null;
             transcription: string;
             llm_response?: string | null;
+            is_streaming?: boolean;
             result_text: string;
             audio_path?: string | null;
+        }): Promise<ActionHistoryEntry>;
+
+        update(payload: {
+            id: string;
+            action_name?: string;
+            action_prompt?: string;
+            transcription?: string;
+            llm_response?: string;
+            is_streaming?: boolean;
+            result_text?: string;
+            audio_path?: string;
         }): Promise<ActionHistoryEntry>;
 
         saveAudio(audioData: ArrayBuffer, mimeType?: string): Promise<string>;
@@ -243,7 +257,11 @@ declare global {
 
         clear(): Promise<void>;
 
-        subscribe(callback: (event: { type: 'added'; entry: ActionHistoryEntry } | { type: 'cleared' }) => void): () => void;
+        subscribe(callback: (event:
+            { type: 'added'; entry: ActionHistoryEntry }
+            | { type: 'updated'; entry: ActionHistoryEntry }
+            | { type: 'cleared' }
+        ) => void): () => void;
     }
 
     interface WinkyNotesAPI {

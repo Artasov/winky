@@ -1,9 +1,8 @@
 import {useCallback, type RefObject} from 'react';
-import type {ActionConfig, AppConfig} from '@shared/types';
-import {getCurrentWindow} from '@tauri-apps/api/window';
+import type {ActionConfig, ActionHistoryEntry, AppConfig} from '@shared/types';
 import {getSiteBaseUrl, LLM_WINKY_API_MODELS, SPEECH_WINKY_API_MODELS} from '@shared/constants';
 import {createNoteForMode, deriveNoteTitle, resolveNotesStorageMode} from '../../../services/notesService';
-import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, speechBridge} from '../../../services/winkyBridge';
+import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, speechBridge, windowBridge} from '../../../services/winkyBridge';
 import {resultPageBridge} from '../../../services/resultPageBridge';
 import {trimSilenceFromAudioBlob, isAudioSilent} from '../services/audioProcessing';
 import {winkyTranscribe, winkyLLMStream} from '../../../services/winkyAiApi';
@@ -136,13 +135,31 @@ export const useActionProcessing = ({
             action_prompt?: string | null;
             transcription: string;
             llm_response?: string | null;
+            is_streaming?: boolean;
             result_text: string;
             audio_path?: string | null;
-        }) => {
+        }): Promise<ActionHistoryEntry | null> => {
             try {
-                await historyBridge.add(payload);
+                return await historyBridge.add(payload);
             } catch (error) {
                 console.warn('[useActionProcessing] Failed to save history', error);
+                return null;
+            }
+        };
+
+        const updateHistory = async (payload: {
+            id: string;
+            transcription?: string;
+            llm_response?: string;
+            is_streaming?: boolean;
+            result_text?: string;
+            audio_path?: string;
+        }): Promise<ActionHistoryEntry | null> => {
+            try {
+                return await historyBridge.update(payload);
+            } catch (error) {
+                console.warn('[useActionProcessing] Failed to update history', error);
+                return null;
             }
         };
 
@@ -169,6 +186,10 @@ export const useActionProcessing = ({
             }
         };
 
+        const openHistoryEntry = async (entryId: string) => {
+            await windowBridge.openRoute(`/history?entry=${encodeURIComponent(entryId)}`);
+        };
+
         try {
             const shouldTrimSilence = config.trimSilenceOnActions === true;
             const shouldSaveAudio = config.saveAudioHistory === true;
@@ -188,7 +209,7 @@ export const useActionProcessing = ({
                 audioData = trimmed.audioData;
                 mimeType = trimmed.mimeType;
                 isSilent = trimmed.isSilent;
-                if (shouldSaveAudio) {
+                if (shouldSaveAudio && !isSilent) {
                     audioForSave = trimmed.audioData;
                     saveMimeType = trimmed.mimeType;
                 }
@@ -197,7 +218,7 @@ export const useActionProcessing = ({
                 isSilent = await isAudioSilent(blob);
                 const originalAudioData = await blob.arrayBuffer();
                 audioData = originalAudioData;
-                if (shouldSaveAudio) {
+                if (shouldSaveAudio && !isSilent) {
                     audioForSave = originalAudioData;
                     saveMimeType = mimeType;
                 }
@@ -347,8 +368,78 @@ export const useActionProcessing = ({
                 const modelLevel = llmModel === 'winky-high' ? 'high' : 'low';
 
                 let streamedResponse = '';
+                let historyEntry: ActionHistoryEntry | null = null;
+                let historyUpdateTimer: number | null = null;
+                let pendingHistoryPayload: {
+                    transcription?: string;
+                    llm_response?: string;
+                    is_streaming?: boolean;
+                    result_text?: string;
+                    audio_path?: string;
+                } | null = null;
+                let historyUpdatePromise = Promise.resolve();
+
+                const clearHistoryUpdateTimer = () => {
+                    if (historyUpdateTimer === null) {
+                        return;
+                    }
+                    clearTimeout(historyUpdateTimer);
+                    historyUpdateTimer = null;
+                };
+
+                const flushHistoryUpdate = async () => {
+                    if (!historyEntry || !pendingHistoryPayload) {
+                        return;
+                    }
+                    const payload = pendingHistoryPayload;
+                    pendingHistoryPayload = null;
+                    const updatedEntry = await updateHistory({id: historyEntry.id, ...payload});
+                    if (updatedEntry) {
+                        historyEntry = updatedEntry;
+                    }
+                };
+
+                const scheduleHistoryUpdate = (payload: {
+                    transcription?: string;
+                    llm_response?: string;
+                    is_streaming?: boolean;
+                    result_text?: string;
+                    audio_path?: string;
+                }) => {
+                    if (!historyEntry) {
+                        return;
+                    }
+                    pendingHistoryPayload = pendingHistoryPayload
+                        ? {...pendingHistoryPayload, ...payload}
+                        : {...payload};
+                    if (historyUpdateTimer !== null) {
+                        return;
+                    }
+                    historyUpdateTimer = window.setTimeout(() => {
+                        historyUpdateTimer = null;
+                        historyUpdatePromise = historyUpdatePromise.then(flushHistoryUpdate);
+                    }, 120);
+                };
 
                 try {
+                    const actionAudioPath = await ensureAudioSaved();
+
+                    if (action.show_results) {
+                        historyEntry = await recordHistory({
+                            action_id: action.id,
+                            action_name: action.name,
+                            action_prompt: action.prompt?.trim() || null,
+                            transcription: transcriptionForOutput,
+                            llm_response: null,
+                            is_streaming: true,
+                            result_text: transcriptionForOutput,
+                            audio_path: actionAudioPath
+                        });
+                        if (historyEntry) {
+                            await openHistoryEntry(historyEntry.id);
+                        }
+                    }
+
                     const result = await winkyLLMStream(
                         {
                             prompt: fullPrompt,
@@ -357,10 +448,24 @@ export const useActionProcessing = ({
                         authToken,
                         (chunk) => {
                             streamedResponse += chunk;
+                            if (action.show_results && historyEntry) {
+                                scheduleHistoryUpdate({
+                                    transcription: transcriptionForOutput,
+                                    llm_response: streamedResponse,
+                                    is_streaming: true,
+                                    result_text: streamedResponse,
+                                    audio_path: actionAudioPath ?? undefined
+                                });
+                            }
                         }
                     );
 
-                    const finalResponse = result.content;
+                    clearHistoryUpdateTimer();
+                    await historyUpdatePromise;
+                    await flushHistoryUpdate();
+
+                    const finalResponse = result.content?.trim().length ? result.content : streamedResponse;
+                    const resultText = finalResponse.trim().length > 0 ? finalResponse : transcriptionForOutput;
 
                     if (action.auto_copy_result) {
                         await copyWithRetries({
@@ -371,27 +476,53 @@ export const useActionProcessing = ({
                         });
                     }
 
-                    await recordHistory({
-                        action_id: action.id,
-                        action_name: action.name,
-                        action_prompt: action.prompt?.trim() || null,
-                        transcription: transcriptionForOutput,
-                        llm_response: finalResponse,
-                        result_text: finalResponse,
-                        audio_path: await ensureAudioSaved()
-                    });
-                    await saveQuickNote(finalResponse);
+                    if (historyEntry) {
+                        const updatedEntry = await updateHistory({
+                            id: historyEntry.id,
+                            transcription: transcriptionForOutput,
+                            llm_response: finalResponse,
+                            is_streaming: false,
+                            result_text: resultText,
+                            audio_path: actionAudioPath ?? undefined
+                        });
+                        if (updatedEntry) {
+                            historyEntry = updatedEntry;
+                        }
+                    } else {
+                        historyEntry = await recordHistory({
+                            action_id: action.id,
+                            action_name: action.name,
+                            action_prompt: action.prompt?.trim() || null,
+                            transcription: transcriptionForOutput,
+                            llm_response: finalResponse || null,
+                            is_streaming: false,
+                            result_text: resultText,
+                            audio_path: actionAudioPath
+                        });
+                    }
+                    await saveQuickNote(resultText);
                     clearContext();
 
                     // Переходим в чат если show_results
-                    if (action.show_results && result.chat_id) {
-                        void getCurrentWindow().show();
-                        void getCurrentWindow().setFocus();
-                        window.dispatchEvent(new CustomEvent('navigate-to-chat', {detail: {chatId: result.chat_id}}));
+                    if (action.show_results) {
+                        if (historyEntry) {
+                            await openHistoryEntry(historyEntry.id);
+                        } else if (result.chat_id) {
+                            await windowBridge.openRoute(`/chats/${encodeURIComponent(result.chat_id)}`);
+                        }
                     }
 
                     await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef, debug: true});
                 } catch (error: any) {
+                    clearHistoryUpdateTimer();
+                    await historyUpdatePromise;
+                    await flushHistoryUpdate();
+                    if (historyEntry) {
+                        await updateHistory({
+                            id: historyEntry.id,
+                            is_streaming: false
+                        });
+                    }
                     if (error?.response?.status === 402) {
                         throw error;
                     }
@@ -644,30 +775,62 @@ const playCompletionSound = async ({
         }
         
         const playHtmlAudio = (): Promise<boolean> => new Promise((resolve) => {
-            const onSuccess = () => {
-                if (debug) {
-                    console.log('[useActionProcessing] Sound played via HTML Audio, volume:', volumePreference);
+            let settled = false;
+            let timeoutId: number | null = null;
+            let verifyId: number | null = null;
+
+            const finish = (success: boolean, error?: unknown) => {
+                if (settled) {
+                    return;
                 }
-                resolve(true);
-            };
-            const onError = (error: unknown) => {
+                settled = true;
+                if (timeoutId !== null) {
+                    clearTimeout(timeoutId);
+                }
+                if (verifyId !== null) {
+                    clearTimeout(verifyId);
+                }
+                if (success) {
+                    if (debug) {
+                        console.log('[useActionProcessing] Sound played via HTML Audio, volume:', volumePreference);
+                    }
+                    resolve(true);
+                    return;
+                }
                 if (debug) {
                     console.warn('[useActionProcessing] HTML Audio failed:', error);
                 }
                 resolve(false);
             };
-            
+
+            const startPlayback = () => {
+                const before = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+                audio.play()
+                    .then(() => {
+                        // In some autostart scenarios play() resolves but sound does not actually start.
+                        verifyId = window.setTimeout(() => {
+                            const after = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+                            const progressed = after > before + 0.01;
+                            const active = !audio.paused || !audio.ended;
+                            if (progressed || active) {
+                                finish(true);
+                                return;
+                            }
+                            finish(false, 'playback did not progress');
+                        }, 220);
+                    })
+                    .catch((error) => finish(false, error));
+            };
+
             if (audio.readyState >= 2) {
-                audio.play().then(onSuccess).catch(onError);
+                startPlayback();
             } else {
                 audio.load();
-                audio.addEventListener('canplay', () => {
-                    audio.play().then(onSuccess).catch(onError);
-                }, {once: true});
-                audio.addEventListener('error', () => onError('load error'), {once: true});
-                // Таймаут на случай если аудио не загрузится
-                setTimeout(() => onError('timeout'), 3000);
+                audio.addEventListener('canplay', startPlayback, {once: true});
+                audio.addEventListener('error', () => finish(false, 'load error'), {once: true});
             }
+
+            timeoutId = window.setTimeout(() => finish(false, 'timeout'), 3000);
         });
         
         const htmlSuccess = await playHtmlAudio();

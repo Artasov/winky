@@ -1,11 +1,15 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import ReactMarkdown from 'react-markdown';
+import {useLocation} from 'react-router-dom';
 import {Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from '@mui/material';
 import {alpha, useTheme} from '@mui/material/styles';
 import type {ActionHistoryEntry} from '@shared/types';
 import GlassTooltip from '../components/GlassTooltip';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AudioWavePlayer from '../components/AudioWavePlayer';
+import {getMarkdownComponents} from '../components/markdown/markdownComponents';
 import {useToast} from '../context/ToastContext';
+import {isAudioDataSilent} from '../features/microphone/services/audioProcessing';
 import {historyBridge} from '../services/winkyBridge';
 import type {HistoryUpdateEvent} from '../winkyBridge/historyBridge';
 
@@ -144,6 +148,7 @@ const EDGE_THRESHOLD_PX = 120;
 const SHIFT_COOLDOWN_MS = 200;
 
 const HistoryPage: React.FC = () => {
+    const location = useLocation();
     const {showToast} = useToast();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
@@ -160,6 +165,7 @@ const HistoryPage: React.FC = () => {
     const [audioUrls, setAudioUrls] = useState<Record<string, string>>({});
     const [audioLoading, setAudioLoading] = useState<Record<string, boolean>>({});
     const [audioErrors, setAudioErrors] = useState<Record<string, string>>({});
+    const [silentAudioEntries, setSilentAudioEntries] = useState<Record<string, boolean>>({});
     const [range, setRange] = useState({start: 0, end: 0});
     const rootRef = useRef<HTMLDivElement | null>(null);
     const listRef = useRef<HTMLDivElement | null>(null);
@@ -171,6 +177,8 @@ const HistoryPage: React.FC = () => {
     const audioInFlightRef = useRef<Record<string, boolean>>({});
     const waveformInFlightRef = useRef<Record<string, boolean>>({});
     const audioTimeoutRef = useRef<Record<string, number>>({});
+    const pendingEntryAlignmentRef = useRef<string | null>(null);
+    const markdownComponents = useMemo(() => getMarkdownComponents(isDark), [isDark]);
 
     const loadHistory = useCallback(async () => {
         setLoading(true);
@@ -207,6 +215,18 @@ const HistoryPage: React.FC = () => {
                     }
                     return [event.entry, ...prev];
                 });
+                return;
+            }
+            if (event.type === 'updated') {
+                setEntries((prev) => {
+                    const existingIndex = prev.findIndex((entry) => entry.id === event.entry.id);
+                    if (existingIndex === -1) {
+                        return [event.entry, ...prev];
+                    }
+                    const nextEntries = [...prev];
+                    nextEntries[existingIndex] = event.entry;
+                    return nextEntries;
+                });
             }
         });
 
@@ -232,6 +252,15 @@ const HistoryPage: React.FC = () => {
         }
         setScrollContainer(root);
     }, []);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const entryId = params.get('entry');
+        if (entryId) {
+            setOpenEntryId(entryId);
+            pendingEntryAlignmentRef.current = entryId;
+        }
+    }, [location.search]);
 
     const entriesById = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
 
@@ -291,6 +320,28 @@ const HistoryPage: React.FC = () => {
     useEffect(() => {
         rangeRef.current = range;
     }, [range]);
+
+    useEffect(() => {
+        if (!openEntryId || entries.length === 0) {
+            return;
+        }
+        const entryIndex = entries.findIndex((entry) => entry.id === openEntryId);
+        if (entryIndex === -1) {
+            return;
+        }
+        const currentRange = rangeRef.current;
+        if (entryIndex >= currentRange.start && entryIndex < currentRange.end) {
+            return;
+        }
+        const maxWindow = Math.min(entries.length, MAX_WINDOW);
+        const targetWindow = Math.min(PAGE_SIZE, maxWindow);
+        const maxStart = Math.max(0, entries.length - targetWindow);
+        const start = Math.min(entryIndex, maxStart);
+        const end = Math.min(entries.length, start + targetWindow);
+        const next = {start, end};
+        rangeRef.current = next;
+        setRange(next);
+    }, [entries, openEntryId]);
 
     const shiftWindow = useCallback((direction: 'up' | 'down') => {
         const now = Date.now();
@@ -404,6 +455,24 @@ const HistoryPage: React.FC = () => {
         }
     }, [range, scrollContainer]);
 
+    useLayoutEffect(() => {
+        const entryId = pendingEntryAlignmentRef.current;
+        if (!entryId || !scrollContainer || !listRef.current) {
+            return;
+        }
+        const target = listRef.current.querySelector<HTMLElement>(`[data-history-entry-id="${entryId}"]`);
+        if (!target) {
+            return;
+        }
+        pendingEntryAlignmentRef.current = null;
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const delta = targetRect.top - containerRect.top;
+        if (Math.abs(delta) > 1) {
+            scrollContainer.scrollTop += delta;
+        }
+    }, [entries, openEntryId, range, scrollContainer]);
+
     const handleClearClick = useCallback(() => {
         if (entries.length === 0 || clearing) {
             return;
@@ -439,6 +508,14 @@ const HistoryPage: React.FC = () => {
     }, []);
 
     const handleRetryAudio = useCallback((entryId: string) => {
+        setSilentAudioEntries((prev) => {
+            if (!prev[entryId]) {
+                return prev;
+            }
+            const next = {...prev};
+            delete next[entryId];
+            return next;
+        });
         setAudioErrors((prev) => {
             if (!prev[entryId]) {
                 return prev;
@@ -507,6 +584,9 @@ const HistoryPage: React.FC = () => {
             return;
         }
         const entryId = openEntryId;
+        if (silentAudioEntries[entryId]) {
+            return;
+        }
         const entry = entriesById.get(openEntryId);
         const audioPath = entry?.audio_path?.trim();
         if (!audioPath) {
@@ -530,7 +610,7 @@ const HistoryPage: React.FC = () => {
         audioTimeoutRef.current[entryId] = timeoutId;
 
         historyBridge.readAudio(audioPath)
-            .then((audioData) => {
+            .then(async (audioData) => {
                 if (!audioInFlightRef.current[entryId]) {
                     return;
                 }
@@ -542,6 +622,20 @@ const HistoryPage: React.FC = () => {
                 }
 
                 const typedData = audioData instanceof Uint8Array ? audioData : new Uint8Array(audioData);
+                const isSilentAudio = await isAudioDataSilent(typedData);
+                if (isSilentAudio) {
+                    setSilentAudioEntries((prev) => ({...prev, [entryId]: true}));
+                    setAudioLoading((prev) => ({...prev, [entryId]: false}));
+                    setAudioErrors((prev) => {
+                        if (!prev[entryId]) {
+                            return prev;
+                        }
+                        const next = {...prev};
+                        delete next[entryId];
+                        return next;
+                    });
+                    return;
+                }
 
                 if (!waveforms[entryId] && !waveformInFlightRef.current[entryId]) {
                     waveformInFlightRef.current[entryId] = true;
@@ -608,7 +702,7 @@ const HistoryPage: React.FC = () => {
                 setAudioErrors((prev) => ({...prev, [entryId]: 'Audio unavailable.'}));
                 setAudioLoading((prev) => ({...prev, [entryId]: false}));
             });
-    }, [entriesById, loadWaveform, openEntryId, audioUrls, audioErrors, waveforms]);
+    }, [entriesById, loadWaveform, openEntryId, audioUrls, audioErrors, waveforms, silentAudioEntries]);
 
     useEffect(() => {
         audioUrlsRef.current = audioUrls;
@@ -667,6 +761,18 @@ const HistoryPage: React.FC = () => {
             for (const [id, error] of Object.entries(prev)) {
                 if (entryIds.has(id)) {
                     next[id] = error;
+                } else {
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+        setSilentAudioEntries((prev) => {
+            let changed = false;
+            const next: Record<string, boolean> = {};
+            for (const [id, isSilent] of Object.entries(prev)) {
+                if (entryIds.has(id)) {
+                    next[id] = isSilent;
                 } else {
                     changed = true;
                 }
@@ -771,6 +877,7 @@ const HistoryPage: React.FC = () => {
                 >
                     {visibleEntries.map((entry, index) => {
                         const llmResponse = entry.llm_response?.trim();
+                        const isStreaming = entry.is_streaming === true;
                         const isOpen = openEntryId === entry.id;
                         const transcriptionPreview = entry.transcription?.trim().slice(0, 100) ?? '';
                         const globalIndex = range.start + index;
@@ -778,6 +885,7 @@ const HistoryPage: React.FC = () => {
                             <section
                                 key={entry.id}
                                 data-history-index={globalIndex}
+                                data-history-entry-id={entry.id}
                                 onClick={() => handleToggleEntry(entry.id)}
                                 onKeyDown={(event) => {
                                     if (event.key === 'Enter' || event.key === ' ') {
@@ -853,6 +961,7 @@ const HistoryPage: React.FC = () => {
                                     <div className="flex flex-col gap-2">
                                         <div
                                             className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
+                                            onClick={(event) => event.stopPropagation()}
                                             style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
                                         >
                                             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
@@ -866,18 +975,43 @@ const HistoryPage: React.FC = () => {
 
                                         <div
                                             className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
+                                            onClick={(event) => event.stopPropagation()}
                                             style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
                                         >
                                             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
                                                 Response
                                             </p>
-                                            <div
-                                                className="mt-2 max-h-[400px] overflow-auto whitespace-pre-wrap break-words break-all text-sm text-text-primary history-scrollbar">
-                                                {llmResponse || 'No LLM output for this action.'}
-                                            </div>
+                                            {llmResponse ? (
+                                                <>
+                                                    <div
+                                                        className="markdown-compact markdown-with-copy mt-2 max-h-[400px] overflow-auto break-words text-sm text-text-primary history-scrollbar">
+                                                        <ReactMarkdown components={markdownComponents}>
+                                                            {llmResponse}
+                                                        </ReactMarkdown>
+                                                    </div>
+                                                    {isStreaming && (
+                                                        <div className="frsc mt-3 gap-3 text-sm text-text-secondary">
+                                                            <LoadingSpinner size="small" className="shrink-0"/>
+                                                            <span>Waiting for LLM response...</span>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                isStreaming ? (
+                                                    <div className="frsc mt-2 gap-3 text-sm text-text-secondary">
+                                                        <LoadingSpinner size="small" className="shrink-0"/>
+                                                        <span>Waiting for LLM response...</span>
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        className="mt-2 max-h-[400px] overflow-auto break-words text-sm text-text-primary history-scrollbar">
+                                                        No LLM output for this action.
+                                                    </div>
+                                                )
+                                            )}
                                         </div>
 
-                                        {entry.audio_path && (
+                                        {entry.audio_path && !silentAudioEntries[entry.id] && (
                                             <div
                                                 className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
                                                 onClick={(event) => event.stopPropagation()}

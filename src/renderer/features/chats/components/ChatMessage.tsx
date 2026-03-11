@@ -1,8 +1,5 @@
 import React, {useCallback, useRef, useState, memo} from 'react';
 import ReactMarkdown from 'react-markdown';
-import type {Components} from 'react-markdown';
-import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter';
-import {oneDark, oneLight} from 'react-syntax-highlighter/dist/esm/styles/prism';
 import {alpha, useTheme} from '@mui/material/styles';
 import {Button, IconButton, TextField, Tooltip} from '@mui/material';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
@@ -13,9 +10,8 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import type {WinkyChatMessage} from '@shared/types';
+import {getMarkdownComponents} from '../../../components/markdown/markdownComponents';
 import {clipboardBridge} from '../../../services/winkyBridge';
-
-const markdownComponentsCache = new Map<boolean, Components>();
 
 interface ChatMessageProps {
     message: WinkyChatMessage;
@@ -40,94 +36,6 @@ const formatTime = (value: string): string => {
     return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 };
 
-const CodeBlockCopyButton: React.FC<{code: string}> = ({code}) => {
-    const [copied, setCopied] = useState(false);
-
-    const handleCopy = useCallback(async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        await clipboardBridge.writeText(code);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    }, [code]);
-
-    return (
-        <button
-            type="button"
-            onClick={handleCopy}
-            className="code-block-copy-btn"
-            aria-label="Copy code"
-        >
-            {copied ? (
-                <CheckRoundedIcon sx={{fontSize: 14, color: 'success.main'}}/>
-            ) : (
-                <ContentCopyRoundedIcon sx={{fontSize: 14}}/>
-            )}
-        </button>
-    );
-};
-
-const getMarkdownComponents = (isDark: boolean): Components => {
-    const cached = markdownComponentsCache.get(isDark);
-    if (cached) return cached;
-
-    const components: Components = {
-        code: ({className, children, ...props}) => {
-            const match = /language-(\w+)/.exec(className || '');
-            const language = match ? match[1] : '';
-            const codeString = String(children).replace(/\n$/, '');
-            const isInline = !match && !codeString.includes('\n');
-
-            if (isInline) {
-                return (
-                    <code className={className} {...props}>
-                        {children}
-                    </code>
-                );
-            }
-
-            return (
-                <div className="code-block-wrapper">
-                    <CodeBlockCopyButton code={codeString}/>
-                    <SyntaxHighlighter
-                        style={isDark ? oneDark : oneLight}
-                        language={language || 'text'}
-                        PreTag="div"
-                        wrapLines={false}
-                        customStyle={{
-                            margin: 0,
-                            padding: '0.6rem 0.75rem',
-                            paddingRight: '2.5rem',
-                            borderRadius: '8px',
-                            fontSize: '0.875rem',
-                            background: isDark ? 'rgba(0, 0, 0, 0.3)' : '#ffffff',
-                            border: 'none'
-                        }}
-                        codeTagProps={{
-                            style: {
-                                background: 'transparent',
-                                border: 'none',
-                                boxShadow: 'none'
-                            }
-                        }}
-                        lineProps={{
-                            style: {
-                                background: 'transparent',
-                                border: 'none',
-                                boxShadow: 'none'
-                            }
-                        }}
-                    >
-                        {codeString}
-                    </SyntaxHighlighter>
-                </div>
-            );
-        },
-        pre: ({children}) => <>{children}</>
-    };
-
-    markdownComponentsCache.set(isDark, components);
-    return components;
-};
 
 interface BranchNavigatorProps {
     currentIndex: number;

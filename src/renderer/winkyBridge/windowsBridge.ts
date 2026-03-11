@@ -24,7 +24,12 @@ export const resultBridge = {
 
 export const windowsBridge = {
     openSettings: () => emit('navigate-to', '/settings'),
-    navigate: (route: string) => emit('navigate-to', route)
+    navigate: (route: string) => emit('navigate-to', route),
+    openRoute: async (route: string) => {
+        await invoke('window_open_main');
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        await emit('navigate-to', route);
+    }
 };
 
 export const windowControlsBridge = {

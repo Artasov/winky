@@ -122,6 +122,31 @@ export const winkyLLMStream = async (
         let modelLevel = params.model_level;
         let resolved = false;
 
+        const resolveContent = async (): Promise<string> => {
+            if (fullContent.trim().length > 0 || !assistantMessageId) {
+                return fullContent;
+            }
+            try {
+                const branch = await fetchMessageBranch(assistantMessageId, accessToken);
+                const assistantMessage = [...branch.items]
+                    .reverse()
+                    .find((message) => message.id === assistantMessageId);
+                return assistantMessage?.content || fullContent;
+            } catch (error) {
+                console.warn(`${LOG_PREFIX} ← [WS] failed to backfill assistant content`, error);
+                return fullContent;
+            }
+        };
+
+        const finalizeResolve = async () => ({
+            chat_id: chatId,
+            user_message_id: userMessageId,
+            assistant_message_id: assistantMessageId,
+            content: await resolveContent(),
+            credits,
+            model_level: modelLevel
+        });
+
         const cleanup = () => {
             if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
                 ws.close();
@@ -175,14 +200,7 @@ export const winkyLLMStream = async (
                         cleanup();
                         if (!resolved) {
                             resolved = true;
-                            resolve({
-                                chat_id: chatId,
-                                user_message_id: userMessageId,
-                                assistant_message_id: assistantMessageId,
-                                content: fullContent,
-                                credits,
-                                model_level: modelLevel
-                            });
+                            void finalizeResolve().then(resolve, reject);
                         }
                         break;
 
@@ -226,14 +244,7 @@ export const winkyLLMStream = async (
                 if (event.code !== 1000) {
                     reject(new Error(`WebSocket closed: ${event.reason || event.code}`));
                 } else {
-                    resolve({
-                        chat_id: chatId,
-                        user_message_id: userMessageId,
-                        assistant_message_id: assistantMessageId,
-                        content: fullContent,
-                        credits,
-                        model_level: modelLevel
-                    });
+                    void finalizeResolve().then(resolve, reject);
                 }
             }
         };

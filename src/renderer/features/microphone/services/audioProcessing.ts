@@ -53,7 +53,9 @@ const decodeAudioBuffer = async (data: ArrayBuffer): Promise<AudioBuffer | null>
 
 const toStandaloneArrayBuffer = (data: ArrayBuffer | Uint8Array): ArrayBuffer => {
     if (data instanceof Uint8Array) {
-        return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        const arrayBuffer = new ArrayBuffer(data.byteLength);
+        new Uint8Array(arrayBuffer).set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+        return arrayBuffer;
     }
     return data.slice(0);
 };

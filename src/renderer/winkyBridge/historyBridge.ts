@@ -14,6 +14,7 @@ type HistoryAddPayload = {
     transcription: string;
     llm_response?: string | null;
     is_streaming?: boolean;
+    is_favorite?: boolean;
     result_text: string;
     audio_path?: string | null;
 };
@@ -25,6 +26,7 @@ type HistoryUpdatePayload = {
     transcription?: string;
     llm_response?: string;
     is_streaming?: boolean;
+    is_favorite?: boolean;
     result_text?: string;
     audio_path?: string;
 };

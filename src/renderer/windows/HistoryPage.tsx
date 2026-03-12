@@ -2,6 +2,8 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import ReactMarkdown from 'react-markdown';
 import {useLocation} from 'react-router-dom';
 import {Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from '@mui/material';
+import BookmarkBorderRoundedIcon from '@mui/icons-material/BookmarkBorderRounded';
+import BookmarkRoundedIcon from '@mui/icons-material/BookmarkRounded';
 import {alpha, useTheme} from '@mui/material/styles';
 import type {ActionHistoryEntry} from '@shared/types';
 import GlassTooltip from '../components/GlassTooltip';
@@ -22,6 +24,47 @@ const formatTimestamp = (value: string): string => {
         return value;
     }
     return parsed.toLocaleString();
+};
+
+const getDateKey = (value: string): string => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return value;
+    }
+    const year = parsed.getFullYear();
+    const month = `${parsed.getMonth() + 1}`.padStart(2, '0');
+    const day = `${parsed.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const isSameDay = (left: Date, right: Date): boolean =>
+    left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+
+const formatFavoriteDivider = (value: string): string => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return value;
+    }
+    const now = new Date();
+    if (isSameDay(parsed, now)) {
+        return 'Today';
+    }
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (isSameDay(parsed, yesterday)) {
+        return 'Yesterday';
+    }
+    const isCurrentYear = parsed.getFullYear() === now.getFullYear();
+    const isCurrentMonth = isCurrentYear && parsed.getMonth() === now.getMonth();
+    if (isCurrentMonth) {
+        return new Intl.DateTimeFormat(undefined, {day: 'numeric'}).format(parsed);
+    }
+    if (isCurrentYear) {
+        return new Intl.DateTimeFormat(undefined, {day: 'numeric', month: 'long'}).format(parsed);
+    }
+    return new Intl.DateTimeFormat(undefined, {day: 'numeric', month: 'long', year: 'numeric'}).format(parsed);
 };
 
 const resolveMimeType = (audioPath: string): string => {
@@ -146,6 +189,7 @@ const MAX_PAGES = 3;
 const MAX_WINDOW = PAGE_SIZE * MAX_PAGES;
 const EDGE_THRESHOLD_PX = 120;
 const SHIFT_COOLDOWN_MS = 200;
+const FAVORITE_ACTIVE_COLOR = '#f59e0b';
 
 const HistoryPage: React.FC = () => {
     const location = useLocation();
@@ -158,7 +202,11 @@ const HistoryPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [clearing, setClearing] = useState(false);
     const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+    const [confirmRemoveFavoriteEntry, setConfirmRemoveFavoriteEntry] = useState<ActionHistoryEntry | null>(null);
     const [openEntryId, setOpenEntryId] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<'history' | 'favorites'>('history');
+    const [favoriteDateFilter, setFavoriteDateFilter] = useState('');
+    const [pendingFavoriteIds, setPendingFavoriteIds] = useState<Record<string, boolean>>({});
     const [waveforms, setWaveforms] = useState<Record<string, number[]>>({});
     const [waveDurations, setWaveDurations] = useState<Record<string, number>>({});
     const [waveformLoading, setWaveformLoading] = useState<Record<string, boolean>>({});
@@ -257,12 +305,29 @@ const HistoryPage: React.FC = () => {
         const params = new URLSearchParams(location.search);
         const entryId = params.get('entry');
         if (entryId) {
+            setViewMode('history');
+            setFavoriteDateFilter('');
             setOpenEntryId(entryId);
             pendingEntryAlignmentRef.current = entryId;
         }
     }, [location.search]);
 
     const entriesById = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
+    const favoriteEntries = useMemo(
+        () => entries.filter((entry) => entry.is_favorite === true),
+        [entries]
+    );
+    const favoriteCount = favoriteEntries.length;
+    const filteredFavoriteEntries = useMemo(() => {
+        if (!favoriteDateFilter) {
+            return favoriteEntries;
+        }
+        return favoriteEntries.filter((entry) => getDateKey(entry.created_at) === favoriteDateFilter);
+    }, [favoriteDateFilter, favoriteEntries]);
+    const activeEntries = useMemo(
+        () => (viewMode === 'favorites' ? filteredFavoriteEntries : entries),
+        [entries, filteredFavoriteEntries, viewMode]
+    );
 
     const getAnchor = useCallback(() => {
         const container = scrollContainer;
@@ -291,20 +356,20 @@ const HistoryPage: React.FC = () => {
 
     useEffect(() => {
         setRange((prev) => {
-            if (entries.length === 0) {
+            if (activeEntries.length === 0) {
                 rangeRef.current = {start: 0, end: 0};
                 return {start: 0, end: 0};
             }
             if (prev.end === 0) {
-                const next = {start: 0, end: Math.min(entries.length, PAGE_SIZE)};
+                const next = {start: 0, end: Math.min(activeEntries.length, PAGE_SIZE)};
                 rangeRef.current = next;
                 return next;
             }
-            const maxWindow = Math.min(entries.length, MAX_WINDOW);
+            const maxWindow = Math.min(activeEntries.length, MAX_WINDOW);
             const currentSize = Math.max(1, prev.end - prev.start);
             const targetSize = Math.min(currentSize, maxWindow);
-            let start = Math.min(prev.start, Math.max(0, entries.length - targetSize));
-            let end = Math.min(entries.length, start + targetSize);
+            let start = Math.min(prev.start, Math.max(0, activeEntries.length - targetSize));
+            let end = Math.min(activeEntries.length, start + targetSize);
             if (end - start < targetSize) {
                 start = Math.max(0, end - targetSize);
             }
@@ -315,17 +380,17 @@ const HistoryPage: React.FC = () => {
             rangeRef.current = next;
             return next;
         });
-    }, [entries.length]);
+    }, [activeEntries.length]);
 
     useEffect(() => {
         rangeRef.current = range;
     }, [range]);
 
     useEffect(() => {
-        if (!openEntryId || entries.length === 0) {
+        if (!openEntryId || activeEntries.length === 0) {
             return;
         }
-        const entryIndex = entries.findIndex((entry) => entry.id === openEntryId);
+        const entryIndex = activeEntries.findIndex((entry) => entry.id === openEntryId);
         if (entryIndex === -1) {
             return;
         }
@@ -333,15 +398,15 @@ const HistoryPage: React.FC = () => {
         if (entryIndex >= currentRange.start && entryIndex < currentRange.end) {
             return;
         }
-        const maxWindow = Math.min(entries.length, MAX_WINDOW);
+        const maxWindow = Math.min(activeEntries.length, MAX_WINDOW);
         const targetWindow = Math.min(PAGE_SIZE, maxWindow);
-        const maxStart = Math.max(0, entries.length - targetWindow);
+        const maxStart = Math.max(0, activeEntries.length - targetWindow);
         const start = Math.min(entryIndex, maxStart);
-        const end = Math.min(entries.length, start + targetWindow);
+        const end = Math.min(activeEntries.length, start + targetWindow);
         const next = {start, end};
         rangeRef.current = next;
         setRange(next);
-    }, [entries, openEntryId]);
+    }, [activeEntries, openEntryId]);
 
     const shiftWindow = useCallback((direction: 'up' | 'down') => {
         const now = Date.now();
@@ -350,20 +415,20 @@ const HistoryPage: React.FC = () => {
         }
         const prev = rangeRef.current;
         const anchor = getAnchor();
-        const maxWindow = Math.min(entries.length, MAX_WINDOW);
+        const maxWindow = Math.min(activeEntries.length, MAX_WINDOW);
         const currentSize = Math.max(1, prev.end - prev.start);
         const canExpand = currentSize < maxWindow;
         if (direction === 'down') {
-            if (prev.end >= entries.length) {
+            if (prev.end >= activeEntries.length) {
                 return;
             }
             let nextStart = prev.start;
             let nextEnd = prev.end;
             if (canExpand) {
-                nextEnd = Math.min(entries.length, prev.end + WINDOW_STEP);
+                nextEnd = Math.min(activeEntries.length, prev.end + WINDOW_STEP);
             } else {
-                nextStart = Math.min(prev.start + WINDOW_STEP, Math.max(0, entries.length - maxWindow));
-                nextEnd = Math.min(entries.length, nextStart + maxWindow);
+                nextStart = Math.min(prev.start + WINDOW_STEP, Math.max(0, activeEntries.length - maxWindow));
+                nextEnd = Math.min(activeEntries.length, nextStart + maxWindow);
             }
             if (nextStart === prev.start && nextEnd === prev.end) {
                 return;
@@ -386,7 +451,7 @@ const HistoryPage: React.FC = () => {
             nextStart = Math.max(0, prev.start - WINDOW_STEP);
         } else {
             nextStart = Math.max(0, prev.start - WINDOW_STEP);
-            nextEnd = Math.min(entries.length, nextStart + maxWindow);
+            nextEnd = Math.min(activeEntries.length, nextStart + maxWindow);
         }
         if (nextStart === prev.start && nextEnd === prev.end) {
             return;
@@ -398,7 +463,7 @@ const HistoryPage: React.FC = () => {
         const next = {start: nextStart, end: nextEnd};
         rangeRef.current = next;
         setRange(next);
-    }, [entries.length, getAnchor]);
+    }, [activeEntries.length, getAnchor]);
 
     useEffect(() => {
         if (!scrollContainer) {
@@ -499,6 +564,10 @@ const HistoryPage: React.FC = () => {
         setConfirmClearOpen(false);
     }, []);
 
+    const handleCancelRemoveFavorite = useCallback(() => {
+        setConfirmRemoveFavoriteEntry(null);
+    }, []);
+
     const handleToggleEntry = useCallback((entryId: string) => {
         const selection = window.getSelection();
         if (selection && selection.toString().trim().length > 0) {
@@ -506,6 +575,75 @@ const HistoryPage: React.FC = () => {
         }
         setOpenEntryId((prev) => (prev === entryId ? null : entryId));
     }, []);
+
+    const handleToggleFavoritesView = useCallback(() => {
+        setViewMode((prev) => {
+            if (prev === 'favorites') {
+                return 'history';
+            }
+            return 'favorites';
+        });
+    }, []);
+
+    const handleToggleFavorite = useCallback(async (entryId: string) => {
+        const entry = entriesById.get(entryId);
+        if (!entry || pendingFavoriteIds[entryId]) {
+            return;
+        }
+        const nextFavoriteState = entry.is_favorite !== true;
+        setPendingFavoriteIds((prev) => ({...prev, [entryId]: true}));
+        setEntries((prev) => prev.map((item) => (
+            item.id === entryId
+                ? {...item, is_favorite: nextFavoriteState}
+                : item
+        )));
+        try {
+            const updatedEntry = await historyBridge.update({
+                id: entryId,
+                is_favorite: nextFavoriteState
+            });
+            setEntries((prev) => prev.map((item) => (
+                item.id === entryId
+                    ? updatedEntry
+                    : item
+            )));
+        } catch (error) {
+            console.error('[HistoryPage] Failed to toggle favorite', error);
+            setEntries((prev) => prev.map((item) => (
+                item.id === entryId
+                    ? {...item, is_favorite: entry.is_favorite}
+                    : item
+            )));
+            showToast('Failed to update favorite.', 'error');
+        } finally {
+            setPendingFavoriteIds((prev) => {
+                const next = {...prev};
+                delete next[entryId];
+                return next;
+            });
+        }
+    }, [entriesById, pendingFavoriteIds, showToast]);
+
+    const handleFavoriteButtonClick = useCallback((entryId: string) => {
+        const entry = entriesById.get(entryId);
+        if (!entry) {
+            return;
+        }
+        if (entry.is_favorite === true) {
+            setConfirmRemoveFavoriteEntry(entry);
+            return;
+        }
+        void handleToggleFavorite(entryId);
+    }, [entriesById, handleToggleFavorite]);
+
+    const handleConfirmRemoveFavorite = useCallback(async () => {
+        if (!confirmRemoveFavoriteEntry) {
+            return;
+        }
+        const targetId = confirmRemoveFavoriteEntry.id;
+        setConfirmRemoveFavoriteEntry(null);
+        await handleToggleFavorite(targetId);
+    }, [confirmRemoveFavoriteEntry, handleToggleFavorite]);
 
     const handleRetryAudio = useCallback((entryId: string) => {
         setSilentAudioEntries((prev) => {
@@ -789,10 +927,229 @@ const HistoryPage: React.FC = () => {
         }
     }, [entries]);
 
+    const renderEntryCard = useCallback((entry: ActionHistoryEntry, globalIndex?: number) => {
+        const llmResponse = entry.llm_response?.trim();
+        const isStreaming = entry.is_streaming === true;
+        const isOpen = openEntryId === entry.id;
+        const isFavorite = entry.is_favorite === true;
+        const transcriptionPreview = entry.transcription?.trim().slice(0, 100) ?? '';
+        const favoriteButtonVisible = isFavorite
+            ? 'opacity-100 translate-y-0 pointer-events-auto'
+            : 'opacity-0 -translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto';
+
+        return (
+            <section
+                key={entry.id}
+                data-history-index={globalIndex}
+                data-history-entry-id={entry.id}
+                onClick={() => handleToggleEntry(entry.id)}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleToggleEntry(entry.id);
+                    }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isOpen}
+                className="group cursor-pointer rounded-2xl border border-primary-200 shadow-primary-sm p-4 animate-fade-in-up max-w-full w-full box-border min-w-0 overflow-hidden"
+                style={{
+                    maxWidth: '100%',
+                    borderColor: isDark ? darkSurface : undefined,
+                    backgroundColor: isDark ? darkSurface : '#ffffff',
+                    boxShadow: isDark ? 'none' : undefined
+                }}
+            >
+                <div className="frb flex-wrap gap-1 w-full min-w-0">
+                    <div className="fc gap-1 w-full min-w-0">
+                        <div className="frbc w-full gap-2 min-w-0 flex-wrap">
+                            <div className="frsc gap-1 min-w-0 flex-1 flex-wrap">
+                                <h2 className="text-lg font-semibold text-text-primary min-w-0 break-words break-all flex-1">
+                                    {entry.action_name}
+                                </h2>
+                                <span
+                                    className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary shrink-0"
+                                    style={isDark ? {
+                                        backgroundColor: darkSurfaceSoft,
+                                        border: `1px solid ${darkSurface}`,
+                                        color: theme.palette.text.primary
+                                    } : undefined}
+                                >
+                                    Action
+                                </span>
+                            </div>
+                            <div className="text-xs text-text-tertiary min-w-0">
+                                <div className="flex items-center gap-1">
+                                    <span>{formatTimestamp(entry.created_at)}</span>
+                                    <button
+                                        type="button"
+                                        aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                                        aria-pressed={isFavorite}
+                                        disabled={pendingFavoriteIds[entry.id] === true}
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleFavoriteButtonClick(entry.id);
+                                        }}
+                                        className={`flex h-7 w-7 items-center justify-center rounded-md transition-all duration-base ${favoriteButtonVisible}`}
+                                        style={{
+                                            color: isFavorite ? FAVORITE_ACTIVE_COLOR : theme.palette.text.secondary,
+                                            backgroundColor: isFavorite
+                                                ? alpha(FAVORITE_ACTIVE_COLOR, isDark ? 0.22 : 0.14)
+                                                : (isDark ? darkSurfaceSoft : 'rgba(15, 23, 42, 0.06)')
+                                        }}
+                                    >
+                                        {isFavorite ? (
+                                            <BookmarkRoundedIcon sx={{fontSize: 18}}/>
+                                        ) : (
+                                            <BookmarkBorderRoundedIcon sx={{fontSize: 18}}/>
+                                        )}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        aria-label={isOpen ? 'Collapse entry' : 'Expand entry'}
+                                        aria-expanded={isOpen}
+                                        className="flex h-6 w-6 items-center justify-center rounded-md text-text-secondary transition-[transform,background-color,color] duration-base hover:bg-primary-50 hover:text-primary"
+                                    >
+                                        <svg
+                                            className={`h-3.5 w-3.5 transition-transform duration-base ${isOpen ? 'rotate-180' : ''}`}
+                                            viewBox="0 0 20 20"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth={2}
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <polyline points="5 8 10 13 15 8"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {transcriptionPreview && (
+                            <p className="text-xs text-text-tertiary/80 break-words break-all">
+                                {transcriptionPreview}
+                                {entry.transcription.length > 100 ? '...' : ''}
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                <div
+                    className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'mt-3 max-h-[900px] opacity-100' : 'max-h-0 opacity-0'}`}
+                >
+                    <div className="flex flex-col gap-2">
+                        <div
+                            className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
+                            onClick={(event) => event.stopPropagation()}
+                            style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
+                        >
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
+                                Request
+                            </p>
+                            <div
+                                className="mt-2 max-h-[400px] overflow-auto whitespace-pre-wrap break-words break-all text-sm text-text-primary history-scrollbar">
+                                {entry.transcription}
+                            </div>
+                        </div>
+
+                        <div
+                            className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
+                            onClick={(event) => event.stopPropagation()}
+                            style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
+                        >
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
+                                Response
+                            </p>
+                            {llmResponse ? (
+                                <>
+                                    <div
+                                        className="markdown-compact markdown-with-copy mt-2 max-h-[400px] overflow-auto break-words text-sm text-text-primary history-scrollbar">
+                                        <ReactMarkdown components={markdownComponents}>
+                                            {llmResponse}
+                                        </ReactMarkdown>
+                                    </div>
+                                    {isStreaming && (
+                                        <div className="frsc mt-3 gap-3 text-sm text-text-secondary">
+                                            <LoadingSpinner size="small" className="shrink-0"/>
+                                            <span>Waiting for LLM response...</span>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                isStreaming ? (
+                                    <div className="frsc mt-2 gap-3 text-sm text-text-secondary">
+                                        <LoadingSpinner size="small" className="shrink-0"/>
+                                        <span>Waiting for LLM response...</span>
+                                    </div>
+                                ) : (
+                                    <div
+                                        className="mt-2 max-h-[400px] overflow-auto break-words text-sm text-text-primary history-scrollbar">
+                                        No LLM output for this action.
+                                    </div>
+                                )
+                            )}
+                        </div>
+
+                        {entry.audio_path && !silentAudioEntries[entry.id] && (
+                            <div
+                                className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
+                                onClick={(event) => event.stopPropagation()}
+                                style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
+                            >
+                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
+                                    Audio
+                                </p>
+                                <AudioWavePlayer
+                                    audioUrl={audioUrls[entry.id]}
+                                    waveform={waveforms[entry.id]}
+                                    durationOverride={waveDurations[entry.id]}
+                                    loading={audioLoading[entry.id]}
+                                    waveformLoading={waveformLoading[entry.id]}
+                                    error={audioErrors[entry.id]}
+                                    onRetry={() => handleRetryAudio(entry.id)}
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </section>
+        );
+    }, [
+        audioErrors,
+        audioLoading,
+        audioUrls,
+        darkSurface,
+        darkSurfaceSoft,
+        handleRetryAudio,
+        handleToggleEntry,
+        handleToggleFavorite,
+        isDark,
+        markdownComponents,
+        openEntryId,
+        pendingFavoriteIds,
+        silentAudioEntries,
+        theme.palette.text.primary,
+        theme.palette.text.secondary,
+        waveDurations,
+        waveformLoading,
+        waveforms
+    ]);
+
+    useEffect(() => {
+        const next = {start: 0, end: Math.min(activeEntries.length, PAGE_SIZE)};
+        rangeRef.current = next;
+        pendingScrollRef.current = null;
+        setRange(next);
+        if (scrollContainer) {
+            scrollContainer.scrollTop = 0;
+        }
+    }, [favoriteDateFilter, scrollContainer, viewMode]);
+
     const visibleEntries = useMemo(
-        () => entries.slice(range.start, range.end),
-        [entries, range.end, range.start]
+        () => activeEntries.slice(range.start, range.end),
+        [activeEntries, range.end, range.start]
     );
+
     return (
         <div
             ref={rootRef}
@@ -813,6 +1170,27 @@ const HistoryPage: React.FC = () => {
                             >
                                 {entries.length} entries
                             </div>
+                            <button
+                                type="button"
+                                onClick={handleToggleFavoritesView}
+                                className="frsc gap-1 rounded-xl border border-primary-200 bg-bg-elevated pl-3 pr-4 py-1.5 text-sm font-semibold text-text-secondary shadow-primary-sm transition-[background-color,border-color,color] duration-base hover:border-primary hover:bg-primary-50 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                style={viewMode === 'favorites' ? {
+                                    borderColor: FAVORITE_ACTIVE_COLOR,
+                                    color: FAVORITE_ACTIVE_COLOR,
+                                    backgroundColor: alpha(FAVORITE_ACTIVE_COLOR, isDark ? 0.18 : 0.12)
+                                } : (isDark ? {
+                                    borderColor: darkSurface,
+                                    backgroundColor: darkSurfaceSoft
+                                } : undefined)}
+                                aria-label={viewMode === 'favorites' ? 'Show all history' : 'Show favorites'}
+                            >
+                                {viewMode === 'favorites' ? (
+                                    <BookmarkRoundedIcon sx={{fontSize: 18}}/>
+                                ) : (
+                                    <BookmarkBorderRoundedIcon sx={{fontSize: 18}}/>
+                                )}
+                                <span>{favoriteCount}</span>
+                            </button>
                             <GlassTooltip
                                 content="History is stored only on this device. Uninstalling the app removes it. You can also clear it here.">
                                 <button
@@ -848,7 +1226,9 @@ const HistoryPage: React.FC = () => {
                     </div>
 
                     <p className="text-sm text-text-secondary">
-                        Recent executed actions with transcription and outputs.
+                        {viewMode === 'favorites'
+                            ? 'Saved bookmarks from your action history.'
+                            : 'Recent executed actions with transcription and outputs.'}
                     </p>
                 </div>
 
@@ -870,172 +1250,101 @@ const HistoryPage: React.FC = () => {
                         </p>
                     </div>
                 </div>
+            ) : viewMode === 'favorites' ? (
+                <div
+                    ref={listRef}
+                    className="w-full max-w-full min-w-0 box-border pb-6 flex flex-col gap-3"
+                >
+                    <div className="frbc flex-wrap gap-3 rounded-2xl border border-primary-200 bg-bg-elevated px-4 py-3 shadow-primary-sm"
+                         style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}>
+                        <div className="fc gap-1">
+                            <span className="text-sm font-semibold text-text-primary">Favorites</span>
+                            <span className="text-xs text-text-secondary">
+                                {filteredFavoriteEntries.length} visible of {favoriteCount} favorites
+                            </span>
+                        </div>
+                        <div className="frsc flex-wrap gap-2">
+                            <label className="fc gap-1 text-xs text-text-secondary">
+                                <span>Date filter</span>
+                                <input
+                                    type="date"
+                                    value={favoriteDateFilter}
+                                    onChange={(event) => setFavoriteDateFilter(event.target.value)}
+                                    className="rounded-xl border border-primary-200 bg-bg-secondary px-3 py-2 text-sm text-text-primary outline-none transition-[border-color,background-color] duration-base focus:border-primary"
+                                    style={isDark ? {
+                                        borderColor: darkSurface,
+                                        backgroundColor: darkSurfaceSoft,
+                                        colorScheme: 'dark'
+                                    } : undefined}
+                                />
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => setFavoriteDateFilter('')}
+                                disabled={!favoriteDateFilter}
+                                className="rounded-xl border border-primary-200 bg-bg-secondary px-3 py-2 text-sm font-semibold text-text-secondary transition-[background-color,border-color,color] duration-base hover:border-primary hover:bg-primary-50 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurfaceSoft} : undefined}
+                            >
+                                Clear filter
+                            </button>
+                        </div>
+                    </div>
+
+                    {favoriteCount === 0 ? (
+                        <div className="flex flex-1 items-center justify-center">
+                            <div
+                                className="max-w-lg rounded-2xl border border-dashed border-primary-200 bg-bg-secondary p-8 text-center"
+                                style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
+                            >
+                                <h2 className="text-lg font-semibold text-text-primary">No favorites yet</h2>
+                                <p className="mt-2 text-sm text-text-secondary">
+                                    Bookmark history entries to keep them here.
+                                </p>
+                            </div>
+                        </div>
+                    ) : filteredFavoriteEntries.length === 0 ? (
+                        <div className="flex flex-1 items-center justify-center">
+                            <div
+                                className="max-w-lg rounded-2xl border border-dashed border-primary-200 bg-bg-secondary p-8 text-center"
+                                style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
+                            >
+                                <h2 className="text-lg font-semibold text-text-primary">No favorites for this date</h2>
+                                <p className="mt-2 text-sm text-text-secondary">
+                                    Change or clear the date filter to see other bookmarks.
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        visibleEntries.map((entry, index) => {
+                            const previousEntry = visibleEntries[index - 1];
+                            const showDivider = !previousEntry
+                                || getDateKey(previousEntry.created_at) !== getDateKey(entry.created_at);
+                            return (
+                                <React.Fragment key={entry.id}>
+                                    {showDivider && (
+                                        <div className="frsc gap-3 py-1">
+                                            <div className="h-px flex-1 bg-primary-100"
+                                                 style={isDark ? {backgroundColor: darkSurface} : undefined}/>
+                                            <span className="shrink-0 rounded-full bg-bg-elevated px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary"
+                                                  style={isDark ? {backgroundColor: darkSurfaceSoft} : undefined}>
+                                                {formatFavoriteDivider(entry.created_at)}
+                                            </span>
+                                            <div className="h-px flex-1 bg-primary-100"
+                                                 style={isDark ? {backgroundColor: darkSurface} : undefined}/>
+                                        </div>
+                                    )}
+                                    {renderEntryCard(entry, range.start + index)}
+                                </React.Fragment>
+                            );
+                        })
+                    )}
+                </div>
             ) : (
                 <div
                     ref={listRef}
                     className="w-full max-w-full min-w-0 box-border pb-6 flex flex-col gap-2"
                 >
-                    {visibleEntries.map((entry, index) => {
-                        const llmResponse = entry.llm_response?.trim();
-                        const isStreaming = entry.is_streaming === true;
-                        const isOpen = openEntryId === entry.id;
-                        const transcriptionPreview = entry.transcription?.trim().slice(0, 100) ?? '';
-                        const globalIndex = range.start + index;
-                        return (
-                            <section
-                                key={entry.id}
-                                data-history-index={globalIndex}
-                                data-history-entry-id={entry.id}
-                                onClick={() => handleToggleEntry(entry.id)}
-                                onKeyDown={(event) => {
-                                    if (event.key === 'Enter' || event.key === ' ') {
-                                        event.preventDefault();
-                                        handleToggleEntry(entry.id);
-                                    }
-                                }}
-                                role="button"
-                                tabIndex={0}
-                                aria-expanded={isOpen}
-                                className="cursor-pointer rounded-2xl border border-primary-200 shadow-primary-sm p-4 animate-fade-in-up max-w-full w-full box-border min-w-0 overflow-hidden"
-                                style={{
-                                    maxWidth: '100%',
-                                    borderColor: isDark ? darkSurface : undefined,
-                                    backgroundColor: isDark ? darkSurface : '#ffffff',
-                                    boxShadow: isDark ? 'none' : undefined
-                                }}
-                            >
-                                <div className="frb flex-wrap gap-1 w-full min-w-0">
-                                    <div className="fc gap-1 w-full min-w-0">
-                                        <div className="frbc w-full gap-2 min-w-0 flex-wrap">
-                                            <div className="frsc gap-1 min-w-0 flex-1 flex-wrap">
-                                                <h2 className="text-lg font-semibold text-text-primary min-w-0 break-words break-all flex-1">
-                                                    {entry.action_name}
-                                                </h2>
-                                                <span
-                                                    className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary shrink-0"
-                                                    style={isDark ? {
-                                                        backgroundColor: darkSurfaceSoft,
-                                                        border: `1px solid ${darkSurface}`,
-                                                        color: theme.palette.text.primary
-                                                    } : undefined}
-                                                >
-                                                    Action
-                                                </span>
-                                            </div>
-                                            <div className="text-xs text-text-tertiary min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <span>{formatTimestamp(entry.created_at)}</span>
-                                                    <button
-                                                        type="button"
-                                                        aria-label={isOpen ? 'Collapse entry' : 'Expand entry'}
-                                                        aria-expanded={isOpen}
-                                                        className="flex h-6 w-6 items-center justify-center rounded-md text-text-secondary transition-[transform,background-color,color] duration-base hover:bg-primary-50 hover:text-primary"
-                                                    >
-                                                        <svg
-                                                            className={`h-3.5 w-3.5 transition-transform duration-base ${isOpen ? 'rotate-180' : ''}`}
-                                                            viewBox="0 0 20 20"
-                                                            fill="none"
-                                                            stroke="currentColor"
-                                                            strokeWidth={2}
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                        >
-                                                            <polyline points="5 8 10 13 15 8"/>
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {transcriptionPreview && (
-                                            <p className="text-xs text-text-tertiary/80 break-words break-all">
-                                                {transcriptionPreview}
-                                                {entry.transcription.length > 100 ? '...' : ''}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div
-                                    className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'mt-3 max-h-[900px] opacity-100' : 'max-h-0 opacity-0'}`}
-                                >
-                                    <div className="flex flex-col gap-2">
-                                        <div
-                                            className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
-                                            onClick={(event) => event.stopPropagation()}
-                                            style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
-                                        >
-                                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
-                                                Request
-                                            </p>
-                                            <div
-                                                className="mt-2 max-h-[400px] overflow-auto whitespace-pre-wrap break-words break-all text-sm text-text-primary history-scrollbar">
-                                                {entry.transcription}
-                                            </div>
-                                        </div>
-
-                                        <div
-                                            className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
-                                            onClick={(event) => event.stopPropagation()}
-                                            style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
-                                        >
-                                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
-                                                Response
-                                            </p>
-                                            {llmResponse ? (
-                                                <>
-                                                    <div
-                                                        className="markdown-compact markdown-with-copy mt-2 max-h-[400px] overflow-auto break-words text-sm text-text-primary history-scrollbar">
-                                                        <ReactMarkdown components={markdownComponents}>
-                                                            {llmResponse}
-                                                        </ReactMarkdown>
-                                                    </div>
-                                                    {isStreaming && (
-                                                        <div className="frsc mt-3 gap-3 text-sm text-text-secondary">
-                                                            <LoadingSpinner size="small" className="shrink-0"/>
-                                                            <span>Waiting for LLM response...</span>
-                                                        </div>
-                                                    )}
-                                                </>
-                                            ) : (
-                                                isStreaming ? (
-                                                    <div className="frsc mt-2 gap-3 text-sm text-text-secondary">
-                                                        <LoadingSpinner size="small" className="shrink-0"/>
-                                                        <span>Waiting for LLM response...</span>
-                                                    </div>
-                                                ) : (
-                                                    <div
-                                                        className="mt-2 max-h-[400px] overflow-auto break-words text-sm text-text-primary history-scrollbar">
-                                                        No LLM output for this action.
-                                                    </div>
-                                                )
-                                            )}
-                                        </div>
-
-                                        {entry.audio_path && !silentAudioEntries[entry.id] && (
-                                            <div
-                                                className="rounded-xl border border-primary-100 bg-bg-secondary/60 p-3"
-                                                onClick={(event) => event.stopPropagation()}
-                                                style={isDark ? {borderColor: darkSurface, backgroundColor: darkSurface} : undefined}
-                                            >
-                                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-tertiary">
-                                                    Audio
-                                                </p>
-                                                <AudioWavePlayer
-                                                    audioUrl={audioUrls[entry.id]}
-                                                    waveform={waveforms[entry.id]}
-                                                    durationOverride={waveDurations[entry.id]}
-                                                    loading={audioLoading[entry.id]}
-                                                    waveformLoading={waveformLoading[entry.id]}
-                                                    error={audioErrors[entry.id]}
-                                                    onRetry={() => handleRetryAudio(entry.id)}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </section>
-                        );
-                    })}
+                    {visibleEntries.map((entry, index) => renderEntryCard(entry, range.start + index))}
                 </div>
             )}
 
@@ -1057,6 +1366,28 @@ const HistoryPage: React.FC = () => {
                     </Button>
                     <Button onClick={handleConfirmClear} color="error" variant="contained">
                         Clear
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={Boolean(confirmRemoveFavoriteEntry)}
+                onClose={handleCancelRemoveFavorite}
+                maxWidth="xs"
+                fullWidth
+            >
+                <DialogTitle>Remove from favorites?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to remove this entry from favorites? It will stay in the main history.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCancelRemoveFavorite} color="inherit">
+                        Cancel
+                    </Button>
+                    <Button onClick={() => void handleConfirmRemoveFavorite()} color="warning" variant="contained">
+                        Remove
                     </Button>
                 </DialogActions>
             </Dialog>

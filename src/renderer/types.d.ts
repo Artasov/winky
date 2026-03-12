@@ -236,6 +236,7 @@ declare global {
             transcription: string;
             llm_response?: string | null;
             is_streaming?: boolean;
+            is_favorite?: boolean;
             result_text: string;
             audio_path?: string | null;
         }): Promise<ActionHistoryEntry>;
@@ -247,6 +248,7 @@ declare global {
             transcription?: string;
             llm_response?: string;
             is_streaming?: boolean;
+            is_favorite?: boolean;
             result_text?: string;
             audio_path?: string;
         }): Promise<ActionHistoryEntry>;

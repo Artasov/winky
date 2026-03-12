@@ -168,7 +168,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const [localGlobalLlmPrompt, setLocalGlobalLlmPrompt] = useState(values.globalLlmPrompt);
     const promptDebounceTimerRef = useRef<number | null>(null);
 
-    // РЎРёРЅС…СЂРѕРЅРёР·РёСЂСѓРµРј Р»РѕРєР°Р»СЊРЅРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ СЃ props РїСЂРё РёР·РјРµРЅРµРЅРёРё РёР·РІРЅРµ
+    // Keep local prompt state in sync when parent props change.
     useEffect(() => {
         setLocalGlobalTranscribePrompt(values.globalTranscribePrompt);
     }, [values.globalTranscribePrompt]);
@@ -177,7 +177,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         setLocalGlobalLlmPrompt(values.globalLlmPrompt);
     }, [values.globalLlmPrompt]);
 
-    // РћС‡РёС‰Р°РµРј С‚Р°Р№РјРµСЂ РїСЂРё СЂР°Р·РјРѕРЅС‚РёСЂРѕРІР°РЅРёРё
+    // Clear the debounce timer on unmount.
     useEffect(() => {
         return () => {
             if (promptDebounceTimerRef.current !== null) {
@@ -214,13 +214,13 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     );
     const safeLlmModel = useMemo<LLMModel>(() => {
         if (llmModelOptions.length === 0) {
-            // Р•СЃР»Рё РЅРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РјРѕРґРµР»РµР№ - РІРѕР·РІСЂР°С‰Р°РµРј С‚РµРєСѓС‰СѓСЋ (Р±СѓРґРµС‚ РѕС€РёР±РєР°, РЅРѕ РЅРµ СЃР»РѕРјР°РµРј UI)
+            // Keep the current value if no models are available so the UI stays stable.
             return values.llmModel;
         }
         if (llmModelOptions.includes(values.llmModel)) {
             return values.llmModel;
         }
-        // РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРё РїРµСЂРµРєР»СЋС‡Р°РµРј РЅР° РїРµСЂРІСѓСЋ РґРѕСЃС‚СѓРїРЅСѓСЋ РјРѕРґРµР»СЊ
+        // Fall back to the first available model automatically.
         return llmModelOptions[0];
     }, [llmModelOptions, values.llmModel]);
     const {status: localServerStatus} = useLocalSpeechStatus({
@@ -405,10 +405,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         const run = async () => {
             try {
                 const result = await warmupLocalSpeechModel(normalized);
-                // Р•СЃР»Рё РјРѕРґРµР»СЊ Р±С‹Р»Р° РїСЂРѕРїСѓС‰РµРЅР° РёР·-Р·Р° Р·Р°РЅСЏС‚РѕСЃС‚Рё, СЃР±СЂР°СЃС‹РІР°РµРј ref С‡С‚РѕР±С‹ 
-                // РјРѕР¶РЅРѕ Р±С‹Р»Рѕ РїРѕРїСЂРѕР±РѕРІР°С‚СЊ СЃРЅРѕРІР° РїРѕР·Р¶Рµ (РЅРѕ РЅРµ СЃСЂР°Р·Сѓ)
+                // If warmup was skipped because the device is busy, clear the ref later and retry.
                 if (result.device === 'busy' && result.compute_type === 'skipped') {
-                    // РќРµ СЃР±СЂР°СЃС‹РІР°РµРј СЃСЂР°Р·Сѓ - РїРѕРґРѕР¶РґРµРј 5 СЃРµРєСѓРЅРґ С‡С‚РѕР±С‹ РёР·Р±РµР¶Р°С‚СЊ СЃРїР°РјР°
+                    // Delay the reset to avoid hammering warmup requests.
                     if (!cancelled) {
                         setTimeout(() => {
                             if (warmupRequestRef.current === normalized) {
@@ -419,12 +418,12 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 }
             } catch (error: any) {
                 console.error('[ModelConfigForm] Failed to warmup model', error);
-                // РќРµ РїРѕРєР°Р·С‹РІР°РµРј РѕС€РёР±РєСѓ РґР»СЏ 409 - СЌС‚Рѕ РЅРѕСЂРјР°Р»СЊРЅР°СЏ СЃРёС‚СѓР°С†РёСЏ
+                // Ignore 409 here because it means another warmup is already in progress.
                 const status = error?.response?.status;
                 if (!cancelled && status !== 409) {
                     setLocalModelError('Failed to warm up the model. Please try again later.');
                 }
-                // РЎР±СЂР°СЃС‹РІР°РµРј ref СЃ Р·Р°РґРµСЂР¶РєРѕР№ С‡С‚РѕР±С‹ РёР·Р±РµР¶Р°С‚СЊ Р±РµСЃРєРѕРЅРµС‡РЅРѕРіРѕ С†РёРєР»Р°
+                // Delay the reset to avoid an endless retry loop.
                 if (!cancelled) {
                     setTimeout(() => {
                         if (warmupRequestRef.current === normalized) {
@@ -509,7 +508,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     }, [values.llmMode, safeLlmModel, ollamaDownloadingModel, refreshOllamaModels]);
 
     const selectedLocalLLMDescription = useMemo(() => {
-        // РќРµ РїРѕРєР°Р·С‹РІР°РµРј РѕРїРёСЃР°РЅРёРµ РµСЃР»Рё РЅРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РјРѕРґРµР»РµР№ (РЅРµС‚ РєР»СЋС‡РµР№)
+        // Hide the helper text when no models are available yet.
         if (values.llmMode === LLM_MODES.API && llmModelOptions.length === 0) {
             return null;
         }
@@ -563,7 +562,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     }, [values.transcribeMode, values.transcribeModel, selectedLocalModelMeta, emitChange]);
 
     useEffect(() => {
-        // РќРµ РјРµРЅСЏРµРј РјРѕРґРµР»СЊ РµСЃР»Рё РЅРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РѕРїС†РёР№ (РЅРµС‚ РєР»СЋС‡РµР№) - РїРѕРєР°Р·С‹РІР°РµРј СЃРѕРѕР±С‰РµРЅРёРµ
+        // Keep the selected model when no options are available and show the warning instead.
         if (values.transcribeMode === SPEECH_MODES.API && transcribeModelOptions.length === 0) {
             return;
         }
@@ -573,7 +572,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     }, [transcribeModelOptions, values.transcribeModel, values.transcribeMode, emitChange]);
 
     useEffect(() => {
-        // РќРµ РјРµРЅСЏРµРј РјРѕРґРµР»СЊ РµСЃР»Рё РЅРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РѕРїС†РёР№ (РЅРµС‚ РєР»СЋС‡РµР№) - РїРѕРєР°Р·С‹РІР°РµРј СЃРѕРѕР±С‰РµРЅРёРµ
+        // Keep the selected model when no options are available and show the warning instead.
         if (values.llmMode === LLM_MODES.API && llmModelOptions.length === 0) {
             return;
         }
@@ -667,33 +666,33 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         !(isWinkyLlmSelected && isWinkyTranscribeSelected);
     const isLocalLLMMode = values.llmMode === LLM_MODES.LOCAL;
     const checkingMessage = selectedLocalModelDescription
-        ? `Checking if ${selectedLocalModelDescription} is availableвЂ¦`
-        : 'Checking if the model is availableвЂ¦';
+        ? `Checking if ${selectedLocalModelDescription} is available...`
+        : 'Checking if the model is available...';
     const downloadedMessage = selectedLocalModelDescription
         ? `${selectedLocalModelDescription} is downloaded and ready to use.`
         : 'The model is downloaded and ready to use.';
     const downloadButtonLabel = selectedLocalModelDescription
         ? downloadingLocalModel
-            ? `Downloading ${selectedLocalModelDescription}вЂ¦`
+            ? `Downloading ${selectedLocalModelDescription}...`
             : `Download ${selectedLocalModelDescription}`
         : downloadingLocalModel
-            ? 'DownloadingвЂ¦'
+            ? 'Downloading...'
             : 'Download model';
     const warmupWarningMessage = selectedLocalModelDescription
         ? `${selectedLocalModelDescription} is warming up. Using the microphone is temporarily unavailable.`
         : 'The model is warming up. Using the microphone is temporarily unavailable.';
     const llmCheckingMessage = selectedLocalLLMDescription
-        ? `Checking if ${selectedLocalLLMDescription} is availableвЂ¦`
-        : 'Checking if the model is availableвЂ¦';
+        ? `Checking if ${selectedLocalLLMDescription} is available...`
+        : 'Checking if the model is available...';
     const llmDownloadedMessage = selectedLocalLLMDescription
         ? `${selectedLocalLLMDescription} is downloaded and ready to use.`
         : 'The model is downloaded and ready to use.';
     const llmDownloadButtonLabel = selectedLocalLLMDescription
         ? ollamaDownloadingModel
-            ? `Downloading ${selectedLocalLLMDescription}вЂ¦`
+            ? `Downloading ${selectedLocalLLMDescription}...`
             : `Download ${selectedLocalLLMDescription}`
         : ollamaDownloadingModel
-            ? 'DownloadingвЂ¦'
+            ? 'Downloading...'
             : 'Download model';
     const llmWarmupWarningMessage = selectedLocalLLMDescription
         ? `${selectedLocalLLMDescription} is warming up. Using the microphone is temporarily unavailable.`
@@ -782,7 +781,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                             sx={{display: 'flex', alignItems: 'center', gap: 1}}
                                         >
                                             <CircularProgress size={16} thickness={5} color="inherit"/>
-                                            Checking Ollama installation and model availabilityвЂ¦
+                                            Checking Ollama installation and model availability...
                                         </Typography>
                                     )}
                                     {!ollamaChecking && ollamaInstalled === false && (
@@ -924,7 +923,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                 {!shouldAutoSave && onSubmit && (
                     <Box display="flex" justifyContent="flex-end" mt={2}>
                         <Button type="submit" variant="contained" size="large" disabled={saving} sx={{px: 4}}>
-                            {saving ? 'SavingвЂ¦' : submitButtonText}
+                            {saving ? 'Saving...' : submitButtonText}
                         </Button>
                     </Box>
                 )}

@@ -2,6 +2,7 @@
 import {Box, Chip, IconButton, Typography} from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import FolderRoundedIcon from '@mui/icons-material/FolderRounded';
 import StarsRoundedIcon from '@mui/icons-material/StarsRounded';
 import type {ActionConfig, ActionGroup} from '@shared/types';
 import {getMediaUrl, MAX_ACTIONS_PER_GROUP, SYSTEM_GROUP_ID} from '@shared/constants';
@@ -117,7 +118,7 @@ const GroupCard: React.FC<Props> = ({
                         <Typography variant="h5" sx={(theme) => ({
                             color: theme.palette.mode === 'dark' ? '#ffffff' : undefined
                         })}>
-                            рџ“Ѓ
+                            <FolderRoundedIcon fontSize="inherit"/>
                         </Typography>
                     )}
                 </Box>
@@ -241,6 +242,4 @@ const GroupCard: React.FC<Props> = ({
 };
 
 export default GroupCard;
-
-
 

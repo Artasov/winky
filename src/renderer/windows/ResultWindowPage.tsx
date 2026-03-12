@@ -24,7 +24,7 @@ const ResultWindowPage: React.FC = () => {
 
     useEffect(() => {
         
-        // РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РїРѕРґРїРёСЃРєСѓ РЅР° РґР°РЅРЅС‹Рµ
+        // Subscribe before sending the ready event.
         const unsubscribe = resultBridge.subscribe((data) => {
             if (data.transcription !== undefined) {
                 setRequestText(data.transcription);
@@ -37,16 +37,15 @@ const ResultWindowPage: React.FC = () => {
             }
         });
         
-        // Р¤СѓРЅРєС†РёСЏ РґР»СЏ РѕС‚РїСЂР°РІРєРё СЃРѕР±С‹С‚РёСЏ РіРѕС‚РѕРІРЅРѕСЃС‚Рё
+        // Notify the host window that this page is ready.
         const sendReady = () => {
             void emit('result:ready');
         };
         
-        // РћС‚РїСЂР°РІР»СЏРµРј СЃРѕР±С‹С‚РёРµ РіРѕС‚РѕРІРЅРѕСЃС‚Рё РїРѕСЃР»Рµ СѓСЃС‚Р°РЅРѕРІРєРё РїРѕРґРїРёСЃРєРё
-        // РСЃРїРѕР»СЊР·СѓРµРј РЅРµР±РѕР»СЊС€СѓСЋ Р·Р°РґРµСЂР¶РєСѓ, С‡С‚РѕР±С‹ СѓР±РµРґРёС‚СЊСЃСЏ, С‡С‚Рѕ РїРѕРґРїРёСЃРєР° РїРѕР»РЅРѕСЃС‚СЊСЋ СѓСЃС‚Р°РЅРѕРІР»РµРЅР°
+        // Delay the ready event slightly so the subscription is fully attached.
         const readyTimeout = setTimeout(sendReady, 50);
         
-        // РўР°РєР¶Рµ СЃР»СѓС€Р°РµРј Р·Р°РїСЂРѕСЃ РЅР° РѕС‚РїСЂР°РІРєСѓ ready (РґР»СЏ СЃР»СѓС‡Р°СЏ, РєРѕРіРґР° РѕРєРЅРѕ СѓР¶Рµ РѕС‚РєСЂС‹С‚Рѕ)
+        // Also handle repeated ready requests when the window is already open.
         let requestReadyUnlisten: (() => void) | null = null;
         void listen('result:request-ready', () => {
             sendReady();

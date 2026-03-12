@@ -1,4 +1,5 @@
 ﻿import React, {ChangeEvent, useEffect, useRef, useState} from 'react';
+import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import {Box, Button, Checkbox, FormControlLabel, MenuItem, Slider, TextField, Typography} from '@mui/material';
 import {alpha} from '@mui/material/styles';
 import {useConfig} from '../context/ConfigContext';
@@ -102,21 +103,20 @@ const SettingsPage: React.FC = () => {
     const isInitialMountRef = useRef(true);
     const isUserChangingHotkeyRef = useRef(false);
 
-    // РћС‚СЃР»РµР¶РёРІР°РµРј РёР·РјРµРЅРµРЅРёСЏ С…РѕС‚РєРµСЏ РёР· РєРѕРЅС„РёРіР°
+    // Track hotkey updates that arrive from config changes.
     useEffect(() => {
         if (config?.micHotkey) {
             const currentHotkey = config.micHotkey.trim();
             const previousHotkey = previousHotkeyRef.current;
 
-            // Р•СЃР»Рё СЌС‚Рѕ РїРµСЂРІРѕРµ РјРѕРЅС‚РёСЂРѕРІР°РЅРёРµ, РїСЂРѕСЃС‚Рѕ СЃРѕС…СЂР°РЅСЏРµРј
+            // On the first mount we only capture the initial value.
             if (isInitialMountRef.current) {
                 isInitialMountRef.current = false;
                 previousHotkeyRef.current = currentHotkey;
                 return;
             }
 
-            // Р•СЃР»Рё С…РѕС‚РєРµР№ РёР·РјРµРЅРёР»СЃСЏ РЅРµ РёР·-Р·Р° РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ (РЅР°РїСЂРёРјРµСЂ, РїСЂРё РёР·РјРµРЅРµРЅРёРё РјРѕРґРµР»Рё),
-            // РѕР±РЅРѕРІР»СЏРµРј ref, РЅРѕ РЅРµ РїРѕРєР°Р·С‹РІР°РµРј СѓРІРµРґРѕРјР»РµРЅРёРµ
+            // If config changed the hotkey outside the input flow, update the ref silently.
             if (previousHotkey !== currentHotkey && !isUserChangingHotkeyRef.current) {
                 previousHotkeyRef.current = currentHotkey;
             }
@@ -160,14 +160,12 @@ const SettingsPage: React.FC = () => {
                 const currentHotkey = payload.accelerator.trim();
                 const previousHotkey = previousHotkeyRef.current;
 
-                // РџРѕРєР°Р·С‹РІР°РµРј СѓРІРµРґРѕРјР»РµРЅРёРµ С‚РѕР»СЊРєРѕ РµСЃР»Рё:
-                // 1. РҐРѕС‚РєРµР№ РґРµР№СЃС‚РІРёС‚РµР»СЊРЅРѕ РёР·РјРµРЅРёР»СЃСЏ
-                // 2. Р­С‚Рѕ РёР·РјРµРЅРµРЅРёРµ Р±С‹Р»Рѕ РёРЅРёС†РёРёСЂРѕРІР°РЅРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»РµРј (РЅРµ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРѕРµ РѕР±РЅРѕРІР»РµРЅРёРµ РєРѕРЅС„РёРіР°)
+                // Show success only for a real user-initiated hotkey change.
                 if (previousHotkey !== currentHotkey && isUserChangingHotkeyRef.current) {
                     previousHotkeyRef.current = currentHotkey;
                     showToast(`Hotkey ready: ${currentHotkey}`, 'success');
                 } else if (previousHotkey !== currentHotkey) {
-                    // РҐРѕС‚РєРµР№ РёР·РјРµРЅРёР»СЃСЏ, РЅРѕ РЅРµ РёР·-Р·Р° РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ - РїСЂРѕСЃС‚Рѕ РѕР±РЅРѕРІР»СЏРµРј ref
+                    // Sync the ref without showing a toast for external changes.
                     previousHotkeyRef.current = currentHotkey;
                 }
             }
@@ -177,12 +175,12 @@ const SettingsPage: React.FC = () => {
             if (!payload || payload.source !== 'mic') {
                 return;
             }
-            // РџРѕРєР°Р·С‹РІР°РµРј СѓРІРµРґРѕРјР»РµРЅРёРµ С‚РѕР»СЊРєРѕ РµСЃР»Рё РѕС‡РёСЃС‚РєР° Р±С‹Р»Р° РёРЅРёС†РёРёСЂРѕРІР°РЅР° РїРѕР»СЊР·РѕРІР°С‚РµР»РµРј
+            // Show the cleared toast only for user-initiated changes.
             if (isUserChangingHotkeyRef.current && previousHotkeyRef.current !== null) {
                 previousHotkeyRef.current = null;
                 showToast('Hotkey cleared.', 'success');
             } else if (previousHotkeyRef.current !== null) {
-                // РҐРѕС‚РєРµР№ РѕС‡РёС‰РµРЅ, РЅРѕ РЅРµ РёР·-Р·Р° РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ - РїСЂРѕСЃС‚Рѕ РѕР±РЅРѕРІР»СЏРµРј ref
+                // Sync the ref silently when clearing came from outside the input flow.
                 previousHotkeyRef.current = null;
             }
         };
@@ -230,11 +228,11 @@ const SettingsPage: React.FC = () => {
         setMicHotkey(nextValue);
         try {
             await updateConfig({micHotkey: nextValue.trim()});
-            // РЎР±СЂР°СЃС‹РІР°РµРј С„Р»Р°Рі РїРѕСЃР»Рµ РЅРµР±РѕР»СЊС€РѕР№ Р·Р°РґРµСЂР¶РєРё, С‡С‚РѕР±С‹ СЃРѕР±С‹С‚РёРµ СѓСЃРїРµР»Рѕ РѕР±СЂР°Р±РѕС‚Р°С‚СЊСЃСЏ
+            // Reset the flag slightly later so the registration event can finish first.
             setTimeout(() => {
                 isUserChangingHotkeyRef.current = false;
             }, 100);
-            // РЈРІРµРґРѕРјР»РµРЅРёРµ РїРѕРєР°Р·С‹РІР°РµС‚СЃСЏ РІ handleHotkeySuccess РїРѕСЃР»Рµ СѓСЃРїРµС€РЅРѕР№ СЂРµРіРёСЃС‚СЂР°С†РёРё С…РѕС‚РєРµСЏ
+            // The success toast is shown later from handleHotkeySuccess.
         } catch (error) {
             console.error('[SettingsPage] Failed to update hotkey', error);
             showToast('Failed to update hotkey.', 'error');
@@ -468,7 +466,7 @@ const SettingsPage: React.FC = () => {
     if (!isAuthorized) {
         return (
             <div className="fccc mx-auto h-full w-full max-w-md gap-4 px-8 py-12 text-center">
-                <div className="text-4xl opacity-60">рџ”ђ</div>
+                <LockRoundedIcon sx={{fontSize: 40, opacity: 0.6}}/>
                 <p className="text-sm text-text-secondary">Please sign in to change settings.</p>
             </div>
         );

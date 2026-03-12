@@ -1,5 +1,6 @@
 ﻿import React from 'react';
 import {Box, Chip, IconButton, Stack, Typography} from '@mui/material';
+import FlashOnRoundedIcon from '@mui/icons-material/FlashOnRounded';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import StarsRoundedIcon from '@mui/icons-material/StarsRounded';
 import {alpha} from '@mui/material/styles';
@@ -21,7 +22,7 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
         if (!value) {
             return '';
         }
-        return value.length > limit ? `${value.slice(0, limit).trim()}вЂ¦` : value;
+        return value.length > limit ? `${value.slice(0, limit).trim()}...` : value;
     };
 
     const promptText = action.prompt && action.prompt.trim().length > 0
@@ -179,7 +180,7 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                                     color: theme.palette.mode === 'dark' ? '#ffffff' : undefined
                                 })}
                             >
-                                вљЎ
+                                <FlashOnRoundedIcon fontSize="inherit"/>
                             </Typography>
                         )}
                     </Box>

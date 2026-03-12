@@ -138,8 +138,8 @@ body,
     overflow: hidden;
 }
 
-/* Р—Р°РєСЂСѓРіР»РµРЅРёРµ СѓРіР»РѕРІ РґР»СЏ РѕРєРѕРЅ Р±РµР· СЃРёСЃС‚РµРјРЅС‹С… РґРµРєРѕСЂР°С†РёР№ (Windows) */
-/* html Рё body РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ РїСЂРѕР·СЂР°С‡РЅС‹РјРё, Р·Р°РєСЂСѓРіР»РµРЅРёРµ РЅР° #root */
+/* Rounded corners for frameless windows on Windows. */
+/* html and body stay transparent, the visible radius is applied on #root. */
 html[data-window-type="main"],
 html[data-window-type="result"],
 html[data-window-type="error"] {
@@ -165,7 +165,7 @@ body {
     @apply bg-bg-base text-text-primary font-sans;
 }
 
-/* РџРµСЂРµРѕРїСЂРµРґРµР»СЏРµРј С„РѕРЅ РґР»СЏ РїСЂРѕР·СЂР°С‡РЅС‹С… РѕРєРѕРЅ */
+/* Override body background for transparent auxiliary windows. */
 html[data-window-type="main"] body,
 html[data-window-type="result"] body,
 html[data-window-type="error"] body {
@@ -440,7 +440,7 @@ html[data-mic-window="true"] body #root {
     box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.25), 0 0 4px rgba(190, 18, 60, 0.4);
 }
 
-/* РўРѕРЅРєРёР№ scrollbar РґР»СЏ History СЃРµРєС†РёР№ */
+/* Thin scrollbar used inside History sections. */
 .history-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: #fb7185 rgba(244, 63, 94, 0.12);
@@ -495,7 +495,7 @@ html[data-mic-window="true"] body #root {
     background: linear-gradient(180deg, rgba(244, 63, 94, 1), rgba(190, 18, 60, 0.95));
 }
 
-/* РЎС‚РёР»Рё СЃРєСЂРѕР»Р»Р±Р°СЂР° РґР»СЏ РјРµРЅСЋ MUI Select */
+/* Scrollbar styles for MUI Select menus. */
 .MuiMenu-paper,
 .MuiPopover-paper,
 .MuiMenuList-root {
@@ -582,7 +582,7 @@ html[data-mic-window="true"] body #root {
     animation: modal-fade-scale-out 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-/* Fade Р°РЅРёРјР°С†РёРё РґР»СЏ РјРёРєСЂРѕС„РѕРЅР° */
+/* Fade animations for the microphone overlay. */
 @keyframes fade-in {
     from {
         opacity: 0;
@@ -615,7 +615,7 @@ body.fade-out {
     transform-origin: center;
 }
 
-/* Glass Tooltip Р°РЅРёРјР°С†РёСЏ */
+/* Glass tooltip animation. */
 @keyframes tooltip-fade-in {
     from {
         opacity: 0;
@@ -631,7 +631,7 @@ body.fade-out {
     animation: tooltip-fade-in 0.15s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-/* Р“Р»РѕР±Р°Р»СЊРЅС‹Рµ СЃС‚РёР»Рё РґР»СЏ РІС‹РґРµР»РµРЅРёСЏ С‚РµРєСЃС‚Р° (Р±РµР»С‹Р№ С‚РµРєСЃС‚ РЅР° РєСЂР°СЃРЅРѕРј С„РѕРЅРµ) */
+/* Global text selection colors. */
 ::selection {
     background-color: var(--color-primary);
     color: white;

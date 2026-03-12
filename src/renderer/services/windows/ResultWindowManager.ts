@@ -9,8 +9,8 @@ export type ResultPayload = {
 };
 
 /**
- * РњРµРЅРµРґР¶РµСЂ РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ РѕРєРЅРѕРј СЂРµР·СѓР»СЊС‚Р°С‚РѕРІ
- * РћР±РµСЃРїРµС‡РёРІР°РµС‚ РЅР°РґРµР¶РЅСѓСЋ РїРµСЂРµРґР°С‡Сѓ РґР°РЅРЅС‹С… РјРµР¶РґСѓ РѕРєРЅР°РјРё
+ * Manages the result window lifecycle and event delivery.
+ * Keeps payload transfer reliable across repeated opens and updates.
  */
 export class ResultWindowManager {
     private readonly window: AuxWindowController;
@@ -30,7 +30,7 @@ export class ResultWindowManager {
             transparent: true
         });
 
-        // РЎР»СѓС€Р°РµРј СЃРѕР±С‹С‚РёРµ РіРѕС‚РѕРІРЅРѕСЃС‚Рё РѕРєРЅР°
+        // Listen for the result window ready signal.
         void listen('result:ready', () => {
             this.isReady = true;
             this.readyWaiters.forEach((waiter) => waiter());
@@ -39,7 +39,7 @@ export class ResultWindowManager {
     }
 
     /**
-     * РћР¶РёРґР°РµС‚ РіРѕС‚РѕРІРЅРѕСЃС‚Рё РѕРєРЅР° СЃ С‚Р°Р№РјР°СѓС‚РѕРј
+     * Waits until the result window reports that it is ready.
      */
     private waitForReady(timeout: number = 5000): Promise<void> {
         if (this.isReady) {
@@ -65,7 +65,7 @@ export class ResultWindowManager {
     }
 
     /**
-     * РћС‚РїСЂР°РІР»СЏРµС‚ РґР°РЅРЅС‹Рµ РІ РѕРєРЅРѕ
+     * Sends payload data to the result window.
      */
     private async sendPayload(payload: ResultPayload): Promise<void> {
         this.lastPayload = this.lastPayload ? {...this.lastPayload, ...payload} : payload;
@@ -74,7 +74,7 @@ export class ResultWindowManager {
     }
 
     /**
-     * РћС‚РєСЂС‹РІР°РµС‚ РѕРєРЅРѕ Рё Р¶РґРµС‚ РµРіРѕ РіРѕС‚РѕРІРЅРѕСЃС‚Рё
+     * Opens the result window and waits for readiness.
      */
     async open(): Promise<void> {
         
@@ -94,11 +94,11 @@ export class ResultWindowManager {
         try {
             await this.waitForReady();
             
-            // РћС‡РёС‰Р°РµРј СЃРѕСЃС‚РѕСЏРЅРёРµ РґР»СЏ РЅРѕРІРѕРіРѕ СЃРµР°РЅСЃР°
+            // Reset state for a fresh result session.
             this.lastPayload = null;
             this.eventHistory = [];
             
-            // РћС‚РїСЂР°РІР»СЏРµРј РѕС‚Р»РѕР¶РµРЅРЅС‹Рµ РґР°РЅРЅС‹Рµ
+            // Flush any payload collected before readiness.
             if (this.pendingPayload) {
                 const payload = this.pendingPayload;
                 this.pendingPayload = null;
@@ -123,7 +123,7 @@ export class ResultWindowManager {
     }
 
     /**
-     * Р—Р°РєСЂС‹РІР°РµС‚ РѕРєРЅРѕ
+     * Closes the result window and clears cached state.
      */
     async close(): Promise<void> {
         this.lastPayload = null;
@@ -136,19 +136,19 @@ export class ResultWindowManager {
     }
 
     /**
-     * РћР±РЅРѕРІР»СЏРµС‚ РґР°РЅРЅС‹Рµ РІ РѕРєРЅРµ
+     * Updates the current result payload.
      */
     async update(payload: ResultPayload): Promise<void> {
         
-        // РћР±РЅРѕРІР»СЏРµРј СЃРѕСЃС‚РѕСЏРЅРёРµ
+        // Merge the latest update into cached state.
         this.lastPayload = this.lastPayload ? {...this.lastPayload, ...payload} : payload;
         this.eventHistory.push(payload);
         
-        // Р•СЃР»Рё РѕРєРЅРѕ РЅРµ РіРѕС‚РѕРІРѕ, СЃРѕС…СЂР°РЅСЏРµРј РґР°РЅРЅС‹Рµ
+        // Cache updates until the window is ready.
         if (!this.isReady) {
             this.pendingPayload = this.pendingPayload ? {...this.pendingPayload, ...payload} : payload;
             
-            // РќРµР±РѕР»СЊС€Р°СЏ Р·Р°РґРµСЂР¶РєР° РґР»СЏ РїСЂРѕРІРµСЂРєРё РіРѕС‚РѕРІРЅРѕСЃС‚Рё
+            // Give the ready event a moment to arrive before retrying.
             await new Promise(resolve => setTimeout(resolve, 50));
             if (this.isReady && this.pendingPayload) {
                 const finalPayload = this.pendingPayload;
@@ -158,25 +158,25 @@ export class ResultWindowManager {
             return;
         }
         
-        // РћС‚РїСЂР°РІР»СЏРµРј РґР°РЅРЅС‹Рµ РµСЃР»Рё РѕРєРЅРѕ РіРѕС‚РѕРІРѕ
+        // Send immediately once the window is ready.
         await this.sendPayload(payload);
     }
     /**
-     * РџРѕРґРїРёСЃС‹РІР°РµС‚СЃСЏ РЅР° РѕР±РЅРѕРІР»РµРЅРёСЏ РґР°РЅРЅС‹С…
+     * Subscribes to result payload updates.
      */
     onData(callback: (payload: ResultPayload) => void): () => void {
         const unlistenPromise = listen<ResultPayload>('result:data', (event) => {
             callback(event.payload);
         });
         
-        // РћС‚РїСЂР°РІР»СЏРµРј С‚РµРєСѓС‰РµРµ СЃРѕСЃС‚РѕСЏРЅРёРµ
+        // Replay the current state to new subscribers.
         if (this.lastPayload) {
             setTimeout(() => {
                 callback(this.lastPayload!);
             }, 0);
         }
         
-        // РћС‚РїСЂР°РІР»СЏРµРј РёСЃС‚РѕСЂРёСЋ СЃРѕР±С‹С‚РёР№
+        // Replay merged event history to rebuild the latest snapshot.
         if (this.eventHistory.length > 0) {
             const mergedPayload = this.eventHistory.reduce((acc, entry) => ({...acc, ...entry}), {} as ResultPayload);
             setTimeout(() => {

@@ -333,7 +333,7 @@ const ActionForm: React.FC<Props> = ({
                             Icon <Typography component="span" color="error.main">*</Typography>{' '}
                             {selectedIconName && (
                                 <Typography component="span" variant="caption" color="text.secondary">
-                                    вЂў {selectedIconName}
+                                    - {selectedIconName}
                                 </Typography>
                             )}
                         </Typography>
@@ -348,7 +348,7 @@ const ActionForm: React.FC<Props> = ({
                                     color: 'text.secondary'
                                 }}
                             >
-                                Loading iconsвЂ¦
+                                Loading icons...
                             </Box>
                         ) : icons.length === 0 ? (
                             <Box
@@ -472,7 +472,7 @@ const ActionForm: React.FC<Props> = ({
                     variant="contained"
                     disabled={saving || iconsLoading || icons.length === 0 || !values.iconId}
                 >
-                    {saving ? 'SavingвЂ¦' : isEditMode ? 'Save changes' : 'Create action'}
+                    {saving ? 'Saving...' : isEditMode ? 'Save changes' : 'Create action'}
                 </Button>
             </DialogActions>
 

@@ -23,7 +23,7 @@ export const createDialogOverrides = (theme: Theme): Components['MuiDialog'] => 
     },
     styleOverrides: {
         root: {
-            // РџР»Р°РІРЅР°СЏ Р°РЅРёРјР°С†РёСЏ РїРѕСЏРІР»РµРЅРёСЏ/РёСЃС‡РµР·РЅРѕРІРµРЅРёСЏ
+            // Smooth fade and scale transition for dialog mount and unmount.
             '& .MuiDialog-container': {
                 transition: 'opacity 280ms cubic-bezier(0.4, 0, 0.2, 1), transform 280ms cubic-bezier(0.4, 0, 0.2, 1)'
             }

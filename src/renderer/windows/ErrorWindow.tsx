@@ -1,4 +1,6 @@
-﻿import React, {useEffect, useState} from 'react';
+import React, {useEffect, useState} from 'react';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 
 interface ErrorData {
     title: string;
@@ -39,7 +41,7 @@ const ErrorWindow: React.FC = () => {
             {/* Header */}
             <div className='frbc border-b border-primary-200 bg-bg-elevated px-4 py-3 shadow-primary-sm'>
                 <div className='frc gap-2'>
-                    <div className='text-2xl'>вљ пёЏ</div>
+                    <ErrorOutlineRoundedIcon fontSize='large' color='error'/>
                     <h1 className='text-lg font-semibold text-error'>{errorData.title}</h1>
                 </div>
                 <button
@@ -47,7 +49,7 @@ const ErrorWindow: React.FC = () => {
                     className='button-animated frcc h-8 w-8 rounded-lg text-text-secondary transition-colors hover:bg-primary-50 hover:text-error focus:outline-none'
                     aria-label='Close'
                 >
-                    вњ•
+                    <CloseRoundedIcon fontSize='small'/>
                 </button>
             </div>
 

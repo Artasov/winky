@@ -5,6 +5,7 @@ import {
     FAST_WHISPER_TRANSCRIBE_ENDPOINT,
     FAST_WHISPER_TRANSCRIBE_TIMEOUT,
     LLM_GEMINI_API_MODELS,
+    LLM_OPENAI_API_MODELS,
     SPEECH_MODES
 } from '@shared/constants';
 import type {ActionConfig, ActionGroup, ActionIcon, AppConfig, User, WinkyNote, WinkyProfile} from '@shared/types';
@@ -632,8 +633,14 @@ export const processLLM = async (text: string, prompt: string, config: {
     googleKey?: string;
     accessToken?: string;
 }, options: { onChunk?: (chunk: string) => void } = {}): Promise<string> => {
-    const provider = config.mode === 'api' 
-        ? (config.googleKey ? 'Google Gemini' : 'OpenAI')
+    const provider = config.mode === 'api'
+        ? (
+            (LLM_GEMINI_API_MODELS as readonly string[]).includes(config.model)
+                ? 'Google Gemini'
+                : (LLM_OPENAI_API_MODELS as readonly string[]).includes(config.model)
+                    ? 'OpenAI'
+                    : 'API'
+        )
         : 'Local';
     const shouldStream = typeof options.onChunk === 'function';
     

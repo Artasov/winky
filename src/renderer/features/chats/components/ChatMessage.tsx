@@ -87,6 +87,74 @@ const BranchNavigator: React.FC<BranchNavigatorProps> = ({currentIndex, total, o
     );
 };
 
+const ThinkingIndicator: React.FC<{isDark: boolean}> = ({isDark}) => {
+    const letters = 'Thinking'.split('');
+
+    return (
+        <div className="frsc gap-0.5 text-sm font-medium select-none">
+            <style>
+                {`
+                    @keyframes winky-thinking-letter {
+                        0%, 100% { opacity: 0.38; transform: translateY(0); }
+                        50% { opacity: 1; transform: translateY(-1px); }
+                    }
+                    @keyframes winky-thinking-dot {
+                        0%, 80%, 100% { opacity: 0.22; transform: scale(0.9); }
+                        40% { opacity: 1; transform: scale(1); }
+                    }
+                `}
+            </style>
+            {letters.map((letter, index) => (
+                <span
+                    key={`${letter}-${index}`}
+                    style={{
+                        color: isDark ? 'rgba(255,255,255,0.92)' : 'rgba(15,23,42,0.82)',
+                        animation: `winky-thinking-letter 1.6s ease-in-out ${index * 0.06}s infinite`
+                    }}
+                >
+                    {letter}
+                </span>
+            ))}
+            <div className="frsc gap-0.5 pl-1" style={{paddingTop: '5px'}}>
+                {[0, 1, 2].map((index) => (
+                    <span
+                        key={`dot-${index}`}
+                        style={{
+                            width: '4px',
+                            height: '4px',
+                            borderRadius: '9999px',
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.92)' : 'rgba(15,23,42,0.82)',
+                            display: 'inline-block',
+                            animation: `winky-thinking-dot 1.2s ease-in-out ${index * 0.18}s infinite`
+                        }}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+};
+
+export const ChatThinkingPlaceholder: React.FC = () => {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const darkSurface = alpha('#6f6f6f', 0.12);
+
+    return (
+        <div className="fc gap-1 items-start">
+            <div
+                className="rounded-2xl px-4 py-2"
+                style={{
+                    maxWidth: '85%',
+                    minWidth: '112px',
+                    backgroundColor: isDark ? darkSurface : 'rgba(0,0,0,0.03)'
+                }}
+            >
+                <ThinkingIndicator isDark={isDark}/>
+            </div>
+        </div>
+    );
+};
+
 const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     message,
     isStreaming,

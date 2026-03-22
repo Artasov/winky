@@ -1,10 +1,19 @@
 import {useCallback, type RefObject} from 'react';
 import type {ActionConfig, ActionHistoryEntry, AppConfig} from '@shared/types';
-import {getSiteBaseUrl, LLM_WINKY_API_MODELS, SPEECH_WINKY_API_MODELS} from '@shared/constants';
+import {getSiteBaseUrl, LLM_MODES, LLM_WINKY_API_MODELS, SPEECH_WINKY_API_MODELS} from '@shared/constants';
 import {createNoteForMode, deriveNoteTitle, resolveNotesStorageMode} from '../../../services/notesService';
 import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, speechBridge, windowBridge} from '../../../services/winkyBridge';
 import {trimSilenceFromAudioBlob, isAudioSilent} from '../services/audioProcessing';
 import {winkyTranscribe, winkyLLMStream} from '../../../services/winkyAiApi';
+import {
+    createLocalChatId,
+    createLocalMessageId,
+    updateLocalChat,
+    updateLocalChatMessage,
+    upsertLocalChat
+} from '../../chats/services/chatStorage';
+import {createChatLaunchRequest} from '../../chats/services/chatLaunchRequests';
+import {createChatMeta} from '../../chats/utils/chatProviders';
 
 const WINKY_LLM_MODELS_SET = new Set<string>([...LLM_WINKY_API_MODELS]);
 const WINKY_SPEECH_MODELS_SET = new Set<string>([...SPEECH_WINKY_API_MODELS]);
@@ -364,7 +373,20 @@ export const useActionProcessing = ({
                     .trim();
 
                 const fullPrompt = llmPrompt ? `${llmPrompt}\n\n${llmInput}` : llmInput;
-                const modelLevel = llmModel === 'winky-high' ? 'high' : 'low';
+                const modelLevel = llmModel === 'winky-high' ? 'high' : llmModel === 'winky-mid' ? 'mid' : 'low';
+
+                if (action.show_results) {
+                    const launchRequest = createChatLaunchRequest({
+                        text: llmInput,
+                        preferredTitle: action.name,
+                        additionalContext: llmPrompt || undefined,
+                        mode: LLM_MODES.API,
+                        model: llmModel
+                    });
+                    clearContext();
+                    await windowBridge.openRoute(`/chats/new?launch=${encodeURIComponent(launchRequest.id)}`);
+                    return;
+                }
 
                 let streamedResponse = '';
                 let historyEntry: ActionHistoryEntry | null = null;
@@ -636,6 +658,138 @@ export const useActionProcessing = ({
                 googleKey: config.apiKeys.google,
                 accessToken: authToken
             };
+
+            if (needsLLM && action.show_results) {
+                const actionLlmPrompt = action.prompt?.trim() || '';
+                const globalLlmPrompt = config.globalLlmPrompt?.trim() || '';
+                const llmPrompt = [globalLlmPrompt, actionLlmPrompt]
+                    .filter(p => p.length > 0)
+                    .join('\n\n')
+                    .trim();
+                const startedAt = new Date().toISOString();
+                const assistantStartedAt = new Date(Date.now() + 1).toISOString();
+                const localChatId = createLocalChatId();
+                const userMessageId = createLocalMessageId();
+                const assistantMessageId = createLocalMessageId();
+                const chatMeta = createChatMeta(config.llm.mode, llmModel);
+                let streamedResponse = '';
+
+                upsertLocalChat(
+                    {
+                        id: localChatId,
+                        title: action.name,
+                        additional_context: llmPrompt,
+                        message_count: 2,
+                        last_leaf_message_id: assistantMessageId,
+                        pinned_at: null,
+                        created_at: startedAt,
+                        updated_at: startedAt,
+                        ...chatMeta
+                    },
+                    [
+                        {
+                            id: userMessageId,
+                            parent_id: null,
+                            role: 'user',
+                            content: llmInput,
+                            model_level: llmModel,
+                            provider: chatMeta.provider,
+                            model_name: llmModel,
+                            tokens: 0,
+                            has_children: false,
+                            sibling_count: 0,
+                            sibling_index: 0,
+                            created_at: startedAt
+                        },
+                        {
+                            id: assistantMessageId,
+                            parent_id: userMessageId,
+                            role: 'assistant',
+                            content: 'Thinking...',
+                            model_level: llmModel,
+                            provider: chatMeta.provider,
+                            model_name: llmModel,
+                            tokens: 0,
+                            has_children: false,
+                            sibling_count: 0,
+                            sibling_index: 0,
+                            created_at: assistantStartedAt
+                        }
+                    ]
+                );
+                await windowBridge.openRoute(`/chats/${encodeURIComponent(localChatId)}`);
+
+                try {
+                    const response = await llmBridge.process(
+                        llmInput,
+                        llmPrompt,
+                        llmConfig,
+                        {
+                            onChunk: (chunk) => {
+                                streamedResponse += chunk;
+                                updateLocalChatMessage(localChatId, assistantMessageId, {
+                                    content: streamedResponse,
+                                    provider: chatMeta.provider,
+                                    model_name: llmModel,
+                                    model_level: llmModel
+                                });
+                                updateLocalChat(localChatId, {
+                                    title: action.name,
+                                    additional_context: llmPrompt,
+                                    updated_at: new Date().toISOString(),
+                                    last_leaf_message_id: assistantMessageId,
+                                    message_count: 2
+                                });
+                            }
+                        }
+                    );
+
+                    const finalResponse = response?.trim().length ? response : streamedResponse;
+                    const resultText = finalResponse.trim().length > 0 ? finalResponse : transcriptionForOutput;
+
+                    updateLocalChatMessage(localChatId, assistantMessageId, {
+                        content: resultText,
+                        provider: chatMeta.provider,
+                        model_name: llmModel,
+                        model_level: llmModel
+                    });
+                    updateLocalChat(localChatId, {
+                        title: action.name,
+                        additional_context: llmPrompt,
+                        updated_at: new Date().toISOString(),
+                        last_leaf_message_id: assistantMessageId,
+                        message_count: 2
+                    });
+
+                    if (action.auto_copy_result) {
+                        await copyWithRetries({
+                            text: finalResponse ?? '',
+                            showToast,
+                            successMessage: 'Response copied.',
+                            failureMessage: 'Failed to copy the response to the clipboard.'
+                        });
+                    }
+
+                    await saveQuickNote(resultText);
+                    clearContext();
+                    await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef, debug: true});
+                } catch (error) {
+                    updateLocalChatMessage(localChatId, assistantMessageId, {
+                        content: streamedResponse || 'Failed to generate response.',
+                        provider: chatMeta.provider,
+                        model_name: llmModel,
+                        model_level: llmModel
+                    });
+                    updateLocalChat(localChatId, {
+                        updated_at: new Date().toISOString(),
+                        last_leaf_message_id: assistantMessageId,
+                        message_count: 2
+                    });
+                    throw error;
+                }
+
+                return;
+            }
 
             let streamedResponse = '';
             const onChunk = action.show_results

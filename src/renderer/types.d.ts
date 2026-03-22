@@ -50,7 +50,7 @@ declare global {
             show_results?: boolean;
             sound_on_complete?: boolean;
             auto_copy_result?: boolean;
-            llm_model?: string;
+            llm_model?: string | null;
         }): Promise<ActionConfig[]>;
 
         update(actionId: string, action: {
@@ -63,7 +63,7 @@ declare global {
             show_results?: boolean;
             sound_on_complete?: boolean;
             auto_copy_result?: boolean;
-            llm_model?: string;
+            llm_model?: string | null;
         }): Promise<ActionConfig[]>;
 
         delete(actionId: string): Promise<ActionConfig[]>;

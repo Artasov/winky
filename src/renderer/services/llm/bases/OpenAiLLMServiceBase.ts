@@ -92,7 +92,12 @@ export abstract class OpenAiLLMServiceBase extends ApiLLMBaseService {
         return this.extractResult(data);
     }
 
-    async processStream(text: string, prompt: string, onChunk: (chunk: string) => void): Promise<string> {
+    async processStream(
+        text: string,
+        prompt: string,
+        onChunk: (chunk: string) => void,
+        options?: {signal?: AbortSignal}
+    ): Promise<string> {
         const token = this.accessToken?.trim();
         if (!token) {
             throw new Error('An OpenAI API key is required to use OpenAI models.');
@@ -101,7 +106,8 @@ export abstract class OpenAiLLMServiceBase extends ApiLLMBaseService {
         const response = await fetch(this.buildUrl(), {
             method: 'POST',
             headers: this.getHeaders(token),
-            body: JSON.stringify({...this.buildBody(text, prompt), stream: true})
+            body: JSON.stringify({...this.buildBody(text, prompt), stream: true}),
+            signal: options?.signal
         });
 
         if (!response.ok) {

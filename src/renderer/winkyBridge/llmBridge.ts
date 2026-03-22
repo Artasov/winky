@@ -5,6 +5,6 @@ export const llmBridge = {
         text: string,
         prompt: string,
         config: {mode: string; model: string; openaiKey?: string; googleKey?: string; accessToken?: string},
-        options?: { onChunk?: (chunk: string) => void }
+        options?: { onChunk?: (chunk: string) => void; signal?: AbortSignal }
     ) => processLLM(text, prompt, config, options)
 };

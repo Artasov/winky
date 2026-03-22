@@ -105,7 +105,12 @@ class GeminiLLMService extends ApiLLMBaseService {
         return super.extractResult(response);
     }
 
-    async processStream(text: string, prompt: string, onChunk: (chunk: string) => void): Promise<string> {
+    async processStream(
+        text: string,
+        prompt: string,
+        onChunk: (chunk: string) => void,
+        options?: {signal?: AbortSignal}
+    ): Promise<string> {
         const token = this.accessToken?.trim();
         if (!token) {
             throw new Error('Provide a Google AI API key to use this model.');
@@ -117,7 +122,8 @@ class GeminiLLMService extends ApiLLMBaseService {
                 ...this.buildHeaders(),
                 Accept: 'text/event-stream'
             },
-            body: JSON.stringify(this.buildBody(text, prompt))
+            body: JSON.stringify(this.buildBody(text, prompt)),
+            signal: options?.signal
         });
 
         if (!response.ok) {

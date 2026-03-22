@@ -14,6 +14,8 @@ import {
 export type TranscribeMode = (typeof SPEECH_MODES)[keyof typeof SPEECH_MODES];
 export type LLMMode = (typeof LLM_MODES)[keyof typeof LLM_MODES];
 export type BackendDomain = (typeof BACKEND_DOMAINS)[number];
+export type ChatStorage = 'remote' | 'local';
+export type ChatProvider = 'winky' | 'openai' | 'google' | 'local';
 export type LLMModel =
     | (typeof LLM_WINKY_API_MODELS)[number]
     | (typeof LLM_OPENAI_API_MODELS)[number]
@@ -225,6 +227,10 @@ export interface WinkyChat {
     id: string;
     title: string;
     additional_context: string;
+    storage?: ChatStorage;
+    provider?: ChatProvider;
+    model_name?: string | null;
+    llm_mode?: LLMMode | null;
     message_count: number;
     last_leaf_message_id: string | null;
     pinned_at: string | null;
@@ -237,7 +243,9 @@ export interface WinkyChatMessage {
     parent_id: string | null;
     role: 'user' | 'assistant';
     content: string;
-    model_level: 'low' | 'mid' | 'high' | 'transcribe';
+    model_level: string;
+    provider?: ChatProvider;
+    model_name?: string | null;
     tokens: number;
     has_children: boolean;
     sibling_count: number;

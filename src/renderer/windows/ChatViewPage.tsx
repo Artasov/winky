@@ -1,5 +1,5 @@
-import React, {useCallback, useEffect, useRef, useState, memo, useMemo} from 'react';
-import {useNavigate, useParams} from 'react-router-dom';
+import React, {useCallback, useEffect, useLayoutEffect, useRef, useState, memo, useMemo} from 'react';
+import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {alpha, useTheme} from '@mui/material/styles';
 import {CircularProgress, IconButton, TextField} from '@mui/material';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
@@ -13,7 +13,8 @@ import {useChats} from '../context/ChatsContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import NoCreditsModal from '../components/NoCreditsModal';
 import ChatActions from '../features/chats/components/ChatActions';
-import ChatMessage from '../features/chats/components/ChatMessage';
+import ChatMessage, {ChatThinkingPlaceholder} from '../features/chats/components/ChatMessage';
+import useSmoothedStreamingContent from '../features/chats/hooks/useSmoothedStreamingContent';
 import {
     fetchWinkyChatBranch,
     fetchWinkyChat,
@@ -23,8 +24,83 @@ import {
     winkyTranscribe,
     updateWinkyChat
 } from '../services/winkyAiApi';
+import {llmBridge} from '../services/winkyBridge';
+import {
+    createLocalChatId,
+    createLocalMessageId,
+    getLocalChat,
+    getLocalChatBranch,
+    getLocalBranchFromMessage,
+    getLocalMessageSiblings,
+    getRemoteDraftChat,
+    replaceLocalChatMessages,
+    subscribeChatStorage,
+    updateLocalChat,
+    upsertLocalChat
+} from '../features/chats/services/chatStorage';
+import {
+    consumeChatLaunchRequest,
+    type ChatLaunchRequest
+} from '../features/chats/services/chatLaunchRequests';
+import {createChatMeta, getChatModelOptions} from '../features/chats/utils/chatProviders';
+import {getChatModelPreference} from '../features/chats/services/chatModelPreferences';
+import {buildChatPrompt} from '../features/chats/utils/chatPrompt';
+import {
+    clearChatTitleBarModelState,
+    setChatTitleBarModelState
+} from '../services/chatTitleBarState';
 
 const CHAT_BRANCHES_STORAGE_KEY = 'winky_chat_branches';
+const CHAT_DETACH_THRESHOLD_PX = 72;
+const CHAT_ATTACH_THRESHOLD_PX = 160;
+
+const getWinkyModelLevel = (model: string | null | undefined): 'low' | 'mid' | 'high' => {
+    if (model === 'winky-low') return 'low';
+    if (model === 'winky-mid') return 'mid';
+    return 'high';
+};
+
+const mergeMessages = (...messages: WinkyChatMessage[]): WinkyChatMessage[] => {
+    const map = new Map<string, WinkyChatMessage>();
+    for (const message of messages) {
+        map.set(message.id, message);
+    }
+    return [...map.values()].sort((left, right) => {
+        if (left.parent_id === right.id) {
+            return 1;
+        }
+        if (right.parent_id === left.id) {
+            return -1;
+        }
+        const leftTime = new Date(left.created_at).getTime();
+        const rightTime = new Date(right.created_at).getTime();
+        if (leftTime !== rightTime) {
+            return leftTime - rightTime;
+        }
+        if (left.role !== right.role) {
+            return left.role === 'user' ? -1 : 1;
+        }
+        return left.id.localeCompare(right.id);
+    });
+};
+
+const replacePendingUserMessage = (
+    messages: WinkyChatMessage[],
+    tempMessageId: string,
+    nextMessage: WinkyChatMessage
+): WinkyChatMessage[] => {
+    const filtered = messages.filter((message) => message.id !== tempMessageId && message.id !== nextMessage.id);
+    return mergeMessages(...filtered, nextMessage);
+};
+
+const buildResolvedUserMessage = (
+    existingMessage: WinkyChatMessage | undefined,
+    fallback: Omit<WinkyChatMessage, 'created_at'>
+): WinkyChatMessage => ({
+    ...existingMessage,
+    ...fallback,
+    created_at: existingMessage?.created_at || new Date().toISOString()
+});
 
 const getStoredLeafMessageId = (chatId: string): string | null => {
     try {
@@ -110,6 +186,7 @@ const MicWaves = React.memo(MicWavesComponent);
 interface MessagesListProps {
     messages: WinkyChatMessage[];
     streamingContent: string;
+    showStreamingPlaceholder: boolean;
     streamingModelLevel: 'low' | 'mid' | 'high' | 'transcribe';
     loading: boolean;
     loadingMore: boolean;
@@ -127,6 +204,7 @@ interface MessagesListProps {
 const MessagesListComponent: React.FC<MessagesListProps> = ({
     messages,
     streamingContent,
+    showStreamingPlaceholder,
     streamingModelLevel,
     loading,
     loadingMore,
@@ -148,7 +226,7 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
         );
     }
 
-    if (messages.length === 0 && !streamingContent) {
+    if (messages.length === 0 && !streamingContent && !showStreamingPlaceholder) {
         return (
             <div className="flex h-full items-center justify-center">
                 <div className="text-center text-text-secondary">
@@ -206,6 +284,10 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
                 );
             })}
 
+            {showStreamingPlaceholder && !streamingContent && (
+                <ChatThinkingPlaceholder/>
+            )}
+
             {streamingContent && (
                 <ChatMessage
                     message={{
@@ -232,10 +314,11 @@ const MessagesList = memo(MessagesListComponent);
 const ChatViewPage: React.FC = () => {
     const {chatId} = useParams<{chatId: string}>();
     const isNewChat = chatId === 'new';
+    const location = useLocation();
     const navigate = useNavigate();
     const {showToast} = useToast();
     const {config} = useConfig();
-    const {addChat, updateChat: updateChatInContext, deleteChat: deleteChatFromContext} = useChats();
+    const {chats, addChat, updateChat: updateChatInContext, deleteChat: deleteChatFromContext} = useChats();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const darkSurface = alpha('#6f6f6f', 0.12);
@@ -244,7 +327,6 @@ const ChatViewPage: React.FC = () => {
     const [loading, setLoading] = useState(!isNewChat);
     const [sending, setSending] = useState(false);
     const [inputText, setInputText] = useState('');
-    const [streamingContent, setStreamingContent] = useState('');
     const [isRecording, setIsRecording] = useState(false);
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [currentChatId, setCurrentChatId] = useState<string | null>(isNewChat ? null : chatId || null);
@@ -262,6 +344,7 @@ const ChatViewPage: React.FC = () => {
     const [siblingsData, setSiblingsData] = useState<Map<string, {items: WinkyChatMessage[]; total: number; currentIndex: number}>>(new Map());
     const [switchingBranchAtMessageId, setSwitchingBranchAtMessageId] = useState<string | null>(null);
     const [showNoCreditsModal, setShowNoCreditsModal] = useState(false);
+    const [launchRequest, setLaunchRequest] = useState<ChatLaunchRequest | null>(null);
 
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -272,22 +355,235 @@ const ChatViewPage: React.FC = () => {
     const animationFrameRef = useRef<number | undefined>(undefined);
     const scrollHeightBeforeLoad = useRef<number>(0);
     const skipNextScrollToBottom = useRef<boolean>(false);
+    const autoScrollToBottomRef = useRef(true);
+    const lastScrollTopRef = useRef(0);
+    const scrollAnimationFrameRef = useRef<number | null>(null);
+    const llmAbortControllerRef = useRef<AbortController | null>(null);
+    const consumedLaunchIdRef = useRef<string | null>(null);
+    const autoSentLaunchIdRef = useRef<string | null>(null);
+    const pendingRequestRef = useRef<{
+        mode: 'send' | 'edit';
+        tempUserMessageId: string;
+        text: string;
+        parentMessageId: string | null;
+        messagesBeforeEdit?: WinkyChatMessage[];
+        startedChatId: string | null;
+        startedUserMessageId: string | null;
+    } | null>(null);
+
+    const {
+        streamingContent,
+        appendStreamingChunk,
+        flushStreamingContent,
+        getStreamingContent,
+        resetStreamingContent
+    } = useSmoothedStreamingContent();
 
     const accessToken = config?.auth?.access || config?.auth?.accessToken || '';
 
-    const modelLevel = useMemo((): 'low' | 'mid' | 'high' => {
-        const llmModel = config?.llm?.model;
-        if (llmModel === 'winky-low') return 'low';
-        if (llmModel === 'winky-mid') return 'mid';
-        return 'high';
-    }, [config?.llm?.model]);
+    const launchRequestId = useMemo(() => {
+        if (!isNewChat) {
+            return null;
+        }
+        return new URLSearchParams(location.search).get('launch');
+    }, [isNewChat, location.search]);
+
+    const activeChat = useMemo(() => {
+        const targetId = currentChatId || (isNewChat ? null : chatId || null);
+        if (!targetId) {
+            return null;
+        }
+        return chats.find((chat) => chat.id === targetId) || null;
+    }, [chatId, chats, currentChatId, isNewChat]);
+
+    const chatModelPreference = useMemo(() => {
+        const targetId = currentChatId || (isNewChat ? null : chatId || null);
+        if (!targetId) {
+            return null;
+        }
+        return getChatModelPreference(targetId);
+    }, [chatId, currentChatId, isNewChat, activeChat?.model_name, activeChat?.llm_mode]);
+
+    const runtimeChatMeta = useMemo(() => {
+        const preferredModelName = activeChat?.model_name || chatModelPreference?.model_name || null;
+        const preferredLlmMode = activeChat?.llm_mode || chatModelPreference?.llm_mode || null;
+        if (activeChat?.llm_mode && activeChat.model_name) {
+            return {
+                storage: activeChat.storage || 'remote',
+                provider: activeChat.provider || 'winky',
+                llmMode: activeChat.llm_mode,
+                modelName: activeChat.model_name
+            };
+        }
+        if (activeChat && preferredModelName && preferredLlmMode) {
+            const chatMeta = createChatMeta(preferredLlmMode, preferredModelName);
+            return {
+                storage: activeChat.storage || chatMeta.storage,
+                provider: activeChat.provider || chatMeta.provider,
+                llmMode: preferredLlmMode,
+                modelName: preferredModelName
+            };
+        }
+        if (activeChat?.storage === 'remote') {
+            const fallbackRemoteModel = String(config?.llm?.model || '').startsWith('winky-')
+                ? String(config?.llm?.model)
+                : 'winky-high';
+            return {
+                storage: 'remote' as const,
+                provider: 'winky' as const,
+                llmMode: 'api' as const,
+                modelName: fallbackRemoteModel
+            };
+        }
+        if (launchRequest) {
+            const chatMeta = createChatMeta(launchRequest.mode, launchRequest.model);
+            return {
+                storage: chatMeta.storage,
+                provider: chatMeta.provider,
+                llmMode: launchRequest.mode,
+                modelName: launchRequest.model
+            };
+        }
+        const nextMode = config?.llm?.mode || 'api';
+        const nextModel = config?.llm?.model || 'winky-high';
+        const chatMeta = createChatMeta(nextMode, nextModel);
+        return {
+            storage: activeChat?.storage || chatMeta.storage,
+            provider: activeChat?.provider || chatMeta.provider,
+            llmMode: nextMode,
+            modelName: nextModel
+        };
+    }, [activeChat, chatModelPreference, config?.llm?.mode, config?.llm?.model, launchRequest]);
+
+    const modelLevel = useMemo(
+        (): 'low' | 'mid' | 'high' => getWinkyModelLevel(runtimeChatMeta.modelName),
+        [runtimeChatMeta.modelName]
+    );
+
+    const chatAdditionalContext = activeChat?.additional_context || launchRequest?.additionalContext || '';
+    const preferredChatTitle = activeChat?.title || launchRequest?.preferredTitle || '';
+    const chatModelOptions = useMemo(() => getChatModelOptions(runtimeChatMeta.provider), [runtimeChatMeta.provider]);
+
+    const getLastPersistedMessage = useCallback((messages: WinkyChatMessage[]): WinkyChatMessage | null => {
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+            if (!messages[index].id.startsWith('temp-')) return messages[index];
+        }
+        return null;
+    }, []);
+
+    const isNearBottom = useCallback((container: HTMLDivElement | null): boolean => {
+        if (!container) {
+            return true;
+        }
+        const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        return distanceToBottom <= CHAT_ATTACH_THRESHOLD_PX;
+    }, []);
 
     const scrollToBottom = useCallback(() => {
         const container = messagesContainerRef.current;
-        if (container) {
-            container.scrollTop = container.scrollHeight;
+        if (!container) return;
+        autoScrollToBottomRef.current = true;
+        if (scrollAnimationFrameRef.current !== null) {
+            cancelAnimationFrame(scrollAnimationFrameRef.current);
+            scrollAnimationFrameRef.current = null;
         }
+
+        const animateScroll = () => {
+            const targetContainer = messagesContainerRef.current;
+            if (!targetContainer) {
+                scrollAnimationFrameRef.current = null;
+                return;
+            }
+
+            const targetScrollTop = Math.max(0, targetContainer.scrollHeight - targetContainer.clientHeight);
+            const distance = targetScrollTop - targetContainer.scrollTop;
+
+            if (distance <= 1) {
+                targetContainer.scrollTop = targetScrollTop;
+                lastScrollTopRef.current = targetContainer.scrollTop;
+                scrollAnimationFrameRef.current = null;
+                return;
+            }
+
+            targetContainer.scrollTop += Math.max(1, distance * 0.22);
+            lastScrollTopRef.current = targetContainer.scrollTop;
+            scrollAnimationFrameRef.current = requestAnimationFrame(animateScroll);
+        };
+
+        scrollAnimationFrameRef.current = requestAnimationFrame(animateScroll);
     }, []);
+
+    const handleStopResponse = useCallback(() => {
+        llmAbortControllerRef.current?.abort();
+    }, []);
+
+    const handleAbortedRequest = useCallback(() => {
+        const pendingRequest = pendingRequestRef.current;
+        if (!pendingRequest) return;
+        const partialAssistantContent = getStreamingContent();
+        const hasPartialAssistant = partialAssistantContent.trim().length > 0;
+
+        const userMessageId = pendingRequest.startedUserMessageId || pendingRequest.tempUserMessageId;
+        const userMessage: WinkyChatMessage = {
+            id: userMessageId,
+            parent_id: pendingRequest.parentMessageId,
+            role: 'user',
+            content: pendingRequest.text,
+            model_level: modelLevel,
+            tokens: 0,
+            has_children: false,
+            sibling_count: 0,
+            sibling_index: 0,
+            created_at: new Date().toISOString()
+        };
+
+        const assistantMessage: WinkyChatMessage | null = hasPartialAssistant ? {
+            id: `temp-assistant-aborted-${Date.now()}`,
+            parent_id: userMessageId,
+            role: 'assistant',
+            content: partialAssistantContent,
+            model_level: modelLevel,
+            tokens: 0,
+            has_children: false,
+            sibling_count: 0,
+            sibling_index: 0,
+            created_at: new Date().toISOString()
+        } : null;
+
+        if (pendingRequest.mode === 'edit') {
+            setCurrentBranch([
+                ...(pendingRequest.messagesBeforeEdit || []),
+                userMessage,
+                ...(assistantMessage ? [assistantMessage] : [])
+            ]);
+        } else {
+            setCurrentBranch((prev) => {
+                const filtered = prev.filter((message) => message.id !== pendingRequest.tempUserMessageId);
+                return [...filtered, userMessage, ...(assistantMessage ? [assistantMessage] : [])];
+            });
+        }
+
+        if (pendingRequest.startedUserMessageId) {
+            setLeafMessageId(pendingRequest.startedUserMessageId);
+            if (!currentChatId && pendingRequest.startedChatId) {
+                setCurrentChatId(pendingRequest.startedChatId);
+                navigate(`/chats/${pendingRequest.startedChatId}`, {replace: true});
+                addChat({
+                    id: pendingRequest.startedChatId,
+                    title: '',
+                    additional_context: '',
+                    message_count: assistantMessage ? 2 : 1,
+                    last_leaf_message_id: pendingRequest.startedUserMessageId,
+                    pinned_at: null,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
+            }
+            if (currentChatId || pendingRequest.startedChatId) {
+                saveLeafMessageId(currentChatId || pendingRequest.startedChatId!, pendingRequest.startedUserMessageId);
+            }
+        }
+    }, [currentChatId, modelLevel, navigate, addChat, getStreamingContent]);
 
     const loadBranch = useCallback(async (leafId?: string, cursor?: string) => {
         if (!accessToken || !currentChatId) return;
@@ -334,12 +630,47 @@ const ChatViewPage: React.FC = () => {
     }, [accessToken, currentChatId, showToast]);
 
     const loadMessages = useCallback(async () => {
-        if (!accessToken || !chatId || isNewChat) {
+        if (!chatId || isNewChat) {
+            setCurrentChatId(null);
+            setCurrentBranch([]);
+            setLeafMessageId(null);
+            setHasMoreMessages(false);
+            setNextCursor(null);
             setLoading(false);
             return;
         }
         setLoading(true);
         try {
+            const localChat = getLocalChat(chatId);
+            if (localChat) {
+                const localBranch = getLocalChatBranch(chatId, localChat.chat.last_leaf_message_id);
+                const nextLeafMessageId = localBranch[localBranch.length - 1]?.id || localChat.chat.last_leaf_message_id;
+                setChatTitle(localChat.chat.title || '');
+                setCurrentChatId(chatId);
+                setCurrentBranch(localBranch);
+                setLeafMessageId(nextLeafMessageId);
+                setSiblingsData(new Map());
+                setHasMoreMessages(false);
+                setNextCursor(null);
+                return;
+            }
+
+            const remoteDraftChat = getRemoteDraftChat(chatId);
+            if (remoteDraftChat) {
+                setChatTitle(remoteDraftChat.chat.title || '');
+                setCurrentChatId(chatId);
+                setCurrentBranch(remoteDraftChat.messages);
+                setLeafMessageId(remoteDraftChat.chat.last_leaf_message_id);
+                setHasMoreMessages(false);
+                setNextCursor(null);
+                return;
+            }
+
+            if (!accessToken) {
+                setCurrentBranch([]);
+                return;
+            }
+
             const chatResponse = await fetchWinkyChat(chatId, accessToken);
             setChatTitle(chatResponse.title || '');
             setCurrentChatId(chatId);
@@ -375,18 +706,81 @@ const ChatViewPage: React.FC = () => {
     }, [loadMessages]);
 
     useEffect(() => {
+        if (!isNewChat) {
+            setLaunchRequest(null);
+            consumedLaunchIdRef.current = null;
+            autoSentLaunchIdRef.current = null;
+            return;
+        }
+        if (!launchRequestId || consumedLaunchIdRef.current === launchRequestId) {
+            return;
+        }
+        consumedLaunchIdRef.current = launchRequestId;
+        const nextLaunchRequest = consumeChatLaunchRequest(launchRequestId);
+        setLaunchRequest(nextLaunchRequest);
+        if (nextLaunchRequest?.preferredTitle) {
+            setChatTitle(nextLaunchRequest.preferredTitle);
+        }
+    }, [isNewChat, launchRequestId]);
+
+    useEffect(() => {
+        if (isNewChat) {
+            return;
+        }
+        const targetId = currentChatId || chatId || null;
+        if (!targetId) {
+            return;
+        }
+
+        const syncStoredChat = () => {
+            const localChat = getLocalChat(targetId);
+            if (localChat) {
+                const localBranch = getLocalChatBranch(targetId, localChat.chat.last_leaf_message_id);
+                const nextLeafMessageId = localBranch[localBranch.length - 1]?.id || localChat.chat.last_leaf_message_id;
+                setChatTitle(localChat.chat.title || '');
+                setCurrentChatId(localChat.chat.id);
+                setCurrentBranch(localBranch);
+                setLeafMessageId(nextLeafMessageId);
+                setSiblingsData(new Map());
+                setHasMoreMessages(false);
+                setNextCursor(null);
+                setLoading(false);
+                return;
+            }
+
+            const remoteDraftChat = getRemoteDraftChat(targetId);
+            if (!remoteDraftChat) {
+                return;
+            }
+            setChatTitle(remoteDraftChat.chat.title || '');
+            setCurrentChatId(remoteDraftChat.chat.id);
+            setCurrentBranch(remoteDraftChat.messages);
+            setLeafMessageId(remoteDraftChat.chat.last_leaf_message_id);
+            setHasMoreMessages(false);
+            setNextCursor(null);
+            setLoading(false);
+        };
+
+        syncStoredChat();
+        return subscribeChatStorage(syncStoredChat);
+    }, [chatId, currentChatId, isNewChat]);
+
+    useLayoutEffect(() => {
         // Не скроллим при загрузке старых сообщений или при переключении веток
         if (skipNextScrollToBottom.current) {
             skipNextScrollToBottom.current = false;
             return;
         }
-        if (!loadingMore && !switchingBranchAtMessageId) {
+        if (!loadingMore && !switchingBranchAtMessageId && autoScrollToBottomRef.current) {
             scrollToBottom();
         }
     }, [currentBranch, streamingContent, scrollToBottom, loadingMore, switchingBranchAtMessageId]);
 
     useEffect(() => {
         return () => {
+            if (scrollAnimationFrameRef.current !== null) {
+                cancelAnimationFrame(scrollAnimationFrameRef.current);
+            }
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
                 mediaRecorderRef.current.stop();
             }
@@ -401,12 +795,34 @@ const ChatViewPage: React.FC = () => {
 
     const handleScroll = useCallback(() => {
         const container = messagesContainerRef.current;
-        if (!container || loadingMore || !hasMoreMessages || !nextCursor) return;
+        if (!container) return;
+
+        const currentScrollTop = container.scrollTop;
+        const scrollDelta = currentScrollTop - lastScrollTopRef.current;
+        const distanceToBottom = container.scrollHeight - currentScrollTop - container.clientHeight;
+
+        if (autoScrollToBottomRef.current) {
+            if (scrollDelta < -2 && distanceToBottom > CHAT_DETACH_THRESHOLD_PX) {
+                autoScrollToBottomRef.current = false;
+                if (scrollAnimationFrameRef.current !== null) {
+                    cancelAnimationFrame(scrollAnimationFrameRef.current);
+                    scrollAnimationFrameRef.current = null;
+                }
+            }
+        } else if (scrollDelta > 0 && distanceToBottom <= CHAT_ATTACH_THRESHOLD_PX) {
+            scrollToBottom();
+        } else if (isNearBottom(container)) {
+            autoScrollToBottomRef.current = true;
+        }
+
+        lastScrollTopRef.current = currentScrollTop;
+
+        if (runtimeChatMeta.storage === 'local' || loadingMore || !hasMoreMessages || !nextCursor) return;
 
         if (container.scrollTop < 100) {
             void loadBranch(leafMessageId || undefined, nextCursor);
         }
-    }, [loadingMore, hasMoreMessages, nextCursor, leafMessageId, loadBranch]);
+    }, [hasMoreMessages, isNearBottom, leafMessageId, loadBranch, loadingMore, nextCursor, runtimeChatMeta.storage, scrollToBottom]);
 
     useEffect(() => {
         const container = messagesContainerRef.current;
@@ -432,7 +848,7 @@ const ChatViewPage: React.FC = () => {
 
     const handleEditSubmit = useCallback(async () => {
         const text = editText.trim();
-        if (!text || !accessToken || sending || !editingMessageId) return;
+        if (!text || sending || !editingMessageId) return;
 
         const editingMessage = currentBranch.find(m => m.id === editingMessageId);
         if (!editingMessage) return;
@@ -442,7 +858,174 @@ const ChatViewPage: React.FC = () => {
         setSending(true);
         setEditingMessageId(null);
         setEditText('');
-        setStreamingContent('');
+        resetStreamingContent();
+
+        if (runtimeChatMeta.storage === 'local') {
+            const localChatId = currentChatId;
+            if (!localChatId) {
+                setSending(false);
+                return;
+            }
+
+            const localRecord = getLocalChat(localChatId);
+            if (!localRecord) {
+                setSending(false);
+                showToast('Failed to load local chat.', 'error');
+                return;
+            }
+
+            const startedAt = new Date().toISOString();
+            const userMessageId = createLocalMessageId();
+            const assistantMessageId = createLocalMessageId();
+            const tempUserMessage: WinkyChatMessage = {
+                id: userMessageId,
+                parent_id: parentMessageId,
+                role: 'user',
+                content: text,
+                model_level: runtimeChatMeta.modelName,
+                provider: runtimeChatMeta.provider,
+                model_name: runtimeChatMeta.modelName,
+                tokens: 0,
+                has_children: false,
+                sibling_count: 0,
+                sibling_index: 0,
+                created_at: startedAt
+            };
+
+            const editingIndex = currentBranch.findIndex((message) => message.id === editingMessageId);
+            const messagesBeforeEdit = editingIndex > 0 ? currentBranch.slice(0, editingIndex) : [];
+            const previewBranch = mergeMessages(...messagesBeforeEdit, tempUserMessage);
+
+            llmAbortControllerRef.current = new AbortController();
+            setCurrentBranch(previewBranch);
+            updateLocalChat(localChatId, {
+                updated_at: startedAt,
+                last_leaf_message_id: userMessageId,
+                message_count: (getLocalChat(localChatId)?.messages.length ?? localRecord.messages.length) + 1
+            });
+            replaceLocalChatMessages(localChatId, [tempUserMessage]);
+            setLeafMessageId(userMessageId);
+            scrollToBottom();
+            requestAnimationFrame(scrollToBottom);
+
+            try {
+                const response = await llmBridge.process(
+                    text,
+                    buildChatPrompt(chatAdditionalContext, messagesBeforeEdit),
+                    {
+                        mode: runtimeChatMeta.llmMode,
+                        model: runtimeChatMeta.modelName,
+                        openaiKey: config?.apiKeys.openai,
+                        googleKey: config?.apiKeys.google,
+                        accessToken
+                    },
+                    {
+                        signal: llmAbortControllerRef.current.signal,
+                        onChunk: (chunk) => {
+                            appendStreamingChunk(chunk);
+                            updateLocalChat(localChatId, {
+                                updated_at: new Date().toISOString(),
+                                last_leaf_message_id: userMessageId,
+                                message_count: (getLocalChat(localChatId)?.messages.length ?? localRecord.messages.length) + 1
+                            });
+                        }
+                    }
+                );
+
+                flushStreamingContent();
+
+                const finalResponse = response.trim().length ? response : getStreamingContent().trim();
+                const assistantMessage: WinkyChatMessage = {
+                    id: assistantMessageId,
+                    parent_id: userMessageId,
+                    role: 'assistant',
+                    content: finalResponse,
+                    model_level: runtimeChatMeta.modelName,
+                    provider: runtimeChatMeta.provider,
+                    model_name: runtimeChatMeta.modelName,
+                    tokens: 0,
+                    has_children: false,
+                    sibling_count: 0,
+                    sibling_index: 0,
+                    created_at: startedAt
+                };
+
+                replaceLocalChatMessages(localChatId, [{...tempUserMessage, has_children: true}, assistantMessage]);
+                updateLocalChat(localChatId, {
+                    updated_at: new Date().toISOString(),
+                    last_leaf_message_id: assistantMessageId,
+                    message_count: (getLocalChat(localChatId)?.messages.length ?? 0)
+                });
+                const nextBranch = getLocalChatBranch(localChatId, assistantMessageId);
+                setCurrentBranch(nextBranch);
+                setLeafMessageId(assistantMessageId);
+
+                const localSiblings = getLocalMessageSiblings(localChatId, userMessageId);
+                if (localSiblings && localSiblings.total > 1) {
+                    setSiblingsData((prev) => {
+                        const nextMap = new Map(prev);
+                        localSiblings.items.forEach((item, index) => {
+                            nextMap.set(item.id, {
+                                items: localSiblings.items,
+                                total: localSiblings.total,
+                                currentIndex: index
+                            });
+                        });
+                        return nextMap;
+                    });
+                }
+                return;
+            } catch (error: any) {
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    const partialContent = getStreamingContent().trim();
+                    if (partialContent) {
+                        const assistantMessage: WinkyChatMessage = {
+                            id: assistantMessageId,
+                            parent_id: userMessageId,
+                            role: 'assistant',
+                            content: partialContent,
+                            model_level: runtimeChatMeta.modelName,
+                            provider: runtimeChatMeta.provider,
+                            model_name: runtimeChatMeta.modelName,
+                            tokens: 0,
+                            has_children: false,
+                            sibling_count: 0,
+                            sibling_index: 0,
+                            created_at: startedAt
+                        };
+                        replaceLocalChatMessages(localChatId, [{...tempUserMessage, has_children: true}, assistantMessage]);
+                        updateLocalChat(localChatId, {
+                            updated_at: new Date().toISOString(),
+                            last_leaf_message_id: assistantMessageId,
+                            message_count: (getLocalChat(localChatId)?.messages.length ?? localRecord.messages.length) + 2
+                        });
+                        const nextBranch = getLocalChatBranch(localChatId, assistantMessageId);
+                        setCurrentBranch(nextBranch);
+                        setLeafMessageId(assistantMessageId);
+                    } else {
+                        const nextBranch = getLocalChatBranch(localChatId, userMessageId);
+                        setCurrentBranch(nextBranch);
+                        setLeafMessageId(userMessageId);
+                    }
+                    return;
+                }
+
+                console.error('[ChatViewPage] Failed to send edited local message', error);
+                showToast(error?.message || 'Failed to send message.', 'error');
+                setCurrentBranch(currentBranch);
+                return;
+            } finally {
+                llmAbortControllerRef.current = null;
+                setSending(false);
+                resetStreamingContent();
+            }
+        }
+
+        if (!accessToken) {
+            setSending(false);
+            showToast('Authentication is required.', 'error');
+            return;
+        }
 
         const tempUserMessage: WinkyChatMessage = {
             id: `temp-user-${Date.now()}`,
@@ -460,6 +1043,18 @@ const ChatViewPage: React.FC = () => {
         const editingIndex = currentBranch.findIndex(m => m.id === editingMessageId);
         const messagesBeforeEdit = editingIndex > 0 ? currentBranch.slice(0, editingIndex) : [];
         setCurrentBranch([...messagesBeforeEdit, tempUserMessage]);
+        pendingRequestRef.current = {
+            mode: 'edit',
+            tempUserMessageId: tempUserMessage.id,
+            text,
+            parentMessageId,
+            messagesBeforeEdit,
+            startedChatId: currentChatId,
+            startedUserMessageId: null
+        };
+        llmAbortControllerRef.current = new AbortController();
+        scrollToBottom();
+        requestAnimationFrame(scrollToBottom);
 
         try {
             const result = await winkyLLMStream(
@@ -467,21 +1062,57 @@ const ChatViewPage: React.FC = () => {
                     prompt: text,
                     model_level: modelLevel,
                     chat_id: currentChatId || undefined,
-                    parent_message_id: parentMessageId
+                    parent_message_id: parentMessageId,
+                    preferred_title: preferredChatTitle || undefined,
+                    additional_context: chatAdditionalContext || undefined
                 },
                 accessToken,
-                (chunk) => {
-                    setStreamingContent((prev) => prev + chunk);
+                appendStreamingChunk,
+                llmAbortControllerRef.current.signal,
+                {
+                    onStart: ({chat_id, user_message_id}) => {
+                        if (pendingRequestRef.current?.tempUserMessageId === tempUserMessage.id) {
+                            pendingRequestRef.current.startedChatId = chat_id;
+                            pendingRequestRef.current.startedUserMessageId = user_message_id;
+                            setCurrentBranch((prev) => replacePendingUserMessage(prev, tempUserMessage.id, {
+                                ...tempUserMessage,
+                                id: user_message_id,
+                                has_children: true
+                            }));
+                            if (!currentChatId) {
+                                setCurrentChatId(chat_id);
+                                navigate(`/chats/${chat_id}`, {replace: true});
+                                addChat({
+                                    id: chat_id,
+                                    title: preferredChatTitle,
+                                    additional_context: chatAdditionalContext,
+                                    provider: runtimeChatMeta.provider,
+                                    model_name: runtimeChatMeta.modelName,
+                                    llm_mode: runtimeChatMeta.llmMode,
+                                    message_count: 1,
+                                    last_leaf_message_id: user_message_id,
+                                    pinned_at: null,
+                                    created_at: new Date().toISOString(),
+                                    updated_at: new Date().toISOString()
+                                });
+                            }
+                        }
+                    }
                 }
             );
+
+            flushStreamingContent();
 
             if (!currentChatId && result.chat_id) {
                 setCurrentChatId(result.chat_id);
                 navigate(`/chats/${result.chat_id}`, {replace: true});
                 addChat({
                     id: result.chat_id,
-                    title: text.slice(0, 50) + (text.length > 50 ? '...' : ''),
-                    additional_context: '',
+                    title: preferredChatTitle,
+                    additional_context: chatAdditionalContext,
+                    provider: runtimeChatMeta.provider,
+                    model_name: runtimeChatMeta.modelName,
+                    llm_mode: runtimeChatMeta.llmMode,
                     message_count: 2,
                     last_leaf_message_id: result.assistant_message_id,
                     pinned_at: null,
@@ -489,19 +1120,6 @@ const ChatViewPage: React.FC = () => {
                     updated_at: new Date().toISOString()
                 });
             }
-
-            const userMessage: WinkyChatMessage = {
-                id: result.user_message_id,
-                parent_id: parentMessageId,
-                role: 'user',
-                content: text,
-                model_level: modelLevel,
-                tokens: 0,
-                has_children: true,
-                sibling_count: 1,
-                sibling_index: 1,
-                created_at: new Date().toISOString()
-            };
 
             const assistantMessage: WinkyChatMessage = {
                 id: result.assistant_message_id,
@@ -516,9 +1134,22 @@ const ChatViewPage: React.FC = () => {
                 created_at: new Date().toISOString()
             };
 
-            setCurrentBranch([...messagesBeforeEdit, userMessage, assistantMessage]);
+            setCurrentBranch((prev) => {
+                const userMessage = buildResolvedUserMessage(prev.find((message) => message.id === result.user_message_id), {
+                    id: result.user_message_id,
+                    parent_id: parentMessageId,
+                    role: 'user',
+                    content: text,
+                    model_level: modelLevel,
+                    tokens: 0,
+                    has_children: true,
+                    sibling_count: 1,
+                    sibling_index: 1
+                });
+                return mergeMessages(...messagesBeforeEdit, userMessage, assistantMessage);
+            });
             setLeafMessageId(result.assistant_message_id);
-            setStreamingContent('');
+            resetStreamingContent();
 
             // Сохраняем ветку локально
             const chatIdToSave = currentChatId || result.chat_id;
@@ -544,6 +1175,10 @@ const ChatViewPage: React.FC = () => {
                 }
             }
         } catch (error: any) {
+            if (error instanceof DOMException && error.name === 'AbortError') {
+                handleAbortedRequest();
+                return;
+            }
             console.error('[ChatViewPage] Failed to send edited message', error);
             setCurrentBranch(currentBranch);
 
@@ -553,10 +1188,12 @@ const ChatViewPage: React.FC = () => {
                 showToast(error?.message || 'Failed to send message.', 'error');
             }
         } finally {
+            llmAbortControllerRef.current = null;
+            pendingRequestRef.current = null;
             setSending(false);
-            setStreamingContent('');
+            resetStreamingContent();
         }
-    }, [editText, accessToken, sending, editingMessageId, currentBranch, currentChatId, navigate, showToast, addChat]);
+    }, [runtimeChatMeta, editText, accessToken, sending, editingMessageId, currentBranch, currentChatId, navigate, showToast, addChat, appendStreamingChunk, flushStreamingContent, getStreamingContent, resetStreamingContent, loadSiblings, scrollToBottom, handleAbortedRequest, config?.apiKeys.google, config?.apiKeys.openai, preferredChatTitle, chatAdditionalContext, modelLevel]);
 
     const loadSiblings = useCallback(async (parentId: string): Promise<MessageChildrenResponse | null> => {
         if (!accessToken) return null;
@@ -571,6 +1208,68 @@ const ChatViewPage: React.FC = () => {
     }, [accessToken]);
 
     const handleSiblingNavigate = useCallback(async (message: WinkyChatMessage, direction: 'prev' | 'next') => {
+        if (runtimeChatMeta.storage === 'local') {
+            if (!currentChatId) return;
+
+            const siblingInfo = getLocalMessageSiblings(currentChatId, message.id);
+            if (!siblingInfo || siblingInfo.total <= 1) return;
+
+            const newIndex = direction === 'prev'
+                ? siblingInfo.currentIndex - 1
+                : siblingInfo.currentIndex + 1;
+
+            if (newIndex < 0 || newIndex >= siblingInfo.items.length) return;
+
+            const nextMessage = siblingInfo.items[newIndex];
+            const messageIndex = currentBranch.findIndex((item) => item.id === message.id);
+            if (messageIndex < 0) return;
+
+            const originalBranch = [...currentBranch];
+            const container = messagesContainerRef.current;
+            const scrollTopBefore = container?.scrollTop || 0;
+
+            setCurrentBranch(currentBranch.slice(0, messageIndex + 1));
+            setSwitchingBranchAtMessageId(message.id);
+
+            try {
+                const nextBranch = getLocalBranchFromMessage(currentChatId, nextMessage.id);
+                setCurrentBranch(nextBranch);
+                requestAnimationFrame(() => {
+                    if (container) {
+                        container.scrollTop = scrollTopBefore;
+                    }
+                    skipNextScrollToBottom.current = true;
+                    setSwitchingBranchAtMessageId(null);
+                });
+
+                const nextLeafMessageId = nextBranch[nextBranch.length - 1]?.id || nextMessage.id;
+                setLeafMessageId(nextLeafMessageId);
+                updateLocalChat(currentChatId, {
+                    last_leaf_message_id: nextLeafMessageId,
+                    updated_at: new Date().toISOString()
+                });
+
+                setSiblingsData((prev) => {
+                    const nextMap = new Map(prev);
+                    siblingInfo.items.forEach((item, index) => {
+                        nextMap.set(item.id, {
+                            items: siblingInfo.items,
+                            total: siblingInfo.total,
+                            currentIndex: index
+                        });
+                    });
+                    return nextMap;
+                });
+                return;
+            } catch (error) {
+                console.error('[ChatViewPage] Failed to switch local branch', error);
+                showToast('Failed to switch branch.', 'error');
+                setCurrentBranch(originalBranch);
+                setSwitchingBranchAtMessageId(null);
+                return;
+            }
+        }
+
         if (!message.parent_id) return;
 
         let siblingInfo = siblingsData.get(message.id);
@@ -685,18 +1384,178 @@ const ChatViewPage: React.FC = () => {
             setCurrentBranch(originalBranch);
             setSwitchingBranchAtMessageId(null);
         }
-    }, [siblingsData, loadSiblings, currentBranch, currentChatId, accessToken, showToast]);
+    }, [runtimeChatMeta.storage, siblingsData, loadSiblings, currentBranch, currentChatId, accessToken, showToast]);
 
-    const handleSendMessage = useCallback(async () => {
-        const text = inputText.trim();
-        if (!text || !accessToken || sending) return;
+    const handleSendMessage = useCallback(async (inputOverride?: string) => {
+        const text = (inputOverride ?? inputText).trim();
+        if (!text || sending) return;
 
         setSending(true);
         setInputText('');
-        setStreamingContent('');
+        resetStreamingContent();
 
-        const lastMessage = currentBranch.length > 0 ? currentBranch[currentBranch.length - 1] : null;
+        const lastMessage = getLastPersistedMessage(currentBranch);
         const parentMessageId = lastMessage?.id || null;
+
+        if (runtimeChatMeta.storage === 'local') {
+            const startedAt = new Date().toISOString();
+            const localChatId = currentChatId || createLocalChatId();
+            const userMessageId = createLocalMessageId();
+            const assistantMessageId = createLocalMessageId();
+            const userMessage: WinkyChatMessage = {
+                id: userMessageId,
+                parent_id: parentMessageId,
+                role: 'user',
+                content: text,
+                model_level: runtimeChatMeta.modelName,
+                provider: runtimeChatMeta.provider,
+                model_name: runtimeChatMeta.modelName,
+                tokens: 0,
+                has_children: false,
+                sibling_count: 0,
+                sibling_index: 0,
+                created_at: startedAt
+            };
+            const baseMessages = mergeMessages(...currentBranch.filter((message) => !message.id.startsWith('temp-')), userMessage);
+            const localChatTitle = preferredChatTitle || text.slice(0, 50) + (text.length > 50 ? '...' : '');
+
+            llmAbortControllerRef.current = new AbortController();
+            upsertLocalChat(
+                {
+                    id: localChatId,
+                    title: localChatTitle,
+                    additional_context: chatAdditionalContext,
+                    message_count: (getLocalChat(localChatId)?.messages.length ?? 0) + 1,
+                    last_leaf_message_id: userMessageId,
+                    pinned_at: activeChat?.pinned_at || null,
+                    created_at: activeChat?.created_at || startedAt,
+                    updated_at: startedAt,
+                    storage: 'local',
+                    provider: runtimeChatMeta.provider,
+                    model_name: runtimeChatMeta.modelName,
+                    llm_mode: runtimeChatMeta.llmMode
+                },
+                [userMessage]
+            );
+            updateLocalChat(localChatId, {
+                message_count: getLocalChat(localChatId)?.messages.length ?? 1
+            });
+            const nextUserBranch = getLocalChatBranch(localChatId, userMessageId);
+            setCurrentBranch(nextUserBranch);
+            setLeafMessageId(userMessageId);
+
+            if (!currentChatId) {
+                setCurrentChatId(localChatId);
+                navigate(`/chats/${localChatId}`, {replace: true});
+            }
+
+            scrollToBottom();
+            requestAnimationFrame(scrollToBottom);
+
+            try {
+                const response = await llmBridge.process(
+                    text,
+                    buildChatPrompt(chatAdditionalContext, currentBranch),
+                    {
+                        mode: runtimeChatMeta.llmMode,
+                        model: runtimeChatMeta.modelName,
+                        openaiKey: config?.apiKeys.openai,
+                        googleKey: config?.apiKeys.google,
+                        accessToken
+                    },
+                    {
+                        signal: llmAbortControllerRef.current.signal,
+                        onChunk: (chunk) => {
+                            appendStreamingChunk(chunk);
+                            updateLocalChat(localChatId, {
+                                updated_at: new Date().toISOString(),
+                                last_leaf_message_id: userMessageId,
+                                message_count: getLocalChat(localChatId)?.messages.length ?? baseMessages.length
+                            });
+                        }
+                    }
+                );
+
+                flushStreamingContent();
+
+                const finalResponse = response.trim().length ? response : getStreamingContent();
+                const assistantMessage: WinkyChatMessage = {
+                    id: assistantMessageId,
+                    parent_id: userMessageId,
+                    role: 'assistant',
+                    content: finalResponse,
+                    model_level: runtimeChatMeta.modelName,
+                    provider: runtimeChatMeta.provider,
+                    model_name: runtimeChatMeta.modelName,
+                    tokens: 0,
+                    has_children: false,
+                    sibling_count: 0,
+                    sibling_index: 0,
+                    created_at: startedAt
+                };
+                replaceLocalChatMessages(localChatId, [{...userMessage, has_children: true}, assistantMessage]);
+                updateLocalChat(localChatId, {
+                    title: localChatTitle,
+                    updated_at: new Date().toISOString(),
+                    last_leaf_message_id: assistantMessageId,
+                    message_count: (getLocalChat(localChatId)?.messages.length ?? 0)
+                });
+                const nextBranch = getLocalChatBranch(localChatId, assistantMessageId);
+                setCurrentBranch(nextBranch);
+                setLeafMessageId(assistantMessageId);
+                resetStreamingContent();
+                return;
+            } catch (error: any) {
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    const partialContent = getStreamingContent().trim();
+                    if (partialContent) {
+                        const assistantMessage: WinkyChatMessage = {
+                            id: assistantMessageId,
+                            parent_id: userMessageId,
+                            role: 'assistant',
+                            content: partialContent,
+                            model_level: runtimeChatMeta.modelName,
+                            provider: runtimeChatMeta.provider,
+                            model_name: runtimeChatMeta.modelName,
+                            tokens: 0,
+                            has_children: false,
+                            sibling_count: 0,
+                            sibling_index: 0,
+                            created_at: startedAt
+                        };
+                        replaceLocalChatMessages(localChatId, [{...userMessage, has_children: true}, assistantMessage]);
+                        updateLocalChat(localChatId, {
+                            updated_at: new Date().toISOString(),
+                            last_leaf_message_id: assistantMessageId,
+                            message_count: (getLocalChat(localChatId)?.messages.length ?? 0)
+                        });
+                        const nextBranch = getLocalChatBranch(localChatId, assistantMessageId);
+                        setCurrentBranch(nextBranch);
+                        setLeafMessageId(assistantMessageId);
+                    } else {
+                        const nextBranch = getLocalChatBranch(localChatId, userMessageId);
+                        setCurrentBranch(nextBranch);
+                        setLeafMessageId(userMessageId);
+                    }
+                    return;
+                }
+                console.error('[ChatViewPage] Failed to send local chat message', error);
+                showToast(error?.message || 'Failed to send message.', 'error');
+                setCurrentBranch(baseMessages);
+                return;
+            } finally {
+                llmAbortControllerRef.current = null;
+                setSending(false);
+                resetStreamingContent();
+            }
+        }
+
+        if (!accessToken) {
+            setInputText(text);
+            setSending(false);
+            showToast('Authentication is required.', 'error');
+            return;
+        }
 
         const tempUserMessage: WinkyChatMessage = {
             id: `temp-user-${Date.now()}`,
@@ -712,6 +1571,17 @@ const ChatViewPage: React.FC = () => {
         };
 
         setCurrentBranch((prev) => [...prev, tempUserMessage]);
+        pendingRequestRef.current = {
+            mode: 'send',
+            tempUserMessageId: tempUserMessage.id,
+            text,
+            parentMessageId,
+            startedChatId: currentChatId,
+            startedUserMessageId: null
+        };
+        llmAbortControllerRef.current = new AbortController();
+        scrollToBottom();
+        requestAnimationFrame(scrollToBottom);
 
         try {
             const result = await winkyLLMStream(
@@ -722,18 +1592,32 @@ const ChatViewPage: React.FC = () => {
                     parent_message_id: parentMessageId
                 },
                 accessToken,
-                (chunk) => {
-                    setStreamingContent((prev) => prev + chunk);
+                appendStreamingChunk,
+                llmAbortControllerRef.current.signal,
+                {
+                    onStart: ({chat_id, user_message_id}) => {
+                        if (pendingRequestRef.current?.tempUserMessageId === tempUserMessage.id) {
+                            pendingRequestRef.current.startedChatId = chat_id;
+                            pendingRequestRef.current.startedUserMessageId = user_message_id;
+                            setCurrentBranch((prev) => replacePendingUserMessage(prev, tempUserMessage.id, {
+                                ...tempUserMessage,
+                                id: user_message_id,
+                                has_children: true
+                            }));
+                        }
+                    }
                 }
             );
+
+            flushStreamingContent();
 
             if (!currentChatId && result.chat_id) {
                 setCurrentChatId(result.chat_id);
                 navigate(`/chats/${result.chat_id}`, {replace: true});
                 addChat({
                     id: result.chat_id,
-                    title: text.slice(0, 50) + (text.length > 50 ? '...' : ''),
-                    additional_context: '',
+                    title: preferredChatTitle,
+                    additional_context: chatAdditionalContext,
                     message_count: 2,
                     last_leaf_message_id: result.assistant_message_id,
                     pinned_at: null,
@@ -741,19 +1625,6 @@ const ChatViewPage: React.FC = () => {
                     updated_at: new Date().toISOString()
                 });
             }
-
-            const userMessage: WinkyChatMessage = {
-                id: result.user_message_id,
-                parent_id: parentMessageId,
-                role: 'user',
-                content: text,
-                model_level: modelLevel,
-                tokens: 0,
-                has_children: true,
-                sibling_count: 0,
-                sibling_index: 0,
-                created_at: new Date().toISOString()
-            };
 
             const assistantMessage: WinkyChatMessage = {
                 id: result.assistant_message_id,
@@ -769,12 +1640,27 @@ const ChatViewPage: React.FC = () => {
             };
 
             setCurrentBranch((prev) => {
-                const filtered = prev.filter((m) => !m.id.startsWith('temp-'));
-                return [...filtered, userMessage, assistantMessage];
+                const userMessage = buildResolvedUserMessage(prev.find((message) => message.id === result.user_message_id), {
+                    id: result.user_message_id,
+                    parent_id: parentMessageId,
+                    role: 'user',
+                    content: text,
+                    model_level: modelLevel,
+                    tokens: 0,
+                    has_children: true,
+                    sibling_count: 0,
+                    sibling_index: 0
+                });
+                const filtered = prev.filter(
+                    (message) => !message.id.startsWith('temp-') &&
+                        message.id !== userMessage.id &&
+                        message.id !== assistantMessage.id
+                );
+                return mergeMessages(...filtered, userMessage, assistantMessage);
             });
 
             setLeafMessageId(result.assistant_message_id);
-            setStreamingContent('');
+            resetStreamingContent();
 
             // Сохраняем ветку локально
             const chatIdToSave = currentChatId || result.chat_id;
@@ -782,6 +1668,10 @@ const ChatViewPage: React.FC = () => {
                 saveLeafMessageId(chatIdToSave, result.assistant_message_id);
             }
         } catch (error: any) {
+            if (error instanceof DOMException && error.name === 'AbortError') {
+                handleAbortedRequest();
+                return;
+            }
             console.error('[ChatViewPage] Failed to send message', error);
             setCurrentBranch((prev) => prev.filter((m) => !m.id.startsWith('temp-')));
 
@@ -791,10 +1681,27 @@ const ChatViewPage: React.FC = () => {
                 showToast(error?.message || 'Failed to send message.', 'error');
             }
         } finally {
+            llmAbortControllerRef.current = null;
+            pendingRequestRef.current = null;
             setSending(false);
-            setStreamingContent('');
+            resetStreamingContent();
         }
-    }, [inputText, accessToken, sending, currentBranch, currentChatId, navigate, showToast, addChat]);
+    }, [inputText, accessToken, sending, currentBranch, currentChatId, navigate, showToast, addChat, activeChat, runtimeChatMeta, appendStreamingChunk, flushStreamingContent, getStreamingContent, getLastPersistedMessage, resetStreamingContent, scrollToBottom, handleAbortedRequest, config?.apiKeys.google, config?.apiKeys.openai, preferredChatTitle, chatAdditionalContext]);
+
+    useEffect(() => {
+        if (!isNewChat || !launchRequest || loading || sending) {
+            return;
+        }
+        if (autoSentLaunchIdRef.current === launchRequest.id) {
+            return;
+        }
+        autoSentLaunchIdRef.current = launchRequest.id;
+        setInputText(launchRequest.text);
+        scrollToBottom();
+        requestAnimationFrame(() => {
+            void handleSendMessage(launchRequest.text);
+        });
+    }, [isNewChat, launchRequest, loading, sending, handleSendMessage, scrollToBottom]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -916,7 +1823,14 @@ const ChatViewPage: React.FC = () => {
     }, [navigate]);
 
     const handleRenameChat = useCallback(async (newTitle: string) => {
-        if (!accessToken || !currentChatId) return;
+        if (!currentChatId) return;
+        if (runtimeChatMeta.storage === 'local') {
+            setChatTitle(newTitle);
+            updateChatInContext(currentChatId, {title: newTitle, updated_at: new Date().toISOString()});
+            showToast('Chat renamed.', 'success');
+            return;
+        }
+        if (!accessToken) return;
         try {
             await updateWinkyChat(currentChatId, {title: newTitle}, accessToken);
             setChatTitle(newTitle);
@@ -927,7 +1841,7 @@ const ChatViewPage: React.FC = () => {
             showToast('Failed to rename chat.', 'error');
             throw error;
         }
-    }, [accessToken, currentChatId, showToast, updateChatInContext]);
+    }, [accessToken, currentChatId, runtimeChatMeta.storage, showToast, updateChatInContext]);
 
     const handleDeleteChat = useCallback(async () => {
         if (!currentChatId) return;
@@ -942,14 +1856,54 @@ const ChatViewPage: React.FC = () => {
         }
     }, [currentChatId, navigate, showToast, deleteChatFromContext]);
 
+    const handleModelChange = useCallback((nextModel: string) => {
+        if (!currentChatId) {
+            return;
+        }
+        const nextMode = runtimeChatMeta.provider === 'local' ? 'local' : 'api';
+        const nextMeta = createChatMeta(nextMode, nextModel);
+        const updatedAt = new Date().toISOString();
+        if (runtimeChatMeta.storage === 'local') {
+            updateLocalChat(currentChatId, {
+                model_name: nextModel,
+                llm_mode: nextMeta.llm_mode,
+                provider: nextMeta.provider,
+                updated_at: updatedAt
+            });
+        }
+        updateChatInContext(currentChatId, {
+            model_name: nextModel,
+            llm_mode: nextMeta.llm_mode,
+            provider: runtimeChatMeta.storage === 'remote' ? 'winky' : nextMeta.provider,
+            updated_at: updatedAt
+        });
+    }, [currentChatId, runtimeChatMeta.provider, runtimeChatMeta.storage, updateChatInContext]);
+
+    useEffect(() => {
+        const sourceId = `chat-view:${chatId || 'new'}`;
+        setChatTitleBarModelState({
+            sourceId,
+            value: runtimeChatMeta.modelName,
+            options: chatModelOptions,
+            disabled: sending || !currentChatId,
+            onChange: handleModelChange
+        });
+        return () => {
+            clearChatTitleBarModelState(sourceId);
+        };
+    }, [chatId, chatModelOptions, currentChatId, handleModelChange, runtimeChatMeta.modelName, sending]);
+
     return (
         <>
-        <div className="fc h-full w-full">
+        <div className="fc relative h-full w-full">
             <div
-                className="frbc gap-2 px-3 py-1.5 border-b flex-shrink-0"
+                className="frbc absolute left-0 right-0 top-0 z-10 gap-2 px-3 py-2"
                 style={{
-                    borderColor: isDark ? darkSurface : 'var(--color-border-light)',
-                    backgroundColor: isDark ? 'transparent' : '#ffffff'
+                    backgroundColor: isDark ? 'rgba(12, 12, 12, 0.56)' : 'rgba(255, 255, 255, 0.76)',
+                    backdropFilter: 'blur(18px)',
+                    boxShadow: isDark
+                        ? '0 10px 24px rgba(0, 0, 0, 0.16)'
+                        : '0 8px 20px rgba(15, 23, 42, 0.06)'
                 }}
             >
                 <div className="frsc gap-2 min-w-0 flex-1">
@@ -968,9 +1922,6 @@ const ChatViewPage: React.FC = () => {
                     >
                         <ArrowBackRoundedIcon sx={{fontSize: 18}}/>
                     </IconButton>
-                    <h1 className="text-base font-semibold text-text-primary truncate">
-                        {isNewChat ? 'New Chat' : chatTitle || 'Chat'}
-                    </h1>
                 </div>
                 {!isNewChat && currentChatId && (
                     <ChatActions
@@ -985,12 +1936,13 @@ const ChatViewPage: React.FC = () => {
 
             <div
                 ref={messagesContainerRef}
-                className="flex-1 overflow-y-auto px-4 py-4"
+                className="flex-1 overflow-y-auto px-4 pb-4 pt-16"
                 style={{backgroundColor: isDark ? 'transparent' : '#ffffff'}}
             >
                 <MessagesList
                     messages={currentBranch}
                     streamingContent={streamingContent}
+                    showStreamingPlaceholder={sending}
                     streamingModelLevel={modelLevel}
                     loading={loading}
                     loadingMore={loadingMore}
@@ -1105,14 +2057,14 @@ const ChatViewPage: React.FC = () => {
                     </div>
 
                     <IconButton
-                        onClick={handleSendMessage}
-                        disabled={!inputText.trim() || sending || isRecording || isTranscribing}
+                        onClick={sending ? handleStopResponse : handleSendMessage}
+                        disabled={(!inputText.trim() && !sending) || isRecording || isTranscribing}
                         color="primary"
                         sx={{
-                            backgroundColor: 'primary.main',
+                            backgroundColor: sending ? '#e11d48' : 'primary.main',
                             color: 'white',
                             '&:hover': {
-                                backgroundColor: 'primary.dark'
+                                backgroundColor: sending ? '#be123c' : 'primary.dark'
                             },
                             '&.Mui-disabled': {
                                 backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'var(--color-bg-tertiary)',
@@ -1121,7 +2073,7 @@ const ChatViewPage: React.FC = () => {
                         }}
                     >
                         {sending ? (
-                            <CircularProgress size={24} color="inherit"/>
+                            <StopRoundedIcon sx={{color: 'white'}}/>
                         ) : (
                             <SendRoundedIcon sx={{transform: 'translateX(6%)'}}/>
                         )}

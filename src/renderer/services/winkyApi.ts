@@ -1,6 +1,6 @@
 import axios, {AxiosInstance} from 'axios';
 import {invoke} from '@tauri-apps/api/core';
-import {createApiClient} from '@shared/api';
+import {createApiClient, triggerUnauthorized} from '@shared/api';
 import {
     FAST_WHISPER_TRANSCRIBE_ENDPOINT,
     FAST_WHISPER_TRANSCRIBE_TIMEOUT,
@@ -22,6 +22,7 @@ export type ActionCreatePayload = {
     show_results?: boolean;
     sound_on_complete?: boolean;
     auto_copy_result?: boolean;
+    llm_model?: string | null;
 };
 
 export type ActionUpdatePayload = {
@@ -34,6 +35,7 @@ export type ActionUpdatePayload = {
     show_results?: boolean;
     sound_on_complete?: boolean;
     auto_copy_result?: boolean;
+    llm_model?: string | null;
 };
 
 export type GroupCreatePayload = {
@@ -88,6 +90,7 @@ const withAuthClient = async <T>(operation: (client: AxiosInstance, config: AppC
     const config = await getConfig();
     const token = config.auth?.accessToken || config.auth?.access;
     if (!token) {
+        triggerUnauthorized();
         throw new Error('Authentication is required.');
     }
     const client = createApiClient(token, undefined, config.backendDomain);
@@ -632,7 +635,7 @@ export const processLLM = async (text: string, prompt: string, config: {
     openaiKey?: string;
     googleKey?: string;
     accessToken?: string;
-}, options: { onChunk?: (chunk: string) => void } = {}): Promise<string> => {
+}, options: { onChunk?: (chunk: string) => void; signal?: AbortSignal } = {}): Promise<string> => {
     const provider = config.mode === 'api'
         ? (
             (LLM_GEMINI_API_MODELS as readonly string[]).includes(config.model)
@@ -667,7 +670,7 @@ export const processLLM = async (text: string, prompt: string, config: {
         });
         const canStream = shouldStream && service.supportsStreaming && typeof service.processStream === 'function';
         const result = canStream
-            ? await service.processStream!(text, prompt, options.onChunk!)
+            ? await service.processStream!(text, prompt, options.onChunk!, {signal: options.signal})
             : await service.process(text, prompt);
         
         console.log(`%cLLM ← %c[${provider}] %c${config.model} %c[200]`, 

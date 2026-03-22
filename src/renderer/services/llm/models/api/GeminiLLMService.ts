@@ -1,6 +1,56 @@
-import {invoke} from '@tauri-apps/api/core';
-import {listen} from '@tauri-apps/api/event';
 import ApiLLMBaseService from '../../bases/ApiLLMBaseService';
+
+type GeminiResponsePart = {
+    text?: string;
+};
+
+type GeminiCandidate = {
+    content?: {
+        parts?: GeminiResponsePart[];
+    };
+};
+
+type GeminiResponsePayload = {
+    candidates?: GeminiCandidate[];
+    text?: string;
+};
+
+const extractGeminiText = (payload: unknown): string => {
+    if (Array.isArray(payload)) {
+        return payload.map((item) => extractGeminiText(item)).join('');
+    }
+    if (!payload || typeof payload !== 'object') {
+        return '';
+    }
+
+    const typedPayload = payload as GeminiResponsePayload;
+    const candidateText = typedPayload.candidates?.flatMap((candidate) => (
+        candidate.content?.parts?.map((part) => part?.text ?? '') ?? []
+    )).filter(Boolean).join('');
+
+    if (candidateText) {
+        return candidateText;
+    }
+
+    return typeof typedPayload.text === 'string' ? typedPayload.text : '';
+};
+
+const extractErrorMessage = async (response: Response): Promise<string> => {
+    const raw = await response.text();
+    if (!raw.trim()) {
+        return `Gemini API returned ${response.status}.`;
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        const message = parsed?.error?.message;
+        if (typeof message === 'string' && message.trim()) {
+            return message;
+        }
+    } catch {
+        // Ignore parse failures and return raw payload.
+    }
+    return raw;
+};
 
 class GeminiLLMService extends ApiLLMBaseService {
     constructor(model: string, apiKey?: string) {
@@ -10,9 +60,13 @@ class GeminiLLMService extends ApiLLMBaseService {
 
     protected buildUrl(): string {
         if (!this.accessToken) {
-        throw new Error('Provide a Google AI API key to use this model.');
+            throw new Error('Provide a Google AI API key to use this model.');
         }
         return `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.accessToken}`;
+    }
+
+    private buildStreamUrl(token: string): string {
+        return `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:streamGenerateContent?key=${token}&alt=sse`;
     }
 
     protected buildHeaders(): Record<string, string> {
@@ -21,7 +75,7 @@ class GeminiLLMService extends ApiLLMBaseService {
         };
     }
 
-    protected buildBody(text: string, prompt: string): unknown {
+    protected buildBody(text: string, prompt: string): Record<string, unknown> {
         const trimmedPrompt = prompt?.trim();
         const trimmedText = text?.trim();
         const body: Record<string, unknown> = {
@@ -44,68 +98,123 @@ class GeminiLLMService extends ApiLLMBaseService {
     }
 
     protected extractResult(response: any): string {
-        const candidates = response?.candidates;
-        if (Array.isArray(candidates) && candidates.length > 0) {
-            const parts = candidates[0]?.content?.parts;
-            if (Array.isArray(parts)) {
-                const text = parts
-                    .map((part) => part?.text ?? '')
-                    .filter(Boolean)
-                    .join('\n')
-                    .trim();
-                if (text) {
-                    return text;
-                }
-            }
+        const text = extractGeminiText(response).trim();
+        if (text) {
+            return text;
         }
         return super.extractResult(response);
     }
 
-    async processStream(text: string, prompt: string, onChunk: (chunk: string) => void): Promise<string> {
+    async processStream(
+        text: string,
+        prompt: string,
+        onChunk: (chunk: string) => void,
+        options?: {signal?: AbortSignal}
+    ): Promise<string> {
         const token = this.accessToken?.trim();
         if (!token) {
             throw new Error('Provide a Google AI API key to use this model.');
         }
 
-        const body = this.buildBody(text, prompt);
-        const streamId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-        let fullText = '';
-        const unlisten = await listen<{
-            streamId?: string;
-            delta?: string;
-            done?: boolean;
-        }>('gemini:stream', (event) => {
-            const payload = event.payload;
-            if (!payload || payload.streamId !== streamId) {
-                return;
-            }
-            if (typeof payload.delta === 'string' && payload.delta.length > 0) {
-                fullText += payload.delta;
-                onChunk(payload.delta);
-            }
+        const response = await fetch(this.buildStreamUrl(token), {
+            method: 'POST',
+            headers: {
+                ...this.buildHeaders(),
+                Accept: 'text/event-stream'
+            },
+            body: JSON.stringify(this.buildBody(text, prompt)),
+            signal: options?.signal
         });
 
+        if (!response.ok) {
+            throw new Error(await extractErrorMessage(response));
+        }
+
+        if (!response.body) {
+            throw new Error('Gemini stream returned an empty body.');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullText = '';
+
+        const processLine = (line: string) => {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) {
+                return;
+            }
+
+            const data = trimmedLine.startsWith('data:')
+                ? trimmedLine.slice(5).trim()
+                : trimmedLine;
+
+            if (!data || data === '[DONE]' || data === '[' || data === ']') {
+                return;
+            }
+
+            let parsed: unknown;
+            try {
+                parsed = JSON.parse(data);
+            } catch {
+                return;
+            }
+
+            const chunkText = extractGeminiText(parsed);
+            if (!chunkText) {
+                return;
+            }
+
+            const delta = chunkText.startsWith(fullText)
+                ? chunkText.slice(fullText.length)
+                : chunkText;
+
+            if (!delta) {
+                return;
+            }
+
+            if (chunkText.startsWith(fullText)) {
+                fullText = chunkText;
+            } else {
+                fullText += delta;
+            }
+
+            onChunk(delta);
+        };
+
         try {
-            const data = await invoke<string>('gemini_generate_content_stream', {
-                apiKey: token,
-                model: this.model,
-                body,
-                streamId
-            });
-            if (typeof data === 'string' && data.length > fullText.length) {
-                const tail = data.slice(fullText.length);
-                if (tail) {
-                    fullText = data;
-                    onChunk(tail);
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) {
+                    break;
+                }
+
+                buffer += decoder.decode(value, {stream: true});
+
+                while (true) {
+                    const newlineIndex = buffer.indexOf('\n');
+                    if (newlineIndex === -1) {
+                        break;
+                    }
+
+                    let line = buffer.slice(0, newlineIndex);
+                    buffer = buffer.slice(newlineIndex + 1);
+                    if (line.endsWith('\r')) {
+                        line = line.slice(0, -1);
+                    }
+                    processLine(line);
                 }
             }
-            return typeof data === 'string' ? data : fullText;
+
+            const tail = buffer.trim();
+            if (tail) {
+                processLine(tail);
+            }
         } finally {
-            unlisten();
+            reader.releaseLock();
         }
+
+        return fullText;
     }
 }
 

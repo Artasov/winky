@@ -1,4 +1,5 @@
 import axios from 'axios';
+import {triggerUnauthorized} from '@shared/api';
 import {getApiBaseUrl, getWsBaseUrl} from '@shared/constants';
 import type {
     WinkyChat,
@@ -31,6 +32,7 @@ const logResponse = (method: string, url: string, status: number, data: any) => 
 
 const logError = (method: string, url: string, error: any) => {
     const status = error.response?.status || 'ERR';
+    if (status === 401) triggerUnauthorized();
     console.error(`${LOG_PREFIX} ← [${method}] ${url} [${status}]`);
     console.error('  ❌ Error:', error.message || error);
 };
@@ -49,6 +51,8 @@ export interface WinkyLLMParams {
     model_level: 'low' | 'mid' | 'high';
     chat_id?: string;
     parent_message_id?: string | null;
+    preferred_title?: string;
+    additional_context?: string;
 }
 
 export interface WinkyLLMResult {
@@ -58,6 +62,14 @@ export interface WinkyLLMResult {
     content: string;
     credits: number;
     model_level: 'low' | 'mid' | 'high';
+}
+
+export interface WinkyLLMStreamCallbacks {
+    onStart?: (payload: {
+        chat_id: string;
+        user_message_id: string;
+        model_level: 'low' | 'mid' | 'high';
+    }) => void;
 }
 
 export const winkyTranscribe = async (
@@ -105,7 +117,8 @@ export const winkyLLMStream = async (
     params: WinkyLLMParams,
     accessToken: string,
     onChunk: (chunk: string) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    callbacks?: WinkyLLMStreamCallbacks
 ): Promise<WinkyLLMResult> => {
     return new Promise((resolve, reject) => {
         const wsEndpoint = getWinkyAiLlmWsEndpoint();
@@ -172,7 +185,9 @@ export const winkyLLMStream = async (
                 prompt: params.prompt,
                 model_level: params.model_level,
                 chat_id: params.chat_id,
-                parent_message_id: params.parent_message_id
+                parent_message_id: params.parent_message_id,
+                preferred_title: params.preferred_title,
+                additional_context: params.additional_context
             }));
         };
 
@@ -185,6 +200,11 @@ export const winkyLLMStream = async (
                         chatId = data.chat_id;
                         userMessageId = data.user_message_id;
                         modelLevel = data.model_level as 'low' | 'mid' | 'high';
+                        callbacks?.onStart?.({
+                            chat_id: chatId,
+                            user_message_id: userMessageId,
+                            model_level: modelLevel
+                        });
                         console.log(`${LOG_PREFIX} ← [WS] start`, {chat_id: chatId, user_message_id: userMessageId});
                         break;
 
@@ -214,6 +234,7 @@ export const winkyLLMStream = async (
                         break;
 
                     case 'error':
+                        if (data.code === 'unauthorized' || data.code === 'authentication_failed') triggerUnauthorized();
                         console.error(`${LOG_PREFIX} ← [WS] error`, {code: data.code, message: data.message});
                         cleanup();
                         if (!resolved) {
@@ -411,3 +432,5 @@ export const fetchWinkyChatBranch = async (
         throw error;
     }
 };
+
+

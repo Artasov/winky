@@ -1,9 +1,10 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import {Outlet} from 'react-router-dom';
 import TitleBar from '../../components/TitleBar';
 import Sidebar from '../../components/Sidebar';
 import {useConfig} from '../../context/ConfigContext';
 import {useThemeMode} from '../../context/ThemeModeContext';
+import {getSidebarCollapsed, subscribeSidebarCollapsed} from '../../services/sidebarState';
 
 interface DesktopShellProps {
     allowSidebar?: boolean;
@@ -15,6 +16,9 @@ const DesktopShell: React.FC<DesktopShellProps> = ({allowSidebar = false}) => {
     const hasToken = Boolean(config?.auth.access || config?.auth.accessToken);
     const showSidebar = allowSidebar && Boolean(config) && hasToken && config?.setupCompleted;
     const showAvatar = config?.showAvatarVideo !== false;
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => getSidebarCollapsed());
+
+    useEffect(() => subscribeSidebarCollapsed(setIsSidebarCollapsed), []);
 
     return (
         <div
@@ -36,11 +40,13 @@ const DesktopShell: React.FC<DesktopShellProps> = ({allowSidebar = false}) => {
                         left: -130,
                         bottom: -40,
                         width: 500,
-                        height: 'auto'
+                        height: 'auto',
+                        transform: isSidebarCollapsed ? 'translateX(-520px)' : 'translateX(0)',
+                        transition: 'transform 220ms cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                 />
             )}
-            <TitleBar showBugReportButton/>
+            <TitleBar showBugReportButton showSidebarToggle={showSidebar}/>
             <div className="fr flex-1 overflow-hidden relative z-10">
                 {showSidebar ? <Sidebar/> : null}
                 <main

@@ -41,6 +41,7 @@ import ResultShell from './app/layouts/ResultShell';
 import ErrorShell from './app/layouts/ErrorShell';
 import StandaloneWindow from './app/layouts/StandaloneWindow';
 import {SPEECH_MODES} from '@shared/constants';
+import {onUnauthorized} from '@shared/api';
 import TitleBar from './components/TitleBar';
 import {checkLocalModelDownloaded, warmupLocalSpeechModel} from './services/localSpeechModels';
 import StyleUsageSentinel from './components/StyleUsageSentinel';
@@ -102,6 +103,21 @@ const AppContent: React.FC = () => {
     useToastBridge({enabled: shouldRenderToasts, showToast});
     useWindowChrome(windowIdentity);
     useNavigationSync({config, loading, windowIdentity, isAuthenticated});
+
+    useEffect(() => {
+        if (windowIdentity.isAuxWindow) {
+            return;
+        }
+        const unsubscribe = onUnauthorized(() => {
+            console.warn('[App] Unauthorized state detected, forcing auth screen');
+            userFetchAttempted.current = true;
+            groupsFetched.current = false;
+            void clearAuthTokens().finally(() => {
+                navigate('/auth', {replace: true});
+            });
+        });
+        return unsubscribe;
+    }, [clearAuthTokens, navigate, windowIdentity.isAuxWindow]);
 
     useEffect(() => {
         const shouldWarmup =

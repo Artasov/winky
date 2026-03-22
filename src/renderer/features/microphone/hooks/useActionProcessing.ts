@@ -1,11 +1,19 @@
 import {useCallback, type RefObject} from 'react';
 import type {ActionConfig, ActionHistoryEntry, AppConfig} from '@shared/types';
-import {getSiteBaseUrl, LLM_WINKY_API_MODELS, SPEECH_WINKY_API_MODELS} from '@shared/constants';
+import {getSiteBaseUrl, LLM_MODES, LLM_WINKY_API_MODELS, SPEECH_WINKY_API_MODELS} from '@shared/constants';
 import {createNoteForMode, deriveNoteTitle, resolveNotesStorageMode} from '../../../services/notesService';
 import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, speechBridge, windowBridge} from '../../../services/winkyBridge';
-import {resultPageBridge} from '../../../services/resultPageBridge';
 import {trimSilenceFromAudioBlob, isAudioSilent} from '../services/audioProcessing';
 import {winkyTranscribe, winkyLLMStream} from '../../../services/winkyAiApi';
+import {
+    createLocalChatId,
+    createLocalMessageId,
+    updateLocalChat,
+    updateLocalChatMessage,
+    upsertLocalChat
+} from '../../chats/services/chatStorage';
+import {createChatLaunchRequest} from '../../chats/services/chatLaunchRequests';
+import {createChatMeta} from '../../chats/utils/chatProviders';
 
 const WINKY_LLM_MODELS_SET = new Set<string>([...LLM_WINKY_API_MODELS]);
 const WINKY_SPEECH_MODELS_SET = new Set<string>([...SPEECH_WINKY_API_MODELS]);
@@ -365,7 +373,20 @@ export const useActionProcessing = ({
                     .trim();
 
                 const fullPrompt = llmPrompt ? `${llmPrompt}\n\n${llmInput}` : llmInput;
-                const modelLevel = llmModel === 'winky-high' ? 'high' : 'low';
+                const modelLevel = llmModel === 'winky-high' ? 'high' : llmModel === 'winky-mid' ? 'mid' : 'low';
+
+                if (action.show_results) {
+                    const launchRequest = createChatLaunchRequest({
+                        text: llmInput,
+                        preferredTitle: action.name,
+                        additionalContext: llmPrompt || undefined,
+                        mode: LLM_MODES.API,
+                        model: llmModel
+                    });
+                    clearContext();
+                    await windowBridge.openRoute(`/chats/new?launch=${encodeURIComponent(launchRequest.id)}`);
+                    return;
+                }
 
                 let streamedResponse = '';
                 let historyEntry: ActionHistoryEntry | null = null;
@@ -532,18 +553,79 @@ export const useActionProcessing = ({
                 return;
             }
 
-            // Для OpenAI/Google моделей - используем Result Page
-            if (action.show_results) {
-                resultPageBridge.open();
-                resultPageBridge.update({
-                    transcription: llmInput,
-                    llmResponse: needsLLM ? '' : llmInput,
-                    isStreaming: needsLLM
-                });
-            }
+            // Для OpenAI/Google моделей тоже ведём show_results через live History entry
+            let historyEntry: ActionHistoryEntry | null = null;
+            let historyUpdateTimer: number | null = null;
+            let pendingHistoryPayload: {
+                transcription?: string;
+                llm_response?: string;
+                is_streaming?: boolean;
+                result_text?: string;
+                audio_path?: string;
+            } | null = null;
+            let historyUpdatePromise = Promise.resolve();
+
+            const clearHistoryUpdateTimer = () => {
+                if (historyUpdateTimer === null) {
+                    return;
+                }
+                clearTimeout(historyUpdateTimer);
+                historyUpdateTimer = null;
+            };
+
+            const flushHistoryUpdate = async () => {
+                if (!historyEntry || !pendingHistoryPayload) {
+                    return;
+                }
+                const payload = pendingHistoryPayload;
+                pendingHistoryPayload = null;
+                const updatedEntry = await updateHistory({id: historyEntry.id, ...payload});
+                if (updatedEntry) {
+                    historyEntry = updatedEntry;
+                }
+            };
+
+            const scheduleHistoryUpdate = (payload: {
+                transcription?: string;
+                llm_response?: string;
+                is_streaming?: boolean;
+                result_text?: string;
+                audio_path?: string;
+            }) => {
+                if (!historyEntry) {
+                    return;
+                }
+                pendingHistoryPayload = pendingHistoryPayload
+                    ? {...pendingHistoryPayload, ...payload}
+                    : {...payload};
+                if (historyUpdateTimer !== null) {
+                    return;
+                }
+                historyUpdateTimer = window.setTimeout(() => {
+                    historyUpdateTimer = null;
+                    historyUpdatePromise = historyUpdatePromise.then(flushHistoryUpdate);
+                }, 120);
+            };
+
+            const actionAudioPath = await ensureAudioSaved();
 
             if (!needsLLM) {
                 const responseText = llmInput;
+                if (action.show_results) {
+                    historyEntry = await recordHistory({
+                        action_id: action.id,
+                        action_name: action.name,
+                        action_prompt: action.prompt?.trim() || null,
+                        transcription: transcriptionForOutput,
+                        llm_response: responseText,
+                        is_streaming: false,
+                        result_text: responseText,
+                        audio_path: actionAudioPath
+                    });
+                    if (historyEntry) {
+                        await openHistoryEntry(historyEntry.id);
+                    }
+                }
                 if (action.auto_copy_result) {
                     await copyWithRetries({
                         text: responseText,
@@ -552,15 +634,17 @@ export const useActionProcessing = ({
                         failureMessage: 'Failed to copy the result to the clipboard.'
                     });
                 }
-                await recordHistory({
-                    action_id: action.id,
-                    action_name: action.name,
-                    action_prompt: action.prompt?.trim() || null,
-                    transcription: transcriptionForOutput,
-                    llm_response: null,
-                    result_text: responseText,
-                    audio_path: await ensureAudioSaved()
-                });
+                if (!historyEntry) {
+                    await recordHistory({
+                        action_id: action.id,
+                        action_name: action.name,
+                        action_prompt: action.prompt?.trim() || null,
+                        transcription: transcriptionForOutput,
+                        llm_response: responseText,
+                        result_text: responseText,
+                        audio_path: actionAudioPath
+                    });
+                }
                 await saveQuickNote(responseText);
                 clearContext();
                 await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef});
@@ -575,11 +659,151 @@ export const useActionProcessing = ({
                 accessToken: authToken
             };
 
+            if (needsLLM && action.show_results) {
+                const actionLlmPrompt = action.prompt?.trim() || '';
+                const globalLlmPrompt = config.globalLlmPrompt?.trim() || '';
+                const llmPrompt = [globalLlmPrompt, actionLlmPrompt]
+                    .filter(p => p.length > 0)
+                    .join('\n\n')
+                    .trim();
+                const startedAt = new Date().toISOString();
+                const assistantStartedAt = new Date(Date.now() + 1).toISOString();
+                const localChatId = createLocalChatId();
+                const userMessageId = createLocalMessageId();
+                const assistantMessageId = createLocalMessageId();
+                const chatMeta = createChatMeta(config.llm.mode, llmModel);
+                let streamedResponse = '';
+
+                upsertLocalChat(
+                    {
+                        id: localChatId,
+                        title: action.name,
+                        additional_context: llmPrompt,
+                        message_count: 2,
+                        last_leaf_message_id: assistantMessageId,
+                        pinned_at: null,
+                        created_at: startedAt,
+                        updated_at: startedAt,
+                        ...chatMeta
+                    },
+                    [
+                        {
+                            id: userMessageId,
+                            parent_id: null,
+                            role: 'user',
+                            content: llmInput,
+                            model_level: llmModel,
+                            provider: chatMeta.provider,
+                            model_name: llmModel,
+                            tokens: 0,
+                            has_children: false,
+                            sibling_count: 0,
+                            sibling_index: 0,
+                            created_at: startedAt
+                        },
+                        {
+                            id: assistantMessageId,
+                            parent_id: userMessageId,
+                            role: 'assistant',
+                            content: 'Thinking...',
+                            model_level: llmModel,
+                            provider: chatMeta.provider,
+                            model_name: llmModel,
+                            tokens: 0,
+                            has_children: false,
+                            sibling_count: 0,
+                            sibling_index: 0,
+                            created_at: assistantStartedAt
+                        }
+                    ]
+                );
+                await windowBridge.openRoute(`/chats/${encodeURIComponent(localChatId)}`);
+
+                try {
+                    const response = await llmBridge.process(
+                        llmInput,
+                        llmPrompt,
+                        llmConfig,
+                        {
+                            onChunk: (chunk) => {
+                                streamedResponse += chunk;
+                                updateLocalChatMessage(localChatId, assistantMessageId, {
+                                    content: streamedResponse,
+                                    provider: chatMeta.provider,
+                                    model_name: llmModel,
+                                    model_level: llmModel
+                                });
+                                updateLocalChat(localChatId, {
+                                    title: action.name,
+                                    additional_context: llmPrompt,
+                                    updated_at: new Date().toISOString(),
+                                    last_leaf_message_id: assistantMessageId,
+                                    message_count: 2
+                                });
+                            }
+                        }
+                    );
+
+                    const finalResponse = response?.trim().length ? response : streamedResponse;
+                    const resultText = finalResponse.trim().length > 0 ? finalResponse : transcriptionForOutput;
+
+                    updateLocalChatMessage(localChatId, assistantMessageId, {
+                        content: resultText,
+                        provider: chatMeta.provider,
+                        model_name: llmModel,
+                        model_level: llmModel
+                    });
+                    updateLocalChat(localChatId, {
+                        title: action.name,
+                        additional_context: llmPrompt,
+                        updated_at: new Date().toISOString(),
+                        last_leaf_message_id: assistantMessageId,
+                        message_count: 2
+                    });
+
+                    if (action.auto_copy_result) {
+                        await copyWithRetries({
+                            text: finalResponse ?? '',
+                            showToast,
+                            successMessage: 'Response copied.',
+                            failureMessage: 'Failed to copy the response to the clipboard.'
+                        });
+                    }
+
+                    await saveQuickNote(resultText);
+                    clearContext();
+                    await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef, debug: true});
+                } catch (error) {
+                    updateLocalChatMessage(localChatId, assistantMessageId, {
+                        content: streamedResponse || 'Failed to generate response.',
+                        provider: chatMeta.provider,
+                        model_name: llmModel,
+                        model_level: llmModel
+                    });
+                    updateLocalChat(localChatId, {
+                        updated_at: new Date().toISOString(),
+                        last_leaf_message_id: assistantMessageId,
+                        message_count: 2
+                    });
+                    throw error;
+                }
+
+                return;
+            }
+
             let streamedResponse = '';
             const onChunk = action.show_results
                 ? (chunk: string) => {
                     streamedResponse += chunk;
-                    resultPageBridge.update({llmResponse: streamedResponse, isStreaming: true});
+                    if (historyEntry) {
+                        scheduleHistoryUpdate({
+                            transcription: transcriptionForOutput,
+                            llm_response: streamedResponse,
+                            is_streaming: true,
+                            result_text: streamedResponse,
+                            audio_path: actionAudioPath ?? undefined
+                        });
+                    }
                 }
                 : undefined;
 
@@ -591,41 +815,92 @@ export const useActionProcessing = ({
                 .join('\n\n')
                 .trim();
 
-            const response = await llmBridge.process(
-                llmInput,
-                llmPrompt,
-                llmConfig,
-                onChunk ? {onChunk} : undefined
-            );
+            try {
+                if (action.show_results) {
+                    historyEntry = await recordHistory({
+                        action_id: action.id,
+                        action_name: action.name,
+                        action_prompt: action.prompt?.trim() || null,
+                        transcription: transcriptionForOutput,
+                        llm_response: null,
+                        is_streaming: true,
+                        result_text: transcriptionForOutput,
+                        audio_path: actionAudioPath
+                    });
+                    if (historyEntry) {
+                        await openHistoryEntry(historyEntry.id);
+                    }
+                }
 
-            const finalResponse = response?.trim().length ? response : streamedResponse;
+                const response = await llmBridge.process(
+                    llmInput,
+                    llmPrompt,
+                    llmConfig,
+                    onChunk ? {onChunk} : undefined
+                );
 
-            if (action.show_results) {
-                resultPageBridge.update({llmResponse: finalResponse, isStreaming: false});
+                clearHistoryUpdateTimer();
+                await historyUpdatePromise;
+                await flushHistoryUpdate();
+
+                const finalResponse = response?.trim().length ? response : streamedResponse;
+                const trimmedResponse = finalResponse?.trim() || '';
+                const resultText = trimmedResponse.length > 0 ? finalResponse : transcriptionForOutput;
+
+                if (action.auto_copy_result) {
+                    await copyWithRetries({
+                        text: finalResponse ?? '',
+                        showToast,
+                        successMessage: 'Response copied.',
+                        failureMessage: 'Failed to copy the response to the clipboard.'
+                    });
+                }
+
+                if (historyEntry) {
+                    const updatedEntry = await updateHistory({
+                        id: historyEntry.id,
+                        transcription: transcriptionForOutput,
+                        llm_response: finalResponse,
+                        is_streaming: false,
+                        result_text: resultText,
+                        audio_path: actionAudioPath ?? undefined
+                    });
+                    if (updatedEntry) {
+                        historyEntry = updatedEntry;
+                    }
+                } else {
+                    historyEntry = await recordHistory({
+                        action_id: action.id,
+                        action_name: action.name,
+                        action_prompt: action.prompt?.trim() || null,
+                        transcription: transcriptionForOutput,
+                        llm_response: finalResponse ?? null,
+                        is_streaming: false,
+                        result_text: resultText,
+                        audio_path: actionAudioPath
+                    });
+                }
+
+                await saveQuickNote(trimmedResponse.length > 0 ? finalResponse ?? '' : transcriptionForOutput);
+                clearContext();
+
+                if (action.show_results && historyEntry) {
+                    await openHistoryEntry(historyEntry.id);
+                }
+
+                await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef, debug: true});
+            } catch (error) {
+                clearHistoryUpdateTimer();
+                await historyUpdatePromise;
+                await flushHistoryUpdate();
+                if (historyEntry) {
+                    await updateHistory({
+                        id: historyEntry.id,
+                        is_streaming: false
+                    });
+                }
+                throw error;
             }
-
-            if (action.auto_copy_result) {
-                await copyWithRetries({
-                    text: finalResponse ?? '',
-                    showToast,
-                    successMessage: 'Response copied.',
-                    failureMessage: 'Failed to copy the response to the clipboard.'
-                });
-            }
-
-            const trimmedResponse = finalResponse?.trim() || '';
-            await recordHistory({
-                action_id: action.id,
-                action_name: action.name,
-                action_prompt: action.prompt?.trim() || null,
-                transcription: transcriptionForOutput,
-                llm_response: finalResponse ?? null,
-                result_text: trimmedResponse.length > 0 ? finalResponse : transcriptionForOutput,
-                audio_path: await ensureAudioSaved()
-            });
-            await saveQuickNote(trimmedResponse.length > 0 ? finalResponse ?? '' : transcriptionForOutput);
-            clearContext();
-            await playCompletionSound({action: completionAction, config, audioRef: completionSoundRef, debug: true});
         } catch (error: any) {
             console.error(error);
 

@@ -20,15 +20,15 @@ type Props = {
 };
 
 const GroupCard: React.FC<Props> = ({
-    group,
-    deletingActionIds,
-    isDeleting,
-    onEditGroup,
-    onDeleteGroup,
-    onEditAction,
-    onDeleteAction,
-    showPrompts = false
-}) => {
+                                        group,
+                                        deletingActionIds,
+                                        isDeleting,
+                                        onEditGroup,
+                                        onDeleteGroup,
+                                        onEditAction,
+                                        onDeleteAction,
+                                        showPrompts = false
+                                    }) => {
     const isSystemGroup = group.is_system || group.id === SYSTEM_GROUP_ID;
     const groupColor = isSystemGroup ? '#6366f1' : (group.color || '#f43f5e');
 
@@ -73,7 +73,7 @@ const GroupCard: React.FC<Props> = ({
                         background: isDark
                             ? 'rgba(255, 255, 255, 0.03)'
                             : `linear-gradient(135deg, ${groupColor}08, ${groupColor}15)`,
-                        borderBottom: '1px solid',
+                        borderBottom: isDark ? '' : '1px solid',
                         borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : `${groupColor}20`
                     };
                 }}
@@ -198,7 +198,7 @@ const GroupCard: React.FC<Props> = ({
             </Box>
 
             {/* Actions Grid */}
-            <Box sx={{p: 2}}>
+            <Box sx={{px: 2, pb: 2, pt: 1.5}}>
                 {group.actions.length === 0 ? (
                     <Box
                         sx={{
@@ -221,7 +221,7 @@ const GroupCard: React.FC<Props> = ({
                     <div
                         className="grid gap-3 w-full"
                         style={{
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))'
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))'
                         }}
                     >
                         {group.actions.map((action) => (

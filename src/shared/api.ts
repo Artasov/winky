@@ -11,7 +11,7 @@ export const onUnauthorized = (handler: UnauthorizedHandler): (() => void) => {
     };
 };
 
-const emitUnauthorized = () => {
+export const triggerUnauthorized = () => {
     unauthorizedHandlers.forEach((handler) => {
         try {
             handler();
@@ -19,6 +19,31 @@ const emitUnauthorized = () => {
             console.error('[api] Unauthorized handler threw error', err);
         }
     });
+};
+
+const getLogUrl = (url: string, baseURL?: string): string => {
+    if (!url) {
+        return 'unknown';
+    }
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+    }
+    if (!baseURL) {
+        return url;
+    }
+    try {
+        const normalizedBase = baseURL.startsWith('http://') || baseURL.startsWith('https://')
+            ? baseURL
+            : typeof window !== 'undefined'
+                ? new URL(baseURL, window.location.origin).toString()
+                : '';
+        if (!normalizedBase) {
+            return url;
+        }
+        return new URL(url, normalizedBase).toString();
+    } catch {
+        return url;
+    }
 };
 
 export const createApiClient = (
@@ -42,9 +67,7 @@ export const createApiClient = (
         (config) => {
             const method = config.method?.toUpperCase() || 'GET';
             const url = config.url || '';
-            const fullUrl = url.startsWith('http')
-                ? url
-                : new URL(url, config.baseURL).toString();
+            const fullUrl = getLogUrl(url, config.baseURL);
 
             console.log(`%cAPI → %c[${method}] %c${fullUrl}`,
                 'color: #10b981; font-weight: bold',
@@ -77,9 +100,7 @@ export const createApiClient = (
         (response) => {
             const method = response.config.method?.toUpperCase() || 'GET';
             const url = response.config.url || '';
-            const fullUrl = url.startsWith('http')
-                ? url
-                : new URL(url, response.config.baseURL).toString();
+            const fullUrl = getLogUrl(url, response.config.baseURL);
             const status = response.status;
 
             console.log(`%cAPI ← %c[${method}] %c${fullUrl} %c[${status}]`,
@@ -101,11 +122,7 @@ export const createApiClient = (
         (error) => {
             const method = error.config?.method?.toUpperCase() || 'GET';
             const url = error.config?.url || 'unknown';
-            const fullUrl = url.startsWith('http')
-                ? url
-                : url !== 'unknown' && error.config?.baseURL
-                    ? new URL(url, error.config.baseURL).toString()
-                    : url;
+            const fullUrl = url === 'unknown' ? url : getLogUrl(url, error.config?.baseURL);
             const status = error.response?.status || 'N/A';
 
             console.error(`%cAPI ← %c[${method}] %c${fullUrl} %c[${status}]`,
@@ -123,7 +140,7 @@ export const createApiClient = (
 
             // При 401 эмитим событие для глобальной обработки (разлогинивание)
             if (status === 401) {
-                emitUnauthorized();
+                triggerUnauthorized();
             }
 
             // Отправляем в renderer если доступна функция

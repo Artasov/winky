@@ -408,66 +408,91 @@ html[data-mic-window="true"] body #root {
 
 .overflow-y-auto {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-primary-400) rgba(244, 63, 94, 0.12);
+    scrollbar-color: rgba(120, 120, 128, 0.38) transparent;
 }
 
 .overflow-y-auto::-webkit-scrollbar {
-    width: 10px;
+    width: 7px;
+    height: 7px;
 }
 
 .overflow-y-auto::-webkit-scrollbar-track {
-    background: linear-gradient(180deg, rgba(255, 241, 242, 0.95), rgba(254, 226, 226, 0.65));
+    background: transparent;
     border-radius: 9999px;
-    box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.08);
+    box-shadow: none;
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, var(--color-primary-500), var(--color-primary-400)) !important;
+    background: rgba(120, 120, 128, 0.34) !important;
     border-radius: 9999px;
-    border: 2px solid rgba(255, 241, 242, 0.9) !important;
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4) !important;
-    transition: background var(--transition-duration-base) var(--transition-timing-function-smooth),
-    box-shadow var(--transition-duration-base) var(--transition-timing-function-smooth);
+    border: none !important;
+    box-shadow: none !important;
+    transition: background-color var(--transition-duration-base) var(--transition-timing-function-smooth);
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, var(--color-primary-500), var(--color-primary-400)) !important;
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.5), 0 0 6px rgba(244, 63, 94, 0.15) !important;
+    background: rgba(120, 120, 128, 0.5) !important;
+    box-shadow: none !important;
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb:active {
-    background: linear-gradient(180deg, var(--color-primary-700), var(--color-primary-500));
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.25), 0 0 4px rgba(190, 18, 60, 0.4);
+    background: rgba(120, 120, 128, 0.58) !important;
 }
 
 /* Thin scrollbar used inside History sections. */
 .history-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: #fb7185 rgba(244, 63, 94, 0.12);
+    scrollbar-color: rgba(120, 120, 128, 0.38) transparent;
 }
 
 .history-scrollbar::-webkit-scrollbar {
-    width: 4px;
+    width: 5px;
+    height: 5px;
 }
 
 .history-scrollbar::-webkit-scrollbar-track {
-    background: linear-gradient(180deg, rgba(255, 241, 242, 0.95), rgba(254, 226, 226, 0.65));
+    background: transparent;
     border-radius: 9999px;
-    box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.08);
+    box-shadow: none;
 }
 
 .history-scrollbar::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, var(--color-primary-500), var(--color-primary-400)) !important;
+    background: rgba(120, 120, 128, 0.34) !important;
     border-radius: 9999px;
-    border: 1px solid rgba(255, 241, 242, 0.9) !important;
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4) !important;
-    transition: background var(--transition-duration-base) var(--transition-timing-function-smooth),
-    box-shadow var(--transition-duration-base) var(--transition-timing-function-smooth);
+    border: none !important;
+    box-shadow: none !important;
+    transition: background-color var(--transition-duration-base) var(--transition-timing-function-smooth);
 }
 
 .history-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, var(--color-primary-500), var(--color-primary-400)) !important;
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.5), 0 0 6px rgba(244, 63, 94, 0.15) !important;
+    background: rgba(120, 120, 128, 0.5) !important;
+    box-shadow: none !important;
+}
+
+.sidebar-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 120, 128, 0.34) transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+    box-shadow: none;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(120, 120, 128, 0.3);
+    border-radius: 9999px;
+    border: none;
+    box-shadow: none;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(120, 120, 128, 0.46);
 }
 
 .mic-context-scrollbar {
@@ -500,39 +525,50 @@ html[data-mic-window="true"] body #root {
 .MuiPopover-paper,
 .MuiMenuList-root {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-primary-400) rgba(244, 63, 94, 0.12);
+    scrollbar-color: rgba(120, 120, 128, 0.38) transparent;
 }
 
 .MuiMenu-paper::-webkit-scrollbar,
 .MuiPopover-paper::-webkit-scrollbar,
 .MuiMenuList-root::-webkit-scrollbar {
-    width: 10px;
+    width: 7px;
+    height: 7px;
 }
 
 .MuiMenu-paper::-webkit-scrollbar-track,
 .MuiPopover-paper::-webkit-scrollbar-track,
 .MuiMenuList-root::-webkit-scrollbar-track {
-    background: linear-gradient(180deg, rgba(255, 241, 242, 0.95), rgba(254, 226, 226, 0.65));
+    background: transparent;
     border-radius: 9999px;
-    box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.08);
+    box-shadow: none;
 }
 
 .MuiMenu-paper::-webkit-scrollbar-thumb,
 .MuiPopover-paper::-webkit-scrollbar-thumb,
 .MuiMenuList-root::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, var(--color-primary-500), var(--color-primary-400)) !important;
+    background: rgba(120, 120, 128, 0.34) !important;
     border-radius: 9999px;
-    border: 2px solid rgba(255, 241, 242, 0.9) !important;
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4) !important;
-    transition: background var(--transition-duration-base) var(--transition-timing-function-smooth),
-    box-shadow var(--transition-duration-base) var(--transition-timing-function-smooth);
+    border: none !important;
+    box-shadow: none !important;
+    transition: background-color var(--transition-duration-base) var(--transition-timing-function-smooth);
 }
 
 .MuiMenu-paper::-webkit-scrollbar-thumb:hover,
 .MuiPopover-paper::-webkit-scrollbar-thumb:hover,
 .MuiMenuList-root::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, var(--color-primary-500), var(--color-primary-400)) !important;
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.5), 0 0 6px rgba(244, 63, 94, 0.15) !important;
+    background: rgba(120, 120, 128, 0.5) !important;
+    box-shadow: none !important;
+}
+
+.overflow-y-auto::-webkit-scrollbar-button,
+.history-scrollbar::-webkit-scrollbar-button,
+.sidebar-scrollbar::-webkit-scrollbar-button,
+.MuiMenu-paper::-webkit-scrollbar-button,
+.MuiPopover-paper::-webkit-scrollbar-button,
+.MuiMenuList-root::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
 }
 
 .app-region-drag {
@@ -644,57 +680,70 @@ body.fade-out {
 
 
 html[data-theme='dark'] .overflow-y-auto {
-    scrollbar-color: #555 #1a1a1a;
+    scrollbar-color: rgba(148, 163, 184, 0.34) transparent;
 }
 
 html[data-theme='dark'] .overflow-y-auto::-webkit-scrollbar-track {
-    background: linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(26, 26, 26, 0.9));
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    background: transparent;
+    box-shadow: none;
 }
 
 html[data-theme='dark'] .overflow-y-auto::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #666, #555) !important;
-    border: 2px solid rgba(0, 0, 0, 0.85) !important;
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.08) !important;
+    background: rgba(148, 163, 184, 0.26) !important;
+    border: none !important;
+    box-shadow: none !important;
 }
 
 html[data-theme='dark'] .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #777, #666) !important;
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.12), 0 0 8px rgba(255, 255, 255, 0.1) !important;
+    background: rgba(148, 163, 184, 0.4) !important;
+    box-shadow: none !important;
 }
 
 html[data-theme='dark'] .history-scrollbar {
-    scrollbar-color: #555 #1a1a1a;
+    scrollbar-color: rgba(148, 163, 184, 0.34) transparent;
 }
 
 html[data-theme='dark'] .history-scrollbar::-webkit-scrollbar-track {
-    background: linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(26, 26, 26, 0.9));
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    background: transparent;
+    box-shadow: none;
 }
 
 html[data-theme='dark'] .history-scrollbar::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #666, #555) !important;
-    border: 1px solid rgba(0, 0, 0, 0.85) !important;
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.08) !important;
+    background: rgba(148, 163, 184, 0.26) !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+html[data-theme='dark'] .sidebar-scrollbar {
+    scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+}
+
+html[data-theme='dark'] .sidebar-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+    box-shadow: none;
+}
+
+html[data-theme='dark'] .sidebar-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.24);
 }
 
 html[data-theme='dark'] .MuiMenu-paper,
 html[data-theme='dark'] .MuiPopover-paper,
 html[data-theme='dark'] .MuiMenuList-root {
-    scrollbar-color: #555 #1a1a1a;
+    scrollbar-color: rgba(148, 163, 184, 0.34) transparent;
 }
 
 html[data-theme='dark'] .MuiMenu-paper::-webkit-scrollbar-track,
 html[data-theme='dark'] .MuiPopover-paper::-webkit-scrollbar-track,
 html[data-theme='dark'] .MuiMenuList-root::-webkit-scrollbar-track {
-    background: linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(26, 26, 26, 0.9));
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    background: transparent;
+    box-shadow: none;
 }
 
 html[data-theme='dark'] .MuiMenu-paper::-webkit-scrollbar-thumb,
 html[data-theme='dark'] .MuiPopover-paper::-webkit-scrollbar-thumb,
 html[data-theme='dark'] .MuiMenuList-root::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #666, #555) !important;
-    border: 2px solid rgba(0, 0, 0, 0.85) !important;
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.08) !important;
+    background: rgba(148, 163, 184, 0.26) !important;
+    border: none !important;
+    box-shadow: none !important;
 }

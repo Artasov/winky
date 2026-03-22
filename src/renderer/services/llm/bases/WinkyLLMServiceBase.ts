@@ -28,7 +28,12 @@ export abstract class WinkyLLMServiceBase implements BaseLLMService {
         return result;
     }
 
-    async processStream(text: string, prompt: string, onChunk: (chunk: string) => void): Promise<string> {
+    async processStream(
+        text: string,
+        prompt: string,
+        onChunk: (chunk: string) => void,
+        options?: {signal?: AbortSignal}
+    ): Promise<string> {
         return new Promise((resolve, reject) => {
             const wsUrl = `${getWinkyAiLlmWsEndpoint()}?token=${this.accessToken}`;
             const ws = new WebSocket(wsUrl);
@@ -41,6 +46,17 @@ export abstract class WinkyLLMServiceBase implements BaseLLMService {
                     ws.close();
                 }
             };
+
+            options?.signal?.addEventListener('abort', () => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({action: 'cancel'}));
+                }
+                cleanup();
+                if (!resolved) {
+                    resolved = true;
+                    reject(new DOMException('Aborted', 'AbortError'));
+                }
+            });
 
             ws.onopen = () => {
                 ws.send(JSON.stringify({

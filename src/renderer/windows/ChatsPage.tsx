@@ -9,6 +9,7 @@ import {useChats} from '../context/ChatsContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import {updateWinkyChat} from '../services/winkyAiApi';
 import ChatActions from '../features/chats/components/ChatActions';
+import {getChatProviderLabel, isLocalChat} from '../features/chats/utils/chatProviders';
 
 const formatDate = (value: string): string => {
     if (!value) return '';
@@ -36,6 +37,13 @@ const ChatsPage: React.FC = () => {
     }, [navigate]);
 
     const handleRenameChat = useCallback(async (chatId: string, newTitle: string) => {
+        const chat = chats.find((item) => item.id === chatId);
+        if (!chat) return;
+        if (isLocalChat(chat)) {
+            updateChat(chatId, {title: newTitle, updated_at: new Date().toISOString()});
+            showToast('Chat renamed.', 'success');
+            return;
+        }
         if (!accessToken) return;
         try {
             const updated = await updateWinkyChat(chatId, {title: newTitle}, accessToken);
@@ -46,7 +54,7 @@ const ChatsPage: React.FC = () => {
             showToast('Failed to rename chat.', 'error');
             throw error;
         }
-    }, [accessToken, showToast, updateChat]);
+    }, [accessToken, chats, showToast, updateChat]);
 
     const handleDeleteChat = useCallback(async (chatId: string) => {
         try {
@@ -99,7 +107,7 @@ const ChatsPage: React.FC = () => {
                         </div>
                     </div>
                     <p className="text-sm text-text-secondary">
-                        Your conversations with Winky AI.
+                        Your conversations across Winky, OpenAI, Google, and local models.
                     </p>
                 </div>
             </div>
@@ -173,6 +181,11 @@ const ChatsPage: React.FC = () => {
                                 <div className="frsc gap-3 text-xs text-text-tertiary">
                                     <span>{chat.message_count} messages</span>
                                     <span>{formatDate(chat.updated_at)}</span>
+                                    {getChatProviderLabel(chat) && (
+                                        <span className="uppercase tracking-[0.12em] text-text-tertiary/70">
+                                            {getChatProviderLabel(chat)}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                             <ChatActions

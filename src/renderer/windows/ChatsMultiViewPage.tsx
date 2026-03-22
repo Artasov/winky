@@ -261,7 +261,7 @@ const ChatsMultiViewPage: React.FC = () => {
     const {chatId} = useParams<{chatId?: string}>();
 
     return (
-        <ChatPanelsProvider initialChatId={chatId && chatId !== 'new' ? chatId : undefined}>
+        <ChatPanelsProvider initialChatId={chatId}>
             <ChatsMultiViewContent/>
         </ChatPanelsProvider>
     );

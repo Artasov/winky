@@ -20,6 +20,8 @@ import PushPinRoundedIcon from '@mui/icons-material/PushPinRounded';
 import {useResult} from '../context/ResultContext';
 import {updateWinkyChat} from '../services/winkyAiApi';
 import SidebarChatActions from '../features/chats/components/SidebarChatActions';
+import {getChatProviderLabel, isLocalChat} from '../features/chats/utils/chatProviders';
+import {getSidebarCollapsed, subscribeSidebarCollapsed} from '../services/sidebarState';
 
 const PANELS_STORAGE_KEY = 'winky_chat_panels';
 
@@ -71,11 +73,12 @@ const Sidebar: React.FC = () => {
     const {user} = useUser();
     const {isDark} = useThemeMode();
     const {isActive: hasResult} = useResult();
-    const {chats, refreshChats, deleteChat: deleteChatFromContext} = useChats();
+    const {chats, refreshChats, updateChat, deleteChat: deleteChatFromContext} = useChats();
     const showAvatarVideo = config?.showAvatarVideo !== false && !isDark;
 
     // Отслеживаем открытые панели через localStorage
     const [openPanelChatIds, setOpenPanelChatIds] = useState<Set<string>>(() => getOpenPanelChatIds());
+    const [isCollapsed, setIsCollapsed] = useState<boolean>(() => getSidebarCollapsed());
 
     // Подписываемся на изменения localStorage
     useEffect(() => {
@@ -134,12 +137,10 @@ const Sidebar: React.FC = () => {
 
     const handleChatClick = useCallback((chatId: string) => {
         if (isInMultiPanelMode) {
-            // Мы в многопанельном режиме - отправляем событие для замены панели
             window.dispatchEvent(new CustomEvent('chat-panels:open-single', {detail: {chatId}}));
-            // Обновляем список открытых панелей
+            navigate(`/chats/${chatId}`, {replace: true});
             setTimeout(() => setOpenPanelChatIds(getOpenPanelChatIds()), 50);
         } else {
-            // Мы на странице списка чатов или любой другой - навигируем
             navigate(`/chats/${chatId}`);
         }
     }, [isInMultiPanelMode, navigate]);
@@ -152,6 +153,8 @@ const Sidebar: React.FC = () => {
     }, []);
 
     const handleTogglePin = useCallback(async (chatId: string, isPinned: boolean) => {
+        const chat = chats.find((item) => item.id === chatId);
+        if (!chat || isLocalChat(chat)) return;
         const accessToken = config?.auth?.access || config?.auth?.accessToken || '';
         if (!accessToken) return;
 
@@ -161,9 +164,15 @@ const Sidebar: React.FC = () => {
         } catch (err) {
             console.error('[Sidebar] Failed to toggle pin:', err);
         }
-    }, [config, refreshChats]);
+    }, [chats, config, refreshChats]);
 
     const handleRenameChat = useCallback(async (chatId: string, newTitle: string) => {
+        const chat = chats.find((item) => item.id === chatId);
+        if (!chat) return;
+        if (isLocalChat(chat)) {
+            updateChat(chatId, {title: newTitle, updated_at: new Date().toISOString()});
+            return;
+        }
         const accessToken = config?.auth?.access || config?.auth?.accessToken || '';
         if (!accessToken) return;
 
@@ -174,7 +183,7 @@ const Sidebar: React.FC = () => {
             console.error('[Sidebar] Failed to rename chat:', err);
             throw err;
         }
-    }, [config, refreshChats]);
+    }, [chats, config, refreshChats, updateChat]);
 
     const handleDeleteChat = useCallback(async (chatId: string) => {
         try {
@@ -251,20 +260,30 @@ const Sidebar: React.FC = () => {
         };
     }, [showAvatarVideo, syncAvatarPlayback]);
 
+    useEffect(() => subscribeSidebarCollapsed(setIsCollapsed), []);
+
     // Padding снизу в тёмной теме, если включен showAvatarVideo
     const darkAvatarPadding = isDark && config?.showAvatarVideo !== false;
 
     return (
         <aside
-            className={`flex h-full w-64 flex-col border-r ${
+            className={`flex h-full w-64 flex-shrink-0 flex-col border-r transition-[transform,margin,opacity] duration-200 ${
                 isDark
                     ? 'border-white/15 bg-transparent'
                     : 'border-primary-200/60 bg-white/95 backdrop-blur shadow-sm'
             }`}
-            style={darkAvatarPadding ? {paddingBottom: 190} : undefined}
+            style={{
+                marginRight: isCollapsed ? -256 : 0,
+                transform: isCollapsed ? 'translateX(calc(-100% - 1px))' : 'translateX(0)',
+                opacity: isCollapsed ? 0 : 1,
+                pointerEvents: isCollapsed ? 'none' : 'auto',
+                willChange: 'transform',
+                overflow: 'hidden',
+                paddingBottom: darkAvatarPadding && !isCollapsed ? 190 : undefined
+            }}
+            aria-hidden={isCollapsed}
         >
-            {/* Top navigation */}
-            <nav className="fc gap-1 px-3 mt-4 flex-shrink-0">
+            <nav className="fc gap-1 mt-4 flex-shrink-0 px-3">
                 {dynamicNavItems.map((item) => {
                     const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
                     const isChatsItem = item.id === 'chats';
@@ -275,7 +294,7 @@ const Sidebar: React.FC = () => {
                                 type="button"
                                 onClick={() => handleNavigation(item.path)}
                                 className={classNames(
-                                    'w-full flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-medium duration-base outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
+                                    'w-full frsc gap-3 rounded-xl px-4 py-2 text-sm font-medium duration-base outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light',
                                     'transition-[background-color,border-color,box-shadow]',
                                     isDark
                                         ? isActive
@@ -303,7 +322,7 @@ const Sidebar: React.FC = () => {
                                             handleNewChat();
                                         }}
                                         className={classNames(
-                                            'absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full frcc transition-all',
+                                            'absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full frcc transition-all',
                                             isDark
                                                 ? 'bg-white/10 hover:bg-primary/20 text-primary hover:text-primary'
                                                 : 'bg-primary-100 hover:bg-primary-200 text-primary hover:text-primary'
@@ -320,10 +339,10 @@ const Sidebar: React.FC = () => {
 
             {/* Chats list - scrollable section */}
             <div className="fc flex-1 min-h-0 mt-2">
-                <div className={`mx-4 mb-2 border-t ${isDark ? 'border-white/15' : 'border-primary-200/60'}`}/>
+                <div className={classNames('mx-4 mb-2 border-t', isDark ? 'border-white/15' : 'border-primary-200/60')}/>
                 {sortedChats.length > 0 && (
-                    <div className="flex-1 overflow-y-auto px-3">
-                        <div className="fc gap-0.5">
+                    <div className="sidebar-scrollbar flex-1 overflow-y-auto px-3">
+                        <div className="fc gap-px">
                             {sortedChats.map((chat) => {
                                 // Чат активен если он открыт в какой-либо панели (в многопанельном режиме)
                                 // или если URL совпадает (в обычном режиме)
@@ -333,12 +352,13 @@ const Sidebar: React.FC = () => {
 
                                 const title = chat.title || 'Untitled chat';
                                 const isPinned = Boolean(chat.pinned_at);
+                                const providerLabel = getChatProviderLabel(chat);
 
                                 return (
                                     <div
                                         key={chat.id}
                                         className={classNames(
-                                            'group frbc rounded-lg px-3 py-1.5 transition-all duration-base cursor-pointer',
+                                            'group frbc rounded-lg px-2.5 py-1 transition-all duration-base cursor-pointer',
                                             isDark
                                                 ? isActive
                                                     ? 'bg-primary-500/15 text-primary'
@@ -352,21 +372,29 @@ const Sidebar: React.FC = () => {
                                         {/* Иконка закрепления - всегда видна если закреплён */}
                                         {isPinned && (
                                             <PushPinRoundedIcon
-                                                sx={{fontSize: 12, mr: 0.5}}
+                                                sx={{fontSize: 11, mr: 0.5}}
                                                 className="text-primary flex-shrink-0"
                                             />
                                         )}
-                                        <span className="text-xs font-medium truncate flex-1">
-                                            {title}
-                                        </span>
+                                        <div className="fc min-w-0 flex-1">
+                                            <span className="truncate text-[11px] font-medium leading-4">
+                                                {title}
+                                            </span>
+                                            {providerLabel && (
+                                                <span className="text-[9px] font-medium uppercase leading-3 tracking-[0.12em] text-text-tertiary/65">
+                                                    {providerLabel}
+                                                </span>
+                                            )}
+                                        </div>
                                         {/* Меню действий - видно при hover */}
                                         <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                             <SidebarChatActions
                                                 chatId={chat.id}
                                                 chatTitle={title}
                                                 isPinned={isPinned}
+                                                showPin={!isLocalChat(chat)}
                                                 isInPanel={isOpenInPanel}
-                                                showAddToPanel={isInMultiPanelMode}
+                                                showAddToPanel={isInMultiPanelMode && !isLocalChat(chat)}
                                                 onRename={handleRenameChat}
                                                 onDelete={handleDeleteChat}
                                                 onTogglePin={handleTogglePin}
@@ -383,7 +411,7 @@ const Sidebar: React.FC = () => {
 
             {/* Bottom section */}
             <div className="fc flex-shrink-0 px-3">
-                <div className={`my-3 mx-4 border-t ${isDark ? 'border-white/15' : 'border-primary-200/60'}`}/>
+                <div className={classNames('my-3 mx-4 border-t', isDark ? 'border-white/15' : 'border-primary-200/60')}/>
                 <div className="frcc gap-2 pb-2">
                     {iconOnlyItems.map((item) => {
                         const isActive = location.pathname === item.path;

@@ -4,9 +4,42 @@ export type BackendDomain = (typeof BACKEND_DOMAINS)[number];
 export const DEFAULT_BACKEND_DOMAIN: BackendDomain = 'xlartas.com';
 
 const BACKEND_DOMAIN_STORAGE_KEY = 'winky.backend.domain';
+const DEV_PROXY_PREFIX = '/__winky_dev';
+const DEV_PROXY_SEGMENTS: Record<BackendDomain, string> = {
+    'xlartas.com': 'com',
+    'xlartas.ru': 'ru'
+};
 
 const resolveBackendDomain = (domain: string | null | undefined): BackendDomain =>
     domain === 'xlartas.ru' ? 'xlartas.ru' : DEFAULT_BACKEND_DOMAIN;
+
+const isDevProxyEnabled = (): boolean => typeof window !== 'undefined' && Boolean(import.meta.env?.DEV);
+
+const getDevProxyPath = (domain: BackendDomain): string => `${DEV_PROXY_PREFIX}/${DEV_PROXY_SEGMENTS[domain]}`;
+
+const getExternalSiteBaseUrl = (domain: BackendDomain): string => `https://${domain}`;
+
+const getBrowserWsOrigin = (): string => {
+    if (typeof window === 'undefined') {
+        return '';
+    }
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}`;
+};
+
+const getInternalWsBaseUrl = (domain: BackendDomain): string => {
+    if (isDevProxyEnabled()) {
+        return `${getBrowserWsOrigin()}${getDevProxyPath(domain)}`;
+    }
+    return `wss://${domain}`;
+};
+
+const getInternalApiBaseUrl = (domain: BackendDomain): string => {
+    if (isDevProxyEnabled()) {
+        return `${getDevProxyPath(domain)}/api/v1`;
+    }
+    return `${getExternalSiteBaseUrl(domain)}/api/v1`;
+};
 
 const readStoredBackendDomain = (): BackendDomain => {
     if (typeof window === 'undefined') return DEFAULT_BACKEND_DOMAIN;
@@ -28,17 +61,17 @@ const persistBackendDomain = (domain: BackendDomain): void => {
 
 let currentBackendDomain: BackendDomain = readStoredBackendDomain();
 
-export let SITE_BASE_URL = `https://${currentBackendDomain}`;
-export let WS_BASE_URL = `wss://${currentBackendDomain}`;
-export let API_BASE_URL = `${SITE_BASE_URL}/api/v1`;
+export let SITE_BASE_URL = getExternalSiteBaseUrl(currentBackendDomain);
+export let WS_BASE_URL = getInternalWsBaseUrl(currentBackendDomain);
+export let API_BASE_URL = getInternalApiBaseUrl(currentBackendDomain);
 export let AUTH_ENDPOINT = `${API_BASE_URL}/auth/login/`;
 export let AUTH_REFRESH_ENDPOINT = `${API_BASE_URL}/auth/refresh/`;
 export let ME_ENDPOINT = `${API_BASE_URL}/me/`;
 
 const syncBaseUrls = (): void => {
-    SITE_BASE_URL = `https://${currentBackendDomain}`;
-    WS_BASE_URL = `wss://${currentBackendDomain}`;
-    API_BASE_URL = `${SITE_BASE_URL}/api/v1`;
+    SITE_BASE_URL = getExternalSiteBaseUrl(currentBackendDomain);
+    WS_BASE_URL = getInternalWsBaseUrl(currentBackendDomain);
+    API_BASE_URL = getInternalApiBaseUrl(currentBackendDomain);
     AUTH_ENDPOINT = `${API_BASE_URL}/auth/login/`;
     AUTH_REFRESH_ENDPOINT = `${API_BASE_URL}/auth/refresh/`;
     ME_ENDPOINT = `${API_BASE_URL}/me/`;
@@ -54,9 +87,9 @@ export const setBackendDomain = (domain: string | null | undefined): BackendDoma
     return resolved;
 };
 
-export const getSiteBaseUrl = (domain?: string | null): string => `https://${resolveBackendDomain(domain ?? currentBackendDomain)}`;
-export const getWsBaseUrl = (domain?: string | null): string => `wss://${resolveBackendDomain(domain ?? currentBackendDomain)}`;
-export const getApiBaseUrl = (domain?: string | null): string => `${getSiteBaseUrl(domain)}/api/v1`;
+export const getSiteBaseUrl = (domain?: string | null): string => getExternalSiteBaseUrl(resolveBackendDomain(domain ?? currentBackendDomain));
+export const getWsBaseUrl = (domain?: string | null): string => getInternalWsBaseUrl(resolveBackendDomain(domain ?? currentBackendDomain));
+export const getApiBaseUrl = (domain?: string | null): string => getInternalApiBaseUrl(resolveBackendDomain(domain ?? currentBackendDomain));
 export const getAuthEndpoint = (domain?: string | null): string => `${getApiBaseUrl(domain)}/auth/login/`;
 export const getAuthRefreshEndpoint = (domain?: string | null): string => `${getApiBaseUrl(domain)}/auth/refresh/`;
 export const getMeEndpoint = (domain?: string | null): string => `${getApiBaseUrl(domain)}/me/`;

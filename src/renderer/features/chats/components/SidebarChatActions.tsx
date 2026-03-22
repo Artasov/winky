@@ -1,5 +1,9 @@
 import React, {useCallback, useState} from 'react';
 import {
+    alpha,
+    useTheme,
+} from '@mui/material/styles';
+import {
     Button,
     CircularProgress,
     Dialog,
@@ -25,6 +29,7 @@ interface SidebarChatActionsProps {
     chatId: string;
     chatTitle: string;
     isPinned: boolean;
+    showPin?: boolean;
     isInPanel: boolean;
     showAddToPanel: boolean;
     onRename: (chatId: string, newTitle: string) => Promise<void>;
@@ -39,6 +44,7 @@ const SidebarChatActions: React.FC<SidebarChatActionsProps> = ({
     chatId,
     chatTitle,
     isPinned,
+    showPin = true,
     isInPanel,
     showAddToPanel,
     onRename,
@@ -48,6 +54,8 @@ const SidebarChatActions: React.FC<SidebarChatActionsProps> = ({
     disabled,
     className
 }) => {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [renameDialogOpen, setRenameDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -155,19 +163,62 @@ const SidebarChatActions: React.FC<SidebarChatActionsProps> = ({
                 anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
                 transformOrigin={{vertical: 'top', horizontal: 'right'}}
                 onClick={(e) => e.stopPropagation()}
+                slotProps={{
+                    paper: {
+                        sx: {
+                            mt: 0.5,
+                            border: 'none',
+                            borderRadius: '14px',
+                            backgroundColor: isDark ? 'rgba(9, 9, 11, 0.7)' : 'rgba(255, 255, 255, 0.78)',
+                            backdropFilter: 'blur(18px)',
+                            boxShadow: isDark
+                                ? '0 18px 48px rgba(0, 0, 0, 0.5)'
+                                : '0 14px 34px rgba(15, 23, 42, 0.12)'
+                        }
+                    },
+                    list: {
+                        sx: {
+                            py: 0.5,
+                            '& .MuiMenuItem-root': {
+                                minHeight: '34px',
+                                px: 1.25,
+                                py: 0.5,
+                                borderRadius: '10px',
+                                mx: 0.5,
+                                my: 0.125,
+                                fontSize: '0.8125rem',
+                                '&:hover': {
+                                    backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.14 : 0.08)
+                                }
+                            },
+                            '& .MuiListItemIcon-root': {
+                                minWidth: '26px'
+                            },
+                            '& .MuiSvgIcon-root': {
+                                fontSize: '1rem'
+                            },
+                            '& .MuiListItemText-root .MuiTypography-root': {
+                                fontSize: '0.8125rem',
+                                fontWeight: 500
+                            }
+                        }
+                    }
+                }}
             >
-                <MenuItem onClick={handlePinClick} disabled={pinning}>
-                    <ListItemIcon>
-                        {pinning ? (
-                            <CircularProgress size={20}/>
-                        ) : isPinned ? (
-                            <PushPinOutlinedIcon fontSize="small"/>
-                        ) : (
-                            <PushPinRoundedIcon fontSize="small"/>
-                        )}
-                    </ListItemIcon>
-                    <ListItemText>{pinning ? (isPinned ? 'Unpinning...' : 'Pinning...') : (isPinned ? 'Unpin' : 'Pin')}</ListItemText>
-                </MenuItem>
+                {showPin && (
+                    <MenuItem onClick={handlePinClick} disabled={pinning}>
+                        <ListItemIcon>
+                            {pinning ? (
+                                <CircularProgress size={20}/>
+                            ) : isPinned ? (
+                                <PushPinOutlinedIcon fontSize="small"/>
+                            ) : (
+                                <PushPinRoundedIcon fontSize="small"/>
+                            )}
+                        </ListItemIcon>
+                        <ListItemText>{pinning ? (isPinned ? 'Unpinning...' : 'Pinning...') : (isPinned ? 'Unpin' : 'Pin')}</ListItemText>
+                    </MenuItem>
+                )}
                 {showAddToPanelItem && (
                     <MenuItem onClick={handleAddToPanelClick}>
                         <ListItemIcon>

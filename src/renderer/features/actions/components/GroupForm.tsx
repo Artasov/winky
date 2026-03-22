@@ -47,16 +47,16 @@ const DialogTransition = forwardRef(function DialogTransition(
 });
 
 const COLOR_PRESETS = [
-    '#f43f5e', // rose
-    '#ec4899', // pink
-    '#a855f7', // purple
-    '#6366f1', // indigo
-    '#3b82f6', // blue
-    '#06b6d4', // cyan
-    '#10b981', // emerald
-    '#84cc16', // lime
-    '#f59e0b', // amber
-    '#f97316', // orange
+    '#f43f5e',
+    '#ec4899',
+    '#a855f7',
+    '#6366f1',
+    '#3b82f6',
+    '#06b6d4',
+    '#10b981',
+    '#84cc16',
+    '#f59e0b',
+    '#f97316',
 ];
 
 const GroupForm: React.FC<Props> = ({
@@ -140,7 +140,6 @@ const GroupForm: React.FC<Props> = ({
                         fullWidth
                     />
 
-                    {/* Color Picker */}
                     <div className={'fc gap-1'}>
                         <Typography variant="body2" fontWeight={600}>
                             Color
@@ -169,13 +168,12 @@ const GroupForm: React.FC<Props> = ({
                         </div>
                     </div>
 
-                    {/* Icon Picker */}
                     <div className={'fc gap-1'}>
                         <Typography variant="body2" fontWeight={600}>
                             Icon <Typography component="span" color="error.main">*</Typography>
                             {selectedIconName && (
                                 <Typography component="span" variant="caption" color="text.secondary">
-                                    {' '}• {selectedIconName}
+                                    {' '} - {selectedIconName}
                                 </Typography>
                             )}
                         </Typography>
@@ -253,7 +251,13 @@ const GroupForm: React.FC<Props> = ({
                                                     component="img"
                                                     src={getMediaUrl(icon.svg)}
                                                     alt={icon.name}
-                                                    sx={{width: 22, height: 22}}
+                                                    sx={(theme) => ({
+                                                        width: 22,
+                                                        height: 22,
+                                                        filter: theme.palette.mode === 'dark'
+                                                            ? 'brightness(0) invert(1)'
+                                                            : 'none'
+                                                    })}
                                                 />
                                             </IconButton>
                                         );

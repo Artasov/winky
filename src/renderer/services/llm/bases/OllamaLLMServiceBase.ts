@@ -12,7 +12,12 @@ export abstract class OllamaLLMServiceBase extends LocalLLMBaseService {
         return '/v1/chat/completions';
     }
 
-    async processStream(text: string, prompt: string, onChunk: (chunk: string) => void): Promise<string> {
+    async processStream(
+        text: string,
+        prompt: string,
+        onChunk: (chunk: string) => void,
+        _options?: {signal?: AbortSignal}
+    ): Promise<string> {
         const messages = this.buildMessages(text, prompt);
         const streamId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
             ? crypto.randomUUID()

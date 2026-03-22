@@ -33,24 +33,19 @@ export const useChatPanels = (): ChatPanelsContextType => {
     return context;
 };
 
-const generatePanelId = (): string => {
-    return `panel-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-};
+const generatePanelId = (): string => `panel-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 const loadPanelsFromStorage = (): ChatPanelState[] => {
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (!stored) return [];
         const parsed = JSON.parse(stored) as ChatPanelState[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-            // Валидируем структуру
-            const valid = parsed.filter(p =>
-                p && typeof p.panelId === 'string' &&
-                typeof p.chatId === 'string'
-            );
-            return valid.slice(0, MAX_PANELS);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+            return [];
         }
-        return [];
+        return parsed
+            .filter((panel) => panel && typeof panel.panelId === 'string' && typeof panel.chatId === 'string')
+            .slice(0, MAX_PANELS);
     } catch {
         return [];
     }
@@ -59,10 +54,9 @@ const loadPanelsFromStorage = (): ChatPanelState[] => {
 const savePanelsToStorage = (panels: ChatPanelState[]) => {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(panels));
-        // Уведомляем Sidebar об изменении панелей
         window.dispatchEvent(new CustomEvent('chat-panels:changed'));
     } catch {
-        // Ignore storage errors
+        // Ignore storage errors.
     }
 };
 
@@ -72,28 +66,15 @@ interface ChatPanelsProviderProps {
 }
 
 export const ChatPanelsProvider: React.FC<ChatPanelsProviderProps> = ({children, initialChatId}) => {
-    const initializedRef = useRef(false);
+    const routedChatIdRef = useRef<string | undefined>(undefined);
 
     const [panels, setPanels] = useState<ChatPanelState[]>(() => {
-        // Загружаем из storage
-        const stored = loadPanelsFromStorage();
-
-        // Если есть сохранённые панели - используем их
-        if (stored.length > 0) {
-            initializedRef.current = true;
-            return stored;
-        }
-
-        // Если нет сохранённых, но есть initialChatId - создаём одну панель
         if (initialChatId) {
-            initializedRef.current = true;
             return [{panelId: generatePanelId(), chatId: initialChatId, leafMessageId: null}];
         }
-
-        return [];
+        return loadPanelsFromStorage();
     });
 
-    // Сохраняем в localStorage при изменении
     useEffect(() => {
         savePanelsToStorage(panels);
     }, [panels]);
@@ -102,9 +83,8 @@ export const ChatPanelsProvider: React.FC<ChatPanelsProviderProps> = ({children,
 
     const addPanel = useCallback((chatId: string): string => {
         const newPanelId = generatePanelId();
-        setPanels(prev => {
+        setPanels((prev) => {
             if (prev.length >= MAX_PANELS) {
-                // Заменяем последнюю панель
                 const updated = [...prev];
                 updated[updated.length - 1] = {panelId: newPanelId, chatId, leafMessageId: null};
                 return updated;
@@ -115,26 +95,25 @@ export const ChatPanelsProvider: React.FC<ChatPanelsProviderProps> = ({children,
     }, []);
 
     const removePanel = useCallback((panelId: string) => {
-        setPanels(prev => {
-            if (prev.length <= 1) return prev; // Не удаляем последнюю
-            return prev.filter(p => p.panelId !== panelId);
+        setPanels((prev) => {
+            if (prev.length <= 1) return prev;
+            return prev.filter((panel) => panel.panelId !== panelId);
         });
     }, []);
 
     const replacePanel = useCallback((panelId: string, newChatId: string) => {
-        setPanels(prev => prev.map(p =>
-            p.panelId === panelId
+        setPanels((prev) => prev.map((panel) => (
+            panel.panelId === panelId
                 ? {panelId: generatePanelId(), chatId: newChatId, leafMessageId: null}
-                : p
-        ));
+                : panel
+        )));
     }, []);
 
     const reorderPanels = useCallback((fromIndex: number, toIndex: number) => {
-        setPanels(prev => {
+        setPanels((prev) => {
             if (fromIndex < 0 || fromIndex >= prev.length) return prev;
             if (toIndex < 0 || toIndex >= prev.length) return prev;
             if (fromIndex === toIndex) return prev;
-
             const updated = [...prev];
             const [moved] = updated.splice(fromIndex, 1);
             updated.splice(toIndex, 0, moved);
@@ -144,9 +123,8 @@ export const ChatPanelsProvider: React.FC<ChatPanelsProviderProps> = ({children,
 
     const insertPanelAt = useCallback((chatId: string, index: number): string => {
         const newPanelId = generatePanelId();
-        setPanels(prev => {
+        setPanels((prev) => {
             if (prev.length >= MAX_PANELS) {
-                // Заменяем панель по индексу или последнюю
                 const targetIndex = Math.min(index, prev.length - 1);
                 const updated = [...prev];
                 updated[targetIndex] = {panelId: newPanelId, chatId, leafMessageId: null};
@@ -162,31 +140,34 @@ export const ChatPanelsProvider: React.FC<ChatPanelsProviderProps> = ({children,
     }, []);
 
     const updatePanelLeaf = useCallback((panelId: string, leafMessageId: string | null) => {
-        setPanels(prev => prev.map(p =>
-            p.panelId === panelId
-                ? {...p, leafMessageId}
-                : p
-        ));
+        setPanels((prev) => prev.map((panel) => (
+            panel.panelId === panelId ? {...panel, leafMessageId} : panel
+        )));
     }, []);
 
     const getPanelById = useCallback((panelId: string): ChatPanelState | undefined => {
-        return panels.find(p => p.panelId === panelId);
+        return panels.find((panel) => panel.panelId === panelId);
     }, [panels]);
 
     const openSingleChat = useCallback((chatId: string) => {
-        setPanels(prev => {
-            // Если уже одна панель с этим же чатом - ничего не делаем
+        setPanels((prev) => {
             if (prev.length === 1 && prev[0].chatId === chatId) {
                 return prev;
             }
-            // Если есть панели - оставляем первую и меняем её chatId
             if (prev.length > 0) {
                 return [{...prev[0], chatId, leafMessageId: null}];
             }
-            // Если панелей нет - создаём новую
             return [{panelId: generatePanelId(), chatId, leafMessageId: null}];
         });
     }, []);
+
+    useEffect(() => {
+        if (!initialChatId || routedChatIdRef.current === initialChatId) {
+            return;
+        }
+        routedChatIdRef.current = initialChatId;
+        openSingleChat(initialChatId);
+    }, [initialChatId, openSingleChat]);
 
     const value = useMemo(
         () => ({

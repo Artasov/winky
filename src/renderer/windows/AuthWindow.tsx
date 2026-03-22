@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Box, Button, CircularProgress, IconButton, TextField, Typography} from '@mui/material';
+import {Box, Button, IconButton, TextField, Typography} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
 import {useUser} from '../context/UserContext';
 import {useToast} from '../context/ToastContext';
@@ -28,7 +28,7 @@ const AuthWindow: React.FC = () => {
         }
     }, [config?.backendDomain]);
 
-    const isOAuthPending = auth.status === 'oauth';
+    const isSubmittingCredentials = loading || auth.status === 'signing-in';
 
     const handleBackendDomainChange = async (nextValue: BackendDomain) => {
         if (nextValue === backendDomain) return;
@@ -108,7 +108,7 @@ const AuthWindow: React.FC = () => {
                                 label="Email"
                                 value={email}
                                 onChange={(event) => setEmail(event.target.value)}
-                                disabled={loading || auth.isBusy || isOAuthPending}
+                                disabled={isSubmittingCredentials}
                                 autoComplete="email"
                             />
                             <TextField
@@ -116,44 +116,24 @@ const AuthWindow: React.FC = () => {
                                 label="Password"
                                 value={password}
                                 onChange={(event) => setPassword(event.target.value)}
-                                disabled={loading || auth.isBusy || isOAuthPending}
+                                disabled={isSubmittingCredentials}
                                 autoComplete="current-password"
                             />
                             <Button
                                 type="submit"
                                 variant="contained"
                                 size="large"
-                                disabled={loading || auth.isBusy || isOAuthPending}
+                                disabled={isSubmittingCredentials}
                                 sx={{mt: 0.5, minHeight: 46}}
                             >
                                 {loading ? 'Signing in...' : 'Sign In'}
                             </Button>
                         </Box>
 
-                        {isOAuthPending && (
-                            <Box
-                                className="frsc gap-2"
-                                sx={{
-                                    borderRadius: 2,
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                    bgcolor: 'background.paper',
-                                    px: 1.5,
-                                    py: 1
-                                }}
-                            >
-                                <CircularProgress size={16}/>
-                                <Typography variant="body2" color="text.secondary">
-                                    Waiting for authorization...
-                                </Typography>
-                            </Box>
-                        )}
-
                         <div className="frc gap-1">
                             <IconButton
                                 type="button"
                                 onClick={() => void handleOAuth('google')}
-                                disabled={auth.isBusy || isOAuthPending}
                                 sx={{
                                     width: 42,
                                     height: 42,
@@ -176,7 +156,6 @@ const AuthWindow: React.FC = () => {
                             <IconButton
                                 type="button"
                                 onClick={() => void handleOAuth('github')}
-                                disabled={auth.isBusy || isOAuthPending}
                                 sx={{
                                     width: 42,
                                     height: 42,
@@ -194,7 +173,6 @@ const AuthWindow: React.FC = () => {
                             <IconButton
                                 type="button"
                                 onClick={() => void handleOAuth('discord')}
-                                disabled={auth.isBusy || isOAuthPending}
                                 sx={{
                                     width: 42,
                                     height: 42,
@@ -215,7 +193,7 @@ const AuthWindow: React.FC = () => {
                     <BackendDomainSelect
                         value={backendDomain}
                         onChange={(nextValue) => void handleBackendDomainChange(nextValue)}
-                        disabled={loading || auth.isBusy || isOAuthPending}
+                        disabled={isSubmittingCredentials}
                         compact
                         showInfoIcon
                     />

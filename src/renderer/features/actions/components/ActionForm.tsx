@@ -72,6 +72,7 @@ const ActionForm: React.FC<Props> = ({
     const isEditMode = mode === 'edit';
     const isNameLocked = isEditMode && editingActionIsDefault;
     const selectedIconName = icons.find((icon) => icon.id === values.iconId)?.name;
+    const hasLlmPrompt = values.prompt.trim().length > 0;
 
     const isGroupFull = (group: ActionGroup): boolean => {
         if (group.actions.length < MAX_ACTIONS_PER_GROUP) return false;
@@ -185,7 +186,14 @@ const ActionForm: React.FC<Props> = ({
                                                     component="img"
                                                     src={getMediaUrl(group.icon_details.svg)}
                                                     alt=""
-                                                    sx={{width: 18, height: 18, opacity: isFull ? 0.5 : 1}}
+                                                    sx={(theme) => ({
+                                                        width: 18,
+                                                        height: 18,
+                                                        opacity: isFull ? 0.5 : 1,
+                                                        filter: theme.palette.mode === 'dark'
+                                                            ? 'brightness(0) invert(1)'
+                                                            : 'none'
+                                                    })}
                                                 />
                                             )}
                                             <span style={{opacity: isFull ? 0.5 : 1}}>{group.name}</span>
@@ -230,7 +238,13 @@ const ActionForm: React.FC<Props> = ({
                     <TextField
                         label="Prompt"
                         value={values.prompt}
-                        onChange={(event) => setField('prompt', event.target.value)}
+                        onChange={(event) => {
+                            const nextPrompt = event.target.value;
+                            setField('prompt', nextPrompt);
+                            if (!nextPrompt.trim() && values.showResults) {
+                                setField('showResults', false);
+                            }
+                        }}
                         placeholder="For example: Just translate into English everything I say. Write nothing else. Keep the translation logical."
                         fullWidth
                         multiline
@@ -440,9 +454,16 @@ const ActionForm: React.FC<Props> = ({
                             <FormControlLabel
                                 control={<Checkbox
                                     checked={values.showResults}
-                                    onChange={(event) => setField('showResults', event.target.checked)}
+                                    onChange={(event) => {
+                                        if (event.target.checked && !hasLlmPrompt) {
+                                            showToast('You cannot enable Open chat without Prompt.', 'info');
+                                            setField('showResults', false);
+                                            return;
+                                        }
+                                        setField('showResults', event.target.checked);
+                                    }}
                                 />}
-                                label="Show result window"
+                                label="Open chat"
                             />
                             <FormControlLabel
                                 control={<Checkbox

@@ -88,7 +88,7 @@ const ActionsPage: React.FC = () => {
             onCta={handleCreateGroup}
         />
     ) : (
-        <div className="fc gap-4 w-full">
+        <div className="fr gap-4 flex-wrap w-full">
             {/* User groups first */}
             {userGroups.map((group) => (
                 <GroupCard

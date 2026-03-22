@@ -103,6 +103,7 @@ export const useActionForm = ({
             showToast('This action is inactive and cannot be edited.', 'info');
             return;
         }
+        const hasLlmPrompt = action.prompt.trim().length > 0;
         // Find which group this action belongs to
         const actionGroup = groups.find((g) => g.actions.some((a) => a.id === action.id));
         const groupId = actionGroup?.id || (groups.length > 0 ? groups[0].id : '');
@@ -117,7 +118,7 @@ export const useActionForm = ({
             hotkey: action.hotkey ?? '',
             iconId: action.icon_details?.id ?? action.icon,
             priority: action.priority ?? 1,
-            showResults: action.show_results ?? false,
+            showResults: hasLlmPrompt ? (action.show_results ?? false) : false,
             soundOnComplete: action.sound_on_complete ?? false,
             autoCopyResult: action.auto_copy_result ?? false,
             llmModel: action.llm_model ?? '',
@@ -131,6 +132,7 @@ export const useActionForm = ({
             showToast('This action is inactive and cannot be cloned.', 'info');
             return;
         }
+        const hasLlmPrompt = action.prompt.trim().length > 0;
         // Find which group this action belongs to
         const actionGroup = groups.find((g) => g.actions.some((a) => a.id === action.id));
         const groupId = actionGroup?.id || (groups.length > 0 ? groups[0].id : '');
@@ -145,7 +147,7 @@ export const useActionForm = ({
             hotkey: '',
             iconId: action.icon_details?.id ?? action.icon,
             priority: action.priority ?? 1,
-            showResults: action.show_results ?? false,
+            showResults: hasLlmPrompt ? (action.show_results ?? false) : false,
             soundOnComplete: action.sound_on_complete ?? false,
             autoCopyResult: action.auto_copy_result ?? false,
             llmModel: action.llm_model ?? '',
@@ -195,6 +197,11 @@ export const useActionForm = ({
 
         setSaving(true);
         try {
+            const llmModel = validation.data.llmModel?.trim() || null;
+            const prompt = validation.data.prompt?.trim() ?? '';
+            const promptRecognizing = validation.data.promptRecognizing?.trim() ?? '';
+            const hotkey = validation.data.hotkey?.trim() ?? '';
+            const showResults = prompt.length > 0 ? validation.data.showResults : false;
             if (editingActionId) {
                 const payload: {
                     name?: string;
@@ -206,18 +213,18 @@ export const useActionForm = ({
                     show_results?: boolean;
                     sound_on_complete?: boolean;
                     auto_copy_result?: boolean;
-                    llm_model?: string;
+                    llm_model?: string | null;
                 } = {
                     name: validation.data.name.trim(),
-                    prompt: validation.data.prompt?.trim() ?? '',
-                    prompt_recognizing: validation.data.promptRecognizing?.trim() ?? '',
-                    hotkey: validation.data.hotkey?.trim() ?? '',
+                    prompt,
+                    prompt_recognizing: promptRecognizing,
+                    hotkey,
                     icon: validation.data.iconId,
                     priority: validation.data.priority,
-                    show_results: validation.data.showResults,
+                    show_results: showResults,
                     sound_on_complete: validation.data.soundOnComplete,
                     auto_copy_result: validation.data.autoCopyResult,
-                    llm_model: validation.data.llmModel?.trim() || undefined
+                    llm_model: llmModel
                 };
 
                 if (editingActionIsDefault) {
@@ -234,15 +241,15 @@ export const useActionForm = ({
             } else {
                 const payload = {
                     name: validation.data.name.trim(),
-                    prompt: validation.data.prompt?.trim() ?? '',
-                    prompt_recognizing: validation.data.promptRecognizing?.trim() ?? '',
-                    hotkey: validation.data.hotkey?.trim() ?? '',
+                    prompt,
+                    prompt_recognizing: promptRecognizing,
+                    hotkey,
                     icon: validation.data.iconId,
                     priority: validation.data.priority,
-                    show_results: validation.data.showResults,
+                    show_results: showResults,
                     sound_on_complete: validation.data.soundOnComplete,
                     auto_copy_result: validation.data.autoCopyResult,
-                    llm_model: validation.data.llmModel?.trim() || undefined
+                    llm_model: llmModel
                 };
                 const createdActions = await window.winky?.actions.create(payload);
                 // Add the newly created action to the selected group

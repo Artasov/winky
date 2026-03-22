@@ -61,7 +61,9 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                     border: `2px solid ${baseBorder}`,
                     background: isDark ? darkSurface : theme.palette.background.paper,
                     color: theme.palette.text.primary,
-                    p: 2.4,
+                    px: 1.5,
+                    pb: 1.5,
+                    pt: 1.3,
                     position: 'relative',
                     cursor: disabled ? 'not-allowed' : 'pointer',
                     opacity: disabled ? 0.65 : 1,
@@ -142,14 +144,14 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                     </IconButton>
                 )}
 
-                <Stack direction="row" spacing={2} alignItems="center">
+                <Box className={'fr gap-2'}>
                     <Box
                         sx={(theme) => {
                             const isDark = theme.palette.mode === 'dark';
                             const neutralColor = '#6f6f6f';
                             return {
-                                width: 48,
-                                height: 48,
+                                width: 38,
+                                height: 38,
                                 borderRadius: 2.5,
                                 background: isDark
                                     ? `linear-gradient(135deg, ${alpha(neutralColor, 0.32)}, ${alpha(neutralColor, 0.16)})`
@@ -168,8 +170,8 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                                 src={getMediaUrl(action.icon_details.svg)}
                                 alt={action.icon_details.name || ''}
                                 sx={(theme) => ({
-                                    width: 30,
-                                    height: 30,
+                                    width: 24,
+                                    height: 24,
                                     filter: theme.palette.mode === 'dark' ? 'brightness(0) invert(1)' : 'none'
                                 })}
                             />
@@ -185,9 +187,9 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                         )}
                     </Box>
 
-                    <Box flexGrow={1} minWidth={0}>
+                    <Box className={'fc'} flexGrow={1} minWidth={0} pt={.3}>
                         <Stack direction="row" spacing={1} alignItems="center" sx={{minWidth: 0}}>
-                            <Typography variant="subtitle1" fontWeight={600} noWrap sx={{minWidth: 0}}>
+                            <Typography lineHeight={'1rem'} variant="subtitle1" fontWeight={600} mb={0} noWrap sx={{minWidth: 0}}>
                                 {action.name}
                             </Typography>
                             {isDefaultAction && (
@@ -206,7 +208,7 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                             </Typography>
                         )}
                     </Box>
-                </Stack>
+                </Box>
 
                 {showPrompt && (
                     <Typography variant="body2" color="text.secondary" sx={{mt: 2}}>
@@ -214,9 +216,9 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                     </Typography>
                 )}
 
-                <Stack direction="row" spacing={1} flexWrap="wrap" mt={2}>
+                <Box className={'fr flex-wrap gap-1.5'} mt={1.1}>
                     {action.show_results && (
-                        <Chip size="small" label="Result window" color="primary" variant="outlined"/>
+                        <Chip size="small" label="Open chat" color="primary" variant="outlined"/>
                     )}
                     {action.sound_on_complete && (
                         <Chip size="small" label="Sound" color="secondary" variant="outlined"/>
@@ -224,11 +226,10 @@ const ActionCard: React.FC<Props> = ({action, isDeleting, onEdit, onDelete, disa
                     {action.auto_copy_result && (
                         <Chip size="small" label="Clipboard" color="success" variant="outlined"/>
                     )}
-                </Stack>
+                </Box>
             </div>
         </Box>
     );
 };
 
 export default ActionCard;
-

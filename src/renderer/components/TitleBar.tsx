@@ -3,23 +3,33 @@ import {getVersion} from '@tauri-apps/api/app';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import BugReportModal from './feedback/BugReportModal';
+import ChatModelSelect from '../features/chats/components/ChatModelSelect';
 import {submitBugReport} from '../services/bugReport';
 import {useConfig} from '../context/ConfigContext';
 import {useThemeMode} from '../context/ThemeModeContext';
+import {getSidebarCollapsed, subscribeSidebarCollapsed, toggleSidebarCollapsed} from '../services/sidebarState';
+import {
+    getChatTitleBarModelState,
+    subscribeChatTitleBarModelState
+} from '../services/chatTitleBarState';
 
 interface TitleBarProps {
     title?: string;
     onClose?: () => void;
     showBugReportButton?: boolean;
+    showSidebarToggle?: boolean;
 }
 
-const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugReportButton = false}) => {
+const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugReportButton = false, showSidebarToggle = false}) => {
     const {config} = useConfig();
     const {themeMode, isDark, toggleThemeMode} = useThemeMode();
     const accessToken = config?.auth?.access || config?.auth?.accessToken;
     const [isBugModalOpen, setBugModalOpen] = useState(false);
     const [version, setVersion] = useState<string>('');
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => getSidebarCollapsed());
+    const [chatModelState, setChatModelState] = useState(() => getChatTitleBarModelState());
 
     const handleBugSubmit = useCallback(
         (payload: Parameters<typeof submitBugReport>[0]) => submitBugReport(payload, accessToken),
@@ -48,31 +58,89 @@ const TitleBar: React.FC<TitleBarProps> = ({title = 'Winky', onClose, showBugRep
             .catch(() => setVersion(''));
     }, []);
 
+    useEffect(() => subscribeSidebarCollapsed(setIsSidebarCollapsed), []);
+    useEffect(() => subscribeChatTitleBarModelState(setChatModelState), []);
+
     return (
         <div
-            className={`app-region-drag flex h-11 w-full items-center justify-between border-b px-4 text-xs uppercase tracking-[0.3em] text-text-tertiary ${
+            className={`app-region-drag flex h-11 w-full items-center justify-between px-4 text-xs uppercase tracking-[0.3em] text-text-tertiary ${
                 isDark
-                    ? 'border-white/15 bg-transparent'
-                    : 'border-primary-200/60 bg-white/95 backdrop-blur shadow-sm'
+                    ? 'bg-transparent'
+                    : 'bg-white/95 backdrop-blur'
             }`}
             aria-label={title}>
-            <div className="app-region-drag pointer-events-none select-none flex items-center gap-2">
-                <img
-                    src="./resources/winky-pink-signature.png"
-                    alt="Winky"
-                    className="h-6 pointer-events-none"
-                    draggable="false"
-                    style={isDark ? {
-                        filter: 'grayscale(100%) brightness(2) contrast(1.2)'
-                    } : undefined}
-                />
-                {version ? (
-                    <span style={{
-                        marginBottom: -8,
-                        marginLeft: -5,
-                    }} className="text-[9px] font-light normal-case tracking-normal text-text-tertiary/80">
-                        {version}
-                    </span>
+            <div className="frsc min-w-0 flex-1 gap-2">
+                <div className="app-region-drag pointer-events-none select-none flex items-center gap-2">
+                    <img
+                        src="./resources/winky-pink-signature.png"
+                        alt="Winky"
+                        className="h-6 pointer-events-none"
+                        draggable="false"
+                        style={isDark ? {
+                            filter: 'grayscale(100%) brightness(2) contrast(1.2)'
+                        } : undefined}
+                    />
+                    {version ? (
+                        <span style={{
+                            marginBottom: -8,
+                            marginLeft: -5,
+                        }} className="text-[9px] font-light normal-case tracking-normal text-text-tertiary/80">
+                            {version}
+                        </span>
+                    ) : null}
+                </div>
+                {showSidebarToggle ? (
+                    <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={toggleSidebarCollapsed}
+                        className="app-region-no-drag flex h-7 w-7 items-center justify-center rounded-lg transition-[background-color,color] duration-base hover:bg-primary-100 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-light"
+                        aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                        title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                    >
+                        <MenuRoundedIcon
+                            fontSize="small"
+                            sx={{
+                                transform: isSidebarCollapsed ? 'rotate(90deg)' : 'rotate(0deg)',
+                                transition: 'transform 220ms cubic-bezier(0.4, 0, 0.2, 1)',
+                            }}
+                        />
+                    </button>
+                ) : null}
+                {chatModelState ? (
+                    <div className="app-region-no-drag ml-3 min-w-0 flex-1 frc">
+                        <ChatModelSelect
+                            value={chatModelState.value}
+                            options={chatModelState.options}
+                            disabled={chatModelState.disabled}
+                            onChange={chatModelState.onChange}
+                            sx={{
+                                minWidth: 180,
+                                maxWidth: 280,
+                                '& .MuiInputBase-root': {
+                                    height: 30,
+                                    backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.92)',
+                                    backdropFilter: 'blur(8px)',
+                                    boxShadow: 'none',
+                                },
+                                '& .MuiSelect-select': {
+                                    py: 0.25,
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    textTransform: 'none',
+                                    letterSpacing: 'normal',
+                                },
+                                '& .MuiInputBase-input': {
+                                    textTransform: 'none',
+                                    letterSpacing: 'normal',
+                                },
+                                '& .MuiInputLabel-root, & .MuiFormLabel-root, & .MuiMenuItem-root': {
+                                    textTransform: 'none',
+                                    letterSpacing: 'normal',
+                                }
+                            }}
+                        />
+                    </div>
                 ) : null}
             </div>
             <div className="app-region-no-drag flex items-center gap-2 text-text-secondary">

@@ -71,6 +71,16 @@ const normalizeError = (error: unknown): AuthError => {
     return new AuthError(String(error ?? 'Unknown error'));
 };
 
+const shouldUseBaseUrl = (url?: string): boolean => {
+    if (!url) {
+        return true;
+    }
+    if (url.startsWith('/')) {
+        return false;
+    }
+    return !/^https?:\/\//i.test(url);
+};
+
 export class AuthService {
     private tokens: AuthTokens | null = null;
     private refreshPromise: Promise<string | null> | null = null;
@@ -169,7 +179,7 @@ export class AuthService {
         try {
             const response = await axios.request<T>({
                 ...config,
-                baseURL: getApiBaseUrl(),
+                baseURL: shouldUseBaseUrl(config.url) ? getApiBaseUrl() : undefined,
                 headers: {
                     ...(config.headers ?? {}),
                     Authorization: `Bearer ${accessToken}`

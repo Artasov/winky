@@ -4,6 +4,20 @@ import path from 'node:path';
 
 const host = process.env.TAURI_DEV_HOST;
 const rendererRoot = path.resolve(__dirname, 'src/renderer');
+const devProxyPrefix = '/__winky_dev';
+const backendProxySegments = {
+    'xlartas.com': 'com',
+    'xlartas.ru': 'ru'
+} as const;
+
+const createBackendProxy = (domain: 'xlartas.com' | 'xlartas.ru') => ({
+    target: `https://${domain}`,
+    changeOrigin: true,
+    secure: true,
+    ws: true,
+    rewrite: (requestPath: string) =>
+        requestPath.replace(new RegExp(`^${devProxyPrefix}/${backendProxySegments[domain]}`), '')
+});
 
 export default defineConfig(() => ({
     root: rendererRoot,
@@ -21,6 +35,10 @@ export default defineConfig(() => ({
                   port: 1421
               }
             : undefined,
+        proxy: {
+            [`${devProxyPrefix}/${backendProxySegments['xlartas.com']}`]: createBackendProxy('xlartas.com'),
+            [`${devProxyPrefix}/${backendProxySegments['xlartas.ru']}`]: createBackendProxy('xlartas.ru')
+        },
         watch: {
             ignored: ['**/src-tauri/**']
         }

@@ -1,4 +1,4 @@
-import React, {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import type {ActionIcon} from '@shared/types';
 import {onUnauthorized} from '@shared/api';
 
@@ -28,53 +28,65 @@ export const IconsProvider: React.FC<IconsProviderProps> = ({children}) => {
     const [icons, setIcons] = useState<ActionIcon[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const inFlightRef = useRef<Promise<ActionIcon[]> | null>(null);
+    const attemptedRef = useRef(false);
+
+    const clearIcons = useCallback(() => {
+        setIcons([]);
+        setError(null);
+        setLoading(false);
+        inFlightRef.current = null;
+        attemptedRef.current = false;
+    }, []);
 
     const fetchIcons = useCallback(async (): Promise<ActionIcon[]> => {
-        // Если иконки уже загружены, возвращаем их
         if (icons.length > 0) {
             console.log('[IconsContext] Returning cached icons:', icons.length);
             return icons;
         }
 
-        // Если уже загружаем, не делаем повторный запрос
-        if (loading) {
-            console.log('[IconsContext] Already loading, waiting...');
-            return icons;
+        if (inFlightRef.current) {
+            return inFlightRef.current;
         }
 
-        setLoading(true);
-        setError(null);
+        if (attemptedRef.current) {
+            console.log('[IconsContext] Skipping repeated icons fetch after previous attempt');
+            return [];
+        }
 
         const api = window.winky?.icons?.fetch;
         if (!api) {
             const message = 'Icons API unavailable.';
             console.error('[IconsContext] Preload icons API is missing');
             setError(message);
-            setLoading(false);
+            attemptedRef.current = true;
             return [];
         }
 
-        try {
-            const fetchedIcons = await api();
-            setIcons(fetchedIcons);
-            console.log('[IconsContext] Icons fetched:', fetchedIcons.length);
-            return fetchedIcons;
-        } catch (err: any) {
-            console.error('[IconsContext] Failed to fetch icons:', err);
-            setError(err?.message || 'Failed to fetch icons');
-            return [];
-        } finally {
-            setLoading(false);
-        }
-    }, [icons, loading]);
-
-    const clearIcons = useCallback(() => {
-        setIcons([]);
+        attemptedRef.current = true;
+        setLoading(true);
         setError(null);
-        setLoading(false);
-    }, []);
 
-    // При получении 401 Unauthorized очищаем кэш иконок
+        const request = api()
+            .then((fetchedIcons) => {
+                setIcons(fetchedIcons);
+                console.log('[IconsContext] Icons fetched:', fetchedIcons.length);
+                return fetchedIcons;
+            })
+            .catch((err: any) => {
+                console.error('[IconsContext] Failed to fetch icons:', err);
+                setError(err?.message || 'Failed to fetch icons');
+                return [];
+            })
+            .finally(() => {
+                inFlightRef.current = null;
+                setLoading(false);
+            });
+
+        inFlightRef.current = request;
+        return request;
+    }, [icons]);
+
     useEffect(() => {
         const unsubscribe = onUnauthorized(() => {
             console.log('[IconsContext] Received 401, clearing icons cache');
@@ -96,4 +108,3 @@ export const IconsProvider: React.FC<IconsProviderProps> = ({children}) => {
 
     return <IconsContext.Provider value={value}>{children}</IconsContext.Provider>;
 };
-

@@ -1430,8 +1430,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
         }
     }, [runtimeChatMeta.storage, siblingsData, loadSiblings, currentBranch, currentChatId, accessToken, showToast, panelId, onLeafChange]);
 
-    const handleSendMessage = useCallback(async (inputOverride?: string) => {
-        const text = (inputOverride ?? inputText).trim();
+    const handleSendMessage = useCallback(async (inputOverride?: string | React.SyntheticEvent) => {
+        const overrideText = typeof inputOverride === 'string' ? inputOverride : inputText;
+        const text = overrideText.trim();
         if (!text || sending) return;
 
         setSending(true);
@@ -2146,7 +2147,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = ({
                     </div>
 
                     <IconButton
-                        onClick={sending ? handleStopResponse : handleSendMessage}
+                        onClick={sending ? handleStopResponse : () => void handleSendMessage()}
                         disabled={(!inputText.trim() && !sending) || isRecording || isTranscribing}
                         color="primary"
                         size="small"

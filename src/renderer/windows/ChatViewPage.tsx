@@ -1386,8 +1386,9 @@ const ChatViewPage: React.FC = () => {
         }
     }, [runtimeChatMeta.storage, siblingsData, loadSiblings, currentBranch, currentChatId, accessToken, showToast]);
 
-    const handleSendMessage = useCallback(async (inputOverride?: string) => {
-        const text = (inputOverride ?? inputText).trim();
+    const handleSendMessage = useCallback(async (inputOverride?: string | React.SyntheticEvent) => {
+        const overrideText = typeof inputOverride === 'string' ? inputOverride : inputText;
+        const text = overrideText.trim();
         if (!text || sending) return;
 
         setSending(true);
@@ -2057,7 +2058,7 @@ const ChatViewPage: React.FC = () => {
                     </div>
 
                     <IconButton
-                        onClick={sending ? handleStopResponse : handleSendMessage}
+                        onClick={sending ? handleStopResponse : () => void handleSendMessage()}
                         disabled={(!inputText.trim() && !sending) || isRecording || isTranscribing}
                         color="primary"
                         sx={{

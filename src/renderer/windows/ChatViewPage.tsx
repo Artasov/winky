@@ -846,6 +846,18 @@ const ChatViewPage: React.FC = () => {
         setEditText('');
     }, []);
 
+    const loadSiblings = useCallback(async (parentId: string): Promise<MessageChildrenResponse | null> => {
+        if (!accessToken) return null;
+
+        try {
+            const response = await fetchMessageChildren(parentId, accessToken);
+            return response;
+        } catch (error) {
+            console.error('[ChatViewPage] Failed to load siblings', error);
+            return null;
+        }
+    }, [accessToken]);
+
     const handleEditSubmit = useCallback(async () => {
         const text = editText.trim();
         if (!text || sending || !editingMessageId) return;
@@ -1194,18 +1206,6 @@ const ChatViewPage: React.FC = () => {
             resetStreamingContent();
         }
     }, [runtimeChatMeta, editText, accessToken, sending, editingMessageId, currentBranch, currentChatId, navigate, showToast, addChat, appendStreamingChunk, flushStreamingContent, getStreamingContent, resetStreamingContent, loadSiblings, scrollToBottom, handleAbortedRequest, config?.apiKeys.google, config?.apiKeys.openai, preferredChatTitle, chatAdditionalContext, modelLevel]);
-
-    const loadSiblings = useCallback(async (parentId: string): Promise<MessageChildrenResponse | null> => {
-        if (!accessToken) return null;
-
-        try {
-            const response = await fetchMessageChildren(parentId, accessToken);
-            return response;
-        } catch (error) {
-            console.error('[ChatViewPage] Failed to load siblings', error);
-            return null;
-        }
-    }, [accessToken]);
 
     const handleSiblingNavigate = useCallback(async (message: WinkyChatMessage, direction: 'prev' | 'next') => {
         if (runtimeChatMeta.storage === 'local') {

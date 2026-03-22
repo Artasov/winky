@@ -1,5 +1,5 @@
 import {LLM_GEMINI_API_MODELS, LLM_LOCAL_MODELS, LLM_MODES, LLM_OPENAI_API_MODELS, LLM_WINKY_API_MODELS} from '@shared/constants';
-import type {ChatProvider, LLMMode, WinkyChat} from '@shared/types';
+import type {ChatProvider, ChatStorage, LLMMode, WinkyChat} from '@shared/types';
 
 const OPENAI_MODELS = new Set<string>([...LLM_OPENAI_API_MODELS]);
 const GOOGLE_MODELS = new Set<string>([...LLM_GEMINI_API_MODELS]);
@@ -32,12 +32,23 @@ export const getChatProviderLabel = (chat: Pick<WinkyChat, 'storage' | 'provider
 
 export const isLocalChat = (chat: Pick<WinkyChat, 'storage'> | null | undefined): boolean => chat?.storage === 'local';
 
-export const createChatMeta = (mode: LLMMode, model: string) => ({
-    storage: getChatProvider(mode, model) === 'winky' ? 'remote' : 'local' as const,
-    provider: getChatProvider(mode, model),
-    model_name: model,
-    llm_mode: mode
-});
+export const createChatMeta = (
+    mode: LLMMode,
+    model: string
+): {
+    storage: ChatStorage;
+    provider: ChatProvider;
+    model_name: string;
+    llm_mode: LLMMode;
+} => {
+    const provider = getChatProvider(mode, model);
+    return {
+        storage: provider === 'winky' ? 'remote' : 'local',
+        provider,
+        model_name: model,
+        llm_mode: mode
+    };
+};
 
 export const getChatModelOptions = (provider: ChatProvider): string[] => {
     if (provider === 'winky') {

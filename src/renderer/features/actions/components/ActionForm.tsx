@@ -72,7 +72,7 @@ const ActionForm: React.FC<Props> = ({
     const isEditMode = mode === 'edit';
     const isNameLocked = isEditMode && editingActionIsDefault;
     const selectedIconName = icons.find((icon) => icon.id === values.iconId)?.name;
-    const hasLlmPrompt = values.prompt.trim().length > 0;
+    const hasLlmPrompt = (values.prompt ?? '').trim().length > 0;
 
     const isGroupFull = (group: ActionGroup): boolean => {
         if (group.actions.length < MAX_ACTIONS_PER_GROUP) return false;

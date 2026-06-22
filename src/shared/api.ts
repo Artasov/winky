@@ -49,7 +49,8 @@ const getLogUrl = (url: string, baseURL?: string): string => {
 export const createApiClient = (
     accessToken?: string,
     sendToRenderer?: (message: string, data?: any) => void,
-    backendDomain?: string | null
+    backendDomain?: string | null,
+    emitUnauthorizedOn401: boolean = true
 ) => {
     const instance = axios.create({
         baseURL: getApiBaseUrl(backendDomain),
@@ -139,7 +140,7 @@ export const createApiClient = (
             }
 
             // При 401 эмитим событие для глобальной обработки (разлогинивание)
-            if (status === 401) {
+            if (status === 401 && emitUnauthorizedOn401) {
                 triggerUnauthorized();
             }
 

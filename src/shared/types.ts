@@ -34,7 +34,15 @@ export interface AuthTokens {
     refreshToken?: string;
 }
 
-export type AuthProvider = 'google' | 'github' | 'discord';
+export type AuthProvider = 'google' | 'github' | 'discord' | 'yandex';
+
+export interface AuthMethodsResponse {
+    country_code: string;
+    country_known: boolean;
+    allowed_oauth_providers: AuthProvider[];
+    email_password_allowed: boolean;
+    allowed_email_domains: string[];
+}
 
 export type AuthTokensPayload = {
     access: string;

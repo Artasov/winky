@@ -10,7 +10,7 @@ import {
 } from 'react';
 import {AuthClient, AuthError} from '../services/authClient';
 import {authBridge as appAuthBridge, configBridge, groupsBridge} from '../services/winkyBridge';
-import type {AuthDeepLinkPayload, AuthProvider as OAuthProviderType, User} from '@shared/types';
+import type {AuthDeepLinkPayload, AuthMethodsResponse, AuthProvider as OAuthProviderType, User} from '@shared/types';
 import {useWindowIdentity} from '../app/hooks/useWindowIdentity';
 import {onUnauthorized} from '@shared/api';
 
@@ -29,6 +29,7 @@ type AuthContextValue = {
     isAuthenticated: boolean;
     signIn: (email: string, password: string) => Promise<User>;
     startOAuth: (provider: OAuthProviderType) => Promise<void>;
+    getAuthMethods: () => Promise<AuthMethodsResponse>;
     signOut: () => void;
     reloadUser: () => Promise<User | null>;
     clearError: () => void;
@@ -490,6 +491,8 @@ export function AuthProvider({children}: AuthProviderProps) {
         }
     }, [startOAuthPolling]);
 
+    const getAuthMethods = useCallback(async () => authClient.getAuthMethods(), []);
+
     const signOut = useCallback(() => {
         authClient.clearTokens();
 
@@ -578,6 +581,7 @@ export function AuthProvider({children}: AuthProviderProps) {
         isAuthenticated: status === 'authenticated',
         signIn,
         startOAuth,
+        getAuthMethods,
         signOut,
         reloadUser,
         clearError,
@@ -585,7 +589,7 @@ export function AuthProvider({children}: AuthProviderProps) {
             status === 'initializing' ||
             status === 'checking' ||
             status === 'signing-in',
-    }), [status, user, error, signIn, startOAuth, signOut, reloadUser, clearError]);
+    }), [status, user, error, signIn, startOAuth, getAuthMethods, signOut, reloadUser, clearError]);
 
     return (
         <AuthContext.Provider value={value}>
@@ -601,4 +605,3 @@ export function useAuth(): AuthContextValue {
     }
     return context;
 }
-

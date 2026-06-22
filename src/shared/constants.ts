@@ -66,6 +66,7 @@ export let WS_BASE_URL = getInternalWsBaseUrl(currentBackendDomain);
 export let API_BASE_URL = getInternalApiBaseUrl(currentBackendDomain);
 export let AUTH_ENDPOINT = `${API_BASE_URL}/auth/login/`;
 export let AUTH_REFRESH_ENDPOINT = `${API_BASE_URL}/auth/refresh/`;
+export let AUTH_METHODS_ENDPOINT = `${API_BASE_URL}/auth/methods/`;
 export let ME_ENDPOINT = `${API_BASE_URL}/me/`;
 
 const syncBaseUrls = (): void => {
@@ -74,6 +75,7 @@ const syncBaseUrls = (): void => {
     API_BASE_URL = getInternalApiBaseUrl(currentBackendDomain);
     AUTH_ENDPOINT = `${API_BASE_URL}/auth/login/`;
     AUTH_REFRESH_ENDPOINT = `${API_BASE_URL}/auth/refresh/`;
+    AUTH_METHODS_ENDPOINT = `${API_BASE_URL}/auth/methods/`;
     ME_ENDPOINT = `${API_BASE_URL}/me/`;
 };
 
@@ -92,6 +94,7 @@ export const getWsBaseUrl = (domain?: string | null): string => getInternalWsBas
 export const getApiBaseUrl = (domain?: string | null): string => getInternalApiBaseUrl(resolveBackendDomain(domain ?? currentBackendDomain));
 export const getAuthEndpoint = (domain?: string | null): string => `${getApiBaseUrl(domain)}/auth/login/`;
 export const getAuthRefreshEndpoint = (domain?: string | null): string => `${getApiBaseUrl(domain)}/auth/refresh/`;
+export const getAuthMethodsEndpoint = (domain?: string | null): string => `${getApiBaseUrl(domain)}/auth/methods/`;
 export const getMeEndpoint = (domain?: string | null): string => `${getApiBaseUrl(domain)}/me/`;
 export const FAST_WHISPER_PORT = 8868;
 export const FAST_WHISPER_BASE_URL = `http://127.0.0.1:${FAST_WHISPER_PORT}`;

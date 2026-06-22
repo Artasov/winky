@@ -1,6 +1,6 @@
 import axios, {AxiosRequestConfig} from 'axios';
-import {getApiBaseUrl, getAuthEndpoint, getAuthRefreshEndpoint, getMeEndpoint} from '@shared/constants';
-import type {AuthTokens, User} from '@shared/types';
+import {getApiBaseUrl, getAuthEndpoint, getAuthMethodsEndpoint, getAuthRefreshEndpoint, getMeEndpoint} from '@shared/constants';
+import type {AuthMethodsResponse, AuthTokens, User} from '@shared/types';
 import {TokenStorage} from './TokenStorage';
 
 export class AuthError extends Error {
@@ -141,7 +141,7 @@ export class AuthService {
                 const {data} = await axios.post(getAuthRefreshEndpoint(), {refresh: refreshToken}, {
                     headers: {'Content-Type': 'application/json'}
                 });
-                const tokens = this.parseTokenResponse(data);
+                const tokens = this.parseTokenResponse(data, refreshToken);
                 this.storeTokens(tokens);
                 return tokens.access;
             } catch (error) {
@@ -188,10 +188,29 @@ export class AuthService {
             return response.data;
         } catch (error) {
             if (axios.isAxiosError(error) && error.response?.status === 401) {
+                const refreshedToken = await this.refreshAccessToken().catch(() => null);
+                if (refreshedToken) {
+                    const retryResponse = await axios.request<T>({
+                        ...config,
+                        baseURL: shouldUseBaseUrl(config.url) ? getApiBaseUrl() : undefined,
+                        headers: {
+                            ...(config.headers ?? {}),
+                            Authorization: `Bearer ${refreshedToken}`
+                        }
+                    });
+                    return retryResponse.data;
+                }
                 this.clearTokens();
             }
             throw normalizeError(error);
         }
+    }
+
+    async getAuthMethods(): Promise<AuthMethodsResponse> {
+        const {data} = await axios.get<AuthMethodsResponse>(getAuthMethodsEndpoint(), {
+            headers: {Accept: 'application/json'}
+        });
+        return data;
     }
 
     private async ensureAccessToken(): Promise<string | null> {
@@ -202,9 +221,9 @@ export class AuthService {
         return accessToken;
     }
 
-    private parseTokenResponse(payload: TokenResponsePayload): AuthTokens {
+    private parseTokenResponse(payload: TokenResponsePayload, fallbackRefresh: string | null = null): AuthTokens {
         const access = typeof payload.access === 'string' ? payload.access : '';
-        const refresh = typeof payload.refresh === 'string' ? payload.refresh : null;
+        const refresh = typeof payload.refresh === 'string' ? payload.refresh : fallbackRefresh;
         if (!access) {
             throw new AuthError('The server did not return an access token.');
         }

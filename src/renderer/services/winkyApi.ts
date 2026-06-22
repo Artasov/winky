@@ -4,6 +4,7 @@ import {createApiClient, triggerUnauthorized} from '@shared/api';
 import {
     FAST_WHISPER_TRANSCRIBE_ENDPOINT,
     FAST_WHISPER_TRANSCRIBE_TIMEOUT,
+    getAuthRefreshEndpoint,
     LLM_GEMINI_API_MODELS,
     LLM_OPENAI_API_MODELS,
     SPEECH_MODES
@@ -86,6 +87,28 @@ const getConfig = async (): Promise<AppConfig> => invoke('config_get');
 const updateConfig = async (partial: Partial<AppConfig>): Promise<AppConfig> =>
     invoke('config_update', {payload: partial});
 
+const refreshAuthToken = async (config: AppConfig): Promise<string | null> => {
+    const refreshToken = config.auth?.refreshToken || config.auth?.refresh;
+    if (!refreshToken) return null;
+    const {data} = await axios.post(
+        getAuthRefreshEndpoint(config.backendDomain),
+        {refresh: refreshToken},
+        {headers: {'Content-Type': 'application/json'}}
+    );
+    const access = typeof data?.access === 'string' ? data.access : '';
+    if (!access) return null;
+    const refresh = typeof data?.refresh === 'string' ? data.refresh : refreshToken;
+    await updateConfig({
+        auth: {
+            access,
+            refresh,
+            accessToken: access,
+            refreshToken: refresh
+        }
+    });
+    return access;
+};
+
 const withAuthClient = async <T>(operation: (client: AxiosInstance, config: AppConfig) => Promise<T>): Promise<T> => {
     const config = await getConfig();
     const token = config.auth?.accessToken || config.auth?.access;
@@ -93,8 +116,21 @@ const withAuthClient = async <T>(operation: (client: AxiosInstance, config: AppC
         triggerUnauthorized();
         throw new Error('Authentication is required.');
     }
-    const client = createApiClient(token, undefined, config.backendDomain);
-    return operation(client, config);
+    const client = createApiClient(token, undefined, config.backendDomain, false);
+    try {
+        return await operation(client, config);
+    } catch (error) {
+        if (!axios.isAxiosError(error) || error.response?.status !== 401) {
+            throw error;
+        }
+        const nextToken = await refreshAuthToken(config).catch(() => null);
+        if (!nextToken) {
+            throw error;
+        }
+        const nextConfig = await getConfig();
+        const retryClient = createApiClient(nextToken, undefined, nextConfig.backendDomain, false);
+        return operation(retryClient, nextConfig);
+    }
 };
 
 export const createAction = async (payload: ActionCreatePayload): Promise<ActionConfig[]> => {

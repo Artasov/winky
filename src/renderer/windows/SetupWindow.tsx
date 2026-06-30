@@ -86,7 +86,9 @@ const SetupWindow: React.FC = () => {
                 apiKeys: {
                     openai: formData.openaiKey.trim(),
                     google: formData.googleKey.trim()
-                }
+                },
+                globalTranscribePrompt: formData.globalTranscribePrompt.trim(),
+                globalLlmPrompt: formData.globalLlmPrompt.trim()
             });
             showToast('Settings saved successfully', 'success');
             navigate('/info');

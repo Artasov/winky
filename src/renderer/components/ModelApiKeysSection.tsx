@@ -7,7 +7,6 @@ type ModelApiKeysSectionProps = {
     requireApiKeys: boolean;
     requiresOpenAIKey: boolean;
     requiresGoogleKey: boolean;
-    shouldShowOpenAIField: boolean;
     googleKeyReasons: string[];
     openaiKeyReasons: string[];
     disableInputs: boolean;
@@ -19,7 +18,6 @@ export const ModelApiKeysSection: React.FC<ModelApiKeysSectionProps> = ({
     requireApiKeys,
     requiresOpenAIKey,
     requiresGoogleKey,
-    shouldShowOpenAIField,
     googleKeyReasons,
     openaiKeyReasons,
     disableInputs,
@@ -80,25 +78,23 @@ export const ModelApiKeysSection: React.FC<ModelApiKeysSectionProps> = ({
                 )}
             </div>
 
-            {shouldShowOpenAIField && (
-                <div className="fc gap-2 mt-1">
-                    <TextField
-                        id="openai-key"
-                        type="password"
-                        label="OpenAI API Key"
-                        value={values.openaiKey}
-                        onChange={(e) => emitChange({openaiKey: e.target.value})}
-                        placeholder="sk-..."
-                        required={false}
-                        disabled={disableInputs}
-                    />
-                    {requiresOpenAIKey && (
-                        <Typography variant="caption" color="text.secondary">
-                            Required for {openaiKeyReasons.join(' + ')}.
-                        </Typography>
-                    )}
-                </div>
-            )}
+            <div className="fc gap-2 mt-1">
+                <TextField
+                    id="openai-key"
+                    type="password"
+                    label="OpenAI API Key"
+                    value={values.openaiKey}
+                    onChange={(e) => emitChange({openaiKey: e.target.value})}
+                    placeholder="sk-..."
+                    required={false}
+                    disabled={disableInputs}
+                />
+                {requiresOpenAIKey && (
+                    <Typography variant="caption" color="text.secondary">
+                        Required for {openaiKeyReasons.join(' + ')}.
+                    </Typography>
+                )}
+            </div>
         </div>
     );
 };

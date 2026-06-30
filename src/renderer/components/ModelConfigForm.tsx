@@ -33,9 +33,7 @@ import {
     isGeminiApiModel,
     isGoogleTranscribeModel,
     isOpenAiApiModel,
-    isOpenAiTranscribeModel,
-    isWinkyLLMModel,
-    isWinkyTranscribeModel
+    isOpenAiTranscribeModel
 } from '../utils/modelFormatters';
 import {useUser} from '../context/UserContext';
 import {
@@ -167,6 +165,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const [localGlobalTranscribePrompt, setLocalGlobalTranscribePrompt] = useState(values.globalTranscribePrompt);
     const [localGlobalLlmPrompt, setLocalGlobalLlmPrompt] = useState(values.globalLlmPrompt);
     const promptDebounceTimerRef = useRef<number | null>(null);
+    const latestValuesRef = useRef(values);
 
     // Keep local prompt state in sync when parent props change.
     useEffect(() => {
@@ -176,6 +175,10 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     useEffect(() => {
         setLocalGlobalLlmPrompt(values.globalLlmPrompt);
     }, [values.globalLlmPrompt]);
+
+    useEffect(() => {
+        latestValuesRef.current = values;
+    }, [values]);
 
     // Clear the debounce timer on unmount.
     useEffect(() => {
@@ -543,6 +546,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             nextValues.llmModel = resolvedModel as LLMModel;
         }
 
+        latestValuesRef.current = nextValues;
         onChange(nextValues);
 
         // Для промптов не вызываем автосохранение сразу - оно будет через дебаунс
@@ -551,6 +555,24 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             void onAutoSave(nextValues);
         }
     }, [values, onChange, shouldAutoSave, onAutoSave, isAuthenticated]);
+
+    const emitPromptChange = useCallback((partial: Pick<Partial<ModelConfigFormData>, 'globalTranscribePrompt' | 'globalLlmPrompt'>) => {
+        emitChange(partial);
+
+        if (promptDebounceTimerRef.current !== null) {
+            clearTimeout(promptDebounceTimerRef.current);
+        }
+
+        if (!shouldAutoSave || !onAutoSave) {
+            promptDebounceTimerRef.current = null;
+            return;
+        }
+
+        promptDebounceTimerRef.current = window.setTimeout(() => {
+            promptDebounceTimerRef.current = null;
+            void onAutoSave(latestValuesRef.current);
+        }, 800);
+    }, [emitChange, shouldAutoSave, onAutoSave]);
 
     useEffect(() => {
         if (values.transcribeMode !== SPEECH_MODES.LOCAL) {
@@ -654,16 +676,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     if (requiresOpenAIKeyForLLM) {
         openaiKeyReasons.push('OpenAI GPT models');
     }
-    const isWinkyLlmSelected = isWinkyLLMModel(safeLlmModel);
-    const isWinkyTranscribeSelected = isWinkyTranscribeModel(values.transcribeModel);
-    const shouldShowOpenAIField =
-        values.llmMode === LLM_MODES.API ||
-        values.transcribeMode === SPEECH_MODES.API ||
-        values.openaiKey.trim().length > 0;
-    // Не показываем секцию ключей если используются только Winky модели или Local режим
-    const shouldShowApiKeysSection =
-        (values.transcribeMode !== SPEECH_MODES.LOCAL || values.llmMode !== LLM_MODES.LOCAL) &&
-        !(isWinkyLlmSelected && isWinkyTranscribeSelected);
     const isLocalLLMMode = values.llmMode === LLM_MODES.LOCAL;
     const checkingMessage = selectedLocalModelDescription
         ? `Checking if ${selectedLocalModelDescription} is available...`
@@ -849,19 +861,16 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                     </Box>
                 </Stack>
 
-                {shouldShowApiKeysSection ? (
-                    <ModelApiKeysSection
-                        values={values}
-                        requireApiKeys={requireApiKeys}
-                        requiresOpenAIKey={requiresOpenAIKey}
-                        requiresGoogleKey={requiresGoogleKey}
-                        shouldShowOpenAIField={shouldShowOpenAIField}
-                        googleKeyReasons={googleKeyReasons}
-                        openaiKeyReasons={openaiKeyReasons}
-                        disableInputs={disableInputs}
-                        emitChange={emitChange}
-                    />
-                ) : null}
+                <ModelApiKeysSection
+                    values={values}
+                    requireApiKeys={requireApiKeys}
+                    requiresOpenAIKey={requiresOpenAIKey}
+                    requiresGoogleKey={requiresGoogleKey}
+                    googleKeyReasons={googleKeyReasons}
+                    openaiKeyReasons={openaiKeyReasons}
+                    disableInputs={disableInputs}
+                    emitChange={emitChange}
+                />
 
                 <div className={'fc gap-2'}>
                     <Typography variant="h6" color="text.primary" fontWeight={600}>
@@ -877,16 +886,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             const newValue = e.target.value;
                             setLocalGlobalTranscribePrompt(newValue);
 
-                            if (promptDebounceTimerRef.current !== null) {
-                                clearTimeout(promptDebounceTimerRef.current);
-                            }
-
-                            promptDebounceTimerRef.current = window.setTimeout(() => {
-                                emitChange({globalTranscribePrompt: newValue});
-                                if (shouldAutoSave && onAutoSave) {
-                                    void onAutoSave({...values, globalTranscribePrompt: newValue});
-                                }
-                            }, 800);
+                            emitPromptChange({globalTranscribePrompt: newValue});
                         }}
                         disabled={disableInputs}
                         multiline
@@ -901,16 +901,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             const newValue = e.target.value;
                             setLocalGlobalLlmPrompt(newValue);
 
-                            if (promptDebounceTimerRef.current !== null) {
-                                clearTimeout(promptDebounceTimerRef.current);
-                            }
-
-                            promptDebounceTimerRef.current = window.setTimeout(() => {
-                                emitChange({globalLlmPrompt: newValue});
-                                if (shouldAutoSave && onAutoSave) {
-                                    void onAutoSave({...values, globalLlmPrompt: newValue});
-                                }
-                            }, 800);
+                            emitPromptChange({globalLlmPrompt: newValue});
                         }}
                         disabled={disableInputs}
                         multiline

@@ -1,6 +1,6 @@
 import {invoke} from '@tauri-apps/api/core';
 import {listen, type UnlistenFn} from '@tauri-apps/api/event';
-import type {AuthDeepLinkPayload} from '@shared/types';
+import type {AuthDeepLinkPayload, AuthMethodsResponse} from '@shared/types';
 
 const listeners = new Set<(payload: AuthDeepLinkPayload) => void>();
 let unlisten: UnlistenFn | null = null;
@@ -16,6 +16,7 @@ const ensureSubscription = async () => {
 
 export const authBridge = {
     startOAuth: (provider: string) => invoke('auth_start_oauth', {provider}),
+    getAuthMethods: (): Promise<AuthMethodsResponse> => invoke('auth_get_methods'),
     onOAuthPayload: (callback: (payload: AuthDeepLinkPayload) => void) => {
         void ensureSubscription();
         listeners.add(callback);

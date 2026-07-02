@@ -45,6 +45,53 @@ const resolveWindowKind = (): 'main' | 'mic' | 'result' | 'error' => {
 const currentWindowKind = resolveWindowKind();
 const currentWindow = getCurrentWindow();
 
+const serializeConsoleArg = (value: unknown): string => {
+    if (value instanceof Error) {
+        return `${value.name}: ${value.message}${value.stack ? `\n${value.stack}` : ''}`;
+    }
+    if (typeof value === 'string') {
+        return value;
+    }
+    try {
+        return JSON.stringify(value);
+    } catch {
+        return String(value);
+    }
+};
+
+const installFrontendLogBridge = () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    const marker = '__winkyFrontendLogBridgeInstalled';
+    const target = window as unknown as Record<string, unknown>;
+    if (target[marker]) {
+        return;
+    }
+    target[marker] = true;
+
+    const levels = ['log', 'info', 'warn', 'error', 'debug'] as const;
+    levels.forEach((level) => {
+        const original = console[level].bind(console);
+        console[level] = (...args: unknown[]) => {
+            original(...args);
+            const mappedLevel = level === 'log' ? 'info' : level;
+            const message = args.map(serializeConsoleArg).join(' ');
+            void invoke('log_frontend', {
+                entry: {
+                    level: mappedLevel,
+                    category: 'console',
+                    message
+                }
+            }).catch(() => {
+                /* ignore logging failures */
+            });
+        };
+    });
+};
+
+installFrontendLogBridge();
+
 const windowControlsBridge = {
     ...baseWindowControlsBridge,
     openDevtools: async () => {

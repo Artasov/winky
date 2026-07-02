@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef} from 'react';
 import {Route, Routes, useNavigate} from 'react-router-dom';
 import {getCurrentWindow} from '@tauri-apps/api/window';
+import {listen, type UnlistenFn} from '@tauri-apps/api/event';
 import {ConfigContext} from './context/ConfigContext';
 import {ToastContext, type ToastType} from './context/ToastContext';
 import {UserProvider, useUser} from './context/UserContext';
@@ -49,6 +50,118 @@ import {useThemeMode} from './context/ThemeModeContext';
 
 const LOCAL_SERVER_READY_TIMEOUT_MS = 2 * 60 * 1000;
 const LOCAL_SERVER_POLL_INTERVAL_MS = 2_000;
+const UPDATE_TOAST_ID = 'winky-update';
+
+type UpdateAvailablePayload = {
+    version: string;
+    currentVersion: string;
+    fileName: string;
+};
+
+type UpdateProgressPayload = {
+    percent: number;
+    downloadedBytes: number;
+    totalBytes?: number | null;
+};
+
+type UpdateStartedPayload = {
+    version: string;
+    fileName: string;
+};
+
+type UpdateErrorPayload = {
+    message: string;
+};
+
+const formatBytes = (bytes: number): string => {
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+        return '0 MB';
+    }
+    const mb = bytes / 1_048_576;
+    return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
+};
+
+const useUpdateNotifications = (enabled: boolean) => {
+    useEffect(() => {
+        if (!enabled) {
+            return;
+        }
+
+        let unlisteners: UnlistenFn[] = [];
+        let cancelled = false;
+
+        const register = async () => {
+            try {
+                const nextUnlisteners = await Promise.all([
+                    listen<UpdateAvailablePayload>('update-available', (event) => {
+                        toast.info(`Update ${event.payload.version} is available. Downloading...`, {
+                            toastId: UPDATE_TOAST_ID,
+                            autoClose: false
+                        });
+                    }),
+                    listen<UpdateProgressPayload>('update-download-progress', (event) => {
+                        const {percent, downloadedBytes, totalBytes} = event.payload;
+                        const details = totalBytes
+                            ? `${percent}% (${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)})`
+                            : formatBytes(downloadedBytes);
+                        if (toast.isActive(UPDATE_TOAST_ID)) {
+                            toast.update(UPDATE_TOAST_ID, {
+                                render: `Downloading update: ${details}`,
+                                type: 'info',
+                                autoClose: false
+                            });
+                        } else {
+                            toast.info(`Downloading update: ${details}`, {
+                                toastId: UPDATE_TOAST_ID,
+                                autoClose: false
+                            });
+                        }
+                    }),
+                    listen<UpdateStartedPayload>('update-started', (event) => {
+                        const message = `Installing update ${event.payload.version}. Winky will close to finish setup.`;
+                        if (toast.isActive(UPDATE_TOAST_ID)) {
+                            toast.update(UPDATE_TOAST_ID, {
+                                render: message,
+                                type: 'info',
+                                autoClose: false
+                            });
+                        } else {
+                            toast.info(message, {
+                                toastId: UPDATE_TOAST_ID,
+                                autoClose: false
+                            });
+                        }
+                    }),
+                    listen<UpdateErrorPayload>('update-error', (event) => {
+                        const message = `Update failed: ${event.payload.message}`;
+                        if (toast.isActive(UPDATE_TOAST_ID)) {
+                            toast.update(UPDATE_TOAST_ID, {
+                                render: message,
+                                type: 'error',
+                                autoClose: 8000
+                            });
+                        } else {
+                            toast.error(message, {autoClose: 8000});
+                        }
+                    })
+                ]);
+                if (cancelled) {
+                    nextUnlisteners.forEach((unlisten) => void unlisten());
+                    return;
+                }
+                unlisteners = nextUnlisteners;
+            } catch (error) {
+                console.warn('[update] failed to subscribe to update events', error);
+            }
+        };
+
+        void register();
+        return () => {
+            cancelled = true;
+            unlisteners.forEach((unlisten) => void unlisten());
+        };
+    }, [enabled]);
+};
 
 const AppContent: React.FC = () => {
     const windowIdentity = useWindowIdentity();
@@ -101,6 +214,7 @@ const AppContent: React.FC = () => {
     );
 
     useToastBridge({enabled: shouldRenderToasts, showToast});
+    useUpdateNotifications(shouldRenderToasts && !windowIdentity.isAuxWindow);
     useWindowChrome(windowIdentity);
     useNavigationSync({config, loading, windowIdentity, isAuthenticated});
 

@@ -5,12 +5,12 @@ mod auth;
 mod config;
 mod constants;
 mod deep_link_file;
-mod hotkeys;
-mod history;
 mod gemini;
-mod notes;
+mod history;
+mod hotkeys;
 mod local_speech;
 mod logging;
+mod notes;
 mod oauth;
 mod oauth_server;
 mod ollama;
@@ -18,46 +18,31 @@ mod openai;
 mod resources;
 mod tray;
 mod types;
+mod update;
 
 use std::sync::{Arc, Mutex};
 
 use auth::AuthQueue;
-use serde::Deserialize;
 use config::{should_auto_start_local_speech, ConfigState};
-use hotkeys::{ActionHotkeyInput, HotkeyState};
 use history::{
-    append_history,
-    clear_history,
-    read_history,
-    read_history_audio,
-    save_history_audio,
-    ActionHistoryEntry,
-    ActionHistoryInput,
-    ActionHistoryUpdateInput,
-    update_history,
+    append_history, clear_history, read_history, read_history_audio, save_history_audio,
+    update_history, ActionHistoryEntry, ActionHistoryInput, ActionHistoryUpdateInput,
 };
+use hotkeys::{ActionHotkeyInput, HotkeyState};
+use local_speech::{persist_install_dir_choice, FastWhisperManager};
 use notes::{
-    bulk_delete_notes,
-    create_note,
-    delete_note,
-    list_notes,
-    update_note,
-    NoteBulkDeleteInput,
-    NoteBulkDeleteResponse,
-    NoteCreateInput,
-    NoteDeleteInput,
-    NoteEntry,
-    NoteListResponse,
+    bulk_delete_notes, create_note, delete_note, list_notes, update_note, NoteBulkDeleteInput,
+    NoteBulkDeleteResponse, NoteCreateInput, NoteDeleteInput, NoteEntry, NoteListResponse,
     NoteUpdateInput,
 };
-use local_speech::{persist_install_dir_choice, FastWhisperManager};
 use oauth_server::OAuthServerState;
 use once_cell::sync::Lazy;
+use serde::Deserialize;
 use serde_json::json;
-use tauri::{Emitter, Manager, State};
 use tauri::window::Color;
-use tauri_plugin_deep_link::DeepLinkExt;
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_deep_link::DeepLinkExt;
 use types::{AppConfig, AuthDeepLinkPayload, AuthTokens, FastWhisperStatus};
 
 static PENDING_DEEP_LINKS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
@@ -88,6 +73,13 @@ struct HistoryReadAudioInput {
     audio_path: String,
 }
 
+#[derive(Deserialize)]
+struct FrontendLogEntry {
+    level: Option<String>,
+    category: Option<String>,
+    message: String,
+}
+
 #[tauri::command]
 async fn config_get(state: State<'_, Arc<ConfigState>>) -> Result<AppConfig, String> {
     Ok(state.get().await)
@@ -106,18 +98,18 @@ async fn config_update(
         .get("launchOnSystemStartup")
         .and_then(|v| v.as_bool())
         .is_some();
-    
+
     let updated = state
         .update(payload)
         .await
         .map_err(|error| error.to_string())?;
-    
+
     // Обновляем автозапуск системы, если настройка изменилась
     if autostart_changed {
         update_autostart(&app, updated.launch_on_system_startup)
             .map_err(|error| format!("Failed to update autostart: {}", error))?;
     }
-    
+
     app.emit("config:updated", &updated)
         .map_err(|error| error.to_string())?;
     handle_config_effects(
@@ -159,10 +151,7 @@ async fn config_reset(
     hotkeys: State<'_, Arc<HotkeyState>>,
     speech: State<'_, Arc<FastWhisperManager>>,
 ) -> Result<AppConfig, String> {
-    let updated = state
-        .reset()
-        .await
-        .map_err(|error| error.to_string())?;
+    let updated = state.reset().await.map_err(|error| error.to_string())?;
     app.emit("config:updated", &updated)
         .map_err(|error| error.to_string())?;
     handle_config_effects(
@@ -181,9 +170,7 @@ async fn config_path(state: State<'_, Arc<ConfigState>>) -> Result<String, Strin
 
 #[tauri::command]
 async fn history_get(app: tauri::AppHandle) -> Result<Vec<ActionHistoryEntry>, String> {
-    read_history(&app)
-        .await
-        .map_err(|error| error.to_string())
+    read_history(&app).await.map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -207,8 +194,11 @@ async fn history_update(
     let entry = update_history(&app, payload)
         .await
         .map_err(|error| error.to_string())?;
-    app.emit("history:updated", json!({"type": "updated", "entry": &entry}))
-        .map_err(|error| error.to_string())?;
+    app.emit(
+        "history:updated",
+        json!({"type": "updated", "entry": &entry}),
+    )
+    .map_err(|error| error.to_string())?;
     Ok(entry)
 }
 
@@ -252,22 +242,34 @@ async fn notes_get(app: tauri::AppHandle, args: NotesListArgs) -> Result<NoteLis
 }
 
 #[tauri::command]
-async fn notes_create(app: tauri::AppHandle, payload: NoteCreateInput) -> Result<NoteEntry, String> {
+async fn notes_create(
+    app: tauri::AppHandle,
+    payload: NoteCreateInput,
+) -> Result<NoteEntry, String> {
     let entry = create_note(&app, payload)
         .await
         .map_err(|error| error.to_string())?;
-    app.emit("notes:updated", json!({"type": "added", "mode": "local", "entry": &entry}))
-        .map_err(|error| error.to_string())?;
+    app.emit(
+        "notes:updated",
+        json!({"type": "added", "mode": "local", "entry": &entry}),
+    )
+    .map_err(|error| error.to_string())?;
     Ok(entry)
 }
 
 #[tauri::command]
-async fn notes_update(app: tauri::AppHandle, payload: NoteUpdateInput) -> Result<NoteEntry, String> {
+async fn notes_update(
+    app: tauri::AppHandle,
+    payload: NoteUpdateInput,
+) -> Result<NoteEntry, String> {
     let entry = update_note(&app, payload)
         .await
         .map_err(|error| error.to_string())?;
-    app.emit("notes:updated", json!({"type": "updated", "mode": "local", "entry": &entry}))
-        .map_err(|error| error.to_string())?;
+    app.emit(
+        "notes:updated",
+        json!({"type": "updated", "mode": "local", "entry": &entry}),
+    )
+    .map_err(|error| error.to_string())?;
     Ok(entry)
 }
 
@@ -277,8 +279,11 @@ async fn notes_delete(app: tauri::AppHandle, payload: NoteDeleteInput) -> Result
     delete_note(&app, payload)
         .await
         .map_err(|error| error.to_string())?;
-    app.emit("notes:updated", json!({"type": "deleted", "mode": "local", "id": deleted_id}))
-        .map_err(|error| error.to_string())?;
+    app.emit(
+        "notes:updated",
+        json!({"type": "deleted", "mode": "local", "id": deleted_id}),
+    )
+    .map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -291,16 +296,16 @@ async fn notes_bulk_delete(
     let response = bulk_delete_notes(&app, payload)
         .await
         .map_err(|error| error.to_string())?;
-    app.emit("notes:updated", json!({"type": "bulk-deleted", "mode": "local", "ids": ids}))
-        .map_err(|error| error.to_string())?;
+    app.emit(
+        "notes:updated",
+        json!({"type": "bulk-deleted", "mode": "local", "ids": ids}),
+    )
+    .map_err(|error| error.to_string())?;
     Ok(response)
 }
 
 #[tauri::command]
-async fn resources_sound_path(
-    app: tauri::AppHandle,
-    sound_name: String,
-) -> Result<String, String> {
+async fn resources_sound_path(app: tauri::AppHandle, sound_name: String) -> Result<String, String> {
     resources::resolve_sound_path(&app, &sound_name)
         .ok_or_else(|| format!("Sound {sound_name} not found"))
 }
@@ -315,10 +320,7 @@ async fn resources_sound_data(
 }
 
 #[tauri::command]
-async fn resources_play_sound(
-    app: tauri::AppHandle,
-    sound_name: String,
-) -> Result<(), String> {
+async fn resources_play_sound(app: tauri::AppHandle, sound_name: String) -> Result<(), String> {
     audio::play_sound_sync(&app, &sound_name)
 }
 
@@ -338,22 +340,46 @@ async fn auth_start_oauth(
     provider: String,
 ) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
-    
+
+    let provider = provider.trim().to_lowercase();
+    if !oauth::is_supported_provider(&provider) {
+        log::warn!(target: "auth", "Unsupported OAuth provider requested: {provider}");
+        return Err(format!("Unsupported OAuth provider: {provider}"));
+    }
+
+    let config = config_state.get().await;
+    log::info!(
+        target: "auth",
+        "auth_start_oauth command: provider={} backend_domain={}",
+        provider,
+        config.backend_domain
+    );
+    let methods = oauth::load_auth_methods(Some(config.backend_domain.as_str()))
+        .await
+        .map_err(|error| error.to_string())?;
+    if !oauth::provider_is_allowed(&methods, &provider) {
+        log::warn!(
+            target: "auth",
+            "OAuth provider is not allowed by backend: provider={} allowed={:?}",
+            provider,
+            methods.allowed_oauth_providers
+        );
+        return Err(format!("OAuth provider is not allowed: {provider}"));
+    }
+
     // Если работаем от админа и OAuth сервер еще не запущен - запускаем
     if oauth::is_running_as_admin() {
         logging::log_message("[auth_start_oauth] Running as admin, starting OAuth server...");
         let app_clone = app.clone();
         let queue_clone = queue.inner().clone();
         let state_clone = oauth_state.inner().clone();
-        
+
         // Запускаем сервер если еще не запущен
-        match oauth_server::start_oauth_server(
-            app_clone,
-            queue_clone,
-            state_clone.clone(),
-        ).await {
+        match oauth_server::start_oauth_server(app_clone, queue_clone, state_clone.clone()).await {
             Ok(_) => {
-                logging::log_message("[auth_start_oauth] OAuth server started successfully, waiting for listener...");
+                logging::log_message(
+                    "[auth_start_oauth] OAuth server started successfully, waiting for listener...",
+                );
                 // Ждём пока сервер будет готов принимать соединения (с таймаутом 2 секунды)
                 tokio::select! {
                     _ = state_clone.wait_until_ready() => {
@@ -365,18 +391,20 @@ async fn auth_start_oauth(
                 }
             }
             Err(e) => {
-                logging::log_message(&format!("[auth_start_oauth] Failed to start OAuth server: {}", e));
+                logging::log_message(&format!(
+                    "[auth_start_oauth] Failed to start OAuth server: {}",
+                    e
+                ));
                 return Err(format!("Failed to start OAuth server: {}", e));
             }
         }
     } else {
         logging::log_message("[auth_start_oauth] Not running as admin, using deep link");
     }
-    
-    let config = config_state.get().await;
+
     let url = oauth::build_oauth_start_url(&provider, Some(config.backend_domain.as_str()))
         .map_err(|error| error.to_string())?;
-    logging::log_message(&format!("[auth_start_oauth] Opening OAuth URL: {}", url));
+    log::info!(target: "auth", "Opening OAuth URL: provider={provider}");
     app.opener()
         .open_url(url, None::<String>)
         .map_err(|error| error.to_string())
@@ -388,38 +416,101 @@ async fn auth_is_admin() -> Result<bool, String> {
 }
 
 #[tauri::command]
-async fn get_log_file_path(app: tauri::AppHandle) -> Result<String, String> {
-    Ok(logging::get_log_file_path(&app)
-        .and_then(|p| p.to_str().map(|s| s.to_string()))
-        .unwrap_or_else(|| "Log file path not available".to_string()))
+async fn auth_get_methods(
+    config_state: State<'_, Arc<ConfigState>>,
+) -> Result<oauth::AuthMethods, String> {
+    let config = config_state.get().await;
+    log::info!(
+        target: "auth",
+        "auth_get_methods command: backend_domain={}",
+        config.backend_domain
+    );
+    oauth::load_auth_methods(Some(config.backend_domain.as_str()))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn app_log_path() -> Result<String, String> {
+    logging::current_log_path().map(|path| path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn get_log_file_path(_app: tauri::AppHandle) -> Result<String, String> {
+    app_log_path().await
+}
+
+#[tauri::command]
+async fn open_app_logs_folder(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let dir = logging::current_log_dir()?;
+    app.opener()
+        .open_path(dir.to_string_lossy().to_string(), None::<String>)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn log_frontend(entry: FrontendLogEntry) -> Result<(), String> {
+    let level = entry
+        .level
+        .unwrap_or_else(|| "info".to_string())
+        .to_lowercase();
+    let category = entry.category.unwrap_or_else(|| "frontend".to_string());
+    let message = truncate_log_value(&entry.message, 4000);
+    match level.as_str() {
+        "error" => log::error!(target: "frontend", "[{}] {}", category, message),
+        "warn" | "warning" => log::warn!(target: "frontend", "[{}] {}", category, message),
+        "debug" => log::debug!(target: "frontend", "[{}] {}", category, message),
+        _ => log::info!(target: "frontend", "[{}] {}", category, message),
+    }
+    Ok(())
+}
+
+fn truncate_log_value(value: &str, max_chars: usize) -> String {
+    if value.chars().count() <= max_chars {
+        return value.to_string();
+    }
+    let mut result = value.chars().take(max_chars).collect::<String>();
+    result.push_str("...");
+    result
 }
 
 #[tauri::command]
 async fn open_file_path(_app: tauri::AppHandle, file_path: String) -> Result<(), String> {
     use std::path::Path;
-    println!("[open_file_path] Received request to open file: {}", file_path);
-    
+    println!(
+        "[open_file_path] Received request to open file: {}",
+        file_path
+    );
+
     let path = Path::new(&file_path);
     if !path.exists() {
         let msg = format!("File does not exist: {}", file_path);
         eprintln!("[open_file_path] Error: {}", msg);
         return Err(msg);
     }
-    
+
     if !path.is_file() {
         let msg = format!("Path is not a file: {}", file_path);
         eprintln!("[open_file_path] Error: {}", msg);
         return Err(msg);
     }
-    
-    println!("[open_file_path] File exists, attempting to open: {}", file_path);
-    
+
+    println!(
+        "[open_file_path] File exists, attempting to open: {}",
+        file_path
+    );
+
     let result = {
         #[cfg(target_os = "windows")]
         {
             // На Windows используем explorer для открытия файлов
             // explorer автоматически выберет правильное приложение для типа файла
-            println!("[open_file_path] Attempting to open with explorer: {}", file_path);
+            println!(
+                "[open_file_path] Attempting to open with explorer: {}",
+                file_path
+            );
             match std::process::Command::new("explorer")
                 .arg(&file_path)
                 .spawn()
@@ -430,19 +521,29 @@ async fn open_file_path(_app: tauri::AppHandle, file_path: String) -> Result<(),
                     match child.try_wait() {
                         Ok(Some(status)) => {
                             if status.success() {
-                                println!("[open_file_path] Explorer command completed successfully");
+                                println!(
+                                    "[open_file_path] Explorer command completed successfully"
+                                );
                             } else {
-                                eprintln!("[open_file_path] Explorer command failed with status: {:?}", status);
+                                eprintln!(
+                                    "[open_file_path] Explorer command failed with status: {:?}",
+                                    status
+                                );
                             }
                         }
                         Ok(None) => {
-                            println!("[open_file_path] Explorer process is running (expected behavior)");
+                            println!(
+                                "[open_file_path] Explorer process is running (expected behavior)"
+                            );
                         }
                         Err(e) => {
                             eprintln!("[open_file_path] Error checking explorer process: {}", e);
                         }
                     }
-                    println!("[open_file_path] Successfully spawned explorer command for file: {}", file_path);
+                    println!(
+                        "[open_file_path] Successfully spawned explorer command for file: {}",
+                        file_path
+                    );
                     Ok(())
                 }
                 Err(e) => {
@@ -454,7 +555,10 @@ async fn open_file_path(_app: tauri::AppHandle, file_path: String) -> Result<(),
                         .spawn()
                     {
                         Ok(_) => {
-                            println!("[open_file_path] Successfully spawned start command for file: {}", file_path);
+                            println!(
+                                "[open_file_path] Successfully spawned start command for file: {}",
+                                file_path
+                            );
                             Ok(())
                         }
                         Err(e2) => {
@@ -468,12 +572,12 @@ async fn open_file_path(_app: tauri::AppHandle, file_path: String) -> Result<(),
         }
         #[cfg(target_os = "macos")]
         {
-            match std::process::Command::new("open")
-                .arg(&file_path)
-                .spawn()
-            {
+            match std::process::Command::new("open").arg(&file_path).spawn() {
                 Ok(_) => {
-                    println!("[open_file_path] Successfully spawned command to open file: {}", file_path);
+                    println!(
+                        "[open_file_path] Successfully spawned command to open file: {}",
+                        file_path
+                    );
                     Ok(())
                 }
                 Err(e) => {
@@ -490,7 +594,10 @@ async fn open_file_path(_app: tauri::AppHandle, file_path: String) -> Result<(),
                 .spawn()
             {
                 Ok(_) => {
-                    println!("[open_file_path] Successfully spawned command to open file: {}", file_path);
+                    println!(
+                        "[open_file_path] Successfully spawned command to open file: {}",
+                        file_path
+                    );
                     Ok(())
                 }
                 Err(e) => {
@@ -602,10 +709,7 @@ async fn local_speech_stop(
     app: tauri::AppHandle,
     manager: State<'_, Arc<FastWhisperManager>>,
 ) -> Result<FastWhisperStatus, String> {
-    manager
-        .stop(&app)
-        .await
-        .map_err(|error| error.to_string())
+    manager.stop(&app).await.map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -759,8 +863,8 @@ async fn window_open_devtools(_app: tauri::AppHandle) -> Result<(), String> {
 #[cfg(target_os = "windows")]
 unsafe fn update_window_ex_style(hwnd: winapi::shared::windef::HWND, ignore: bool) {
     use winapi::um::winuser::{
-        GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOP, SWP_FRAMECHANGED,
-        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_TRANSPARENT, WS_EX_LAYERED,
+        GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOP,
+        SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_LAYERED, WS_EX_TRANSPARENT,
     };
 
     let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
@@ -808,7 +912,9 @@ async fn window_set_ignore_cursor_events(
 
         #[cfg(target_os = "windows")]
         {
-            let hwnd = window.hwnd().map_err(|e| format!("Failed to get HWND: {}", e))?;
+            let hwnd = window
+                .hwnd()
+                .map_err(|e| format!("Failed to get HWND: {}", e))?;
             unsafe {
                 let hwnd_ptr: winapi::shared::windef::HWND = std::mem::transmute(hwnd.0);
                 update_window_ex_style(hwnd_ptr, ignore);
@@ -824,9 +930,12 @@ async fn window_set_ignore_cursor_events(
 async fn window_open_main(app: tauri::AppHandle) -> Result<(), String> {
     // Пробуем получить существующее окно
     if let Some(main) = app.get_webview_window("main") {
-        main.unminimize().map_err(|e| format!("Failed to unminimize main window: {}", e))?;
-        main.show().map_err(|e| format!("Failed to show main window: {}", e))?;
-        main.set_focus().map_err(|e| format!("Failed to focus main window: {}", e))?;
+        main.unminimize()
+            .map_err(|e| format!("Failed to unminimize main window: {}", e))?;
+        main.show()
+            .map_err(|e| format!("Failed to show main window: {}", e))?;
+        main.set_focus()
+            .map_err(|e| format!("Failed to focus main window: {}", e))?;
         Ok(())
     } else {
         // Если окно не найдено, создаем его заново
@@ -844,13 +953,16 @@ async fn window_open_main(app: tauri::AppHandle) -> Result<(), String> {
             .background_color(Color(0, 0, 0, 0))
             .build()
             .map_err(|e| format!("Failed to create main window: {}", e))?;
-        
-        window.show().map_err(|e| format!("Failed to show main window: {}", e))?;
-        window.set_focus().map_err(|e| format!("Failed to focus main window: {}", e))?;
+
+        window
+            .show()
+            .map_err(|e| format!("Failed to show main window: {}", e))?;
+        window
+            .set_focus()
+            .map_err(|e| format!("Failed to focus main window: {}", e))?;
         Ok(())
     }
 }
-
 
 fn main() {
     // Проверяем, запущены ли мы с deep link аргументом
@@ -866,7 +978,7 @@ fn main() {
         }
         // Не выходим - пусть single-instance попробует передать через IPC тоже
     }
-    
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
@@ -891,13 +1003,15 @@ fn main() {
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             let app_handle = app.handle();
-            
+
             // Инициализируем логирование в файл (безопасно, не падаем если не получилось)
             let _ = logging::init_logging(&app_handle);
             logging::log_message("Winky application started");
-            
-            let config_state =
-                Arc::new(tauri::async_runtime::block_on(ConfigState::initialize(&app_handle))?);
+            update::start_update_poll(app_handle.clone());
+
+            let config_state = Arc::new(tauri::async_runtime::block_on(ConfigState::initialize(
+                &app_handle,
+            ))?);
             let initial_config = tauri::async_runtime::block_on(config_state.get());
 
             let hotkeys = Arc::new(HotkeyState::new());
@@ -913,13 +1027,13 @@ fn main() {
 
             setup_deep_link_listener(&app_handle, auth_queue.clone());
             tray::setup(&app_handle)?;
-            
+
             // Проверяем файл deep link при старте
             deep_link_file::check_deep_link_file_on_startup(&app_handle, &auth_queue);
-            
+
             // Запускаем polling для чтения deep link из файла (обход UIPI при запуске от админа)
             deep_link_file::start_deep_link_file_polling(app_handle.clone(), auth_queue.clone());
-            
+
             // Запускаем OAuth HTTP сервер при работе от администратора
             // Это нужно потому что deep link не работает из-за UIPI
             if oauth::is_running_as_admin() {
@@ -932,19 +1046,24 @@ fn main() {
                         app_for_oauth,
                         queue_for_oauth,
                         state_for_oauth,
-                    ).await {
-                        logging::log_message(&format!("[Main] Failed to start OAuth server: {}", e));
+                    )
+                    .await
+                    {
+                        logging::log_message(&format!(
+                            "[Main] Failed to start OAuth server: {}",
+                            e
+                        ));
                     }
                 });
             }
-            
+
             // Синхронизируем автозапуск с настройками при инициализации
             if let Err(e) = update_autostart(&app_handle, initial_config.launch_on_system_startup) {
                 eprintln!("Failed to sync autostart on init: {}", e);
             }
-            
+
             handle_config_effects(&app_handle, &initial_config, hotkeys, fast_whisper);
-            
+
             // Обрабатываем закрытие главного окна - скрываем его вместо закрытия приложения
             if let Some(main_window) = app.get_webview_window("main") {
                 let app_handle_clone = app_handle.clone();
@@ -952,13 +1071,13 @@ fn main() {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         // Скрываем окно вместо закрытия, чтобы приложение продолжало работать в фоне
                         api.prevent_close();
-                        let _ = app_handle_clone.get_webview_window("main").and_then(|w| {
-                            w.hide().ok()
-                        });
+                        let _ = app_handle_clone
+                            .get_webview_window("main")
+                            .and_then(|w| w.hide().ok());
                     }
                 });
             }
-            
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -982,9 +1101,14 @@ fn main() {
             resources_sound_data,
             resources_play_sound,
             auth_consume_pending,
+            auth_get_methods,
             auth_start_oauth,
             auth_is_admin,
+            app_log_path,
             get_log_file_path,
+            open_app_logs_folder,
+            log_frontend,
+            update::check_app_update,
             open_file_path,
             local_speech_get_status,
             local_speech_check_health,
@@ -1036,7 +1160,10 @@ fn setup_deep_link_listener(app: &tauri::AppHandle, queue: Arc<AuthQueue>) {
     });
 }
 
-fn update_autostart(app: &tauri::AppHandle, enabled: bool) -> Result<(), Box<dyn std::error::Error>> {
+fn update_autostart(
+    app: &tauri::AppHandle,
+    enabled: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let autostart_manager = app.autolaunch();
     if enabled {
         autostart_manager.enable()?;
@@ -1080,9 +1207,5 @@ fn handle_config_effects(
 }
 
 pub(crate) fn dispatch_deep_link(app: &tauri::AppHandle, queue: Arc<AuthQueue>, url: String) {
-    tauri::async_runtime::spawn(auth::handle_deep_link(
-        app.clone(),
-        queue,
-        url,
-    ));
+    tauri::async_runtime::spawn(auth::handle_deep_link(app.clone(), queue, url));
 }

@@ -1,4 +1,5 @@
 ﻿import React, {ChangeEvent, useEffect, useRef, useState} from 'react';
+import FolderOpenRoundedIcon from '@mui/icons-material/FolderOpenRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import {Box, Button, Checkbox, FormControlLabel, MenuItem, Slider, TextField, Typography} from '@mui/material';
 import {alpha} from '@mui/material/styles';
@@ -16,6 +17,7 @@ import type {BackendDomain} from '@shared/types';
 import ModelConfigForm, {ModelConfigFormData} from '../components/ModelConfigForm';
 import HotkeyInput from '../components/HotkeyInput';
 import BackendDomainSelect from '../components/BackendDomainSelect';
+import {configBridge} from '../services/winkyBridge';
 
 const DEFAULT_MIC_HOTKEY = 'Alt+Q';
 
@@ -451,6 +453,15 @@ const SettingsPage: React.FC = () => {
         }
     };
 
+    const handleOpenLogsFolder = async () => {
+        try {
+            await configBridge.openLogsFolder();
+        } catch (error) {
+            console.error('[SettingsPage] Failed to open logs folder', error);
+            showToast('Failed to open logs folder.', 'error');
+        }
+    };
+
     const handleMicrophoneChange = async (event: ChangeEvent<HTMLInputElement>) => {
         const nextValue = event.target.value;
         try {
@@ -513,6 +524,21 @@ const SettingsPage: React.FC = () => {
                     value={backendDomain}
                     onChange={(nextValue) => void handleBackendDomainChange(nextValue)}
                 />
+
+                <div className={'fc gap-2'}>
+                    <Button
+                        type="button"
+                        variant="outlined"
+                        startIcon={<FolderOpenRoundedIcon/>}
+                        onClick={() => void handleOpenLogsFolder()}
+                        sx={{alignSelf: 'flex-start'}}
+                    >
+                        Open logs folder
+                    </Button>
+                    <Typography sx={{mt: -1}} variant="caption" color="text.secondary">
+                        Logs include Rust, updater, OAuth and frontend console messages.
+                    </Typography>
+                </div>
 
                 <div className={'fc gap-2'}>
                     <FormControlLabel

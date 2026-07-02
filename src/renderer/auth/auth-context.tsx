@@ -491,7 +491,12 @@ export function AuthProvider({children}: AuthProviderProps) {
         }
     }, [startOAuthPolling]);
 
-    const getAuthMethods = useCallback(async () => authClient.getAuthMethods(), []);
+    const getAuthMethods = useCallback(async () => {
+        if (appAuthBridge?.getAuthMethods) {
+            return appAuthBridge.getAuthMethods();
+        }
+        return authClient.getAuthMethods();
+    }, []);
 
     const signOut = useCallback(() => {
         authClient.clearTokens();

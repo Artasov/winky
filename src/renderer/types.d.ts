@@ -5,6 +5,7 @@ import type {
     ActionHistoryEntry,
     AppConfig,
     AuthDeepLinkPayload,
+    AuthMethodsResponse,
     AuthProvider,
     AuthTokens,
     FastWhisperStatus,
@@ -24,6 +25,10 @@ declare global {
 
         path(): Promise<string>;
 
+        getLogFilePath(): Promise<string>;
+
+        openLogsFolder(): Promise<void>;
+
         subscribe(callback: (config: AppConfig) => void): () => void;
     }
 
@@ -33,6 +38,8 @@ declare global {
 
     interface WinkyAuthAPI {
         startOAuth(provider: AuthProvider): Promise<void>;
+
+        getAuthMethods(): Promise<AuthMethodsResponse>;
 
         onOAuthPayload(cb: (payload: AuthDeepLinkPayload) => void): () => void;
 

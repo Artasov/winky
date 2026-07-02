@@ -8,7 +8,8 @@ export const configBridge = {
     setAuth: (tokens: AppConfig['auth']): Promise<AppConfig> => invoke('config_set_auth', {tokens}),
     reset: (): Promise<AppConfig> => invoke('config_reset'),
     path: (): Promise<string> => invoke('config_path'),
-    getLogFilePath: (): Promise<string> => invoke('get_log_file_path'),
+    getLogFilePath: (): Promise<string> => invoke('app_log_path'),
+    openLogsFolder: (): Promise<void> => invoke('open_app_logs_folder'),
     subscribe: (callback: (config: AppConfig) => void): (() => void) => {
         let stopped = false;
         const unlistenPromise = listen<AppConfig>('config:updated', (event) => {

@@ -1,7 +1,21 @@
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
-use crate::constants::{BACKEND_DOMAIN_RU, DEFAULT_BACKEND_DOMAIN};
+use crate::constants::{BACKEND_DOMAIN_RU, DEFAULT_BACKEND_DOMAIN, OAUTH_APP_NAME};
 use crate::oauth_server;
+
+const SUPPORTED_OAUTH_PROVIDERS: &[&str] = &["google", "github", "discord", "yandex"];
+const AUTH_METHODS_PATH: &str = "/api/v1/auth/methods/";
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AuthMethods {
+    pub country_code: String,
+    pub country_known: bool,
+    pub allowed_oauth_providers: Vec<String>,
+    pub email_password_allowed: bool,
+    #[serde(default)]
+    pub allowed_email_domains: Vec<String>,
+}
 
 fn normalize_base(input: Option<String>) -> Option<String> {
     let raw = input?.trim().to_string();
@@ -17,7 +31,9 @@ fn normalize_base(input: Option<String>) -> Option<String> {
 }
 
 fn env(key: &str) -> Option<String> {
-    std::env::var(key).ok().filter(|value| !value.trim().is_empty())
+    std::env::var(key)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
 }
 
 fn resolve_site_base_by_domain(backend_domain: Option<&str>) -> String {
@@ -29,6 +45,83 @@ fn resolve_site_base_by_domain(backend_domain: Option<&str>) -> String {
     format!("https://{resolved_domain}")
 }
 
+fn resolve_api_base_by_domain(backend_domain: Option<&str>) -> String {
+    let resolved_domain = if backend_domain == Some(BACKEND_DOMAIN_RU) {
+        BACKEND_DOMAIN_RU
+    } else {
+        DEFAULT_BACKEND_DOMAIN
+    };
+    format!("https://{resolved_domain}/api/v1")
+}
+
+fn resolve_auth_api_base(backend_domain: Option<&str>) -> String {
+    normalize_base(env("WINKY_AUTH_API_BASE_URL"))
+        .or_else(|| normalize_base(env("WINKY_API_BASE_URL")))
+        .or_else(|| normalize_base(env("API_BASE_URL")))
+        .unwrap_or_else(|| resolve_api_base_by_domain(backend_domain))
+}
+
+fn auth_methods_url(backend_domain: Option<&str>) -> Result<String> {
+    let mut url = url::Url::parse(&resolve_auth_api_base(backend_domain))?;
+    url.set_path(AUTH_METHODS_PATH);
+    url.set_query(None);
+    url.set_fragment(None);
+    Ok(url.to_string())
+}
+
+pub fn is_supported_provider(provider: &str) -> bool {
+    let normalized = provider.trim().to_lowercase();
+    SUPPORTED_OAUTH_PROVIDERS.contains(&normalized.as_str())
+}
+
+pub async fn load_auth_methods(backend_domain: Option<&str>) -> Result<AuthMethods> {
+    let url = auth_methods_url(backend_domain)?;
+    log::info!(
+        target: "auth",
+        "Loading auth methods: url={} backend_domain={:?}",
+        url,
+        backend_domain
+    );
+    let response = reqwest::Client::new()
+        .get(&url)
+        .header(reqwest::header::ACCEPT, "application/json")
+        .send()
+        .await?;
+    let status = response.status();
+    log::info!(target: "auth", "Auth methods response status: {status}");
+    if !status.is_success() {
+        return Err(anyhow::anyhow!(
+            "Failed to load auth methods: HTTP {}",
+            status.as_u16()
+        ));
+    }
+    let mut methods = response.json::<AuthMethods>().await?;
+    methods.allowed_oauth_providers = methods
+        .allowed_oauth_providers
+        .into_iter()
+        .map(|provider| provider.trim().to_lowercase())
+        .filter(|provider| is_supported_provider(provider))
+        .collect();
+    log::info!(
+        target: "auth",
+        "Auth methods loaded: country={} known={} providers={:?} email_allowed={} email_domains={}",
+        methods.country_code,
+        methods.country_known,
+        methods.allowed_oauth_providers,
+        methods.email_password_allowed,
+        methods.allowed_email_domains.len()
+    );
+    Ok(methods)
+}
+
+pub fn provider_is_allowed(methods: &AuthMethods, provider: &str) -> bool {
+    let normalized = provider.trim().to_lowercase();
+    methods
+        .allowed_oauth_providers
+        .iter()
+        .any(|allowed| allowed == &normalized)
+}
+
 /// Проверяет, запущено ли приложение с правами администратора
 #[cfg(target_os = "windows")]
 pub fn is_running_as_admin() -> bool {
@@ -37,13 +130,13 @@ pub fn is_running_as_admin() -> bool {
     use winapi::um::processthreadsapi::{GetCurrentProcess, OpenProcessToken};
     use winapi::um::securitybaseapi::GetTokenInformation;
     use winapi::um::winnt::{TokenElevation, HANDLE, TOKEN_ELEVATION, TOKEN_QUERY};
-    
+
     unsafe {
         let mut token: HANDLE = std::ptr::null_mut();
         if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 {
             return false;
         }
-        
+
         let mut elevation: TOKEN_ELEVATION = mem::zeroed();
         let mut size: u32 = 0;
         let result = GetTokenInformation(
@@ -53,9 +146,9 @@ pub fn is_running_as_admin() -> bool {
             mem::size_of::<TOKEN_ELEVATION>() as u32,
             &mut size,
         );
-        
+
         CloseHandle(token);
-        
+
         result != 0 && elevation.TokenIsElevated != 0
     }
 }
@@ -73,26 +166,29 @@ pub fn build_oauth_start_url(provider: &str, backend_domain: Option<&str>) -> Re
     if let Some(override_url) = env(&key) {
         return Ok(override_url);
     }
-    
+
     let base = normalize_base(env("OAUTH_START_BASE_URL"))
         .or_else(|| normalize_base(env("OAUTH_SITE_URL")))
         .or_else(|| normalize_base(env("OAUTH_BASE_URL")))
         .or_else(|| normalize_base(env("APP_BASE_URL")))
         .unwrap_or_else(|| resolve_site_base_by_domain(backend_domain));
-    
+
     let mut url = url::Url::parse(&base)?;
     url.set_path(&format!("/auth/oauth/{}/start", provider_lower));
-    
+
     // Если запущено от администратора, используем HTTP callback
     // потому что deep link не работает из-за UIPI
     if is_running_as_admin() {
         let callback_url = oauth_server::get_callback_url();
         let encoded_callback = urlencoding::encode(&callback_url);
-        url.set_query(Some(&format!("app_auth=winky&redirect_uri={}", encoded_callback)));
-        crate::logging::log_message(&format!("[OAuth] Running as admin, using HTTP callback: {}", callback_url));
+        url.set_query(Some(&format!(
+            "app_auth={}&redirect_uri={}",
+            OAUTH_APP_NAME, encoded_callback
+        )));
+        log::info!(target: "auth", "Running as admin, using HTTP callback: {}", callback_url);
     } else {
-        url.set_query(Some("app_auth=winky"));
+        url.set_query(Some(&format!("app_auth={OAUTH_APP_NAME}")));
     }
-    
+
     Ok(url.to_string())
 }

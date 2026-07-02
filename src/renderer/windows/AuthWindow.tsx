@@ -12,10 +12,6 @@ import {groupsBridge} from '../services/winkyBridge';
 import BackendDomainSelect from '../components/BackendDomainSelect';
 
 const OAUTH_PROVIDERS: AuthProvider[] = ['google', 'github', 'discord', 'yandex'];
-const DEFAULT_OAUTH_PROVIDERS: AuthProvider[] = ['google', 'github', 'discord'];
-
-const getInitialOAuthProviders = (domain: BackendDomain): AuthProvider[] =>
-    domain === 'xlartas.ru' ? ['yandex'] : DEFAULT_OAUTH_PROVIDERS;
 
 const renderOAuthIcon = (provider: AuthProvider) => {
     if (provider === 'google') {
@@ -68,15 +64,13 @@ const AuthWindow: React.FC = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [backendDomain, setBackendDomainState] = useState<BackendDomain>(getBackendDomain());
-    const [allowedOAuthProviders, setAllowedOAuthProviders] = useState<AuthProvider[]>(
-        () => getInitialOAuthProviders(getBackendDomain())
-    );
+    const [allowedOAuthProviders, setAllowedOAuthProviders] = useState<AuthProvider[]>([]);
     const [authMethodsLoading, setAuthMethodsLoading] = useState(true);
 
     useEffect(() => {
         if (config?.backendDomain) {
             setBackendDomainState(config.backendDomain);
-            setAllowedOAuthProviders(getInitialOAuthProviders(config.backendDomain));
+            setAllowedOAuthProviders([]);
         }
     }, [config?.backendDomain]);
 
@@ -91,7 +85,7 @@ const AuthWindow: React.FC = () => {
             })
             .catch((error) => {
                 console.error('[AuthWindow] Failed to load auth methods', error);
-                if (!cancelled) setAllowedOAuthProviders(getInitialOAuthProviders(backendDomain));
+                if (!cancelled) setAllowedOAuthProviders([]);
             })
             .finally(() => {
                 if (!cancelled) setAuthMethodsLoading(false);

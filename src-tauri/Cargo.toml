@@ -34,6 +34,9 @@ zip = "0.6"
 flate2 = "1.0"
 futures-util = "0.3"
 image = "0.25"
+hex = "0.4"
+log = "0.4"
+sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

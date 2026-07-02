@@ -27,6 +27,11 @@ pub const CONFIG_FILE_NAME: &str = "config.json";
 pub const DEFAULT_SPEECH_MODEL: &str = "gpt-4o-mini-transcribe";
 pub const DEFAULT_LLM_MODEL: &str = "o4-mini";
 pub const DEFAULT_MIC_ANCHOR: &str = "bottom-right";
+pub const OAUTH_APP_NAME: &str = "winky";
+pub const UPDATE_MANIFEST_URL: &str =
+    "https://s3.twcstorage.ru/324718a4-2cc5dd7a-917b-4e82-87c5-b9d5f8de16ba/winky/latest.json";
+pub const UPDATE_INITIAL_CHECK_DELAY_SECS: u64 = 15;
+pub const UPDATE_CHECK_INTERVAL_SECS: u64 = 60 * 60;
 
 #[allow(dead_code)]
 pub const MIC_WINDOW_WIDTH: f64 = 520.0;

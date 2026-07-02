@@ -26,10 +26,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 24
         uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install Linux dependencies
@@ -60,7 +60,7 @@ jobs:
       matrix:
         os:
           - windows-latest
-          - macos-latest
+          - macos-15
           - ubuntu-latest
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
@@ -74,10 +74,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 24
         uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install Linux dependencies
@@ -102,7 +102,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cleanup macOS disk images
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-15'
         shell: bash
         run: |
           set -euo pipefail
@@ -154,7 +154,7 @@ jobs:
               TARGET="windows"
               FIND_EXPR=(-type f \( -name "*.exe" -o -name "*.msi" \))
               ;;
-            macos-latest)
+            macos-15)
               TARGET="macos"
               FIND_EXPR=(-type f -name "*.dmg")
               ;;
@@ -234,7 +234,7 @@ jobs:
 
       - name: Upload release link manifest
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-links-${{ matrix.os }}
           path: release-links/*
@@ -255,7 +255,7 @@ jobs:
 
     steps:
       - name: Download release link manifests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: release-links-*
           path: release-links

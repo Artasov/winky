@@ -10,7 +10,7 @@ import {
 } from 'react';
 import {AuthClient, AuthError} from '../services/authClient';
 import {authBridge as appAuthBridge, configBridge, groupsBridge} from '../services/winkyBridge';
-import type {AuthDeepLinkPayload, AuthMethodsResponse, AuthProvider as OAuthProviderType, User} from '@shared/types';
+import type {AuthDeepLinkPayload, AuthMethodsResponse, AuthProvider as OAuthProviderType, AuthTokens, User} from '@shared/types';
 import {useWindowIdentity} from '../app/hooks/useWindowIdentity';
 import {onUnauthorized} from '@shared/api';
 
@@ -88,6 +88,70 @@ function normalizeAuthError(error: unknown): AuthError {
     return new AuthError(String(error ?? 'Unknown error'));
 }
 
+const shouldClearAuthTokens = (error: AuthError): boolean =>
+    error.status === 400 || error.status === 401 || error.status === 403;
+
+const readNativeConfigTokens = async (): Promise<AuthTokens | null> => {
+    try {
+        const config = await configBridge.get();
+        const access = config.auth.access || config.auth.accessToken || '';
+        if (!access) {
+            return null;
+        }
+        return {
+            access,
+            refresh: config.auth.refresh || config.auth.refreshToken || null,
+        };
+    } catch (error) {
+        console.warn('[auth] Failed to read auth tokens from config', error);
+        return null;
+    }
+};
+
+const syncAuthTokensToConfig = async (): Promise<void> => {
+    const tokens = authClient.getTokens();
+    if (!tokens?.access) {
+        return;
+    }
+    try {
+        await configBridge.setAuth({
+            access: tokens.access,
+            refresh: tokens.refresh ?? null,
+            accessToken: tokens.access,
+            refreshToken: tokens.refresh ?? '',
+        });
+    } catch (error) {
+        console.warn('[auth] Failed to sync auth tokens to config', error);
+    }
+};
+
+const clearPersistedAuthTokens = async (): Promise<void> => {
+    authClient.clearTokens();
+    try {
+        await configBridge.setAuth({
+            access: '',
+            refresh: null,
+            accessToken: '',
+            refreshToken: '',
+        });
+    } catch (error) {
+        console.warn('[auth] Failed to clear auth tokens in config', error);
+    }
+};
+
+const loadAuthTokens = async (): Promise<AuthTokens | null> => {
+    const tokens = authClient.getTokens();
+    if (tokens?.access) {
+        return tokens;
+    }
+    const configTokens = await readNativeConfigTokens();
+    if (configTokens?.access) {
+        authClient.storeTokens(configTokens);
+        return configTokens;
+    }
+    return null;
+};
+
 export function AuthProvider({children}: AuthProviderProps) {
     const windowIdentity = useWindowIdentity();
     const isPrimaryWindow = !windowIdentity.isAuxWindow;
@@ -148,7 +212,7 @@ export function AuthProvider({children}: AuthProviderProps) {
 
         const bootstrap = async () => {
             try {
-                const tokens = authClient.getTokens();
+                const tokens = await loadAuthTokens();
                 if (!tokens?.access) {
                     setStatus('unauthenticated');
                     setUser(null);
@@ -177,6 +241,7 @@ export function AuthProvider({children}: AuthProviderProps) {
                 setStatus('checking');
                 const profile = await authClient.getCurrentUser(true);
                 if (cancelled) return;
+                await syncAuthTokensToConfig();
                 setUser(profile);
                 setStatus('authenticated');
                 setError(null);
@@ -188,7 +253,9 @@ export function AuthProvider({children}: AuthProviderProps) {
                     error: normalized.message,
                     status: normalized.status
                 });
-                authClient.clearTokens();
+                if (shouldClearAuthTokens(normalized)) {
+                    await clearPersistedAuthTokens();
+                }
                 setUser(null);
                 setStatus('unauthenticated');
                 setError(null);
@@ -261,6 +328,7 @@ export function AuthProvider({children}: AuthProviderProps) {
                         // Теперь получаем профиль пользователя
                         const profile = await authClient.getCurrentUser(true);
                         if (cancelled) return;
+                        await syncAuthTokensToConfig();
 
                         console.log('[auth] User profile fetched successfully', {userId: profile.id, email: profile.email});
 
@@ -282,11 +350,13 @@ export function AuthProvider({children}: AuthProviderProps) {
                         // когда увидит что isAuthenticated === true и токены есть в config
                         console.log('[auth] User authenticated, waiting for App.tsx to handle navigation...');
                     })
-                    .catch((err: unknown) => {
+                    .catch(async (err: unknown) => {
                         if (cancelled) return;
                         const normalized = normalizeAuthError(err);
                         console.error('[auth] OAuth flow failed', {error: normalized.message, step: 'save_tokens_or_fetch_user'});
-                        authClient.clearTokens();
+                        if (shouldClearAuthTokens(normalized)) {
+                            await clearPersistedAuthTokens();
+                        }
                         setUser(null);
                         setStatus('unauthenticated');
                         setError(normalized.message);
@@ -408,6 +478,7 @@ export function AuthProvider({children}: AuthProviderProps) {
                     setStatus('checking');
                     try {
                         const profile = await authClient.getCurrentUser(true);
+                        await syncAuthTokensToConfig();
                         // Загружаем группы с экшенами
                         try {
                             await groupsBridge.fetch();
@@ -423,7 +494,9 @@ export function AuthProvider({children}: AuthProviderProps) {
                     } catch (err) {
                         const normalized = normalizeAuthError(err);
                         console.error('[auth] OAuth polling: failed to fetch user', normalized.message);
-                        authClient.clearTokens();
+                        if (shouldClearAuthTokens(normalized)) {
+                            await clearPersistedAuthTokens();
+                        }
                         setUser(null);
                         setStatus('unauthenticated');
                         setError(normalized.message);
@@ -543,7 +616,8 @@ export function AuthProvider({children}: AuthProviderProps) {
 
     const reloadUser = useCallback(async () => {
         console.log('[auth] reloadUser called');
-        if (!authClient.hasTokens()) {
+        const tokens = await loadAuthTokens();
+        if (!tokens?.access) {
             console.log('[auth] No tokens found in authClient, clearing user');
             authClient.clearTokens();
             setUser(null);
@@ -557,6 +631,7 @@ export function AuthProvider({children}: AuthProviderProps) {
         setStatus('checking');
         try {
             const profile = await authClient.getCurrentUser(true);
+            await syncAuthTokensToConfig();
             console.log('[auth] User profile reloaded successfully', {userId: profile.id, email: profile.email});
             setUser(profile);
             setStatus('authenticated');
@@ -567,7 +642,9 @@ export function AuthProvider({children}: AuthProviderProps) {
         } catch (err) {
             const normalized = normalizeAuthError(err);
             console.warn('[auth] Failed to reload user', {error: normalized.message, status: normalized.status});
-            authClient.clearTokens();
+            if (shouldClearAuthTokens(normalized)) {
+                await clearPersistedAuthTokens();
+            }
             setUser(null);
             setStatus('unauthenticated');
             setError(normalized.message);

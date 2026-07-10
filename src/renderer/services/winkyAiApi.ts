@@ -9,8 +9,9 @@ import type {
     WinkyChatBranchResponse,
     MessageChildrenResponse
 } from '@shared/types';
+import {uploadMediaFile} from './media/MediaApi';
 
-const getWinkyAiTranscribeEndpoint = (): string => `${getApiBaseUrl()}/ai/transcribe/`;
+const getWinkyAiTranscribeEndpoint = (): string => `${getApiBaseUrl()}/ai/transcribe/media/`;
 const getWinkyAiLlmWsEndpoint = (): string => `${getWsBaseUrl()}/ws/ai/llm/`;
 const getWinkyAiChatsEndpoint = (): string => `${getApiBaseUrl()}/ai/chats/`;
 const getWinkyAiMessagesEndpoint = (): string => `${getApiBaseUrl()}/ai/messages/`;
@@ -40,7 +41,7 @@ const logError = (method: string, url: string, error: any) => {
 export interface WinkyTranscribeResult {
     id: string;
     text: string;
-    model_level: 'transcribe';
+    model_level: 'low' | 'high';
     credits: string;
     language?: string;
     created_at: string;
@@ -79,20 +80,24 @@ export const winkyTranscribe = async (
 ): Promise<WinkyTranscribeResult> => {
     const mimeType = options?.mimeType || 'audio/webm';
     const extension = mimeType.includes('wav') ? 'wav' : mimeType.includes('mp3') ? 'mp3' : 'webm';
-    const blob = new Blob([audio], {type: mimeType});
-    const formData = new FormData();
-    formData.append('file', blob, `audio.${extension}`);
-    if (options?.language) formData.append('language', options.language);
+    const file = new File([audio], `audio.${extension}`, {type: mimeType});
     const endpoint = getWinkyAiTranscribeEndpoint();
 
-    logRequest('POST', endpoint, {mimeType, language: options?.language});
     try {
+        const media = await uploadMediaFile(file, accessToken, {
+            namespace: 'ai/transcribe',
+            visibility: 'private'
+        });
+        const payload = {
+            media_file_id: media.id,
+            language: options?.language
+        };
+        logRequest('POST', endpoint, payload);
         const response = await axios.post<WinkyTranscribeResult>(
             endpoint,
-            formData,
+            payload,
             {
                 headers: {
-                    'Content-Type': 'multipart/form-data',
                     Authorization: `Bearer ${accessToken}`
                 },
                 timeout: 120_000

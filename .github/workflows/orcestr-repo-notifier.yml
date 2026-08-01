@@ -33,7 +33,7 @@ jobs:
           custom-task: ${{ github.event.inputs.task }}
           mode: product
           language: en
-          model: gpt-5.5
+          model: gpt-5.6-luna
           effort: medium
           custom-prompt: |
             Write in English.

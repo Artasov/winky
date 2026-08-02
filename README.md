@@ -5,16 +5,16 @@
   <h3>⭐ <strong>Star this repository if it helped you!</strong> ⭐</h3>
 </div>
 <div align="center">
-  <a href="https://github.com/placeholder/winky/releases/latest">
+  <a href="https://github.com/Artasov/winky/releases/latest">
     <img src="https://img.shields.io/badge/Download-Latest%20Release-blue?style=for-the-badge" alt="Download Latest Release">
   </a>
 </div>
 
 <div align="center">
-  <a href="https://github.com/placeholder/winky/blob/main/README.md">
+  <a href="https://github.com/Artasov/winky/blob/main/README.md">
     <img src="https://img.shields.io/badge/English-blue?style=for-the-badge" alt="English">
   </a>
-  <a href="https://github.com/placeholder/winky/blob/main/README_RU.md">
+  <a href="https://github.com/Artasov/winky/blob/main/README_RU.md">
     <img src="https://img.shields.io/badge/Русский-red?style=for-the-badge" alt="Русский">
   </a>
 </div>
@@ -42,18 +42,18 @@ This repository contains the source code for Winky, a cross-platform desktop app
 
 ## 🚀 Key Features
 
-- **FREE USAGE** - no subscription required, no limits for local processing
+- **Local processing without a Winky subscription** - cloud providers can charge for their APIs
 - **Voice Recognition** - advanced speech-to-text conversion with multiple AI models
 - **LLM Processing** - intelligent AI-powered actions and responses
 - **Floating Microphone** - convenient floating microphone overlay for quick access
 - **Local Speech Recognition** - use local AI models for faster processing and privacy
 - **Quick Actions** - customizable hotkeys and actions for productivity
-- **Privacy & Security** - all data processed locally, audio is not stored
+- **Privacy controls** - local modes keep processing on the device; cloud modes send the required input to the configured provider
 - **Cross-platform** - works on Windows, macOS and Linux
 - **Simple interface** - intuitive and easy to use
 - **Customizable** - configure transcription models, LLM providers, and actions
 
-### If you have any issues using the app, please open an [issue](https://github.com/placeholder/winky/issues)
+### If you have any issues using the app, please open an [issue](https://github.com/Artasov/winky/issues)
 
 ## 🎯 How to Use
 
@@ -101,6 +101,11 @@ The examples below are implemented and tested on `Windows 11`. Steps may differ 
 2. #### Getting an answer from the LLM
 
 ### Each stage can be run locally.
+
+Cloud transcription and LLM modes are not local: they send audio, text or both
+to the provider selected in settings. Provider retention, billing and privacy
+terms apply. Choose local speech recognition and a local LLM when input must
+remain on the device.
 
 ### Local Speech Recognition
 
@@ -156,19 +161,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 #### Requirements
 
-- Node.js 20+ (LTS)
-- Rust 1.80+ (for building Tauri)
-- npm or yarn
+- Node.js LTS and npm
+- stable Rust
+- [platform prerequisites for Tauri 2](https://v2.tauri.app/start/prerequisites/)
 
 #### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/placeholder/winky.git
+git clone https://github.com/Artasov/winky.git
 cd winky
 
 # Install dependencies
-npm install
+npm ci
 
 # Build the project
 npm run build
@@ -208,35 +213,14 @@ src-tauri/
 
 #### Building for Different Platforms
 
-##### Windows
-
 ```bash
 npm run build
 ```
 
-Creates:
-- Portable executable in `src-tauri/target/release/`
-
-##### macOS
-
-```bash
-npm run build
-```
-
-Creates:
-- DMG archive for Intel and Apple Silicon
-
-**Note**: For macOS builds, you may need to:
-1. Install Xcode Command Line Tools: `xcode-select --install`
-
-##### Linux
-
-```bash
-npm run build
-```
-
-Creates:
-- Portable directory in `src-tauri/target/release/`
+Tauri builds for the current host platform and writes installers/bundles under
+`src-tauri/target/release/bundle`. Cross-platform releases require a runner for
+each target operating system; macOS additionally requires Xcode Command Line
+Tools.
 
 #### Technologies
 

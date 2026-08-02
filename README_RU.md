@@ -5,16 +5,16 @@
   <h3>⭐ <strong>Поставьте звезду этому репозиторию, если он вам помог!</strong> ⭐</h3>
 </div>
 <div align="center">
-  <a href="https://github.com/placeholder/winky/releases/latest">
+  <a href="https://github.com/Artasov/winky/releases/latest">
     <img src="https://img.shields.io/badge/Скачать-Последний%20Релиз-blue?style=for-the-badge" alt="Скачать Последний Релиз">
   </a>
 </div>
 
 <div align="center">
-  <a href="https://github.com/placeholder/winky/blob/main/README.md">
+  <a href="https://github.com/Artasov/winky/blob/main/README.md">
     <img src="https://img.shields.io/badge/English-blue?style=for-the-badge" alt="English">
   </a>
-  <a href="https://github.com/placeholder/winky/blob/main/README_RU.md">
+  <a href="https://github.com/Artasov/winky/blob/main/README_RU.md">
     <img src="https://img.shields.io/badge/Русский-red?style=for-the-badge" alt="Русский">
   </a>
 </div>
@@ -48,18 +48,18 @@ React + Vite**. Приложение предоставляет современ
 
 ## 🚀 Основные возможности
 
-- **БЕСПЛАТНОЕ ИСПОЛЬЗОВАНИЕ** - без подписки, без ограничений для локальной обработки
+- **Локальная обработка без подписки Winky** - облачные провайдеры могут взимать плату за API
 - **Распознавание голоса** - продвинутое преобразование речи в текст с несколькими моделями ИИ
 - **Обработка LLM** - интеллектуальные действия и ответы на базе ИИ
 - **Плавающий микрофон** - удобный оверлей микрофона для быстрого доступа
 - **Локальное распознавание речи** - использование локальных моделей ИИ для быстрой обработки и приватности
 - **Быстрые действия** - настраиваемые горячие клавиши и действия для продуктивности
-- **Приватность и безопасность** - все данные обрабатываются локально, аудио не сохраняется
+- **Управление приватностью** - локальные режимы обрабатывают данные на устройстве, а облачные отправляют необходимые данные выбранному провайдеру
 - **Кроссплатформенность** - работает на Windows, macOS и Linux
 - **Простой интерфейс** - интуитивный и простой в использовании
 - **Настраиваемость** - настройка моделей транскрипции, провайдеров LLM и действий
 
-### Если у вас возникли проблемы при использовании приложения, пожалуйста, создайте [issue](https://github.com/placeholder/winky/issues)
+### Если у вас возникли проблемы при использовании приложения, пожалуйста, создайте [issue](https://github.com/Artasov/winky/issues)
 
 ## 🎯 Как использовать
 
@@ -107,6 +107,12 @@ React + Vite**. Приложение предоставляет современ
 2. #### Получение ответа от LLM
 
 ### Каждый этап может быть запущен локально.
+
+Облачные режимы транскрипции и LLM не являются локальными: они отправляют
+аудио, текст или оба типа данных провайдеру, выбранному в настройках. Действуют
+условия хранения данных, оплаты и приватности этого провайдера. Если данные
+должны оставаться на устройстве, выберите локальное распознавание речи и
+локальную LLM.
 
 ### Локальное распознавание речи
 
@@ -162,19 +168,19 @@ React + Vite**. Приложение предоставляет современ
 
 #### Требования
 
-- Node.js 20+ (LTS)
-- Rust 1.80+ (для сборки Tauri)
-- npm или yarn
+- Node.js LTS и npm
+- стабильный Rust
+- [системные зависимости Tauri 2](https://v2.tauri.app/start/prerequisites/)
 
 #### Установка
 
 ```bash
 # Клонируйте репозиторий
-git clone https://github.com/placeholder/winky.git
+git clone https://github.com/Artasov/winky.git
 cd winky
 
 # Установите зависимости
-npm install
+npm ci
 
 # Соберите проект
 npm run build
@@ -214,39 +220,14 @@ src-tauri/
 
 #### Сборка для разных платформ
 
-##### Windows
-
 ```bash
 npm run build
 ```
 
-Создаёт:
-
-- Портативный исполняемый файл в `src-tauri/target/release/`
-
-##### macOS
-
-```bash
-npm run build
-```
-
-Создаёт:
-
-- DMG архив для Intel и Apple Silicon
-
-**Примечание**: Для сборки macOS может потребоваться:
-
-1. Установить Xcode Command Line Tools: `xcode-select --install`
-
-##### Linux
-
-```bash
-npm run build
-```
-
-Создаёт:
-
-- Портативную директорию в `src-tauri/target/release/`
+Tauri собирает приложение для текущей host-платформы и сохраняет installers и
+bundles в `src-tauri/target/release/bundle`. Для кроссплатформенного release
+нужен runner каждой целевой операционной системы; для macOS также требуются
+Xcode Command Line Tools.
 
 #### Технологии
 

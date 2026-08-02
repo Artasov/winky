@@ -35,11 +35,11 @@ We welcome feature suggestions! Please:
 
 ```bash
 # Clone your fork
-git clone https://github.com/placeholder/winky.git
+git clone https://github.com/Artasov/winky.git
 cd winky
 
 # Install dependencies
-npm install
+npm ci
 
 # Run in development mode
 npm run dev
@@ -80,7 +80,6 @@ npm run dev
 - `src/renderer/` - React UI components and logic
 - `src/shared/` - Shared types and utilities
 - `src-tauri/src/` - Rust backend (Tauri)
-- `configs/` - Configuration files
 - `scripts/` - Build and utility scripts
 
 ### Key Technologies

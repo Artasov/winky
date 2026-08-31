@@ -360,35 +360,35 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          ordering_checked=false
           for manifest_name in latest-v2.json latest.json; do
-            object_key="winky/${manifest_name}"
             published_manifest="published-${manifest_name}"
-            get_error="$(mktemp)"
-            get_status=0
-
-            aws s3api get-object \
-              --bucket "${S3_BUCKET}" \
-              --key "${object_key}" \
-              --endpoint-url "${S3_ENDPOINT}" \
-              "${published_manifest}" >/dev/null 2>"${get_error}" || get_status=$?
-
-            if [ "${get_status}" -eq 0 ]; then
-              rm -f "${get_error}"
-              node scripts/release-manifest.mjs check-monotonic \
-                "${published_manifest}" manifest.json
-              break
-            fi
-
-            if grep -Eq '(NoSuchKey|\(404\)|HTTP 404|Not Found)' "${get_error}"; then
-              rm -f "${published_manifest}" "${get_error}"
-              continue
-            fi
-
-            echo "GET failed for ${object_key}." >&2
-            cat "${get_error}" >&2
-            rm -f "${published_manifest}" "${get_error}"
-            exit 1
+            latest_url="${S3_ENDPOINT}/${S3_BUCKET}/winky/${manifest_name}"
+            latest_status="$(curl --silent --show-error \
+              --output "${published_manifest}" \
+              --write-out '%{http_code}' \
+              "${latest_url}")"
+            case "${latest_status}" in
+              200)
+                node scripts/release-manifest.mjs check-monotonic \
+                  "${published_manifest}" manifest.json
+                ordering_checked=true
+                break
+                ;;
+              403|404)
+                rm -f "${published_manifest}"
+                ;;
+              *)
+                echo "Failed to read ${manifest_name}: HTTP ${latest_status}."
+                exit 1
+                ;;
+            esac
           done
+
+          if [ "${ordering_checked}" != true ]; then
+            echo 'No readable current manifest is available for ordering validation.' >&2
+            exit 1
+          fi
 
           node scripts/release-manifest.mjs list-artifacts manifest.json >/dev/null
 
@@ -410,7 +410,8 @@ jobs:
               --endpoint-url "${S3_ENDPOINT}" >"${output_file}" 2>"${error_file}"; then
               return 0
             fi
-            if grep -Eq '(\(404\)|HTTP 404|Not Found|NoSuchKey)' "${error_file}"; then
+            # Timeweb can emit this for a missing key; creation still uses If-None-Match.
+            if grep -Eq '(\(404\)|HTTP 404|Not Found|NoSuchKey|NoneType.*not a container or iterable)' "${error_file}"; then
               return 44
             fi
             echo "HEAD failed for ${object_key}." >&2
@@ -771,7 +772,8 @@ jobs:
               --endpoint-url "${S3_ENDPOINT}" >"${output_file}" 2>"${error_file}"; then
               return 0
             fi
-            if grep -Eq '(\(404\)|HTTP 404|Not Found|NoSuchKey)' "${error_file}"; then
+            # Timeweb can emit this for a missing key; creation still uses If-None-Match.
+            if grep -Eq '(\(404\)|HTTP 404|Not Found|NoSuchKey|NoneType.*not a container or iterable)' "${error_file}"; then
               return 44
             fi
             echo "HEAD failed for ${object_key}." >&2

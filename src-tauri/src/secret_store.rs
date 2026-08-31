@@ -386,7 +386,7 @@ mod tests {
     use tokio::fs;
     use uuid::Uuid;
 
-    use crate::types::AppConfig;
+    use crate::types::{ApiKeys, AppConfig, AuthTokens};
 
     use super::{SecretStore, StoredSecrets};
 

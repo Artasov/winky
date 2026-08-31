@@ -14,6 +14,7 @@ class ReleaseManifest {
         const [command, ...values] = args;
         if (command === 'create-payload') return this.createPayload(...values);
         if (command === 'create-envelope') return this.createEnvelope(...values);
+        if (command === 'create-legacy') return this.createLegacy(...values);
         if (command === 'check-monotonic') return this.checkMonotonic(...values);
         if (command === 'extract-envelope') return this.extractEnvelope(...values);
         if (command === 'list-artifacts') return this.listArtifacts(...values);
@@ -66,6 +67,36 @@ class ReleaseManifest {
             signature: signature.toString('base64'),
         };
         fs.writeFileSync(outputPath, `${JSON.stringify(envelope)}\n`, 'utf8');
+    }
+
+    static createLegacy(payloadPath, outputPath) {
+        const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
+        this.parseSemver(payload.version);
+        const source = payload.files?.['windows-x86_64'];
+        if (!source) throw new Error('Signed payload does not contain windows-x86_64.');
+        if (typeof source.file !== 'string' || new URL(source.file).protocol !== 'https:') {
+            throw new Error('Legacy Windows artifact URL must use HTTPS.');
+        }
+        if (typeof source.name !== 'string'
+            || source.name.length === 0
+            || /[\\/:*?"<>|\u0000-\u001f]/.test(source.name)) {
+            throw new Error('Legacy Windows artifact name is invalid.');
+        }
+        if (!/^[a-f0-9]{64}$/.test(source.sha256Hash)) {
+            throw new Error('Legacy Windows artifact sha256 is invalid.');
+        }
+
+        const legacy = {
+            version: payload.version,
+            files: {
+                windows: {
+                    file: source.file,
+                    sha256_hash: source.sha256Hash,
+                    name: source.name,
+                },
+            },
+        };
+        fs.writeFileSync(outputPath, `${JSON.stringify(legacy)}\n`, 'utf8');
     }
 
     static checkMonotonic(existingPath, nextPayloadPath) {

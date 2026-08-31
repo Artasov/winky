@@ -272,35 +272,49 @@ export class AuthService {
     }
 
     async logout(): Promise<boolean> {
-        const refresh = readRefresh(this.tokens);
         const expectedAuthRevision = this.authRevision >= 0 ? this.authRevision : undefined;
         const expectedBackendDomain = this.backendDomain;
-        let cleared = false;
         this.invalidateSession();
-        try {
-            if (refresh) {
-                await axios.post(
-                    `${getApiBaseUrl(expectedBackendDomain)}/auth/logout/`,
-                    {refresh},
-                    {
-                        headers: {'Content-Type': 'application/json'},
-                        timeout: AUTH_REQUEST_TIMEOUT_MS
-                    }
+
+        return this.withRefreshLock(async () => {
+            const snapshot = await this.persistence.read();
+            const persistedTokens = normalizeTokens(snapshot.tokens);
+            const authChanged = expectedAuthRevision !== undefined
+                && snapshot.authRevision !== expectedAuthRevision;
+            const domainChanged = expectedBackendDomain != null
+                && snapshot.backendDomain !== expectedBackendDomain;
+            if (authChanged || domainChanged) {
+                this.setSession(
+                    persistedTokens,
+                    snapshot.backendDomain,
+                    snapshot.storageRevision,
+                    snapshot.authRevision
                 );
+                return false;
             }
-        } catch (error) {
-            const normalized = normalizeAuthError(error);
-            console.warn('[auth] Server logout was unavailable', {
-                status: normalized.status,
-                code: normalized.code
-            });
-        } finally {
-            cleared = await this.withRefreshLock(() => this.clearTokensUnlocked(
-                expectedAuthRevision,
-                expectedBackendDomain
-            ));
-        }
-        return cleared;
+
+            const refresh = readRefresh(persistedTokens);
+            const backendDomain = snapshot.backendDomain ?? expectedBackendDomain;
+            try {
+                if (refresh) {
+                    await axios.post(
+                        `${getApiBaseUrl(backendDomain)}/auth/logout/`,
+                        {refresh},
+                        {
+                            headers: {'Content-Type': 'application/json'},
+                            timeout: AUTH_REQUEST_TIMEOUT_MS
+                        }
+                    );
+                }
+            } catch (error) {
+                const normalized = normalizeAuthError(error);
+                console.warn('[auth] Server logout was unavailable', {
+                    status: normalized.status,
+                    code: normalized.code
+                });
+            }
+            return this.clearTokensUnlocked(snapshot.authRevision, backendDomain);
+        });
     }
 
     async refreshAccessToken(backendDomain?: string | null): Promise<string> {

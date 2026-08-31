@@ -31,7 +31,7 @@ pub const DEFAULT_LLM_MODEL: &str = "gpt-5-mini";
 pub const DEFAULT_MIC_ANCHOR: &str = "bottom-right";
 pub const OAUTH_APP_NAME: &str = "winky";
 pub const UPDATE_MANIFEST_URL: &str =
-    "https://s3.twcstorage.ru/324718a4-2cc5dd7a-917b-4e82-87c5-b9d5f8de16ba/winky/latest.json";
+    "https://s3.twcstorage.ru/324718a4-2cc5dd7a-917b-4e82-87c5-b9d5f8de16ba/winky/latest-v2.json";
 pub const UPDATE_ALLOWED_HOST: &str = "s3.twcstorage.ru";
 pub const UPDATE_ALLOWED_PATH_PREFIX: &str =
     "/324718a4-2cc5dd7a-917b-4e82-87c5-b9d5f8de16ba/winky/";

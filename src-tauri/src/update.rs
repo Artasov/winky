@@ -434,10 +434,12 @@ async fn install_ready_update(app: &AppHandle, confirmed: bool) -> Result<()> {
             return Err(error);
         }
     };
-    if let Err(error) = verify_platform_signature(&installer_path, &expected_signer).await {
-        set_phase(app, UpdatePhase::Ready, Some(error.to_string())).await;
-        emit_update_error(app, error.to_string());
-        return Err(error);
+    if let Some(signer) = expected_signer.as_deref() {
+        if let Err(error) = verify_platform_signature(&installer_path, signer).await {
+            set_phase(app, UpdatePhase::Ready, Some(error.to_string())).await;
+            emit_update_error(app, error.to_string());
+            return Err(error);
+        }
     }
 
     let _ = app.emit(
@@ -447,7 +449,9 @@ async fn install_ready_update(app: &AppHandle, confirmed: bool) -> Result<()> {
             file_name: candidate.file_name.clone(),
         },
     );
-    if let Err(error) = install_update(app, &installer_path, &candidate, &expected_signer).await {
+    if let Err(error) =
+        install_update(app, &installer_path, &candidate, expected_signer.as_deref()).await
+    {
         set_phase(app, UpdatePhase::Ready, Some(error.to_string())).await;
         emit_update_error(app, error.to_string());
         return Err(error);
@@ -678,11 +682,13 @@ fn emit_update_error(app: &AppHandle, message: String) {
     let _ = app.emit(UPDATE_ERROR_EVENT, UpdateErrorPayload { message });
 }
 
-fn embedded_windows_signer_thumbprint() -> Result<String> {
-    let value = option_env!("WINKY_WINDOWS_SIGNER_THUMBPRINT")
+fn embedded_windows_signer_thumbprint() -> Result<Option<String>> {
+    let Some(value) = option_env!("WINKY_WINDOWS_SIGNER_THUMBPRINT")
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| anyhow!("Windows update signer thumbprint is not embedded in this build"))?;
+    else {
+        return Ok(None);
+    };
     let normalized = value.replace(' ', "").to_ascii_uppercase();
     if normalized.len() != 40
         || !normalized
@@ -693,7 +699,7 @@ fn embedded_windows_signer_thumbprint() -> Result<String> {
             "Embedded Windows update signer thumbprint must contain 40 hexadecimal characters"
         ));
     }
-    Ok(normalized)
+    Ok(Some(normalized))
 }
 
 #[cfg(target_os = "windows")]
@@ -746,7 +752,7 @@ async fn install_update(
     app: &AppHandle,
     installer: &Path,
     candidate: &UpdateCandidate,
-    expected_signer: &str,
+    expected_signer: Option<&str>,
 ) -> Result<()> {
     let installer_extension = installer
         .extension()
@@ -793,16 +799,25 @@ start \"\" \"%APP_EXE%\"\r\n\
 del \"%~f0\"\r\n\
 exit /b %INSTALL_EXIT%\r\n"
     );
+    let verification_script = if let Some(expected_signer) = expected_signer {
+        format!(
+            "$installer=$args[0]; $expectedHash=$args[1]; $expectedSigner=$args[2]; $actualHash=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant(); if ($actualHash -ne $expectedHash) {{ Write-Error 'Installer hash changed before launch'; exit 10 }}; $signature=Get-AuthenticodeSignature -LiteralPath $installer; if ($signature.Status -ne 'Valid' -or -not $signature.SignerCertificate) {{ Write-Error 'Installer signature is invalid before launch'; exit 11 }}; $actualSigner=$signature.SignerCertificate.Thumbprint.Replace(' ','').ToUpperInvariant(); if ($actualSigner -ne $expectedSigner) {{ Write-Error 'Installer signer changed before launch'; exit 12 }}\" \"%INSTALLER%\" \"{}\" \"{}",
+            candidate.expected_hash, expected_signer
+        )
+    } else {
+        format!(
+            "$installer=$args[0]; $expectedHash=$args[1]; $actualHash=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant(); if ($actualHash -ne $expectedHash) {{ Write-Error 'Installer hash changed before launch'; exit 10 }}\" \"%INSTALLER%\" \"{}",
+            candidate.expected_hash
+        )
+    };
     let verification_command = format!(
-        "powershell.exe -NoProfile -NonInteractive -Command \"$installer=$args[0]; $expectedHash=$args[1]; $expectedSigner=$args[2]; $actualHash=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant(); if ($actualHash -ne $expectedHash) {{ Write-Error 'Installer hash changed before launch'; exit 10 }}; $signature=Get-AuthenticodeSignature -LiteralPath $installer; if ($signature.Status -ne 'Valid' -or -not $signature.SignerCertificate) {{ Write-Error 'Installer signature is invalid before launch'; exit 11 }}; $actualSigner=$signature.SignerCertificate.Thumbprint.Replace(' ','').ToUpperInvariant(); if ($actualSigner -ne $expectedSigner) {{ Write-Error 'Installer signer changed before launch'; exit 12 }}\" \"%INSTALLER%\" \"{expected_hash}\" \"{expected_signer}\"\r\n\
+        "powershell.exe -NoProfile -NonInteractive -Command \"{verification_script}\"\r\n\
 if errorlevel 1 (\r\n\
   >\"%RESULT_FILE%\" echo 9001\r\n\
   start \"\" \"%APP_EXE%\"\r\n\
   del \"%~f0\"\r\n\
   exit /b 9001\r\n\
-)\r\n",
-        expected_hash = candidate.expected_hash.as_str(),
-        expected_signer = expected_signer,
+)\r\n"
     );
     let install_marker = "if /I \"%INSTALLER_EXT%\"==\"msi\" (";
     if !content.contains(install_marker) {
@@ -851,7 +866,7 @@ async fn install_update(
     _app: &AppHandle,
     _installer: &Path,
     _candidate: &UpdateCandidate,
-    _expected_signer: &str,
+    _expected_signer: Option<&str>,
 ) -> Result<()> {
     Err(anyhow!(
         "Automatic installation is currently supported only on Windows"

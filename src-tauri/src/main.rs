@@ -1213,13 +1213,13 @@ fn main() {
             let app_handle = app.handle();
 
             // Инициализируем логирование в файл (безопасно, не падаем если не получилось)
-            let _ = logging::init_logging(&app_handle);
+            let _ = logging::init_logging(app_handle);
             logging::log_message("Winky application started");
-            tauri::async_runtime::block_on(update::load_install_result(&app_handle));
+            tauri::async_runtime::block_on(update::load_install_result(app_handle));
             update::start_update_poll(app_handle.clone());
 
             let config_state = Arc::new(tauri::async_runtime::block_on(ConfigState::initialize(
-                &app_handle,
+                app_handle,
             ))?);
             let initial_config = tauri::async_runtime::block_on(config_state.get());
 
@@ -1234,11 +1234,11 @@ fn main() {
             app.manage(auth_queue.clone());
             app.manage(oauth_server_state.clone());
 
-            setup_deep_link_listener(&app_handle, auth_queue.clone());
-            tray::setup(&app_handle)?;
+            setup_deep_link_listener(app_handle, auth_queue.clone());
+            tray::setup(app_handle)?;
 
             // Проверяем файл deep link при старте
-            deep_link_file::check_deep_link_file_on_startup(&app_handle, &auth_queue);
+            deep_link_file::check_deep_link_file_on_startup(app_handle, &auth_queue);
 
             // Запускаем polling для чтения deep link из файла (обход UIPI при запуске от админа)
             deep_link_file::start_deep_link_file_polling(app_handle.clone(), auth_queue.clone());
@@ -1267,11 +1267,11 @@ fn main() {
             }
 
             // Синхронизируем автозапуск с настройками при инициализации
-            if let Err(e) = update_autostart(&app_handle, initial_config.launch_on_system_startup) {
+            if let Err(e) = update_autostart(app_handle, initial_config.launch_on_system_startup) {
                 eprintln!("Failed to sync autostart on init: {}", e);
             }
 
-            handle_config_startup_effects(&app_handle, &initial_config, hotkeys, fast_whisper);
+            handle_config_startup_effects(app_handle, &initial_config, hotkeys, fast_whisper);
 
             // Обрабатываем закрытие главного окна - скрываем его вместо закрытия приложения
             if let Some(main_window) = app.get_webview_window("main") {

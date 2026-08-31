@@ -115,17 +115,10 @@ fn load_install_dir_from_hint(app: &AppHandle) -> Option<PathBuf> {
 }
 
 fn load_saved_install_root(app: &AppHandle) -> Option<PathBuf> {
-    load_install_dir_from_env()
-        .or_else(|| {
-            #[cfg(windows)]
-            {
-                if let Some(from_registry) = load_install_dir_from_registry() {
-                    return Some(from_registry);
-                }
-            }
-            None
-        })
-        .or_else(|| load_install_dir_from_hint(app))
+    let saved = load_install_dir_from_env();
+    #[cfg(windows)]
+    let saved = saved.or_else(load_install_dir_from_registry);
+    saved.or_else(|| load_install_dir_from_hint(app))
 }
 
 fn paths_equal(lhs: &Path, rhs: &Path) -> bool {
@@ -480,10 +473,8 @@ impl FastWhisperManager {
 
     async fn ensure_repository(&self, app: &AppHandle, force: bool) -> Result<()> {
         let repo_dir = self.repo_path(app);
-        if force {
-            if repo_dir.exists() {
-                tokio::fs::remove_dir_all(&repo_dir).await?;
-            }
+        if force && repo_dir.exists() {
+            tokio::fs::remove_dir_all(&repo_dir).await?;
         }
         if repo_dir.exists() {
             return Ok(());
@@ -787,17 +778,7 @@ impl FastWhisperManager {
         }
         // Prefer the shared location (env var / registry / hint file) so
         // multiple apps can reuse the same server.
-        let saved = load_install_dir_from_env()
-            .or_else(|| {
-                #[cfg(windows)]
-                {
-                    if let Some(from_registry) = load_install_dir_from_registry() {
-                        return Some(from_registry);
-                    }
-                }
-                None
-            })
-            .or_else(|| load_install_dir_from_hint(app));
+        let saved = load_saved_install_root(app);
 
         let resolved = saved.unwrap_or_else(|| {
             app.path()

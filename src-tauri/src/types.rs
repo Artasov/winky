@@ -364,7 +364,7 @@ impl AppConfig {
 mod config_tests {
     use crate::constants::CURRENT_CONFIG_SCHEMA_VERSION;
 
-    use super::AppConfig;
+    use super::{AppConfig, LlmConfig, SpeechConfig};
 
     #[test]
     fn reads_legacy_config_without_auth_revision() {
@@ -375,13 +375,21 @@ mod config_tests {
 
     #[test]
     fn migrates_retired_models_and_invalid_values() {
-        let mut config = AppConfig::default();
-        config.schema_version = 0;
-        config.llm.model = "gpt-3.5-turbo".to_string();
-        config.speech.model = "winky-transcribe".to_string();
-        config.mic_anchor = "middle".to_string();
-        config.notes_storage_mode = "remote".to_string();
-        config.completion_sound_volume = 2.5;
+        let mut config = AppConfig {
+            schema_version: 0,
+            llm: LlmConfig {
+                model: "gpt-3.5-turbo".to_string(),
+                ..LlmConfig::default()
+            },
+            speech: SpeechConfig {
+                model: "winky-transcribe".to_string(),
+                ..SpeechConfig::default()
+            },
+            mic_anchor: "middle".to_string(),
+            notes_storage_mode: "remote".to_string(),
+            completion_sound_volume: 2.5,
+            ..AppConfig::default()
+        };
 
         config.normalize();
 
@@ -395,10 +403,17 @@ mod config_tests {
 
     #[test]
     fn replaces_unknown_and_cross_mode_models() {
-        let mut config = AppConfig::default();
-        config.llm.model = "private-provider-model".to_string();
-        config.speech.mode = "local".to_string();
-        config.speech.model = "gpt-4o-mini-transcribe".to_string();
+        let mut config = AppConfig {
+            llm: LlmConfig {
+                model: "private-provider-model".to_string(),
+                ..LlmConfig::default()
+            },
+            speech: SpeechConfig {
+                mode: "local".to_string(),
+                model: "gpt-4o-mini-transcribe".to_string(),
+            },
+            ..AppConfig::default()
+        };
 
         config.normalize();
 

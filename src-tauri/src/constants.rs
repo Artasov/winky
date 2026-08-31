@@ -23,6 +23,7 @@ pub const FAST_WHISPER_INSTALL_ENV_VAR: &str = "WINKY_LOCAL_SPEECH_DIR";
 // even if the environment variable was not exported into the current process.
 pub const FAST_WHISPER_INSTALL_HINT_FILE: &str = "local-speech-path.txt";
 pub const CONFIG_FILE_NAME: &str = "config.json";
+#[cfg(windows)]
 pub const CONFIG_SECRETS_FILE_NAME: &str = "secrets.bin";
 pub const CURRENT_CONFIG_SCHEMA_VERSION: u32 = 3;
 

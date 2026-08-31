@@ -62,11 +62,9 @@ impl ConfigState {
         let secret_store = SecretStore::new(dir.join(CONFIG_SECRETS_FILE_NAME));
         dir.push(CONFIG_FILE_NAME);
         let path = dir;
-        let mut config = if let Some(config) = JsonFile::read::<AppConfig>(&path).await? {
-            config
-        } else {
-            AppConfig::default()
-        };
+        let mut config = JsonFile::read::<AppConfig>(&path)
+            .await?
+            .unwrap_or_default();
 
         #[cfg(windows)]
         if let Some(secrets) = secret_store
@@ -212,7 +210,11 @@ impl ConfigState {
         Ok(())
     }
 
-    async fn persist(&self, state: &AppConfig, previous: Option<&AppConfig>) -> Result<()> {
+    async fn persist(
+        &self,
+        state: &AppConfig,
+        #[cfg_attr(not(windows), allow(unused_variables))] previous: Option<&AppConfig>,
+    ) -> Result<()> {
         #[cfg(windows)]
         {
             let secret_write_needed =
@@ -299,8 +301,10 @@ mod tests {
 
     #[test]
     fn auth_revision_changes_only_with_auth() {
-        let mut previous = AppConfig::default();
-        previous.auth_revision = 7;
+        let previous = AppConfig {
+            auth_revision: 7,
+            ..AppConfig::default()
+        };
 
         let mut settings_update = previous.clone();
         settings_update.mic_hotkey = "Alt+W".to_string();
@@ -315,10 +319,15 @@ mod tests {
 
     #[test]
     fn backend_change_clears_auth_and_changes_auth_revision() {
-        let mut previous = AppConfig::default();
-        previous.auth_revision = 3;
-        previous.auth.access = "old-domain-token".to_string();
-        previous.auth.access_token = "old-domain-token".to_string();
+        let previous = AppConfig {
+            auth_revision: 3,
+            auth: AuthTokens {
+                access: "old-domain-token".to_string(),
+                access_token: "old-domain-token".to_string(),
+                ..AuthTokens::default()
+            },
+            ..AppConfig::default()
+        };
 
         let mut next = previous.clone();
         next.backend_domain = "https://another-backend.example".to_string();

@@ -115,12 +115,7 @@ pub(super) fn parse_version(value: &str) -> Result<Version> {
 }
 
 pub(super) fn current_platform_key() -> String {
-    let os = match std::env::consts::OS {
-        "windows" => "windows",
-        "macos" => "macos",
-        "linux" => "linux",
-        other => other,
-    };
+    let os = std::env::consts::OS;
     format!("{os}-{}", std::env::consts::ARCH)
 }
 

@@ -102,8 +102,6 @@ fn resolve_audio_extension(mime_type: Option<&str>) -> String {
         "flac".to_string()
     } else if normalized.contains("aac") {
         "aac".to_string()
-    } else if normalized.contains("webm") {
-        "webm".to_string()
     } else {
         "webm".to_string()
     }

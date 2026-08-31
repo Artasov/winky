@@ -51,7 +51,7 @@ impl HotkeyState {
 
     pub fn register_mic(&self, app: &AppHandle, accelerator: Option<String>) {
         let manager = app.global_shortcut();
-        
+
         // Получаем новый хоткей
         let new_accelerator = accelerator.and_then(|value| {
             let trimmed = value.trim().to_string();
@@ -64,7 +64,7 @@ impl HotkeyState {
 
         // Проверяем текущий зарегистрированный хоткей
         let mut current = self.mic.lock().unwrap();
-        
+
         // Если новый хоткей такой же, как текущий, ничего не делаем
         if let Some(ref existing) = *current {
             if let Some(ref new_accel) = new_accelerator {
@@ -74,7 +74,7 @@ impl HotkeyState {
                 }
             }
         }
-        
+
         // Если новый хоткей None, но текущий есть - очищаем
         if new_accelerator.is_none() {
             if let Some(existing) = current.take() {
@@ -103,7 +103,9 @@ impl HotkeyState {
         match manager.on_shortcut(accelerator.as_str(), move |app_handle, _, _| {
             if let Some(hotkeys) = app_handle.try_state::<Arc<HotkeyState>>() {
                 if hotkeys.is_recording_active() {
-                    if let Some(action_id) = hotkeys.action_for_mic_accelerator(&accelerator_for_handler) {
+                    if let Some(action_id) =
+                        hotkeys.action_for_mic_accelerator(&accelerator_for_handler)
+                    {
                         let _ = app_handle.emit(
                             "hotkey:action-triggered",
                             serde_json::json!({"actionId": action_id}),

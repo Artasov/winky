@@ -36,12 +36,13 @@ impl Log for FileLogger {
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_secs())
             .unwrap_or_default();
+        let safe_message = redact_log_message(&record.args().to_string());
         let line = format!(
             "[{}][{}][{}] {}",
             timestamp,
             record.level(),
             record.target(),
-            record.args()
+            safe_message
         );
 
         if let Some(file) = LOG_FILE.get() {
@@ -62,6 +63,30 @@ impl Log for FileLogger {
             }
         }
     }
+}
+
+fn redact_log_message(message: &str) -> String {
+    let normalized = message.to_ascii_lowercase();
+    const SENSITIVE_MARKERS: &[&str] = &[
+        "authorization:",
+        "authorization\"",
+        "bearer ",
+        "access_token",
+        "accesstoken",
+        "refresh_token",
+        "refreshtoken",
+        "?token=",
+        "&token=",
+        "\"access\":",
+        "\"refresh\":",
+    ];
+    if SENSITIVE_MARKERS
+        .iter()
+        .any(|marker| normalized.contains(marker))
+    {
+        return "[redacted sensitive log message]".to_string();
+    }
+    message.to_string()
 }
 
 pub fn init_logging(_app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -171,4 +196,29 @@ macro_rules! log {
     ($($arg:tt)*) => {
         $crate::logging::log_message(&format!($($arg)*));
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact_log_message;
+
+    #[test]
+    fn removes_messages_with_auth_secrets() {
+        assert_eq!(
+            redact_log_message("callback?token=secret"),
+            "[redacted sensitive log message]"
+        );
+        assert_eq!(
+            redact_log_message("Authorization: Bearer secret"),
+            "[redacted sensitive log message]"
+        );
+    }
+
+    #[test]
+    fn keeps_diagnostic_messages_without_secrets() {
+        assert_eq!(
+            redact_log_message("network request failed"),
+            "network request failed"
+        );
+    }
 }

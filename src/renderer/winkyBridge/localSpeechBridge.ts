@@ -1,6 +1,33 @@
 import {invoke} from '@tauri-apps/api/core';
-import {listen} from '@tauri-apps/api/event';
+import {emit, listen} from '@tauri-apps/api/event';
 import type {FastWhisperStatus} from '@shared/types';
+
+const MODEL_STATUS_EVENT = 'local-speech:model-status';
+
+export type LocalSpeechModelPhase =
+    | 'unknown'
+    | 'checking'
+    | 'unavailable'
+    | 'missing'
+    | 'downloading'
+    | 'installed'
+    | 'warming'
+    | 'ready'
+    | 'error';
+
+export interface LocalSpeechModelStatus {
+    model: string;
+    phase: LocalSpeechModelPhase;
+    downloaded: boolean | null;
+    error?: string;
+    updatedAt: number;
+}
+
+export interface LocalSpeechModelStatusEvent {
+    sourceId: string;
+    revision: number;
+    status: LocalSpeechModelStatus;
+}
 
 export const localSpeechBridge = {
     getStatus: (): Promise<FastWhisperStatus> => invoke('local_speech_get_status'),
@@ -14,12 +41,22 @@ export const localSpeechBridge = {
     stop: (): Promise<FastWhisperStatus> => invoke('local_speech_stop'),
     isModelDownloaded: (model: string): Promise<boolean> =>
         invoke('local_speech_check_model_downloaded', {model}),
+    publishModelStatus: (event: LocalSpeechModelStatusEvent): Promise<void> =>
+        emit(MODEL_STATUS_EVENT, event),
+    onModelStatus: (callback: (event: LocalSpeechModelStatusEvent) => void) => {
+        const unlistenPromise = listen<LocalSpeechModelStatusEvent>(MODEL_STATUS_EVENT, (event) =>
+            callback(event.payload)
+        );
+        return () => {
+            unlistenPromise.then((unlisten) => unlisten()).catch(() => undefined);
+        };
+    },
     onStatus: (callback: (status: FastWhisperStatus) => void) => {
         const unlistenPromise = listen<FastWhisperStatus>('local-speech:status', (event) =>
             callback(event.payload)
         );
         return () => {
-            unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
+            unlistenPromise.then((unlisten) => unlisten()).catch(() => undefined);
         };
     }
 };

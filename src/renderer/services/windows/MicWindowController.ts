@@ -6,7 +6,9 @@ import type {AppConfig, MicAnchor} from '@shared/types';
 
 type MicWindowConfigApi = {
     get: () => Promise<AppConfig>;
-    update: (payload: Partial<AppConfig>) => Promise<AppConfig>;
+    updateMic: (
+        payload: Pick<Partial<AppConfig>, 'micWindowPosition' | 'micAnchor' | 'selectedGroupId'>
+    ) => Promise<AppConfig>;
 };
 
 type MicWindowControllerDeps = {
@@ -53,7 +55,7 @@ export class MicWindowController {
     async warmup(): Promise<void> {
         try {
             const config = await this.configApi.get();
-            if (!this.isUserAuthenticated(config)) {
+            if (!this.hasAuthTokens(config)) {
                 return;
             }
             await this.ensure();
@@ -176,7 +178,7 @@ export class MicWindowController {
         }
         this.position = {x, y};
         await win.setPosition(new LogicalPosition(x, y));
-        await this.configApi.update({micWindowPosition: {x, y}});
+        await this.configApi.updateMic({micWindowPosition: {x, y}});
     }
 
     async moveBy(dx: number, dy: number): Promise<void> {
@@ -207,7 +209,7 @@ export class MicWindowController {
                 y = this.margin;
         }
         await this.moveWindow(x, y);
-        await this.configApi.update({micAnchor: anchor});
+        await this.configApi.updateMic({micAnchor: anchor});
         return {x, y};
     }
 
@@ -241,8 +243,8 @@ export class MicWindowController {
 
     async show(reason: string = 'system'): Promise<void> {
         const config = await this.configApi.get();
-        if (!this.isUserAuthenticated(config)) {
-            console.warn('[MicWindowController] Rejecting mic show request: user is not authenticated or token not verified');
+        if (!this.hasAuthTokens(config)) {
+            console.warn('[MicWindowController] Rejecting mic show request: authentication tokens are missing');
             return;
         }
 
@@ -363,7 +365,7 @@ export class MicWindowController {
             const currentPos = await win.position().catch(() => null);
             if (currentPos) {
                 this.position = {x: currentPos.x, y: currentPos.y};
-                void this.configApi.update({micWindowPosition: this.position});
+                void this.configApi.updateMic({micWindowPosition: this.position});
             }
         } catch {
             /* ignore */
@@ -474,29 +476,9 @@ export class MicWindowController {
     private hasAuthTokens(config: AppConfig): boolean {
         const access = typeof config.auth?.access === 'string' ? config.auth.access.trim() : '';
         const accessToken = typeof config.auth?.accessToken === 'string' ? config.auth.accessToken.trim() : '';
-        return Boolean(access || accessToken);
-    }
-
-    /**
-     * Проверяет, что пользователь действительно авторизован (есть токены И закэшированный пользователь).
-     * Это предотвращает открытие микрофона с невалидным токеном.
-     */
-    private isUserAuthenticated(config: AppConfig): boolean {
-        if (!this.hasAuthTokens(config)) {
-            return false;
-        }
-        // Проверяем наличие закэшированного пользователя в localStorage
-        // Если пользователь есть в кэше — значит главное окно успешно проверило токен
-        try {
-            const cachedUser = window.localStorage?.getItem('winky.cachedUser');
-            if (!cachedUser) {
-                return false;
-            }
-            const parsed = JSON.parse(cachedUser);
-            return Boolean(parsed?.id);
-        } catch {
-            return false;
-        }
+        const refresh = typeof config.auth?.refresh === 'string' ? config.auth.refresh.trim() : '';
+        const refreshToken = typeof config.auth?.refreshToken === 'string' ? config.auth.refreshToken.trim() : '';
+        return Boolean(access || accessToken || refresh || refreshToken);
     }
 
     private async attachMoveListener(win: WebviewWindow): Promise<void> {
@@ -518,7 +500,7 @@ export class MicWindowController {
                     }
                     this.positionSaveTimeout = setTimeout(() => {
                         this.positionSaveTimeout = null;
-                        void this.configApi.update({micWindowPosition: {x, y}});
+                        void this.configApi.updateMic({micWindowPosition: {x, y}});
                     }, this.POSITION_SAVE_DEBOUNCE_MS);
                 }
             });

@@ -10,7 +10,7 @@ import StopCircleIcon from '@mui/icons-material/StopCircle';
 import DescriptionIcon from '@mui/icons-material/Description';
 import type {FastWhisperStatus} from '@shared/types';
 import {useLocalSpeechStatus} from '../hooks/useLocalSpeechStatus';
-import {localSpeechBridge} from '../services/winkyBridge';
+import {localSpeechManager} from '../services/localSpeechModels';
 
 const SUCCESS_DISPLAY_MS = 3_000;
 
@@ -31,20 +31,14 @@ const actionLabels: Record<ActionKind, string> = {
 const FAST_WHISPER_INSTALL_SIZE_HINT = '≈43 MB';
 
 const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({disabled = false}) => {
-    const [loadingAction, setLoadingAction] = useState<ActionKind | null>(null);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [tick, setTick] = useState(0);
     const {
         status,
         error: statusError,
         loading: statusLoading,
-        setStatus
+        operation: loadingAction
     } = useLocalSpeechStatus({
-        checkHealthOnMount: true,
-        onStatus: (nextStatus) => {
-            setErrorMessage(nextStatus?.error ?? null);
-        },
-        onError: (message) => setErrorMessage(message)
+        checkHealthOnMount: true
     });
 
     useEffect(() => {
@@ -70,7 +64,7 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         return Date.now() - status.lastSuccessAt < SUCCESS_DISPLAY_MS;
     }, [status?.lastSuccessAt, status?.updatedAt, tick]);
 
-    const combinedErrorMessage = errorMessage ?? status?.error ?? statusError;
+    const combinedErrorMessage = status?.error ?? statusError;
     const isRunning = status?.phase === 'running';
     const busyPhase = status?.phase === 'installing' || status?.phase === 'starting' || status?.phase === 'stopping';
     const isBusy = loadingAction !== null || busyPhase;
@@ -141,29 +135,12 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         return safeStatus.logLine.length > 180 ? `${safeStatus.logLine.slice(0, 179)}…` : safeStatus.logLine;
     }, [safeStatus.logLine, safeStatus.updatedAt, isRunning, showSuccessState]);
 
-    const callOperation = async (action: ActionKind, fn: () => Promise<FastWhisperStatus | undefined>) => {
-        setLoadingAction(action);
-        setErrorMessage(null);
+    const callOperation = async (action: ActionKind, fn: () => Promise<FastWhisperStatus>) => {
         try {
-            const result = await fn();
-            if (result) {
-                console.info('[LocalSpeechInstallControl] action result', action, result.phase);
-                setStatus(result);
-                setErrorMessage(result.error ?? null);
-            }
-        } catch (error: any) {
-            console.error('[LocalSpeechInstallControl] action error', action, error);
-            const fallback =
-                action === 'install'
-                    ? 'Failed to install fast-fast-whisper.'
-                    : action === 'start'
-                        ? 'Failed to start fast-fast-whisper.'
-                        : action === 'restart'
-                            ? 'Failed to restart fast-fast-whisper.'
-                            : 'Failed to reinstall fast-fast-whisper.';
-            setErrorMessage(error?.message || fallback);
-        } finally {
-            setLoadingAction((current) => (current === action ? null : current));
+            await fn();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown server operation error.';
+            console.error(`[LocalSpeechInstallControl] ${action} failed: ${message}`);
         }
     };
 
@@ -185,11 +162,11 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         if (!targetDir) {
             return;
         }
-        await callOperation('install', () => localSpeechBridge.install(targetDir));
+        await callOperation('install', () => localSpeechManager.install(targetDir));
     };
-    const handleStart = () => callOperation('start', () => localSpeechBridge.start());
-    const handleRestart = () => callOperation('restart', () => localSpeechBridge.restart());
-    const handleStop = () => callOperation('stop', () => localSpeechBridge.stop());
+    const handleStart = () => callOperation('start', () => localSpeechManager.start());
+    const handleRestart = () => callOperation('restart', () => localSpeechManager.restart());
+    const handleStop = () => callOperation('stop', () => localSpeechManager.stop());
     const handleReinstall = async () => {
         const confirmed =
             typeof window === 'undefined' ||
@@ -201,7 +178,7 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
         if (!targetDir) {
             return;
         }
-        await callOperation('reinstall', () => localSpeechBridge.reinstall(targetDir));
+        await callOperation('reinstall', () => localSpeechManager.reinstall(targetDir));
     };
 
     const handlePrimaryClick = () => {
@@ -237,14 +214,11 @@ const LocalSpeechInstallControl: React.FC<LocalSpeechInstallControlProps> = ({di
             installDir = installDir.replace(/\\/g, '/');
         }
         const logPath = `${installDir}${pathSeparator}fast-fast-whisper${pathSeparator}fast-fast-whisper.log`;
-        console.log('[LocalSpeechInstallControl] Opening log file:', logPath);
-        console.log('[LocalSpeechInstallControl] Install dir:', installDir);
-        console.log('[LocalSpeechInstallControl] Platform:', navigator.platform);
         try {
             await invoke('open_file_path', {filePath: logPath});
-            console.log('[LocalSpeechInstallControl] Successfully requested to open log file:', logPath);
         } catch (error) {
-            console.error('[LocalSpeechInstallControl] Failed to open log file:', logPath, error);
+            const message = error instanceof Error ? error.message : 'Unknown file open error.';
+            console.error(`[LocalSpeechInstallControl] Failed to open the log file: ${message}`);
         }
     };
 

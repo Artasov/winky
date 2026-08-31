@@ -31,7 +31,12 @@ fn candidate_paths(app: &AppHandle, sound_name: &str) -> Vec<PathBuf> {
 
     if let Ok(resource_dir) = app.path().resource_dir() {
         candidates.push(resource_dir.join("sounds").join(sound_name));
-        candidates.push(resource_dir.join("resources").join("sounds").join(sound_name));
+        candidates.push(
+            resource_dir
+                .join("resources")
+                .join("sounds")
+                .join(sound_name),
+        );
         if let Some(parent) = resource_dir.parent() {
             candidates.push(parent.join("resources").join("sounds").join(sound_name));
             candidates.push(parent.join("Resources").join("sounds").join(sound_name));
@@ -50,8 +55,19 @@ fn candidate_paths(app: &AppHandle, sound_name: &str) -> Vec<PathBuf> {
     }
 
     if let Ok(current_dir) = std::env::current_dir() {
-        candidates.push(current_dir.join("resources").join("sounds").join(sound_name));
-        candidates.push(current_dir.join("src-tauri").join("resources").join("sounds").join(sound_name));
+        candidates.push(
+            current_dir
+                .join("resources")
+                .join("sounds")
+                .join(sound_name),
+        );
+        candidates.push(
+            current_dir
+                .join("src-tauri")
+                .join("resources")
+                .join("sounds")
+                .join(sound_name),
+        );
     }
 
     candidates

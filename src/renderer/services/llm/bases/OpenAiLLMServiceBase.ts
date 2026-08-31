@@ -72,7 +72,7 @@ export abstract class OpenAiLLMServiceBase extends ApiLLMBaseService {
         };
     }
 
-    async process(text: string, prompt: string): Promise<string> {
+    async process(text: string, prompt: string, options?: {signal?: AbortSignal}): Promise<string> {
         const token = this.accessToken?.trim();
         if (!token) {
             throw new Error('An OpenAI API key is required to use OpenAI models.');
@@ -81,7 +81,8 @@ export abstract class OpenAiLLMServiceBase extends ApiLLMBaseService {
         const response = await fetch(this.buildUrl(), {
             method: 'POST',
             headers: this.getHeaders(token),
-            body: JSON.stringify(this.buildBody(text, prompt))
+            body: JSON.stringify(this.buildBody(text, prompt)),
+            signal: options?.signal
         });
 
         if (!response.ok) {

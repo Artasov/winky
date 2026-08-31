@@ -1,5 +1,6 @@
 import type {BaseLLMService} from '../BaseLLMService';
 import {getWsBaseUrl} from '@shared/constants';
+import {winkyWebSocketAuthService} from '../../WinkyWebSocketAuthService';
 
 const getWinkyAiLlmWsEndpoint = (): string => `${getWsBaseUrl()}/ws/ai/llm/`;
 
@@ -20,11 +21,11 @@ export abstract class WinkyLLMServiceBase implements BaseLLMService {
         this.accessToken = accessToken;
     }
 
-    async process(text: string, prompt: string): Promise<string> {
+    async process(text: string, prompt: string, options?: {signal?: AbortSignal}): Promise<string> {
         let result = '';
         await this.processStream(text, prompt, (chunk) => {
             result += chunk;
-        });
+        }, options);
         return result;
     }
 
@@ -34,20 +35,22 @@ export abstract class WinkyLLMServiceBase implements BaseLLMService {
         onChunk: (chunk: string) => void,
         options?: {signal?: AbortSignal}
     ): Promise<string> {
+        const ws = await winkyWebSocketAuthService.create(
+            getWinkyAiLlmWsEndpoint(),
+            options?.signal
+        );
         return new Promise((resolve, reject) => {
-            const wsUrl = `${getWinkyAiLlmWsEndpoint()}?token=${this.accessToken}`;
-            const ws = new WebSocket(wsUrl);
-
             let fullContent = '';
             let resolved = false;
 
             const cleanup = () => {
+                options?.signal?.removeEventListener('abort', handleAbort);
                 if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
                     ws.close();
                 }
             };
 
-            options?.signal?.addEventListener('abort', () => {
+            const handleAbort = () => {
                 if (ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({action: 'cancel'}));
                 }
@@ -56,9 +59,13 @@ export abstract class WinkyLLMServiceBase implements BaseLLMService {
                     resolved = true;
                     reject(new DOMException('Aborted', 'AbortError'));
                 }
-            });
+            };
 
             ws.onopen = () => {
+                if (resolved || options?.signal?.aborted) {
+                    handleAbort();
+                    return;
+                }
                 ws.send(JSON.stringify({
                     action: 'generate',
                     prompt: `${prompt}\n\n${text}`.trim(),
@@ -103,8 +110,10 @@ export abstract class WinkyLLMServiceBase implements BaseLLMService {
                             }
                             break;
                     }
-                } catch {
-                    // Skip invalid JSON
+                } catch (error) {
+                    console.warn('[winky-llm] Invalid WebSocket event', {
+                        errorType: error instanceof Error ? error.name : 'unknown'
+                    });
                 }
             };
 
@@ -117,6 +126,7 @@ export abstract class WinkyLLMServiceBase implements BaseLLMService {
             };
 
             ws.onclose = (event) => {
+                options?.signal?.removeEventListener('abort', handleAbort);
                 if (!resolved) {
                     resolved = true;
                     if (event.code !== 1000) {
@@ -126,6 +136,9 @@ export abstract class WinkyLLMServiceBase implements BaseLLMService {
                     }
                 }
             };
+
+            options?.signal?.addEventListener('abort', handleAbort, {once: true});
+            if (options?.signal?.aborted) handleAbort();
         });
     }
 }

@@ -3,37 +3,41 @@ name: CI / CD
 on:
   pull_request:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      force_release:
-        description: 'Force release creation'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   quality:
     name: Quality Checks
     runs-on: ubuntu-latest
-    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
-      - name: Setup Node.js 24
-        uses: actions/setup-node@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          node-version: 24
+          node-version: 24.9.0
           cache: npm
 
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        with:
+          toolchain: 1.85.0
+          components: clippy, rustfmt
+
+      - name: Install Linux system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -44,207 +48,229 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
-      - name: Install dependencies
+      - name: Install JavaScript dependencies
         run: npm ci
+
+      - name: Check project versions
+        run: npm run check:versions
 
       - name: Type check
         run: npm run typecheck
 
-  package-tauri:
-    name: Package Tauri (${{ matrix.os }})
-    needs: [quality]
-    if: always() && (needs.quality.result == 'success' || needs.quality.result == 'skipped') && ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_release == 'true'))
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - windows-latest
-          - macos-15
-          - ubuntu-latest
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: ru-1
-      AWS_S3_FORCE_PATH_STYLE: true
-      S3_BUCKET: 324718a4-2cc5dd7a-917b-4e82-87c5-b9d5f8de16ba
-      S3_ENDPOINT: https://s3.twcstorage.ru
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: Check Rust
+        run: cargo check --locked --manifest-path src-tauri/Cargo.toml --all-targets
+
+      - name: Run Clippy
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: Run Rust tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --all-targets
+
+  windows-rust:
+    name: Windows Rust Checks
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js 24
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libglib2.0-dev \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build renderer bundle
-        run: npm run build:renderer
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        with:
+          toolchain: 1.85.0
+          components: clippy
 
-      - name: Cleanup macOS disk images
-        if: matrix.os == 'macos-15'
+      - name: Check Windows Rust
+        run: cargo check --locked --manifest-path src-tauri/Cargo.toml --all-targets
+
+      - name: Run Windows Rust tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --all-targets
+
+      - name: Run Windows Clippy
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+  package-tauri:
+    name: Package Tauri (${{ matrix.platform }})
+    needs:
+      - quality
+      - windows-rust
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ matrix.runner }}
+    environment: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows-x86_64
+            expected_arch: x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 24.9.0
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        with:
+          toolchain: 1.85.0
+
+      - name: Validate architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.expected_arch }}
+        run: node -e "if (process.arch !== process.env.EXPECTED_ARCH) throw new Error('Expected ' + process.env.EXPECTED_ARCH + ', got ' + process.arch)"
+
+      - name: Validate release version
+        run: node scripts/sync-tauri-version.mjs --check --tag "${{ github.ref_name }}"
+
+      - name: Validate embedded update public key
         shell: bash
+        env:
+          WINKY_UPDATE_PUBLIC_KEY: ${{ secrets.WINKY_UPDATE_PUBLIC_KEY }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          for volume in /Volumes/Winky /Volumes/Winky* /Volumes/dmg.*; do
-            if [ -d "$volume" ]; then
-              hdiutil detach "$volume" || hdiutil detach -force "$volume" || true
-            fi
-          done
-          rm -rf src-tauri/target/release/bundle/dmg
+          node -e "const key = Buffer.from(process.env.WINKY_UPDATE_PUBLIC_KEY || '', 'base64'); if (key.length !== 32) throw new Error('WINKY_UPDATE_PUBLIC_KEY must be a base64-encoded 32-byte Ed25519 public key')"
 
-      - name: Build desktop apps with Tauri
-        uses: tauri-apps/tauri-action@v0
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Import Windows signing certificate
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            throw 'Windows signing secrets are required for a release.'
+          }
+          $certificatePath = Join-Path $env:RUNNER_TEMP 'winky-signing.pfx'
+          [System.IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $importedCertificates = @(Import-PfxCertificate -FilePath $certificatePath -CertStoreLocation Cert:\CurrentUser\My -Password $password)
+          $certificate = $importedCertificates | Where-Object HasPrivateKey | Select-Object -First 1
+          if (-not $certificate -or -not $certificate.Thumbprint) {
+            throw 'Failed to import the Windows code-signing certificate.'
+          }
+          $signerThumbprint = $certificate.Thumbprint.Replace(' ', '').ToUpperInvariant()
+          $tauriConfig = @{bundle = @{windows = @{certificateThumbprint = $certificate.Thumbprint}}} | ConvertTo-Json -Compress -Depth 5
+          Add-Content -Path $env:GITHUB_ENV -Value "TAURI_CONFIG=$tauriConfig"
+          Add-Content -Path $env:GITHUB_ENV -Value "WINDOWS_SIGNER_THUMBPRINT=$signerThumbprint"
+          Add-Content -Path $env:GITHUB_ENV -Value "WINKY_WINDOWS_SIGNER_THUMBPRINT=$signerThumbprint"
+          Remove-Item -LiteralPath $certificatePath -Force
+
+      - name: Build signed desktop package
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f
+        env:
+          WINKY_UPDATE_PUBLIC_KEY: ${{ secrets.WINKY_UPDATE_PUBLIC_KEY }}
         with:
           tauriScript: npm run tauri
           args: --verbose
 
-      - name: Upload artifacts to S3
-        if: success()
+      - name: Verify Windows Authenticode signatures
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not $env:WINDOWS_SIGNER_THUMBPRINT) { throw 'Expected Windows signer thumbprint is missing.' }
+          $installers = @(
+            Get-ChildItem -Path 'src-tauri/target/release/bundle' -Recurse -File |
+              Where-Object { $_.Extension -in '.exe', '.msi' }
+          )
+          if ($installers.Count -eq 0) { throw 'No Windows installer was produced.' }
+          foreach ($installer in $installers) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
+            if ($signature.Status -ne 'Valid') {
+              throw "Invalid Authenticode signature for $($installer.Name): $($signature.Status)"
+            }
+            if (-not $signature.SignerCertificate) {
+              throw "Authenticode signer certificate is missing for $($installer.Name)."
+            }
+            $actualThumbprint = $signature.SignerCertificate.Thumbprint.Replace(' ', '').ToUpperInvariant()
+            if ($actualThumbprint -ne $env:WINDOWS_SIGNER_THUMBPRINT) {
+              throw "Unexpected Authenticode signer for $($installer.Name): $actualThumbprint"
+            }
+            Write-Host "Verified $($installer.Name), signer $actualThumbprint"
+          }
+
+      - name: Collect release artifacts
         shell: bash
         env:
-          VERSION: ${{ github.ref_name }}
-          MATRIX_OS: ${{ matrix.os }}
+          PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          if ! command -v aws >/dev/null 2>&1; then
-            python3 -m pip install --user awscli
-            export PATH="$HOME/.local/bin:$PATH"
-          fi
+          source_dir="src-tauri/target/release/bundle"
+          package_dir="release-package/${PLATFORM}"
+          metadata_dir="release-package/metadata"
+          mkdir -p "${package_dir}" "${metadata_dir}"
 
-          aws configure set default.s3.addressing_style path
-
-          SRC="src-tauri/target/release/bundle"
-
-          if [ ! -d "${SRC}" ]; then
-            echo "Source directory ${SRC} not found, nothing to upload."
-            exit 1
-          fi
-
-          UPLOAD_DIR="$(pwd)/release-filtered"
-          LINKS_DIR="$(pwd)/release-links"
-          rm -rf "${UPLOAD_DIR}"
-          rm -rf "${LINKS_DIR}"
-          mkdir -p "${UPLOAD_DIR}"
-          mkdir -p "${LINKS_DIR}"
-
-          case "${MATRIX_OS}" in
-            windows-latest)
-              TARGET="windows"
-              FIND_EXPR=(-type f \( -name "*.exe" -o -name "*.msi" \))
-              ;;
-            macos-15)
-              TARGET="macos"
-              FIND_EXPR=(-type f -name "*.dmg")
-              ;;
-            ubuntu-latest)
-              TARGET="linux"
-              FIND_EXPR=(-type f \( -name "*.AppImage" -o -name "*.deb" \))
+          case "${PLATFORM}" in
+            windows-x86_64)
+              mapfile -d '' -t preferred_candidates < <(
+                find "${source_dir}" -type f -name '*.exe' -print0 | sort -z
+              )
+              if [ "${#preferred_candidates[@]}" -ne 1 ]; then
+                echo "Expected exactly one preferred EXE for ${PLATFORM}, found ${#preferred_candidates[@]}." >&2
+                printf 'Candidate: %s\n' "${preferred_candidates[@]}" >&2
+                exit 1
+              fi
+              preferred="${preferred_candidates[0]}"
+              find "${source_dir}" -type f \( -name '*.exe' -o -name '*.msi' \) -exec cp {} "${package_dir}/" \;
               ;;
             *)
-              echo "Unknown OS matrix value during filtering: ${MATRIX_OS}"
+              echo "Unsupported release platform: ${PLATFORM}"
               exit 1
               ;;
           esac
-
-          LINKS_FILE="${LINKS_DIR}/${TARGET}.md"
-          MANIFEST_FILE="${LINKS_DIR}/${TARGET}.json"
-          : > "${LINKS_FILE}"
-
-          sha256_file() {
-            if command -v sha256sum >/dev/null 2>&1; then
-              sha256sum "$1" | awk '{print $1}'
-            else
-              shasum -a 256 "$1" | awk '{print $1}'
-            fi
-          }
-
-          FOUND=0
-          UPDATE_FILENAME=""
-          UPDATE_URL=""
-          UPDATE_SHA256=""
-          while IFS= read -r -d '' artifact; do
-            filename="$(basename "${artifact}")"
-            sha256="$(sha256_file "${artifact}")"
-            file_url="${S3_ENDPOINT}/${S3_BUCKET}/winky/${VERSION}/${TARGET}/${filename}"
-            cp "${artifact}" "${UPLOAD_DIR}/${filename}"
-            echo "- ${filename}: ${file_url}" >> "${LINKS_FILE}"
-
-            use_for_update=0
-            if [ -z "${UPDATE_FILENAME}" ]; then
-              use_for_update=1
-            fi
-            case "${TARGET}:${filename}" in
-              windows:*.exe|macos:*.dmg|linux:*.AppImage)
-                use_for_update=1
-                ;;
-            esac
-            if [ "${use_for_update}" -eq 1 ]; then
-              UPDATE_FILENAME="${filename}"
-              UPDATE_URL="${file_url}"
-              UPDATE_SHA256="${sha256}"
-            fi
-            FOUND=1
-          done < <(find "${SRC}" "${FIND_EXPR[@]}" -print0)
-
-          if [ "${FOUND}" -eq 0 ]; then
-            echo "No artifacts matching the upload criteria were found in ${SRC}"
-            exit 1
-          fi
-
-          python3 - "${TARGET}" "${UPDATE_FILENAME}" "${UPDATE_URL}" "${UPDATE_SHA256}" > "${MANIFEST_FILE}" <<'PY'
+          filename="$(basename "${preferred}")"
+          sha256="$(python -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], 'rb').read()).hexdigest())" "${preferred}")"
+          size="$(python -c "import os,sys; print(os.path.getsize(sys.argv[1]))" "${preferred}")"
+          python - "${PLATFORM}" "${filename}" "${sha256}" "${size}" "${metadata_dir}/${PLATFORM}.json" <<'PY'
           import json
           import sys
 
-          platform, filename, url, sha256_hash = sys.argv[1:5]
-          payload = {
-              "platform": platform,
-              "filename": filename,
-              "url": url,
-              "sha256": sha256_hash,
-          }
-          print(json.dumps(payload, ensure_ascii=False, indent=2))
+          platform, filename, sha256_hash, size, output = sys.argv[1:]
+          with open(output, 'w', encoding='utf-8', newline='\n') as handle:
+              json.dump({
+                  'platform': platform,
+                  'filename': filename,
+                  'sha256': sha256_hash,
+                  'size': int(size),
+              }, handle, separators=(',', ':'))
+              handle.write('\n')
           PY
 
-          aws s3 cp "${UPLOAD_DIR}" "s3://${S3_BUCKET}/winky/${VERSION}/${TARGET}/" \
-            --recursive \
-            --endpoint-url "${S3_ENDPOINT}" \
-            --acl public-read
-
-      - name: Upload release link manifest
-        if: success()
-        uses: actions/upload-artifact@v6
+      - name: Upload release package
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: release-links-${{ matrix.os }}
-          path: release-links/*
+          name: release-package-${{ matrix.platform }}
+          path: release-package/**/*
           if-no-files-found: error
+          retention-days: 7
 
   release:
-    name: Publish Release Manifest
+    name: Publish Signed Release
     needs: package-tauri
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    environment: release
+    concurrency:
+      group: winky-production-release
+      cancel-in-progress: false
+    permissions:
+      contents: write
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
@@ -252,58 +278,543 @@ jobs:
       AWS_S3_FORCE_PATH_STYLE: true
       S3_BUCKET: 324718a4-2cc5dd7a-917b-4e82-87c5-b9d5f8de16ba
       S3_ENDPOINT: https://s3.twcstorage.ru
+      WINKY_UPDATE_PUBLIC_KEY: ${{ secrets.WINKY_UPDATE_PUBLIC_KEY }}
+      WINKY_UPDATE_SIGNING_KEY: ${{ secrets.WINKY_UPDATE_SIGNING_KEY }}
+      GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Download release link manifests
-        uses: actions/download-artifact@v7
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          pattern: release-links-*
-          path: release-links
+          node-version: 24.9.0
+
+      - name: Download release packages
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          pattern: release-package-*
+          path: release-package
           merge-multiple: true
 
-      - name: Publish update manifest
+      - name: Validate release tools and secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v aws
+          command -v openssl
+          command -v curl
+          command -v gh
+          command -v sha256sum
+          test -n "${AWS_ACCESS_KEY_ID}"
+          test -n "${AWS_SECRET_ACCESS_KEY}"
+          test -n "${WINKY_UPDATE_PUBLIC_KEY}"
+          test -n "${WINKY_UPDATE_SIGNING_KEY}"
+
+      - name: Create and sign update manifest
+        shell: bash
         env:
-          VERSION: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node scripts/sync-tauri-version.mjs --check --tag "${RELEASE_TAG}"
+          published_at="$(git show -s --format=%cI "${RELEASE_TAG}^{commit}")"
+          node scripts/release-manifest.mjs create-payload \
+            release-package/metadata \
+            "${RELEASE_TAG}" \
+            "${S3_ENDPOINT}/${S3_BUCKET}/winky" \
+            manifest.json \
+            "${published_at}"
+
+          signing_key="${RUNNER_TEMP}/winky-update-signing-key.der"
+          derived_public="${RUNNER_TEMP}/winky-update-derived-public.der"
+          printf '%s' "${WINKY_UPDATE_SIGNING_KEY}" | base64 --decode > "${signing_key}"
+          openssl pkey -in "${signing_key}" -inform DER -pubout -outform DER -out "${derived_public}"
+          node - "${derived_public}" <<'NODE'
+          const fs = require('fs');
+          const derived = fs.readFileSync(process.argv[2]).subarray(-32);
+          const expected = Buffer.from(process.env.WINKY_UPDATE_PUBLIC_KEY, 'base64');
+          if (expected.length !== 32 || !derived.equals(expected)) {
+              throw new Error('Update signing key does not match WINKY_UPDATE_PUBLIC_KEY.');
+          }
+          NODE
+          openssl pkeyutl -sign -rawin -inkey "${signing_key}" -keyform DER \
+            -in manifest.json -out manifest.sig
+          node scripts/release-manifest.mjs create-envelope \
+            manifest.json manifest.sig latest.json
+          rm -f "${signing_key}" "${derived_public}"
+
+      - name: Validate release ordering
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          latest_url="${S3_ENDPOINT}/${S3_BUCKET}/winky/latest.json"
+          latest_status="$(curl --silent --show-error \
+            --output published-latest.json \
+            --write-out '%{http_code}' \
+            "${latest_url}")"
+          case "${latest_status}" in
+            200)
+              node scripts/release-manifest.mjs check-monotonic \
+                published-latest.json manifest.json
+              ;;
+            404)
+              rm -f published-latest.json
+              ;;
+            *)
+              echo "Failed to read current update manifest: HTTP ${latest_status}."
+              exit 1
+              ;;
+          esac
+
+          node scripts/release-manifest.mjs list-artifacts manifest.json >/dev/null
+
+      - name: Publish immutable versioned objects
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          aws configure set default.s3.addressing_style path
+
+          read_head() {
+            local object_key="$1"
+            local output_file="$2"
+            local error_file="$3"
+            if aws s3api head-object \
+              --bucket "${S3_BUCKET}" \
+              --key "${object_key}" \
+              --endpoint-url "${S3_ENDPOINT}" >"${output_file}" 2>"${error_file}"; then
+              return 0
+            fi
+            if grep -Eq '(\(404\)|HTTP 404|Not Found|NoSuchKey)' "${error_file}"; then
+              return 44
+            fi
+            echo "HEAD failed for ${object_key}." >&2
+            cat "${error_file}" >&2
+            return 1
+          }
+
+          verify_remote() {
+            local source_file="$1"
+            local object_key="$2"
+            local expected_hash="$3"
+            local expected_size="$4"
+            local local_hash
+            local local_size
+            local head_file
+            local head_error
+            local remote_file
+            local head_status=0
+
+            local_hash="$(sha256sum "${source_file}" | awk '{print $1}')"
+            local_size="$(stat --format=%s "${source_file}")"
+            if [ -n "${expected_hash}" ] && [ "${local_hash}" != "${expected_hash}" ]; then
+              echo "Local hash differs from signed metadata for ${source_file}." >&2
+              return 1
+            fi
+            if [ -n "${expected_size}" ] && [ "${local_size}" != "${expected_size}" ]; then
+              echo "Local size differs from signed metadata for ${source_file}." >&2
+              return 1
+            fi
+
+            head_file="$(mktemp)"
+            head_error="$(mktemp)"
+            remote_file="$(mktemp)"
+            read_head "${object_key}" "${head_file}" "${head_error}" || head_status=$?
+            if [ "${head_status}" -ne 0 ]; then
+              rm -f "${head_file}" "${head_error}" "${remote_file}"
+              echo "Published object is not readable: ${object_key}." >&2
+              return 1
+            fi
+            node - "${head_file}" "${local_size}" <<'NODE'
+          const fs = require('fs');
+          const head = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const expectedSize = Number(process.argv[3]);
+          if (head.ContentLength !== expectedSize) {
+              throw new Error(`Remote ContentLength ${head.ContentLength} differs from ${expectedSize}.`);
+          }
+          NODE
+            aws s3api get-object \
+              --bucket "${S3_BUCKET}" \
+              --key "${object_key}" \
+              --endpoint-url "${S3_ENDPOINT}" \
+              "${remote_file}" >/dev/null
+            if ! cmp --silent "${source_file}" "${remote_file}"; then
+              rm -f "${head_file}" "${head_error}" "${remote_file}"
+              echo "Immutable object content mismatch: ${object_key}." >&2
+              return 1
+            fi
+            rm -f "${head_file}" "${head_error}" "${remote_file}"
+            echo "Verified immutable object ${object_key} (${local_size} bytes, ${local_hash})."
+          }
+
+          publish_immutable() {
+            local source_file="$1"
+            local object_key="$2"
+            local content_type="$3"
+            local expected_hash="$4"
+            local expected_size="$5"
+            local local_hash
+            local local_size
+            local head_file
+            local head_error
+            local put_output
+            local put_error
+            local head_status=0
+            local put_status=0
+
+            test -f "${source_file}"
+            local_hash="$(sha256sum "${source_file}" | awk '{print $1}')"
+            local_size="$(stat --format=%s "${source_file}")"
+            if [ -n "${expected_hash}" ] && [ "${local_hash}" != "${expected_hash}" ]; then
+              echo "Refusing to publish ${source_file}: hash differs from signed metadata." >&2
+              return 1
+            fi
+            if [ -n "${expected_size}" ] && [ "${local_size}" != "${expected_size}" ]; then
+              echo "Refusing to publish ${source_file}: size differs from signed metadata." >&2
+              return 1
+            fi
+            head_file="$(mktemp)"
+            head_error="$(mktemp)"
+            read_head "${object_key}" "${head_file}" "${head_error}" || head_status=$?
+            case "${head_status}" in
+              0)
+                echo "Reusing existing immutable object ${object_key}."
+                ;;
+              44)
+                put_output="$(mktemp)"
+                put_error="$(mktemp)"
+                aws s3api put-object \
+                  --bucket "${S3_BUCKET}" \
+                  --key "${object_key}" \
+                  --body "${source_file}" \
+                  --if-none-match '*' \
+                  --endpoint-url "${S3_ENDPOINT}" \
+                  --acl public-read \
+                  --cache-control 'public,max-age=31536000,immutable' \
+                  --content-type "${content_type}" \
+                  --metadata "sha256=${local_hash}" >"${put_output}" 2>"${put_error}" || put_status=$?
+                if [ "${put_status}" -ne 0 ] && ! grep -Eq '(409|412|ConditionalRequestConflict|PreconditionFailed)' "${put_error}"; then
+                  cat "${put_error}" >&2
+                  rm -f "${head_file}" "${head_error}" "${put_output}" "${put_error}"
+                  return 1
+                fi
+                if [ "${put_status}" -ne 0 ]; then
+                  echo "Another publisher created ${object_key}; verifying its exact bytes."
+                fi
+                rm -f "${put_output}" "${put_error}"
+                ;;
+              *)
+                rm -f "${head_file}" "${head_error}"
+                return 1
+                ;;
+            esac
+            rm -f "${head_file}" "${head_error}"
+            verify_remote "${source_file}" "${object_key}" "${expected_hash}" "${expected_size}"
+          }
+
+          declare -A signed_hashes=()
+          declare -A signed_sizes=()
+          while IFS=$'\t' read -r platform filename sha256 size file_url; do
+            artifact_key="${platform}/${filename}"
+            signed_hashes["${artifact_key}"]="${sha256}"
+            signed_sizes["${artifact_key}"]="${size}"
+          done < <(node scripts/release-manifest.mjs list-artifacts manifest.json)
+
+          while IFS= read -r -d '' source_file; do
+            artifact_key="${source_file#release-package/}"
+            platform="${artifact_key%%/*}"
+            filename="${artifact_key#*/}"
+            case "${filename}" in
+              *.exe) content_type='application/vnd.microsoft.portable-executable' ;;
+              *.msi) content_type='application/x-msi' ;;
+              *) content_type='application/octet-stream' ;;
+            esac
+            publish_immutable \
+              "${source_file}" \
+              "winky/${RELEASE_TAG}/${platform}/${filename}" \
+              "${content_type}" \
+              "${signed_hashes[${artifact_key}]-}" \
+              "${signed_sizes[${artifact_key}]-}"
+          done < <(find release-package -mindepth 2 -maxdepth 2 -type f ! -path '*/metadata/*' -print0)
+
+          publish_immutable manifest.json "winky/${RELEASE_TAG}/manifest.json" 'application/json' '' ''
+          publish_immutable manifest.sig "winky/${RELEASE_TAG}/manifest.sig" 'application/octet-stream' '' ''
+          publish_immutable latest.json "winky/${RELEASE_TAG}/latest.json" 'application/json' '' ''
+
+      - name: Verify published manifest and artifacts
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          release_base_url="${S3_ENDPOINT}/${S3_BUCKET}/winky/${RELEASE_TAG}"
+          curl --fail --silent --show-error --retry 5 --retry-all-errors \
+            "${release_base_url}/latest.json" --output smoke-latest.json
+          curl --fail --silent --show-error --retry 5 --retry-all-errors \
+            "${release_base_url}/manifest.json" --output smoke-manifest.json
+          curl --fail --silent --show-error --retry 5 --retry-all-errors \
+            "${release_base_url}/manifest.sig" --output smoke-manifest.sig
+          cmp --silent latest.json smoke-latest.json
+          cmp --silent manifest.json smoke-manifest.json
+          cmp --silent manifest.sig smoke-manifest.sig
+          node scripts/release-manifest.mjs extract-envelope \
+            smoke-latest.json smoke-envelope-manifest.json smoke-envelope-manifest.sig
+          cmp --silent manifest.json smoke-envelope-manifest.json
+          cmp --silent manifest.sig smoke-envelope-manifest.sig
+
+          while IFS= read -r -d '' source_file; do
+            artifact_key="${source_file#release-package/}"
+            platform="${artifact_key%%/*}"
+            filename="${artifact_key#*/}"
+            artifact_url="$(node - "${release_base_url}" "${platform}" "${filename}" <<'NODE'
+          const baseUrl = `${process.argv[2].replace(/\/$/, '')}/`;
+          const path = `${encodeURIComponent(process.argv[3])}/${encodeURIComponent(process.argv[4])}`;
+          process.stdout.write(new URL(path, baseUrl).toString());
+          NODE
+            )"
+            remote_file="$(mktemp)"
+            curl --fail --silent --show-error --retry 5 --retry-all-errors \
+              "${artifact_url}" --output "${remote_file}"
+            if ! cmp --silent "${source_file}" "${remote_file}"; then
+              rm -f "${remote_file}"
+              echo "Public artifact smoke check failed: ${artifact_key}." >&2
+              exit 1
+            fi
+            rm -f "${remote_file}"
+          done < <(find release-package -mindepth 2 -maxdepth 2 -type f ! -path '*/metadata/*' -print0)
+
+          node - "${RUNNER_TEMP}/winky-update-public.der" <<'NODE'
+          const fs = require('fs');
+          const prefix = Buffer.from('302a300506032b6570032100', 'hex');
+          const publicKey = Buffer.from(process.env.WINKY_UPDATE_PUBLIC_KEY, 'base64');
+          if (publicKey.length !== 32) throw new Error('Invalid update public key.');
+          fs.writeFileSync(process.argv[2], Buffer.concat([prefix, publicKey]));
+          NODE
+          openssl pkey -pubin -inform DER \
+            -in "${RUNNER_TEMP}/winky-update-public.der" \
+            -out "${RUNNER_TEMP}/winky-update-public.pem"
+          openssl pkeyutl -verify -pubin -rawin \
+            -inkey "${RUNNER_TEMP}/winky-update-public.pem" \
+            -in smoke-manifest.json \
+            -sigfile smoke-manifest.sig
+          node scripts/release-manifest.mjs verify-artifacts smoke-manifest.json
+
+      - name: Publish or resume GitHub Release
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
-          python3 - <<'PY'
-          import glob
-          import json
-          import os
+          read_release() {
+            local output_file="$1"
+            local error_file="$2"
+            if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
+              >"${output_file}" 2>"${error_file}"; then
+              return 0
+            fi
+            if grep -Eq '(HTTP 404|Not Found)' "${error_file}"; then
+              return 44
+            fi
+            cat "${error_file}" >&2
+            return 1
+          }
 
-          version = os.environ["VERSION"].removeprefix("v")
-          files = {}
-          for path in glob.glob("release-links/*.json"):
-              with open(path, encoding="utf-8") as handle:
-                  item = json.load(handle)
-              files[item["platform"]] = {
-                  "file": item["url"],
-                  "sha256_hash": item["sha256"],
-                  "name": item["filename"],
-              }
+          refresh_release() {
+            local status=0
+            read_release "${release_file}" "${release_error}" || status=$?
+            if [ "${status}" -ne 0 ]; then
+              echo "GitHub Release ${RELEASE_TAG} is unavailable after publication." >&2
+              return 1
+            fi
+          }
 
-          required = {"windows", "macos", "linux"}
-          missing = sorted(required - set(files))
-          if missing:
-              raise SystemExit(f"Missing update manifest entries: {', '.join(missing)}")
+          get_asset_id() {
+            local asset_name="$1"
+            node - "${release_file}" "${asset_name}" <<'NODE'
+          const fs = require('fs');
+          const release = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const matches = release.assets.filter(asset => asset.name === process.argv[3]);
+          if (matches.length > 1) throw new Error(`Duplicate GitHub asset: ${process.argv[3]}`);
+          if (matches.length === 1) process.stdout.write(String(matches[0].id));
+          NODE
+          }
 
-          with open("latest.json", "w", encoding="utf-8") as handle:
-              json.dump({"version": version, "files": files}, handle, ensure_ascii=False, indent=2)
-              handle.write("\n")
-          PY
+          verify_asset() {
+            local source_file="$1"
+            local asset_name="$2"
+            local asset_id="$3"
+            local remote_file
+            local local_hash
+            local local_size
 
-          if ! command -v aws >/dev/null 2>&1; then
-            python3 -m pip install --user awscli
-            export PATH="$HOME/.local/bin:$PATH"
+            remote_file="$(mktemp)"
+            gh api \
+              --header 'Accept: application/octet-stream' \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >"${remote_file}"
+            if ! cmp --silent "${source_file}" "${remote_file}"; then
+              rm -f "${remote_file}"
+              echo "GitHub asset content mismatch: ${asset_name}." >&2
+              return 1
+            fi
+            local_hash="$(sha256sum "${source_file}" | awk '{print $1}')"
+            local_size="$(stat --format=%s "${source_file}")"
+            rm -f "${remote_file}"
+            echo "Verified GitHub asset ${asset_name} (${local_size} bytes, ${local_hash})."
+          }
+
+          release_file="$(mktemp)"
+          release_error="$(mktemp)"
+          release_status=0
+          read_release "${release_file}" "${release_error}" || release_status=$?
+          case "${release_status}" in
+            0)
+              echo "Resuming existing GitHub Release ${RELEASE_TAG}."
+              ;;
+            44)
+              create_output="$(mktemp)"
+              create_error="$(mktemp)"
+              create_status=0
+              gh release create "${RELEASE_TAG}" \
+                --verify-tag \
+                --generate-notes \
+                --title "Winky ${RELEASE_TAG#v}" >"${create_output}" 2>"${create_error}" || create_status=$?
+              if [ "${create_status}" -ne 0 ]; then
+                echo "GitHub Release creation raced or failed; checking the tag again."
+              fi
+              if ! refresh_release; then
+                cat "${create_error}" >&2
+                rm -f "${create_output}" "${create_error}" "${release_file}" "${release_error}"
+                exit 1
+              fi
+              rm -f "${create_output}" "${create_error}"
+              ;;
+            *)
+              rm -f "${release_file}" "${release_error}"
+              exit 1
+              ;;
+          esac
+
+          mapfile -d '' asset_sources < <(find release-package -type f ! -path '*/metadata/*' -print0)
+          asset_sources+=(manifest.json manifest.sig latest.json)
+          declare -A asset_names=()
+          for source_file in "${asset_sources[@]}"; do
+            asset_name="$(basename "${source_file}")"
+            if [ -n "${asset_names[${asset_name}]+present}" ]; then
+              echo "Duplicate local GitHub asset name: ${asset_name}." >&2
+              exit 1
+            fi
+            asset_names["${asset_name}"]="${source_file}"
+
+            asset_id="$(get_asset_id "${asset_name}")"
+            if [ -z "${asset_id}" ]; then
+              upload_output="$(mktemp)"
+              upload_error="$(mktemp)"
+              upload_status=0
+              gh release upload "${RELEASE_TAG}" "${source_file}" \
+                >"${upload_output}" 2>"${upload_error}" || upload_status=$?
+              refresh_release
+              asset_id="$(get_asset_id "${asset_name}")"
+              if [ -z "${asset_id}" ]; then
+                cat "${upload_error}" >&2
+                rm -f "${upload_output}" "${upload_error}"
+                exit 1
+              fi
+              if [ "${upload_status}" -ne 0 ]; then
+                echo "Another publisher created ${asset_name}; verifying its exact bytes."
+              fi
+              rm -f "${upload_output}" "${upload_error}"
+            else
+              echo "Reusing existing GitHub asset ${asset_name}."
+            fi
+            verify_asset "${source_file}" "${asset_name}" "${asset_id}"
+          done
+          rm -f "${release_file}" "${release_error}"
+
+      - name: Publish current update manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          object_key='winky/latest.json'
+          head_file="$(mktemp)"
+          head_error="$(mktemp)"
+          head_status=0
+          if ! aws s3api head-object \
+            --bucket "${S3_BUCKET}" \
+            --key "${object_key}" \
+            --endpoint-url "${S3_ENDPOINT}" >"${head_file}" 2>"${head_error}"; then
+            if grep -Eq '(\(404\)|HTTP 404|Not Found|NoSuchKey)' "${head_error}"; then
+              head_status=44
+            else
+              cat "${head_error}" >&2
+              exit 1
+            fi
           fi
 
-          aws configure set default.s3.addressing_style path
-          aws s3 cp latest.json "s3://${S3_BUCKET}/winky/latest.json" \
+          condition=()
+          if [ "${head_status}" -eq 0 ]; then
+            current_file="$(mktemp)"
+            aws s3api get-object \
+              --bucket "${S3_BUCKET}" \
+              --key "${object_key}" \
+              --endpoint-url "${S3_ENDPOINT}" \
+              "${current_file}" >/dev/null
+            node scripts/release-manifest.mjs check-monotonic "${current_file}" manifest.json
+            if cmp --silent latest.json "${current_file}"; then
+              echo 'Current update manifest already has the expected bytes.'
+              rm -f "${current_file}" "${head_file}" "${head_error}"
+              exit 0
+            fi
+            etag="$(node -e "const fs=require('fs'); const h=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); if (!h.ETag) throw new Error('Missing latest.json ETag'); process.stdout.write(h.ETag)" "${head_file}")"
+            condition=(--if-match "${etag}")
+            rm -f "${current_file}"
+          else
+            condition=(--if-none-match '*')
+          fi
+
+          put_output="$(mktemp)"
+          put_error="$(mktemp)"
+          put_status=0
+          aws s3api put-object \
+            --bucket "${S3_BUCKET}" \
+            --key "${object_key}" \
+            --body latest.json \
+            "${condition[@]}" \
             --endpoint-url "${S3_ENDPOINT}" \
             --acl public-read \
-            --content-type application/json
-          aws s3 cp latest.json "s3://${S3_BUCKET}/winky/${VERSION}/latest.json" \
-            --endpoint-url "${S3_ENDPOINT}" \
-            --acl public-read \
-            --content-type application/json
+            --cache-control 'public,max-age=60,must-revalidate' \
+            --content-type application/json >"${put_output}" 2>"${put_error}" || put_status=$?
+          if [ "${put_status}" -ne 0 ]; then
+            if ! grep -Eq '(409|412|ConditionalRequestConflict|PreconditionFailed)' "${put_error}"; then
+              cat "${put_error}" >&2
+              exit 1
+            fi
+            raced_file="$(mktemp)"
+            aws s3api get-object \
+              --bucket "${S3_BUCKET}" \
+              --key "${object_key}" \
+              --endpoint-url "${S3_ENDPOINT}" \
+              "${raced_file}" >/dev/null
+            if ! cmp --silent latest.json "${raced_file}"; then
+              echo 'Current update manifest changed during publication.' >&2
+              exit 1
+            fi
+            rm -f "${raced_file}"
+          fi
+          rm -f "${head_file}" "${head_error}" "${put_output}" "${put_error}"
+
+      - name: Verify current update manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_manifest_url="${S3_ENDPOINT}/${S3_BUCKET}/winky/latest.json?release=${GITHUB_SHA}"
+          curl --fail --silent --show-error --retry 5 --retry-all-errors \
+            --header 'Cache-Control: no-cache' \
+            "${current_manifest_url}" --output published-current-latest.json
+          cmp --silent latest.json published-current-latest.json

@@ -19,7 +19,15 @@ declare global {
 
         update(payload: Partial<AppConfig>): Promise<AppConfig>;
 
-        setAuth(tokens: AuthTokens): Promise<AppConfig>;
+        updateMic(
+            payload: Pick<Partial<AppConfig>, 'micWindowPosition' | 'micAnchor' | 'selectedGroupId'>
+        ): Promise<AppConfig>;
+
+        setAuth(
+            tokens: AuthTokens,
+            expectedAuthRevision?: number,
+            expectedBackendDomain?: string | null
+        ): Promise<AppConfig>;
 
         reset(): Promise<AppConfig>;
 
@@ -29,7 +37,7 @@ declare global {
 
         openLogsFolder(): Promise<void>;
 
-        subscribe(callback: (config: AppConfig) => void): () => void;
+        subscribe(callback: () => void): Promise<() => void>;
     }
 
     interface WinkyClipboardAPI {
@@ -39,9 +47,13 @@ declare global {
     interface WinkyAuthAPI {
         startOAuth(provider: AuthProvider): Promise<void>;
 
+        exchangeOAuth(
+            payload: Extract<AuthDeepLinkPayload, {kind: 'code'}>
+        ): Promise<AppConfig>;
+
         getAuthMethods(): Promise<AuthMethodsResponse>;
 
-        onOAuthPayload(cb: (payload: AuthDeepLinkPayload) => void): () => void;
+        onOAuthPayload(cb: (payload: AuthDeepLinkPayload) => void): Promise<() => void>;
 
         consumePendingOAuthPayloads(): Promise<AuthDeepLinkPayload[]>;
     }

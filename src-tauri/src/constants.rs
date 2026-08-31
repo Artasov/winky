@@ -23,15 +23,24 @@ pub const FAST_WHISPER_INSTALL_ENV_VAR: &str = "WINKY_LOCAL_SPEECH_DIR";
 // even if the environment variable was not exported into the current process.
 pub const FAST_WHISPER_INSTALL_HINT_FILE: &str = "local-speech-path.txt";
 pub const CONFIG_FILE_NAME: &str = "config.json";
+pub const CONFIG_SECRETS_FILE_NAME: &str = "secrets.bin";
+pub const CURRENT_CONFIG_SCHEMA_VERSION: u32 = 3;
 
 pub const DEFAULT_SPEECH_MODEL: &str = "gpt-4o-mini-transcribe";
-pub const DEFAULT_LLM_MODEL: &str = "o4-mini";
+pub const DEFAULT_LLM_MODEL: &str = "gpt-5-mini";
 pub const DEFAULT_MIC_ANCHOR: &str = "bottom-right";
 pub const OAUTH_APP_NAME: &str = "winky";
 pub const UPDATE_MANIFEST_URL: &str =
     "https://s3.twcstorage.ru/324718a4-2cc5dd7a-917b-4e82-87c5-b9d5f8de16ba/winky/latest.json";
+pub const UPDATE_ALLOWED_HOST: &str = "s3.twcstorage.ru";
+pub const UPDATE_ALLOWED_PATH_PREFIX: &str =
+    "/324718a4-2cc5dd7a-917b-4e82-87c5-b9d5f8de16ba/winky/";
+pub const UPDATE_MANIFEST_SCHEMA_VERSION: u32 = 1;
+pub const UPDATE_MAX_MANIFEST_BYTES: u64 = 512 * 1024;
+pub const UPDATE_MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub const UPDATE_INITIAL_CHECK_DELAY_SECS: u64 = 15;
 pub const UPDATE_CHECK_INTERVAL_SECS: u64 = 60 * 60;
+pub const UPDATE_MAX_BACKOFF_SECS: u64 = 6 * 60 * 60;
 
 #[allow(dead_code)]
 pub const MIC_WINDOW_WIDTH: f64 = 520.0;

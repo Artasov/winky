@@ -44,23 +44,19 @@ export interface AuthMethodsResponse {
     allowed_email_domains: string[];
 }
 
-export type AuthTokensPayload = {
-    access: string;
-    refresh?: string | null;
-};
-
 export type AuthDeepLinkPayload =
     | {
-    kind: 'success';
-    provider: AuthProvider | string;
-    tokens: AuthTokensPayload;
-    user?: Record<string, unknown> | null;
-}
-    | {
-    kind: 'error';
-    provider: AuthProvider | string;
-    error: string;
-};
+          kind: 'code';
+          provider: AuthProvider | string;
+          code: string;
+          state: string;
+      }
+      | {
+          kind: 'error';
+          provider: AuthProvider | string;
+          error: string;
+          state: string;
+      };
 
 export interface User {
     id: number;
@@ -170,6 +166,9 @@ export interface ApiKeys {
 }
 
 export interface AppConfig {
+    schemaVersion: number;
+    storageRevision: number;
+    authRevision: number;
     auth: AuthTokens;
     backendDomain: BackendDomain;
     setupCompleted: boolean;

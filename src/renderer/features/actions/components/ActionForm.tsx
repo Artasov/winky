@@ -23,7 +23,16 @@ import MicIcon from '@mui/icons-material/Mic';
 import type {ActionFormValues} from '../hooks/useActionForm';
 import type {ActionGroup} from '@shared/types';
 import HotkeyInput from '../../../components/HotkeyInput';
-import {getMediaUrl, LLM_GEMINI_API_MODELS, LLM_LOCAL_MODELS, LLM_OPENAI_API_MODELS, MAX_ACTIONS_PER_GROUP} from '@shared/constants';
+import {
+    getMediaUrl,
+    LLM_GEMINI_API_MODELS,
+    LLM_LOCAL_MODELS,
+    LLM_MODES,
+    LLM_OPENAI_API_MODELS,
+    LLM_WINKY_API_MODELS,
+    MAX_ACTIONS_PER_GROUP
+} from '@shared/constants';
+import {isLlmModelCompatible} from '@shared/modelRegistry';
 import VoiceActionModal from './VoiceActionModal';
 import {useConfig} from '../../../context/ConfigContext';
 import {useToast} from '../../../context/ToastContext';
@@ -84,6 +93,19 @@ const ActionForm: React.FC<Props> = ({
     const {config} = useConfig();
     const {showToast} = useToast();
     const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+    const llmModelGroups = React.useMemo(() => config?.llm.mode === LLM_MODES.LOCAL
+        ? [{label: 'Ollama (Local)', models: LLM_LOCAL_MODELS}]
+        : [
+            {label: 'Winky', models: LLM_WINKY_API_MODELS},
+            {label: 'OpenAI', models: LLM_OPENAI_API_MODELS},
+            {label: 'Google Gemini', models: LLM_GEMINI_API_MODELS}
+        ], [config?.llm.mode]);
+
+    React.useEffect(() => {
+        const savedModel = values.llmModel?.trim();
+        if (!modal.isModalVisible || !config || !savedModel) return;
+        if (!isLlmModelCompatible(config.llm.mode, savedModel)) setField('llmModel', '');
+    }, [config, modal.isModalVisible, setField, values.llmModel]);
 
     const handleVoiceActionGenerated = (generatedValues: Partial<ActionFormValues>) => {
         Object.entries(generatedValues).forEach(([key, value]) => {
@@ -275,60 +297,27 @@ const ActionForm: React.FC<Props> = ({
                         <MenuItem value="">
                             <em>Use default from settings</em>
                         </MenuItem>
-                        <ListSubheader
-                            sx={(theme) => ({
-                                backgroundColor: theme.palette.mode === 'dark'
-                                    ? theme.palette.background.default
-                                    : 'var(--color-bg-elevated)',
-                                fontWeight: 600,
-                                fontSize: '0.875rem',
-                                color: 'text.primary',
-                                lineHeight: '36px'
-                            })}
-                        >
-                            OpenAI
-                        </ListSubheader>
-                        {LLM_OPENAI_API_MODELS.map((model) => (
-                            <MenuItem key={model} value={model}>
-                                {model}
-                            </MenuItem>
-                        ))}
-                        <ListSubheader
-                            sx={(theme) => ({
-                                backgroundColor: theme.palette.mode === 'dark'
-                                    ? theme.palette.background.default
-                                    : 'var(--color-bg-elevated)',
-                                fontWeight: 600,
-                                fontSize: '0.875rem',
-                                color: 'text.primary',
-                                lineHeight: '36px'
-                            })}
-                        >
-                            Google Gemini
-                        </ListSubheader>
-                        {LLM_GEMINI_API_MODELS.map((model) => (
-                            <MenuItem key={model} value={model}>
-                                {model}
-                            </MenuItem>
-                        ))}
-                        <ListSubheader
-                            sx={(theme) => ({
-                                backgroundColor: theme.palette.mode === 'dark'
-                                    ? theme.palette.background.default
-                                    : 'var(--color-bg-elevated)',
-                                fontWeight: 600,
-                                fontSize: '0.875rem',
-                                color: 'text.primary',
-                                lineHeight: '36px'
-                            })}
-                        >
-                            Ollama (Local)
-                        </ListSubheader>
-                        {LLM_LOCAL_MODELS.map((model) => (
-                            <MenuItem key={model} value={model}>
-                                {model}
-                            </MenuItem>
-                        ))}
+                        {llmModelGroups.flatMap((group) => [
+                            <ListSubheader
+                                key={`${group.label}-header`}
+                                sx={(theme) => ({
+                                    backgroundColor: theme.palette.mode === 'dark'
+                                        ? theme.palette.background.default
+                                        : 'var(--color-bg-elevated)',
+                                    fontWeight: 600,
+                                    fontSize: '0.875rem',
+                                    color: 'text.primary',
+                                    lineHeight: '36px'
+                                })}
+                            >
+                                {group.label}
+                            </ListSubheader>,
+                            ...group.models.map((model) => (
+                                <MenuItem key={model} value={model}>
+                                    {model}
+                                </MenuItem>
+                            ))
+                        ])}
                     </TextField>
 
                     <Stack spacing={1}>

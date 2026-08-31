@@ -5,34 +5,21 @@ import type {AppConfig} from '@shared/types';
 export const configBridge = {
     get: (): Promise<AppConfig> => invoke('config_get'),
     update: (payload: Partial<AppConfig>): Promise<AppConfig> => invoke('config_update', {payload}),
-    setAuth: (tokens: AppConfig['auth']): Promise<AppConfig> => invoke('config_set_auth', {tokens}),
+    updateMic: (payload: Pick<Partial<AppConfig>, 'micWindowPosition' | 'micAnchor' | 'selectedGroupId'>): Promise<AppConfig> =>
+        invoke('config_update_mic', {payload}),
+    setAuth: (
+        tokens: AppConfig['auth'],
+        expectedAuthRevision?: number,
+        expectedBackendDomain?: string | null
+    ): Promise<AppConfig> => invoke('config_set_auth', {
+        tokens,
+        expectedAuthRevision,
+        expectedBackendDomain
+    }),
     reset: (): Promise<AppConfig> => invoke('config_reset'),
     path: (): Promise<string> => invoke('config_path'),
     getLogFilePath: (): Promise<string> => invoke('app_log_path'),
     openLogsFolder: (): Promise<void> => invoke('open_app_logs_folder'),
-    subscribe: (callback: (config: AppConfig) => void): (() => void) => {
-        let stopped = false;
-        const unlistenPromise = listen<AppConfig>('config:updated', (event) => {
-            if (stopped) {
-                return;
-            }
-            callback(event.payload);
-        }).catch((error) => {
-            console.warn('[configBridge] Failed to subscribe to config updates:', error);
-            return null;
-        });
-
-        return () => {
-            stopped = true;
-            unlistenPromise
-                .then((unlisten) => {
-                    if (typeof unlisten === 'function') {
-                        unlisten();
-                    }
-                })
-                .catch(() => {
-                    /* ignore */
-                });
-        };
-    }
+    subscribe: async (callback: () => void): Promise<() => void> =>
+        listen('config:updated', () => callback())
 };

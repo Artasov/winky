@@ -8,8 +8,8 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::time::{Duration, interval};
 use tauri::{AppHandle, Manager};
+use tokio::time::{interval, Duration};
 
 use crate::auth::AuthQueue;
 use crate::logging;
@@ -29,7 +29,9 @@ fn get_deep_link_file_path(app: &AppHandle) -> Option<PathBuf> {
 pub fn get_deep_link_file_path_standalone() -> Option<PathBuf> {
     // Используем стандартный путь AppData\Local\xldev-winky
     if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA") {
-        let path = PathBuf::from(local_app_data).join("xldev-winky").join(DEEP_LINK_FILE_NAME);
+        let path = PathBuf::from(local_app_data)
+            .join("xldev-winky")
+            .join(DEEP_LINK_FILE_NAME);
         return Some(path);
     }
     None
@@ -39,16 +41,14 @@ pub fn get_deep_link_file_path_standalone() -> Option<PathBuf> {
 pub fn write_deep_link_to_file(url: &str) -> Result<(), String> {
     let file_path = get_deep_link_file_path_standalone()
         .ok_or_else(|| "Failed to get deep link file path".to_string())?;
-    
+
     // Создаём директорию если не существует
     if let Some(parent) = file_path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create directory: {}", e))?;
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {}", e))?;
     }
-    
-    fs::write(&file_path, url)
-        .map_err(|e| format!("Failed to write deep link file: {}", e))?;
-    
+
+    fs::write(&file_path, url).map_err(|e| format!("Failed to write deep link file: {}", e))?;
+
     println!("[DeepLinkFile] Wrote URL to file: {}", file_path.display());
     Ok(())
 }
@@ -56,38 +56,38 @@ pub fn write_deep_link_to_file(url: &str) -> Result<(), String> {
 /// Читает и удаляет deep link URL из файла
 fn read_and_remove_deep_link_file(app: &AppHandle) -> Option<String> {
     let file_path = get_deep_link_file_path(app)?;
-    
+
     if !file_path.exists() {
         return None;
     }
-    
+
     let content = fs::read_to_string(&file_path).ok()?;
     let url = content.trim().to_string();
-    
+
     if url.is_empty() {
         let _ = fs::remove_file(&file_path);
         return None;
     }
-    
+
     // Удаляем файл после чтения
     let _ = fs::remove_file(&file_path);
-    
-    logging::log_message(&format!("[DeepLinkFile] Read URL from file: {}", url));
+
+    logging::log_message("[DeepLinkFile] Read pending OAuth callback");
     Some(url)
 }
 
 /// Запускает polling для проверки deep link файла
 pub fn start_deep_link_file_polling(app: AppHandle, queue: Arc<AuthQueue>) {
     logging::log_message("[DeepLinkFile] Starting file polling for deep links...");
-    
+
     tauri::async_runtime::spawn(async move {
         let mut ticker = interval(Duration::from_millis(POLL_INTERVAL_MS));
-        
+
         loop {
             ticker.tick().await;
-            
+
             if let Some(url) = read_and_remove_deep_link_file(&app) {
-                logging::log_message(&format!("[DeepLinkFile] Found deep link in file: {}", url));
+                logging::log_message("[DeepLinkFile] Dispatching pending OAuth callback");
                 crate::dispatch_deep_link(&app, queue.clone(), url);
             }
         }
@@ -97,7 +97,7 @@ pub fn start_deep_link_file_polling(app: AppHandle, queue: Arc<AuthQueue>) {
 /// Проверяет и обрабатывает deep link файл при старте (синхронно)
 pub fn check_deep_link_file_on_startup(app: &AppHandle, queue: &Arc<AuthQueue>) {
     if let Some(url) = read_and_remove_deep_link_file(app) {
-        logging::log_message(&format!("[DeepLinkFile] Found pending deep link on startup: {}", url));
+        logging::log_message("[DeepLinkFile] Dispatching startup OAuth callback");
         let app_clone = app.clone();
         let queue_clone = queue.clone();
         tauri::async_runtime::spawn(async move {
@@ -105,4 +105,3 @@ pub fn check_deep_link_file_on_startup(app: &AppHandle, queue: &Arc<AuthQueue>) 
         });
     }
 }
-

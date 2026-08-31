@@ -1,6 +1,5 @@
 ﻿import React, {ChangeEvent, useEffect, useRef, useState} from 'react';
 import FolderOpenRoundedIcon from '@mui/icons-material/FolderOpenRounded';
-import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import {Box, Button, Checkbox, FormControlLabel, MenuItem, Slider, TextField, Typography} from '@mui/material';
 import {alpha} from '@mui/material/styles';
 import {useConfig} from '../context/ConfigContext';
@@ -9,7 +8,6 @@ import {
     getBackendDomain,
     LLM_API_MODELS,
     LLM_MODES,
-    setBackendDomain as applyBackendDomain,
     SPEECH_API_MODELS,
     SPEECH_MODES
 } from '@shared/constants';
@@ -18,6 +16,7 @@ import ModelConfigForm, {ModelConfigFormData} from '../components/ModelConfigFor
 import HotkeyInput from '../components/HotkeyInput';
 import BackendDomainSelect from '../components/BackendDomainSelect';
 import {configBridge} from '../services/winkyBridge';
+import UpdateSettingsSection from '../features/updates/components/UpdateSettingsSection';
 
 const DEFAULT_MIC_HOTKEY = 'Alt+Q';
 
@@ -49,6 +48,7 @@ const SettingsPage: React.FC = () => {
     const [saveAudioHistory, setSaveAudioHistory] = useState(false);
     const [trimSilenceOnActions, setTrimSilenceOnActions] = useState(false);
     const [backendDomain, setBackendDomainState] = useState<BackendDomain>(getBackendDomain());
+    const [backendDomainSaving, setBackendDomainSaving] = useState(false);
     const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
 
     useEffect(() => {
@@ -214,8 +214,8 @@ const SettingsPage: React.FC = () => {
                     mode: nextValues.llmMode,
                     model: nextValues.llmModel
                 },
-                globalTranscribePrompt: nextValues.globalTranscribePrompt.trim(),
-                globalLlmPrompt: nextValues.globalLlmPrompt.trim()
+                globalTranscribePrompt: nextValues.globalTranscribePrompt,
+                globalLlmPrompt: nextValues.globalLlmPrompt
             });
         } catch (error) {
             console.error('[SettingsPage] Failed to save model config', error);
@@ -348,9 +348,6 @@ const SettingsPage: React.FC = () => {
         }
     };
 
-    const hasToken = config?.auth.access || config?.auth.accessToken;
-    const isAuthorized = Boolean(hasToken);
-
     const handleLaunchOnStartupChange = async (event: ChangeEvent<HTMLInputElement>) => {
         const nextValue = event.target.checked;
         const previousValue = launchOnSystemStartup;
@@ -438,18 +435,17 @@ const SettingsPage: React.FC = () => {
     };
 
     const handleBackendDomainChange = async (nextValue: BackendDomain) => {
-        if (nextValue === backendDomain) return;
-        const previousValue = backendDomain;
-        setBackendDomainState(nextValue);
-        applyBackendDomain(nextValue);
+        if (nextValue === backendDomain || backendDomainSaving) return;
+        setBackendDomainSaving(true);
         try {
             await updateConfig({backendDomain: nextValue});
+            setBackendDomainState(nextValue);
             showToast('Primary backend domain updated.', 'success');
         } catch (error) {
             console.error('[SettingsPage] Failed to update backend domain', error);
-            setBackendDomainState(previousValue);
-            applyBackendDomain(previousValue);
             showToast('Failed to update backend domain.', 'error');
+        } finally {
+            setBackendDomainSaving(false);
         }
     };
 
@@ -474,15 +470,6 @@ const SettingsPage: React.FC = () => {
         }
     };
 
-    if (!isAuthorized) {
-        return (
-            <div className="fccc mx-auto h-full w-full max-w-md gap-4 px-8 py-12 text-center">
-                <LockRoundedIcon sx={{fontSize: 40, opacity: 0.6}}/>
-                <p className="text-sm text-text-secondary">Please sign in to change settings.</p>
-            </div>
-        );
-    }
-
     return (
         <div className="fc mx-auto h-full w-full max-w-4xl gap-4 px-8 py-6 overflow-y-auto">
             <div className="fc gap-1">
@@ -491,6 +478,7 @@ const SettingsPage: React.FC = () => {
             </div>
 
             <ModelConfigForm
+                backendDomain={backendDomain}
                 values={formData}
                 onChange={setFormData}
                 autoSave
@@ -523,6 +511,7 @@ const SettingsPage: React.FC = () => {
                 <BackendDomainSelect
                     value={backendDomain}
                     onChange={(nextValue) => void handleBackendDomainChange(nextValue)}
+                    disabled={backendDomainSaving}
                 />
 
                 <div className={'fc gap-2'}>
@@ -539,6 +528,8 @@ const SettingsPage: React.FC = () => {
                         Logs include Rust, updater, OAuth and frontend console messages.
                     </Typography>
                 </div>
+
+                <UpdateSettingsSection/>
 
                 <div className={'fc gap-2'}>
                     <FormControlLabel

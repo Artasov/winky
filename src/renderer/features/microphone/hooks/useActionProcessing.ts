@@ -4,6 +4,7 @@ import {getSiteBaseUrl, LLM_MODES, LLM_WINKY_API_MODELS, SPEECH_WINKY_API_MODELS
 import {createNoteForMode, deriveNoteTitle, resolveNotesStorageMode} from '../../../services/notesService';
 import {clipboardBridge, historyBridge, llmBridge, resourcesBridge, speechBridge, windowBridge} from '../../../services/winkyBridge';
 import {trimSilenceFromAudioBlob, isAudioSilent} from '../services/audioProcessing';
+import {isValidTranscription} from '../services/transcriptionValidation';
 import {winkyTranscribe, winkyLLMStream} from '../../../services/winkyAiApi';
 import {
     createLocalChatId,
@@ -14,6 +15,7 @@ import {
 } from '../../chats/services/chatStorage';
 import {createChatLaunchRequest} from '../../chats/services/chatLaunchRequests';
 import {createChatMeta} from '../../chats/utils/chatProviders';
+import {isLlmModelCompatible, isTranscriptionModelCompatible} from '@shared/modelRegistry';
 
 const WINKY_LLM_MODELS_SET = new Set<string>([...LLM_WINKY_API_MODELS]);
 const WINKY_SPEECH_MODELS_SET = new Set<string>([...SPEECH_WINKY_API_MODELS]);
@@ -21,82 +23,66 @@ const WINKY_SPEECH_MODELS_SET = new Set<string>([...SPEECH_WINKY_API_MODELS]);
 const isWinkyLLMModel = (model: string): boolean => WINKY_LLM_MODELS_SET.has(model);
 const isWinkySpeechModel = (model: string): boolean => WINKY_SPEECH_MODELS_SET.has(model);
 
+const getProvider = (mode: string, model: string, winkyModels: Set<string>): string => {
+    if (mode === 'local') return 'local';
+    if (winkyModels.has(model)) return 'winky';
+    if (model.startsWith('gemini-')) return 'google';
+    return 'openai';
+};
+
+const getDiagnosticStatus = (error: unknown, fallback: string): string | number => {
+    if (typeof error === 'object' && error !== null && 'status' in error) {
+        const status = error.status;
+        if (typeof status === 'number' || typeof status === 'string') return status;
+    }
+    if (typeof error === 'object' && error !== null && 'response' in error) {
+        const response = error.response;
+        if (typeof response === 'object' && response !== null && 'status' in response) {
+            const status = response.status;
+            if (typeof status === 'number' || typeof status === 'string') return status;
+        }
+    }
+    if (error instanceof Error && error.name) return error.name;
+    return fallback;
+};
+
+const getErrorStatus = (error: unknown): number | undefined => {
+    const status = getDiagnosticStatus(error, '');
+    if (typeof status === 'number') return status;
+    const parsed = Number(status);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error && error.message.trim()) return error.message.trim();
+    return '';
+};
+
+const getApiErrorMessage = (error: unknown): string => {
+    if (typeof error !== 'object' || error === null) return '';
+    if ('details' in error && typeof error.details === 'object' && error.details !== null) {
+        const details = error.details as Record<string, unknown>;
+        if (typeof details.detail === 'string') return details.detail;
+    }
+    if (!('response' in error) || typeof error.response !== 'object' || error.response === null) return '';
+    const response = error.response as Record<string, unknown>;
+    if (typeof response.data !== 'object' || response.data === null) return '';
+    const data = response.data as Record<string, unknown>;
+    if (typeof data.detail === 'string') return data.detail;
+    if (typeof data.error !== 'object' || data.error === null) return '';
+    const apiError = data.error as Record<string, unknown>;
+    return typeof apiError.message === 'string' ? apiError.message : '';
+};
+
+const isAbortError = (error: unknown): boolean =>
+    error instanceof DOMException && error.name === 'AbortError'
+    || error instanceof Error && error.name === 'AbortError';
+
 type ToastFn = (message: string, type?: 'success' | 'info' | 'error', options?: { durationMs?: number }) => void;
 
 const TRANSCRIBE_UI_TIMEOUT_MS = 120_000;
 const TRANSCRIBE_SLOW_LOG_MS = 15_000;
-
-// Известные галлюцинации/артефакты Whisper при тихом/шумном аудио
-const KNOWN_WHISPER_HALLUCINATIONS = [
-    'hostname, and email are included in the link below.',
-    'like and subscribe',
-    'امیدوارم که این ویدیو',
-    'ご視聴ありがとうございました',
-    '字幕by',
-    'subtitle by',
-    'transcript by',
-    'captioning by',
-    'www.mooji.org',
-];
-
-// Проверяет, является ли текст валидной транскрипцией или артефактом
-const isValidTranscription = (text: string, prompt?: string): boolean => {
-    const trimmed = text.trim();
-    if (!trimmed) {
-        return false;
-    }
-
-    const normalizedText = trimmed.toLowerCase();
-
-    // 1. Проверяем на известные галлюцинации Whisper
-    for (const hallucination of KNOWN_WHISPER_HALLUCINATIONS) {
-        const normalizedHallucination = hallucination.toLowerCase();
-        if (normalizedText === normalizedHallucination ||
-            normalizedText.includes(normalizedHallucination) ||
-            normalizedHallucination.includes(normalizedText)) {
-            console.warn('[useActionProcessing] Known Whisper hallucination detected:', trimmed);
-            return false;
-        }
-    }
-
-    // 2. Проверяем, не является ли результат копией промпта
-    if (prompt?.trim()) {
-        const normalizedPrompt = prompt.trim().toLowerCase();
-        // Если результат содержит более 70% текста промпта, вероятно это галлюцинация
-        if (normalizedText.includes(normalizedPrompt) || normalizedPrompt.includes(normalizedText)) {
-            const similarity = normalizedText.length / normalizedPrompt.length;
-            if (similarity > 0.7) {
-                console.warn('[useActionProcessing] Transcription looks like prompt repetition:', trimmed);
-                return false;
-            }
-        }
-    }
-
-    // 3. Проверяем на подозрительные паттерны
-    // Только иероглифы/китайские символы (если язык не китайский)
-    const chineseChars = trimmed.match(/[\u4e00-\u9fff]/g);
-    const chineseRatio = chineseChars ? chineseChars.length / trimmed.length : 0;
-    if (chineseRatio > 0.8) {
-        console.warn('[useActionProcessing] Transcription is mostly Chinese characters (possible hallucination):', trimmed);
-        return false;
-    }
-
-    // 4. Только арабские символы (если язык не арабский)
-    const arabicChars = trimmed.match(/[\u0600-\u06ff]/g);
-    const arabicRatio = arabicChars ? arabicChars.length / trimmed.length : 0;
-    if (arabicRatio > 0.8) {
-        console.warn('[useActionProcessing] Transcription is mostly Arabic characters (possible hallucination):', trimmed);
-        return false;
-    }
-
-    // 5. Очень короткие результаты (менее 2 символов) могут быть артефактами
-    if (trimmed.length < 2) {
-        console.warn('[useActionProcessing] Transcription too short (possible artifact):', trimmed);
-        return false;
-    }
-
-    return true;
-};
+const LLM_UI_TIMEOUT_MS = 180_000;
 
 type UseActionProcessingParams = {
     config: AppConfig | null;
@@ -122,6 +108,20 @@ export const useActionProcessing = ({
         let abortController: AbortController | null = null;
         let slowLogTimer: number | null = null;
         const startTime = Date.now();
+        const actionLlmModel = action.llm_model?.trim();
+        const llmModel = actionLlmModel && isLlmModelCompatible(config.llm.mode, actionLlmModel)
+            ? actionLlmModel
+            : config.llm.model;
+        const diagnostics = (status: string, error?: unknown) => ({
+            provider: [
+                getProvider(config.speech.mode, config.speech.model, WINKY_SPEECH_MODELS_SET),
+                getProvider(config.llm.mode, llmModel, WINKY_LLM_MODELS_SET)
+            ].join('/'),
+            model: [config.speech.model, llmModel].join('/'),
+            status: getDiagnosticStatus(error, status),
+            durationMs: Date.now() - startTime,
+            sizeBytes: blob.size
+        });
 
         const clearContext = () => {
             contextTextRef.current = '';
@@ -150,8 +150,28 @@ export const useActionProcessing = ({
             try {
                 return await historyBridge.add(payload);
             } catch (error) {
-                console.warn('[useActionProcessing] Failed to save history', error);
+                console.warn('[useActionProcessing] Failed to save history', diagnostics('history-save-failed', error));
                 return null;
+            }
+        };
+
+        const runLlmWithTimeout = async <T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> => {
+            const controller = new AbortController();
+            abortController = controller;
+            let timedOut = false;
+            const timeoutId = window.setTimeout(() => {
+                timedOut = true;
+                controller.abort(new DOMException('LLM request timed out.', 'AbortError'));
+            }, LLM_UI_TIMEOUT_MS);
+            try {
+                return await operation(controller.signal);
+            } catch (error) {
+                if (!timedOut) throw error;
+                const timeoutError = new Error('The model took too long to respond. Please try again.');
+                timeoutError.name = 'TimeoutError';
+                throw timeoutError;
+            } finally {
+                window.clearTimeout(timeoutId);
             }
         };
 
@@ -166,7 +186,7 @@ export const useActionProcessing = ({
             try {
                 return await historyBridge.update(payload);
             } catch (error) {
-                console.warn('[useActionProcessing] Failed to update history', error);
+                console.warn('[useActionProcessing] Failed to update history', diagnostics('history-update-failed', error));
                 return null;
             }
         };
@@ -189,7 +209,7 @@ export const useActionProcessing = ({
                     description: trimmed
                 });
             } catch (error) {
-                console.warn('[useActionProcessing] Failed to save quick note', error);
+                console.warn('[useActionProcessing] Failed to save quick note', diagnostics('note-save-failed', error));
                 showToast('Failed to save the note.', 'error');
             }
         };
@@ -199,6 +219,12 @@ export const useActionProcessing = ({
         };
 
         try {
+            if (!isTranscriptionModelCompatible(config.speech.mode, config.speech.model)) {
+                throw new Error('The selected transcription model is incompatible with the current mode. Open Settings and choose another model.');
+            }
+            if (!isLlmModelCompatible(config.llm.mode, llmModel)) {
+                throw new Error('The selected LLM model is incompatible with the current mode. Open Settings and choose another model.');
+            }
             const shouldTrimSilence = config.trimSilenceOnActions === true;
             const shouldSaveAudio = config.saveAudioHistory === true;
             let audioData: ArrayBuffer;
@@ -238,7 +264,7 @@ export const useActionProcessing = ({
 
             // Если аудио тихое и нет контекста, не выполняем действие
             if (isSilent && !hasContext) {
-                console.log('[useActionProcessing] Audio is silent and no context provided, skipping action');
+                console.log('[useActionProcessing] Audio skipped', diagnostics('silent'));
                 showToast('No speech detected in the recording.', 'info');
                 return;
             }
@@ -246,7 +272,7 @@ export const useActionProcessing = ({
             // Если есть контекст, но аудио тихое - пропускаем распознавание речи
             const shouldSkipTranscription = isSilent && hasContext;
             if (shouldSkipTranscription) {
-                console.log('[useActionProcessing] Audio is silent but context provided, skipping transcription but processing action');
+                console.log('[useActionProcessing] Transcription skipped', diagnostics('context-only'));
             }
 
             let savedAudioPath: string | null | undefined = undefined;
@@ -260,7 +286,7 @@ export const useActionProcessing = ({
                 try {
                     savedAudioPath = await historyBridge.saveAudio(audioForSave, saveMimeType);
                 } catch (error) {
-                    console.warn('[useActionProcessing] Failed to save audio history', error);
+                    console.warn('[useActionProcessing] Failed to save audio history', diagnostics('audio-save-failed', error));
                     savedAudioPath = null;
                 }
                 return savedAudioPath;
@@ -283,26 +309,21 @@ export const useActionProcessing = ({
                 slowLogTimer =
                     typeof window !== 'undefined'
                         ? window.setTimeout(() => {
-                            console.warn('[useActionProcessing] Transcription still in-flight', {
-                                mode: config.speech.mode,
-                                model: config.speech.model,
-                                actionId: action.id,
-                                elapsedMs: Date.now() - startTime
-                            });
+                            console.warn(
+                                '[useActionProcessing] Transcription still in-flight',
+                                diagnostics('transcribing')
+                            );
                         }, TRANSCRIBE_SLOW_LOG_MS)
                         : null;
 
                 // Winky модели используют собственный API для транскрибации
-                if (isWinkySpeechModel(config.speech.model) && authToken) {
-                    try {
-                        const result = await winkyTranscribe(audioData, authToken, {mimeType});
-                        transcription = result.text;
-                    } catch (error: any) {
-                        if (error?.response?.status === 402) {
-                            throw error;
-                        }
-                        throw error;
-                    }
+                if (config.speech.mode === 'api' && isWinkySpeechModel(config.speech.model)) {
+                    const result = await winkyTranscribe(audioData, authToken || '', {
+                        mimeType,
+                        model: config.speech.model.endsWith('-low') ? 'low' : 'high',
+                        signal: abortController?.signal
+                    });
+                    transcription = result.text;
                 } else {
                     transcription = await speechBridge.transcribe(audioData, {
                         mode: config.speech.mode,
@@ -328,11 +349,7 @@ export const useActionProcessing = ({
 
             // Логируем результат валидации
             if (transcriptionText.length > 0 && !isValidResult) {
-                console.warn('[useActionProcessing] Transcription filtered as invalid/hallucination:', {
-                    transcription: transcriptionText,
-                    length: transcriptionText.length,
-                    prompt: transcriptionPrompt
-                });
+                console.warn('[useActionProcessing] Transcription filtered', diagnostics('filtered'));
             }
 
             const hasSpeech = transcriptionText.length > 0 && isValidResult;
@@ -350,18 +367,19 @@ export const useActionProcessing = ({
             const llmInput = llmInputParts.join('\n\n').trim();
 
             if (!llmInput) {
-                console.log('[useActionProcessing] Empty input after silence/context merge, skipping action');
+                console.log('[useActionProcessing] Empty input skipped', diagnostics('empty-input'));
                 showToast('Nothing to process. Add context or record speech.', 'info');
                 return;
             }
 
             if (!hasSpeech && hasContext) {
-                console.log('[useActionProcessing] Using context-only input for action execution');
+                console.log('[useActionProcessing] Using context-only input', diagnostics('context-only'));
             }
 
             const needsLLM = Boolean(action.prompt && action.prompt.trim());
-            const llmModel = action.llm_model?.trim() || config.llm.model;
-            const useWinkyLLM = isWinkyLLMModel(llmModel) && authToken;
+            const useWinkyLLM = config.llm.mode === LLM_MODES.API
+                && isWinkyLLMModel(llmModel)
+                && Boolean(authToken);
 
             // Для Winky LLM моделей - используем чаты
             if (needsLLM && useWinkyLLM) {
@@ -461,12 +479,12 @@ export const useActionProcessing = ({
                         }
                     }
 
-                    const result = await winkyLLMStream(
+                    const result = await runLlmWithTimeout((signal) => winkyLLMStream(
                         {
                             prompt: fullPrompt,
                             model_level: modelLevel
                         },
-                        authToken,
+                        authToken || '',
                         (chunk) => {
                             streamedResponse += chunk;
                             if (action.show_results && historyEntry) {
@@ -478,8 +496,9 @@ export const useActionProcessing = ({
                                     audio_path: actionAudioPath ?? undefined
                                 });
                             }
-                        }
-                    );
+                        },
+                        signal
+                    ));
 
                     clearHistoryUpdateTimer();
                     await historyUpdatePromise;
@@ -720,7 +739,7 @@ export const useActionProcessing = ({
                 await windowBridge.openRoute(`/chats/${encodeURIComponent(localChatId)}`);
 
                 try {
-                    const response = await llmBridge.process(
+                    const response = await runLlmWithTimeout((signal) => llmBridge.process(
                         llmInput,
                         llmPrompt,
                         llmConfig,
@@ -740,9 +759,10 @@ export const useActionProcessing = ({
                                     last_leaf_message_id: assistantMessageId,
                                     message_count: 2
                                 });
-                            }
+                            },
+                            signal
                         }
-                    );
+                    ));
 
                     const finalResponse = response?.trim().length ? response : streamedResponse;
                     const resultText = finalResponse.trim().length > 0 ? finalResponse : transcriptionForOutput;
@@ -832,12 +852,12 @@ export const useActionProcessing = ({
                     }
                 }
 
-                const response = await llmBridge.process(
+                const response = await runLlmWithTimeout((signal) => llmBridge.process(
                     llmInput,
                     llmPrompt,
                     llmConfig,
-                    onChunk ? {onChunk} : undefined
-                );
+                    {onChunk, signal}
+                ));
 
                 clearHistoryUpdateTimer();
                 await historyUpdatePromise;
@@ -901,25 +921,29 @@ export const useActionProcessing = ({
                 }
                 throw error;
             }
-        } catch (error: any) {
-            console.error(error);
+        } catch (error: unknown) {
+            console.error('[useActionProcessing] Action processing failed', diagnostics('failed', error));
+
+            if (isAbortError(error)) return;
 
             let errorMessage = 'An error occurred while processing the action.';
+            const status = getErrorStatus(error);
+            const apiErrorMessage = getApiErrorMessage(error);
+            const originalMessage = getErrorMessage(error);
 
             // Обработка ошибки 402 - недостаточно кредитов
-            if (error?.response?.status === 402) {
+            if (status === 402) {
                 errorMessage = `Not enough credits. Top up your balance at ${getSiteBaseUrl()}/billing`;
                 showToast(errorMessage, 'error');
                 return;
             }
 
-            if (error?.response?.status === 401) {
-                const errorData = error?.response?.data?.error;
-                if (errorData?.message) {
-                    if (errorData.message.includes('API key')) {
+            if (status === 401) {
+                if (apiErrorMessage) {
+                    if (apiErrorMessage.includes('API key')) {
                         const hasGoogleKey = !!config?.apiKeys.google?.trim();
                         const hasOpenAiKey = !!config?.apiKeys.openai?.trim();
-                        if (error.message?.includes('Google') || error.message?.includes('Gemini')) {
+                        if (originalMessage.includes('Google') || originalMessage.includes('Gemini')) {
                             errorMessage = hasOpenAiKey
                                 ? 'Google API key is missing or invalid. Switch to OpenAI models or Local mode, or add Google key in Settings.'
                                 : 'Google API key is missing or invalid. Switch to Local mode or add API key in Settings.';
@@ -929,36 +953,35 @@ export const useActionProcessing = ({
                                 : 'OpenAI API key is missing or invalid. Switch to Local mode or add API key in Settings.';
                         }
                     } else {
-                        errorMessage = `Authentication error: ${errorData.message}`;
+                        errorMessage = `Authentication error: ${apiErrorMessage}`;
                     }
                 } else {
                     errorMessage = 'API authentication error. Check your API keys in Settings or switch to Local mode.';
                 }
-            } else if (error?.response?.status) {
-                const errorData = error?.response?.data?.error;
-                if (errorData?.message) {
-                    errorMessage = `API error: ${errorData.message}`;
+            } else if (status) {
+                if (apiErrorMessage) {
+                    errorMessage = `API error: ${apiErrorMessage}`;
                 } else {
-                    errorMessage = `Request error (status ${error.response.status})`;
+                    errorMessage = `Request error (status ${status})`;
                 }
-            } else if (error?.message) {
+            } else if (originalMessage) {
                 // Улучшаем сообщения об ошибках связанных с ключами
-                if (error.message.includes('API key') || error.message.includes('key')) {
+                if (originalMessage.includes('API key') || originalMessage.includes('key')) {
                     const hasGoogleKey = !!config?.apiKeys.google?.trim();
                     const hasOpenAiKey = !!config?.apiKeys.openai?.trim();
-                    if (error.message.includes('Google') || error.message.includes('Gemini')) {
+                    if (originalMessage.includes('Google') || originalMessage.includes('Gemini')) {
                         errorMessage = hasOpenAiKey
                             ? 'Google API key is missing. Switch to OpenAI models or Local mode, or add Google key in Settings.'
                             : 'Google API key is missing. Switch to Local mode or add API key in Settings.';
-                    } else if (error.message.includes('OpenAI')) {
+                    } else if (originalMessage.includes('OpenAI')) {
                         errorMessage = hasGoogleKey
                             ? 'OpenAI API key is missing. Switch to Google models or Local mode, or add OpenAI key in Settings.'
                             : 'OpenAI API key is missing. Switch to Local mode or add API key in Settings.';
                     } else {
-                        errorMessage = error.message;
+                        errorMessage = originalMessage;
                     }
                 } else {
-                    errorMessage = error.message;
+                    errorMessage = originalMessage;
                 }
             }
 

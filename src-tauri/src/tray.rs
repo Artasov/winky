@@ -1,3 +1,4 @@
+use crate::window_open_main;
 use serde_json::json;
 use tauri::{
     image::Image,
@@ -5,7 +6,6 @@ use tauri::{
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager,
 };
-use crate::window_open_main;
 
 fn load_image_from_path(path: &std::path::Path) -> Option<Image<'static>> {
     let img = image::open(path).ok()?;
@@ -28,7 +28,8 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
 
     // Загружаем иконку для tray
     // Сначала пробуем использовать встроенную иконку приложения
-    let loaded_icon: Option<Image<'static>> = if let Some(default_icon) = app.default_window_icon() {
+    let loaded_icon: Option<Image<'static>> = if let Some(default_icon) = app.default_window_icon()
+    {
         // Используем встроенную иконку - конвертируем в owned
         // Получаем RGBA данные и размеры из Image
         let rgba_data = default_icon.rgba();
@@ -53,22 +54,19 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         }
         // Если не нашли в dev директории, пробуем загрузить из ресурсов приложения
         if found_icon.is_none() {
-            found_icon = app.path()
-                .resource_dir()
-                .ok()
-                .and_then(|dir| {
-                    let icon_file = dir.join("icons").join("icon.ico");
-                    if icon_file.exists() {
-                        load_image_from_path(&icon_file)
+            found_icon = app.path().resource_dir().ok().and_then(|dir| {
+                let icon_file = dir.join("icons").join("icon.ico");
+                if icon_file.exists() {
+                    load_image_from_path(&icon_file)
+                } else {
+                    let png_file = dir.join("icons").join("icon.png");
+                    if png_file.exists() {
+                        load_image_from_path(&png_file)
                     } else {
-                        let png_file = dir.join("icons").join("icon.png");
-                        if png_file.exists() {
-                            load_image_from_path(&png_file)
-                        } else {
-                            None
-                        }
+                        None
                     }
-                });
+                }
+            });
         }
         found_icon
     };

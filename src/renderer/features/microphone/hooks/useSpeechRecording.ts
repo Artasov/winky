@@ -5,7 +5,11 @@ import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
 import {FAST_WHISPER_PORT, LLM_MODES, MAX_ACTIONS_AROUND_MIC, SPEECH_MODES, SYSTEM_GROUP_ID} from '@shared/constants';
 import type {ActionConfig, ActionGroup, AppConfig} from '@shared/types';
 import {resetInteractive, setRecordingInteractive} from '../../../utils/interactive';
-import {createSpeechRecorder, type SpeechRecorder} from '../services/SpeechRecorder';
+import {
+    createSpeechRecorder,
+    isSpeechRecorderAbortError,
+    type SpeechRecorder
+} from '../services/SpeechRecorder';
 import {normalizeLocalSpeechModelName, subscribeToLocalModelWarmup} from '../../../services/localSpeechModels';
 import {normalizeOllamaModelName, subscribeToOllamaDownloads, subscribeToOllamaWarmup} from '../../../services/ollama';
 import {micBridge, notificationBridge, windowBridge} from '../../../services/winkyBridge';
@@ -49,8 +53,34 @@ const createSilentAudioBlob = (): Blob => {
     return new Blob([header], {type: 'audio/wav'});
 };
 
+const getErrorStatus = (error: unknown, fallback: string): string | number => {
+    if (typeof error === 'object' && error !== null && 'response' in error) {
+        const response = error.response;
+        if (typeof response === 'object' && response !== null && 'status' in response) {
+            const status = response.status;
+            if (typeof status === 'number' || typeof status === 'string') return status;
+        }
+    }
+    if (error instanceof Error && error.name) return error.name;
+    return fallback;
+};
+
+const getSpeechProvider = (mode?: string, model?: string): string => {
+    if (mode === SPEECH_MODES.LOCAL) return 'local';
+    if (model?.startsWith('winky-transcribe')) return 'winky';
+    if (model?.startsWith('gemini-')) return 'google';
+    return model ? 'openai' : 'unknown';
+};
+
+const getSpeechDiagnostic = (mode: string | undefined, model: string | undefined, status: string, error?: unknown) => ({
+    provider: getSpeechProvider(mode, model),
+    model: model || 'unknown',
+    status: getErrorStatus(error, status)
+});
+
 export const useSpeechRecording = ({config, showToast, isMicOverlay, contextTextRef}: UseSpeechRecordingParams) => {
     const recorderRef = useRef<SpeechRecorder | null>(null);
+    const recorderOperationIdRef = useRef(0);
     const autoStartPendingRef = useRef(false);
     const isRecordingRef = useRef(false);
     const processingRef = useRef(false);
@@ -98,17 +128,16 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
 
     const openMainWindowWithToast = useCallback(async (message: string) => {
         try {
-            console.log('[useSpeechRecording] Opening main window for toast:', message);
             try {
                 await invoke('window_open_main');
-                console.log('[useSpeechRecording] Main window opened via command');
             } catch (invokeError) {
-                console.error('[useSpeechRecording] Failed to open main window via command:', invokeError);
+                console.error('[useSpeechRecording] Failed to open main window', {
+                    status: getErrorStatus(invokeError, 'window-open-failed')
+                });
                 const mainWindow = await WebviewWindow.getByLabel('main').catch(() => null);
                 if (mainWindow) {
                     await mainWindow.show().catch(() => {});
                     await mainWindow.setFocus().catch(() => {});
-                    console.log('[useSpeechRecording] Main window opened using WebviewWindow API');
                 } else {
                     console.warn('[useSpeechRecording] Main window is unavailable, showing toast in the overlay');
                     showToast(message, 'error', {durationMs: 6000});
@@ -123,7 +152,9 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
                 options: {durationMs: 6000}
             });
         } catch (error) {
-            console.error('[useSpeechRecording] Failed to show toast in main window:', error);
+            console.error('[useSpeechRecording] Failed to show toast in main window', {
+                status: getErrorStatus(error, 'toast-failed')
+            });
             showToast(message, 'error', {durationMs: 6000});
         }
     }, [showToast]);
@@ -143,7 +174,9 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
                     return;
                 }
             } catch (error) {
-                console.warn('[MicOverlay] Failed to read microphone permission state', error);
+                console.warn('[MicOverlay] Failed to read microphone permission state', {
+                    status: getErrorStatus(error, 'permission-state-failed')
+                });
                 return;
             }
         } else if (!import.meta.env?.DEV) {
@@ -151,21 +184,46 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
             return;
         }
 
+        const recorder = recorderRef.current;
         try {
-            await recorderRef.current.warmUp();
+            await recorder.warmUp();
         } catch (error) {
-            console.warn('[MicOverlay] Recorder warm-up failed', error);
+            if (isSpeechRecorderAbortError(error) || recorder !== recorderRef.current) return;
+            console.warn(
+                '[MicOverlay] Recorder warm-up failed',
+                getSpeechDiagnostic(speechMode, speechModel, 'warm-up-failed', error)
+            );
         }
-    }, []);
+    }, [speechMode, speechModel]);
 
     useEffect(() => {
         const selectedDeviceId = config?.selectedMicrophoneId;
-        recorderRef.current = createSpeechRecorder(selectedDeviceId);
+        const recorder = createSpeechRecorder(selectedDeviceId, {
+            onStateChange: (state) => {
+                const active = state === 'starting' || state === 'recording' || state === 'stopping';
+                isRecordingRef.current = active;
+                setIsRecording(active);
+                if (state === 'idle') stopVolumeMonitor();
+            },
+            onError: (error) => {
+                console.error(
+                    '[useSpeechRecording] Recorder error',
+                    getSpeechDiagnostic(speechMode, speechModel, 'recorder-failed', error)
+                );
+                showToast(error.message, 'error');
+            }
+        });
+        recorderRef.current = recorder;
+        isRecordingRef.current = false;
+        setIsRecording(false);
         return () => {
-            recorderRef.current?.dispose();
-            recorderRef.current = null;
+            recorderOperationIdRef.current += 1;
+            recorder.dispose();
+            if (recorderRef.current === recorder) recorderRef.current = null;
+            isRecordingRef.current = false;
+            stopVolumeMonitor();
         };
-    }, [config?.selectedMicrophoneId]);
+    }, [config?.selectedMicrophoneId, showToast, speechMode, speechModel, stopVolumeMonitor]);
 
     useEffect(() => {
         if (!isMicOverlay) {
@@ -277,14 +335,18 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
                 notifyMainWindow();
             })
             .catch((error) => {
-                console.warn('[MicOverlay] Первое открытие Settings не удалось, повторяем попытку…', error);
+                console.warn('[MicOverlay] Первое открытие Settings не удалось, повторяем попытку…', {
+                    status: getErrorStatus(error, 'settings-open-failed')
+                });
                 setTimeout(() => {
                     attemptOpen()
                         .then(() => {
                             notifyMainWindow();
                         })
                         .catch((retryError) => {
-                            console.error('[MicOverlay] Не удалось открыть главное окно настроек.', retryError);
+                            console.error('[MicOverlay] Не удалось открыть главное окно настроек.', {
+                                status: getErrorStatus(retryError, 'settings-open-failed')
+                            });
                             notifyMainWindow();
                         });
                 }, 600);
@@ -308,7 +370,10 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
         }
         const promise = ensureSpeechService()
             .catch((error) => {
-                console.error('[useSpeechRecording] Speech service check failed:', error);
+                console.error(
+                    '[useSpeechRecording] Speech service check failed',
+                    getSpeechDiagnostic(speechMode, speechModel, 'readiness-failed', error)
+                );
                 return false;
             })
             .finally(() => {
@@ -316,22 +381,22 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
             });
         speechServiceReadyPromiseRef.current = promise;
         return promise;
-    }, [ensureSpeechService]);
+    }, [ensureSpeechService, speechMode, speechModel]);
 
     const finishRecording = useCallback(async (resetUI: boolean = true): Promise<Blob | null> => {
         const recorder = recorderRef.current;
-        if (!recorder) {
-            return null;
-        }
+        if (!recorder) return null;
 
-        if (!recorder.isRecordingActive()) {
-            return null;
-        }
+        if (recorder.getState() === 'idle') return null;
 
         try {
             return await recorder.stopRecording();
         } catch (error) {
-            console.error(error);
+            if (isSpeechRecorderAbortError(error)) return null;
+            console.error(
+                '[useSpeechRecording] Failed to stop recording',
+                getSpeechDiagnostic(speechMode, speechModel, 'stop-failed', error)
+            );
             showToast('Failed to stop recording.', 'error');
             return null;
         } finally {
@@ -341,7 +406,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
                 stopVolumeMonitor();
             }
         }
-    }, [showToast, stopVolumeMonitor]);
+    }, [showToast, speechMode, speechModel, stopVolumeMonitor]);
 
     const {processAction} = useActionProcessing({
         config,
@@ -353,19 +418,27 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
     });
 
     const handleMicrophoneToggle = useCallback(async () => {
-        if (!isRecording) {
+        const recorder = recorderRef.current;
+        if (!recorder) return;
+
+        if (recorder.getState() === 'starting') {
+            recorderOperationIdRef.current += 1;
+            recorder.cancelRecording();
+            setActiveActionId(null);
+            return;
+        }
+        if (recorder.getState() === 'stopping') return;
+
+        if (recorder.getState() === 'idle') {
+            const operationId = ++recorderOperationIdRef.current;
             try {
-                const recorder = recorderRef.current;
-                if (!recorder) {
+                const stream = await recorder.startRecording();
+                if (operationId !== recorderOperationIdRef.current || recorder !== recorderRef.current) {
+                    recorder.cancelRecording();
                     return;
                 }
-                const stream = await recorder.startRecording();
-                setIsRecording(true);
-                isRecordingRef.current = true;
                 setActiveActionId(null);
-                if (stream) {
-                    startVolumeMonitor(stream);
-                }
+                startVolumeMonitor(stream);
                 // Устанавливаем фокус на окно микрофона для надежного получения событий клавиатуры
                 if (isMicOverlay) {
                     try {
@@ -392,12 +465,14 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
                         }
                     }
                 });
-            } catch (error: any) {
-                console.error(error);
-                
-                // Проверяем тип ошибки доступа к микрофону
-                const errorName = error?.name || '';
-                const errorMessage = error?.message || '';
+            } catch (error: unknown) {
+                if (isSpeechRecorderAbortError(error) || operationId !== recorderOperationIdRef.current) return;
+                console.error(
+                    '[useSpeechRecording] Failed to start recording',
+                    getSpeechDiagnostic(speechMode, speechModel, 'start-failed', error)
+                );
+                const errorName = error instanceof Error ? error.name : '';
+                const errorMessage = error instanceof Error ? error.message : String(error || '');
                 
                 if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError' || 
                     errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
@@ -422,7 +497,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
         } finally {
             setActiveActionId(null);
         }
-    }, [ensureSpeechServiceOnce, finishRecording, isRecording, showToast, startVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
+    }, [ensureSpeechServiceOnce, finishRecording, showToast, speechMode, speechModel, startVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 
     const handleActionClick = useCallback(async (action: ActionConfig) => {
         if (processingRef.current || processing) {
@@ -437,7 +512,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
         try {
             const ready = await ensureSpeechServiceOnce();
             if (!ready) {
-                // Если сервис не готов, сбрасываем состояние
+                if (isRecordingRef.current) await finishRecording();
                 processingRef.current = false;
                 setActiveActionId(null);
                 setProcessing(false);
@@ -451,7 +526,10 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
                 await processAction(action, blob);
             }
         } catch (error) {
-            console.error('[useSpeechRecording] Action processing failed:', error);
+            console.error(
+                '[useSpeechRecording] Action processing failed',
+                getSpeechDiagnostic(speechMode, speechModel, 'processing-failed', error)
+            );
         } finally {
             setIsRecording(false);
             stopVolumeMonitor();
@@ -468,7 +546,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
                 });
             }
         }
-    }, [processing, ensureSpeechServiceOnce, finishRecording, processAction, stopVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
+    }, [processing, ensureSpeechServiceOnce, finishRecording, processAction, speechMode, speechModel, stopVolumeMonitor, isMicOverlay, config?.micHideOnStopRecording]);
 
     const groups = useMemo<ActionGroup[]>(() => config?.groups ?? [], [config?.groups]);
     const actions = useMemo<ActionConfig[]>(() => config?.actions ?? [], [config?.actions]);
@@ -498,7 +576,7 @@ export const useSpeechRecording = ({config, showToast, isMicOverlay, contextText
     const handleSelectGroup = useCallback(async (groupId: string) => {
         setSelectedGroupId(groupId);
         try {
-            await invoke('config_update', {payload: {selectedGroupId: groupId}});
+            await invoke('config_update_mic', {payload: {selectedGroupId: groupId}});
         } catch (error) {
             console.warn('[useSpeechRecording] Failed to save selectedGroupId:', error);
         }

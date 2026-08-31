@@ -62,16 +62,19 @@ class GeminiLLMService extends ApiLLMBaseService {
         if (!this.accessToken) {
             throw new Error('Provide a Google AI API key to use this model.');
         }
-        return `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.accessToken}`;
+        return `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
     }
 
-    private buildStreamUrl(token: string): string {
-        return `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:streamGenerateContent?key=${token}&alt=sse`;
+    private buildStreamUrl(): string {
+        return `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:streamGenerateContent?alt=sse`;
     }
 
     protected buildHeaders(): Record<string, string> {
+        const token = this.accessToken?.trim();
+        if (!token) throw new Error('Provide a Google AI API key to use this model.');
         return {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'x-goog-api-key': token
         };
     }
 
@@ -116,7 +119,7 @@ class GeminiLLMService extends ApiLLMBaseService {
             throw new Error('Provide a Google AI API key to use this model.');
         }
 
-        const response = await fetch(this.buildStreamUrl(token), {
+        const response = await fetch(this.buildStreamUrl(), {
             method: 'POST',
             headers: {
                 ...this.buildHeaders(),

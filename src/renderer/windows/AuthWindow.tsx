@@ -2,13 +2,11 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {Box, Button, IconButton, TextField, Typography} from '@mui/material';
 import {useConfig} from '../context/ConfigContext';
-import {useUser} from '../context/UserContext';
 import {useToast} from '../context/ToastContext';
 import {useAuth} from '../auth';
 import TitleBar from '../components/TitleBar';
-import {getBackendDomain, setBackendDomain as applyBackendDomain} from '@shared/constants';
+import {getBackendDomain} from '@shared/constants';
 import type {AuthProvider, BackendDomain} from '@shared/types';
-import {groupsBridge} from '../services/winkyBridge';
 import BackendDomainSelect from '../components/BackendDomainSelect';
 
 const OAUTH_PROVIDERS: AuthProvider[] = ['google', 'github', 'discord', 'yandex'];
@@ -56,7 +54,6 @@ const renderOAuthIcon = (provider: AuthProvider) => {
 
 const AuthWindow: React.FC = () => {
     const {config, refreshConfig, updateConfig} = useConfig();
-    const {fetchUser} = useUser();
     const {showToast} = useToast();
     const auth = useAuth();
     const navigate = useNavigate();
@@ -64,6 +61,7 @@ const AuthWindow: React.FC = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [backendDomain, setBackendDomainState] = useState<BackendDomain>(getBackendDomain());
+    const [domainSaving, setDomainSaving] = useState(false);
     const [allowedOAuthProviders, setAllowedOAuthProviders] = useState<AuthProvider[]>([]);
     const [authMethodsLoading, setAuthMethodsLoading] = useState(true);
 
@@ -75,6 +73,11 @@ const AuthWindow: React.FC = () => {
     }, [config?.backendDomain]);
 
     useEffect(() => {
+        if (domainSaving) {
+            setAllowedOAuthProviders([]);
+            setAuthMethodsLoading(true);
+            return;
+        }
         let cancelled = false;
         setAuthMethodsLoading(true);
         auth.getAuthMethods()
@@ -93,7 +96,7 @@ const AuthWindow: React.FC = () => {
         return () => {
             cancelled = true;
         };
-    }, [auth.getAuthMethods, backendDomain]);
+    }, [auth.getAuthMethods, backendDomain, domainSaving]);
 
     const oauthProviders = useMemo(
         () => OAUTH_PROVIDERS.filter((provider) => allowedOAuthProviders.includes(provider)),
@@ -101,25 +104,27 @@ const AuthWindow: React.FC = () => {
     );
 
     const isSubmittingCredentials = loading || auth.status === 'signing-in';
+    const isAuthInteractionDisabled = auth.isBusy || domainSaving;
 
     const handleBackendDomainChange = async (nextValue: BackendDomain) => {
-        if (nextValue === backendDomain) return;
-        const previousValue = backendDomain;
-        setBackendDomainState(nextValue);
-        applyBackendDomain(nextValue);
+        if (nextValue === backendDomain || domainSaving || auth.isBusy) return;
+        setDomainSaving(true);
+        setAllowedOAuthProviders([]);
         try {
             await updateConfig({backendDomain: nextValue});
+            setBackendDomainState(nextValue);
             showToast('Primary backend domain updated.', 'success');
         } catch (error) {
             console.error('[AuthWindow] Failed to update backend domain', error);
-            setBackendDomainState(previousValue);
-            applyBackendDomain(previousValue);
             showToast('Failed to update backend domain.', 'error');
+        } finally {
+            setDomainSaving(false);
         }
     };
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
+        if (domainSaving) return;
         if (!email || !password) {
             showToast('Enter your email and password.', 'error');
             return;
@@ -128,17 +133,6 @@ const AuthWindow: React.FC = () => {
         setLoading(true);
         try {
             await auth.signIn(email, password);
-            await refreshConfig();
-            try {
-                await fetchUser();
-            } catch (userError) {
-                console.warn('[AuthWindow] Failed to fetch user, but continuing:', userError);
-            }
-            try {
-                await groupsBridge.fetch();
-            } catch (groupsError) {
-                console.warn('[AuthWindow] Failed to fetch groups, but continuing:', groupsError);
-            }
             showToast('Signed in successfully.', 'success');
             const nextConfig = await refreshConfig();
             if (!nextConfig.setupCompleted) {
@@ -155,6 +149,7 @@ const AuthWindow: React.FC = () => {
     };
 
     const handleOAuth = async (provider: AuthProvider) => {
+        if (domainSaving || authMethodsLoading || auth.isBusy) return;
         try {
             await auth.startOAuth(provider);
             showToast(`Opening ${provider}... Complete authorization in browser and return here.`, 'info', {durationMs: 10000});
@@ -180,7 +175,7 @@ const AuthWindow: React.FC = () => {
                                 label="Email"
                                 value={email}
                                 onChange={(event) => setEmail(event.target.value)}
-                                disabled={isSubmittingCredentials}
+                                disabled={isAuthInteractionDisabled}
                                 autoComplete="email"
                             />
                             <TextField
@@ -188,14 +183,14 @@ const AuthWindow: React.FC = () => {
                                 label="Password"
                                 value={password}
                                 onChange={(event) => setPassword(event.target.value)}
-                                disabled={isSubmittingCredentials}
+                                disabled={isAuthInteractionDisabled}
                                 autoComplete="current-password"
                             />
                             <Button
                                 type="submit"
                                 variant="contained"
                                 size="large"
-                                disabled={isSubmittingCredentials}
+                                disabled={isAuthInteractionDisabled}
                                 sx={{mt: 0.5, minHeight: 46}}
                             >
                                 {loading ? 'Signing in...' : 'Sign In'}
@@ -208,7 +203,7 @@ const AuthWindow: React.FC = () => {
                                     key={provider}
                                     type="button"
                                     onClick={() => void handleOAuth(provider)}
-                                    disabled={auth.isBusy || authMethodsLoading}
+                                    disabled={auth.isBusy || authMethodsLoading || domainSaving}
                                     aria-label={`Sign in with ${provider}`}
                                     sx={{
                                         width: 42,
@@ -228,7 +223,7 @@ const AuthWindow: React.FC = () => {
                     <BackendDomainSelect
                         value={backendDomain}
                         onChange={(nextValue) => void handleBackendDomainChange(nextValue)}
-                        disabled={isSubmittingCredentials}
+                        disabled={isSubmittingCredentials || auth.isBusy || domainSaving}
                         compact
                         showInfoIcon
                     />

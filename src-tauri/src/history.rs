@@ -2,14 +2,20 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use tokio::fs;
+use tokio::sync::Mutex;
 use uuid::Uuid;
+
+use crate::durable_json::JsonFile;
 
 const HISTORY_DIR_NAME: &str = "history";
 const HISTORY_FILE_NAME: &str = "actions.json";
 const HISTORY_AUDIO_DIR_NAME: &str = "audio";
+
+static HISTORY_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -104,41 +110,30 @@ fn resolve_audio_extension(mime_type: Option<&str>) -> String {
 }
 
 pub async fn read_history(app: &AppHandle) -> Result<Vec<ActionHistoryEntry>> {
+    let _guard = HISTORY_LOCK.lock().await;
+    read_history_unlocked(app).await
+}
+
+async fn read_history_unlocked(app: &AppHandle) -> Result<Vec<ActionHistoryEntry>> {
     let path = history_file_path(app).await?;
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    let contents = fs::read_to_string(&path)
-        .await
-        .with_context(|| format!("read history from {}", path.display()))?;
-    if contents.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-    match serde_json::from_str::<Vec<ActionHistoryEntry>>(&contents) {
-        Ok(entries) => Ok(entries),
-        Err(error) => {
-            eprintln!("[history] Failed to parse history file: {error}");
-            Ok(Vec::new())
-        }
-    }
+    Ok(JsonFile::read::<Vec<ActionHistoryEntry>>(&path)
+        .await?
+        .unwrap_or_default())
 }
 
 async fn write_history(app: &AppHandle, entries: &[ActionHistoryEntry]) -> Result<()> {
     let path = history_file_path(app).await?;
-    let serialized = serde_json::to_string_pretty(entries).context("serialize history")?;
-    fs::write(&path, serialized)
+    JsonFile::write(&path, &entries)
         .await
         .with_context(|| format!("write history to {}", path.display()))
 }
 
-pub async fn append_history(app: &AppHandle, payload: ActionHistoryInput) -> Result<ActionHistoryEntry> {
-    let mut entries = match read_history(app).await {
-        Ok(existing) => existing,
-        Err(error) => {
-            eprintln!("[history] Failed to read history before append: {error}");
-            Vec::new()
-        }
-    };
+pub async fn append_history(
+    app: &AppHandle,
+    payload: ActionHistoryInput,
+) -> Result<ActionHistoryEntry> {
+    let _guard = HISTORY_LOCK.lock().await;
+    let mut entries = read_history_unlocked(app).await?;
 
     let entry = ActionHistoryEntry {
         id: Uuid::new_v4().to_string(),
@@ -159,8 +154,12 @@ pub async fn append_history(app: &AppHandle, payload: ActionHistoryInput) -> Res
     Ok(entry)
 }
 
-pub async fn update_history(app: &AppHandle, payload: ActionHistoryUpdateInput) -> Result<ActionHistoryEntry> {
-    let mut entries = read_history(app).await?;
+pub async fn update_history(
+    app: &AppHandle,
+    payload: ActionHistoryUpdateInput,
+) -> Result<ActionHistoryEntry> {
+    let _guard = HISTORY_LOCK.lock().await;
+    let mut entries = read_history_unlocked(app).await?;
     let entry = entries
         .iter_mut()
         .find(|entry| entry.id == payload.id)
@@ -197,15 +196,19 @@ pub async fn update_history(app: &AppHandle, payload: ActionHistoryUpdateInput) 
 }
 
 pub async fn clear_history(app: &AppHandle) -> Result<()> {
+    let _guard = HISTORY_LOCK.lock().await;
     let path = history_file_path(app).await?;
-    fs::write(&path, "[]")
+    JsonFile::write(&path, &Vec::<ActionHistoryEntry>::new())
         .await
         .with_context(|| format!("clear history at {}", path.display()))?;
 
     let audio_dir = resolve_history_dir(app)?.join(HISTORY_AUDIO_DIR_NAME);
     if fs::metadata(&audio_dir).await.is_ok() {
         if let Err(error) = fs::remove_dir_all(&audio_dir).await {
-            eprintln!("[history] Failed to remove audio directory {}: {error}", audio_dir.display());
+            eprintln!(
+                "[history] Failed to remove audio directory {}: {error}",
+                audio_dir.display()
+            );
         }
     }
     Ok(())
@@ -230,7 +233,9 @@ pub async fn read_history_audio(app: &AppHandle, audio_path: String) -> Result<V
         .with_context(|| format!("resolve history audio path {}", resolved.display()))?;
 
     if !resolved_canonical.starts_with(&audio_dir_canonical) {
-        return Err(anyhow!("Requested audio path is outside history audio directory"));
+        return Err(anyhow!(
+            "Requested audio path is outside history audio directory"
+        ));
     }
 
     fs::read(&resolved_canonical)

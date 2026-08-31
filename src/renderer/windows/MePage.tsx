@@ -10,7 +10,7 @@ import {useAuth} from '../auth';
 import {getSiteBaseUrl} from '@shared/constants';
 
 const MePage: React.FC = () => {
-    const {user, loading, clearUser} = useUser();
+    const {user, loading} = useUser();
     const {config} = useConfig();
     const {showToast} = useToast();
     const auth = useAuth();
@@ -68,7 +68,6 @@ const MePage: React.FC = () => {
     const handleLogout = async () => {
         try {
             await auth.signOut();
-            clearUser();
             showToast('Logged out successfully.', 'success');
         } catch (error) {
             console.error('[MePage] Failed to logout', error);

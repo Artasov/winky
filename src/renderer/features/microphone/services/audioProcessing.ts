@@ -19,16 +19,19 @@ type SilenceAnalysis = {
     maxRms: number;
 };
 
+const getErrorStatus = (error: unknown): string => error instanceof Error && error.name
+    ? error.name
+    : 'audio-processing-failed';
+
 const DEFAULT_THRESHOLD = 0.015;
 const DEFAULT_THRESHOLD_RATIO = 0.05;
 const DEFAULT_MIN_THRESHOLD = 0.01;
 const DEFAULT_PADDING_MS = 10;
 const DEFAULT_MIN_DURATION_MS = 120;
 const DEFAULT_MIN_SEGMENT_MS = 80;
-const SPEECH_WINDOW_THRESHOLD = 0.05;
-const AVG_RMS_THRESHOLD = 0.025;
-const LOUD_WINDOWS_PERCENT_THRESHOLD = 8;
-const MAX_RMS_THRESHOLD = 0.15;
+const SILENCE_MAX_RMS_THRESHOLD = 0.006;
+const SILENCE_AVG_RMS_THRESHOLD = 0.002;
+const ABSOLUTE_TRIM_THRESHOLD = 0.0015;
 
 const resolveAudioContext = () => {
     const AudioContextCtor = (window as typeof window & {webkitAudioContext?: typeof AudioContext}).AudioContext
@@ -60,41 +63,42 @@ const toStandaloneArrayBuffer = (data: ArrayBuffer | Uint8Array): ArrayBuffer =>
     return data.slice(0);
 };
 
+const calculateWindowRms = (buffer: AudioBuffer, start: number, end: number): number => {
+    let sumSquares = 0;
+    let sampleCount = 0;
+
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+        const channelData = buffer.getChannelData(channel);
+        for (let sample = start; sample < end; sample += 1) {
+            const value = channelData[sample] ?? 0;
+            sumSquares += value * value;
+            sampleCount += 1;
+        }
+    }
+
+    return Math.sqrt(sumSquares / Math.max(1, sampleCount));
+};
+
 const analyzeSilence = (buffer: AudioBuffer): SilenceAnalysis => {
-    const channelData = buffer.getChannelData(0);
     const sampleRate = buffer.sampleRate;
     const windowSize = Math.max(256, Math.floor(sampleRate * 0.02));
     let maxRms = 0;
     let sumRms = 0;
     let windowCount = 0;
-    let loudWindows = 0;
 
-    for (let offset = 0; offset < channelData.length; offset += windowSize) {
-        const end = Math.min(channelData.length, offset + windowSize);
-        let sumSquares = 0;
-        for (let i = offset; i < end; i += 1) {
-            const value = channelData[i];
-            sumSquares += value * value;
-        }
-        const rms = Math.sqrt(sumSquares / Math.max(1, end - offset));
+    for (let offset = 0; offset < buffer.length; offset += windowSize) {
+        const end = Math.min(buffer.length, offset + windowSize);
+        const rms = calculateWindowRms(buffer, offset, end);
         sumRms += rms;
         windowCount += 1;
-        if (rms >= SPEECH_WINDOW_THRESHOLD) {
-            loudWindows += 1;
-        }
-        if (rms > maxRms) {
-            maxRms = rms;
-        }
+        if (rms > maxRms) maxRms = rms;
     }
 
     const avgRms = windowCount > 0 ? sumRms / windowCount : 0;
-    const loudWindowsPercent = windowCount > 0 ? (loudWindows / windowCount) * 100 : 0;
-    const isSilentByAverage = avgRms < AVG_RMS_THRESHOLD;
-    const isSilentByLoudWindows = loudWindowsPercent < LOUD_WINDOWS_PERCENT_THRESHOLD;
-    const hasLoudPeaks = maxRms >= MAX_RMS_THRESHOLD;
 
     return {
-        isSilent: isSilentByAverage && isSilentByLoudWindows && !hasLoudPeaks,
+        // Silence detection is intentionally conservative: uncertain audio must reach transcription.
+        isSilent: maxRms < SILENCE_MAX_RMS_THRESHOLD && avgRms < SILENCE_AVG_RMS_THRESHOLD,
         maxRms
     };
 };
@@ -105,7 +109,6 @@ const findTrimSegments = (
     paddingMs: number,
     minSegmentMs: number
 ) => {
-    const channelData = buffer.getChannelData(0);
     const sampleRate = buffer.sampleRate;
     const windowSize = Math.max(256, Math.floor(sampleRate * 0.02));
     const paddingSamples = Math.floor((paddingMs / 1000) * sampleRate);
@@ -114,14 +117,9 @@ const findTrimSegments = (
     let currentStart = -1;
     let currentEnd = -1;
 
-    for (let offset = 0; offset < channelData.length; offset += windowSize) {
-        const end = Math.min(channelData.length, offset + windowSize);
-        let sumSquares = 0;
-        for (let i = offset; i < end; i += 1) {
-            const value = channelData[i];
-            sumSquares += value * value;
-        }
-        const rms = Math.sqrt(sumSquares / Math.max(1, end - offset));
+    for (let offset = 0; offset < buffer.length; offset += windowSize) {
+        const end = Math.min(buffer.length, offset + windowSize);
+        const rms = calculateWindowRms(buffer, offset, end);
         if (rms >= threshold) {
             if (currentStart === -1) {
                 currentStart = offset;
@@ -188,15 +186,6 @@ const concatAudioSegments = (buffer: AudioBuffer, segments: Array<{start: number
     return combined;
 };
 
-const createSilentBuffer = (sampleRate: number, durationMs: number, channels = 1) => {
-    const length = Math.max(1, Math.floor((durationMs / 1000) * sampleRate));
-    return new AudioBuffer({
-        length,
-        numberOfChannels: channels,
-        sampleRate
-    });
-};
-
 const writeString = (view: DataView, offset: number, value: string) => {
     for (let i = 0; i < value.length; i += 1) {
         view.setUint8(offset + i, value.charCodeAt(i));
@@ -247,13 +236,16 @@ export const isAudioSilent = async (blob: Blob): Promise<boolean> => {
     try {
         const decoded = await decodeAudioBuffer(await blob.arrayBuffer());
         if (!decoded) {
-            console.warn('[audioProcessing] isAudioSilent: failed to decode, treating as silent');
-            return true;
+            console.warn('[audioProcessing] isAudioSilent: decoding is unavailable, preserving audio');
+            return false;
         }
         return analyzeSilence(decoded).isSilent;
     } catch (error) {
-        console.warn('[audioProcessing] Failed to check if audio is silent', error);
-        return true;
+        console.warn('[audioProcessing] Failed to check if audio is silent', {
+            status: getErrorStatus(error),
+            sizeBytes: blob.size
+        });
+        return false;
     }
 };
 
@@ -261,13 +253,16 @@ export const isAudioDataSilent = async (data: ArrayBuffer | Uint8Array): Promise
     try {
         const decoded = await decodeAudioBuffer(toStandaloneArrayBuffer(data));
         if (!decoded) {
-            console.warn('[audioProcessing] isAudioDataSilent: failed to decode, treating as silent');
-            return true;
+            console.warn('[audioProcessing] isAudioDataSilent: decoding is unavailable, preserving audio');
+            return false;
         }
         return analyzeSilence(decoded).isSilent;
     } catch (error) {
-        console.warn('[audioProcessing] Failed to check raw audio data for silence', error);
-        return true;
+        console.warn('[audioProcessing] Failed to check raw audio data for silence', {
+            status: getErrorStatus(error),
+            sizeBytes: data.byteLength
+        });
+        return false;
     }
 };
 
@@ -282,44 +277,46 @@ export const trimSilenceFromAudioBlob = async (
     const minThreshold = options.minThreshold ?? DEFAULT_MIN_THRESHOLD;
     const explicitThreshold = options.threshold ?? DEFAULT_THRESHOLD;
 
+    const originalAudioData = await blob.arrayBuffer();
+    const originalResult = (isSilent: boolean): TrimResult => ({
+        audioData: originalAudioData.slice(0),
+        mimeType: blob.type || 'application/octet-stream',
+        trimmed: false,
+        isSilent
+    });
+
     try {
-        const decoded = await decodeAudioBuffer(await blob.arrayBuffer());
+        const decoded = await decodeAudioBuffer(originalAudioData);
         if (!decoded) {
-            const silentBuffer = createSilentBuffer(16000, minDurationMs);
-            return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
+            console.warn('[audioProcessing] Audio decoding is unavailable, sending the original recording');
+            return originalResult(false);
         }
 
         const {isSilent, maxRms} = analyzeSilence(decoded);
-        if (isSilent) {
-            const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
-            return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
-        }
+        if (isSilent) return originalResult(true);
 
         const dynamicThreshold = Math.max(minThreshold, maxRms * thresholdRatio);
-        const threshold = Math.max(explicitThreshold, dynamicThreshold);
+        const thresholdCap = Math.max(ABSOLUTE_TRIM_THRESHOLD, maxRms * 0.75);
+        const threshold = Math.min(
+            Math.max(ABSOLUTE_TRIM_THRESHOLD, explicitThreshold, dynamicThreshold),
+            thresholdCap
+        );
         const segments = findTrimSegments(decoded, threshold, paddingMs, minSegmentMs);
 
-        if (segments.length === 0) {
-            const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
-            return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
-        }
+        if (segments.length === 0) return originalResult(false);
 
         const combined = concatAudioSegments(decoded, segments);
-        if (!combined) {
-            const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
-            return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
-        }
+        if (!combined) return originalResult(false);
 
         const trimmedDurationMs = (combined.length / combined.sampleRate) * 1000;
-        if (trimmedDurationMs < minDurationMs) {
-            const silentBuffer = createSilentBuffer(decoded.sampleRate, minDurationMs, decoded.numberOfChannels);
-            return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
-        }
+        if (trimmedDurationMs < minDurationMs) return originalResult(false);
 
         return {audioData: encodeWav(combined), mimeType: 'audio/wav', trimmed: true, isSilent: false};
     } catch (error) {
-        console.warn('[audioProcessing] Failed to trim silence, sending minimal audio', error);
-        const silentBuffer = createSilentBuffer(16000, minDurationMs);
-        return {audioData: encodeWav(silentBuffer), mimeType: 'audio/wav', trimmed: true, isSilent: true};
+        console.warn('[audioProcessing] Failed to trim silence, sending the original recording', {
+            status: getErrorStatus(error),
+            sizeBytes: blob.size
+        });
+        return originalResult(false);
     }
 };

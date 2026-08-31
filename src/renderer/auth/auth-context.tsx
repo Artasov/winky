@@ -8,15 +8,27 @@ import {
     useRef,
     useState
 } from 'react';
-import {AuthClient, AuthError} from '../services/authClient';
-import {authBridge as appAuthBridge, configBridge, groupsBridge} from '../services/winkyBridge';
-import type {AuthDeepLinkPayload, AuthMethodsResponse, AuthProvider as OAuthProviderType, AuthTokens, User} from '@shared/types';
+import {
+    authClient,
+    AuthError,
+    isTerminalAuthError,
+    normalizeAuthError
+} from '../services/authClient';
+import {authBridge as appAuthBridge} from '../services/winkyBridge';
+import type {
+    AuthDeepLinkPayload,
+    AuthMethodsResponse,
+    AuthProvider as OAuthProviderType,
+    AuthTokens,
+    User
+} from '@shared/types';
 import {useWindowIdentity} from '../app/hooks/useWindowIdentity';
 import {onUnauthorized} from '@shared/api';
 
 type AuthStatus =
     | 'initializing'
     | 'checking'
+    | 'degraded'
     | 'unauthenticated'
     | 'signing-in'
     | 'oauth'
@@ -30,174 +42,156 @@ type AuthContextValue = {
     signIn: (email: string, password: string) => Promise<User>;
     startOAuth: (provider: OAuthProviderType) => Promise<void>;
     getAuthMethods: () => Promise<AuthMethodsResponse>;
-    signOut: () => void;
+    signOut: () => Promise<void>;
     reloadUser: () => Promise<User | null>;
     clearError: () => void;
     isBusy: boolean;
-};
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-const authClient = new AuthClient();
-
-const AUTH_CHANNEL_NAME = 'winky-auth';
-const USER_CACHE_KEY = 'winky.cachedUser';
-
-type AuthBroadcastMessage = {
-    type: 'user';
-    payload: User | null;
-};
-
-const readCachedUser = (): User | null => {
-    if (typeof window === 'undefined' || !window.localStorage) {
-        return null;
-    }
-    try {
-        const raw = window.localStorage.getItem(USER_CACHE_KEY);
-        if (!raw) {
-            return null;
-        }
-        return JSON.parse(raw) as User;
-    } catch (error) {
-        console.warn('[auth] Failed to read cached user', error);
-        return null;
-    }
-};
-
-const persistCachedUser = (user: User | null): void => {
-    if (typeof window === 'undefined' || !window.localStorage) {
-        return;
-    }
-    try {
-        if (!user) {
-            window.localStorage.removeItem(USER_CACHE_KEY);
-        } else {
-            window.localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
-        }
-    } catch (error) {
-        console.warn('[auth] Failed to persist cached user', error);
-    }
 };
 
 type AuthProviderProps = {
     children: ReactNode;
 };
 
-function normalizeAuthError(error: unknown): AuthError {
-    if (error instanceof AuthError) return error;
-    if (error instanceof Error) return new AuthError(error.message);
-    return new AuthError(String(error ?? 'Unknown error'));
-}
+type AuthBroadcastMessage = {
+    type: 'session';
+    authenticated: boolean;
+    user: User | null;
+};
 
-const shouldClearAuthTokens = (error: AuthError): boolean =>
-    error.status === 400 || error.status === 401 || error.status === 403;
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const AUTH_CHANNEL_NAME = 'winky-auth';
+const USER_CACHE_KEY = 'winky.cachedUser';
+const OAUTH_ATTEMPT_TIMEOUT_MS = 5 * 60 * 1000;
 
-const readNativeConfigTokens = async (): Promise<AuthTokens | null> => {
+const readCachedUser = (): User | null => {
+    if (typeof window === 'undefined') return null;
     try {
-        const config = await configBridge.get();
-        const access = config.auth.access || config.auth.accessToken || '';
-        if (!access) {
-            return null;
-        }
-        return {
-            access,
-            refresh: config.auth.refresh || config.auth.refreshToken || null,
-        };
+        const raw = window.localStorage?.getItem(USER_CACHE_KEY);
+        if (!raw) return null;
+        const value = JSON.parse(raw) as unknown;
+        if (!value || typeof value !== 'object') return null;
+        const record = value as Record<string, unknown>;
+        if (typeof record.id !== 'number' || typeof record.email !== 'string') return null;
+        return value as User;
     } catch (error) {
-        console.warn('[auth] Failed to read auth tokens from config', error);
+        console.warn('[auth] Cached profile is unavailable', error);
         return null;
     }
 };
 
-const syncAuthTokensToConfig = async (): Promise<void> => {
-    const tokens = authClient.getTokens();
-    if (!tokens?.access) {
-        return;
-    }
+const persistCachedUser = (user: User | null): void => {
+    if (typeof window === 'undefined') return;
     try {
-        await configBridge.setAuth({
-            access: tokens.access,
-            refresh: tokens.refresh ?? null,
-            accessToken: tokens.access,
-            refreshToken: tokens.refresh ?? '',
-        });
+        if (user) window.localStorage?.setItem(USER_CACHE_KEY, JSON.stringify(user));
+        else window.localStorage?.removeItem(USER_CACHE_KEY);
     } catch (error) {
-        console.warn('[auth] Failed to sync auth tokens to config', error);
+        console.warn('[auth] Cached profile update failed', error);
     }
-};
-
-const clearPersistedAuthTokens = async (): Promise<void> => {
-    authClient.clearTokens();
-    try {
-        await configBridge.setAuth({
-            access: '',
-            refresh: null,
-            accessToken: '',
-            refreshToken: '',
-        });
-    } catch (error) {
-        console.warn('[auth] Failed to clear auth tokens in config', error);
-    }
-};
-
-const loadAuthTokens = async (): Promise<AuthTokens | null> => {
-    const tokens = authClient.getTokens();
-    if (tokens?.access) {
-        return tokens;
-    }
-    const configTokens = await readNativeConfigTokens();
-    if (configTokens?.access) {
-        authClient.storeTokens(configTokens);
-        return configTokens;
-    }
-    return null;
 };
 
 export function AuthProvider({children}: AuthProviderProps) {
     const windowIdentity = useWindowIdentity();
     const isPrimaryWindow = !windowIdentity.isAuxWindow;
     const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+    const reloadPromiseRef = useRef<Promise<User | null> | null>(null);
+    const oauthPayloadsRef = useRef(new Set<string>());
+    const oauthTimeoutRef = useRef<number | null>(null);
+    const hasSessionRef = useRef(false);
     const [status, setStatus] = useState<AuthStatus>('initializing');
+    const [hasSession, setHasSession] = useState(false);
     const [user, setUser] = useState<User | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const ensureBroadcastChannel = useCallback((): BroadcastChannel | null => {
-        if (typeof BroadcastChannel === 'undefined') {
-            return null;
-        }
+    const setSessionAvailable = useCallback((available: boolean) => {
+        hasSessionRef.current = available;
+        setHasSession(available);
+    }, []);
+
+    const getBroadcastChannel = useCallback((): BroadcastChannel | null => {
+        if (typeof BroadcastChannel === 'undefined') return null;
         if (!broadcastChannelRef.current) {
             broadcastChannelRef.current = new BroadcastChannel(AUTH_CHANNEL_NAME);
         }
         return broadcastChannelRef.current;
     }, []);
 
-    const broadcastUser = useCallback((nextUser: User | null) => {
-        persistCachedUser(nextUser);
-        const channel = ensureBroadcastChannel();
-        if (!channel) {
+    const broadcastSession = useCallback((authenticated: boolean, nextUser: User | null) => {
+        if (authenticated && nextUser) persistCachedUser(nextUser);
+        if (!authenticated) persistCachedUser(null);
+        try {
+            getBroadcastChannel()?.postMessage({
+                type: 'session',
+                authenticated,
+                user: nextUser
+            } satisfies AuthBroadcastMessage);
+        } catch (channelError) {
+            console.warn('[auth] Session broadcast failed', channelError);
+        }
+    }, [getBroadcastChannel]);
+
+    const setAuthenticatedUser = useCallback((profile: User) => {
+        setSessionAvailable(true);
+        setUser(profile);
+        setStatus('authenticated');
+        setError(null);
+        persistCachedUser(profile);
+        broadcastSession(true, profile);
+    }, [broadcastSession, setSessionAvailable]);
+
+    const setSignedOut = useCallback(() => {
+        setSessionAvailable(false);
+        setUser(null);
+        setStatus('unauthenticated');
+        setError(null);
+        persistCachedUser(null);
+        broadcastSession(false, null);
+    }, [broadcastSession, setSessionAvailable]);
+
+    const setDegradedSession = useCallback((sessionError: AuthError, cachedUser: User | null) => {
+        setSessionAvailable(true);
+        setUser(cachedUser);
+        setStatus('degraded');
+        setError(sessionError.message);
+    }, [setSessionAvailable]);
+
+    const applyTerminalClear = useCallback((cleared: boolean) => {
+        if (cleared || !authClient.hasTokens()) {
+            setSignedOut();
             return;
         }
-        try {
-            channel.postMessage({type: 'user', payload: nextUser} satisfies AuthBroadcastMessage);
-        } catch (err) {
-            console.warn('[auth] Failed to broadcast user update', err);
-        }
-    }, [ensureBroadcastChannel]);
+        setDegradedSession(
+            new AuthError(
+                'A newer authentication session is active.',
+                undefined,
+                undefined,
+                'auth_session_changed'
+            ),
+            readCachedUser()
+        );
+    }, [setDegradedSession, setSignedOut]);
+
+    const clearOAuthTimeout = useCallback(() => {
+        if (oauthTimeoutRef.current === null) return;
+        window.clearTimeout(oauthTimeoutRef.current);
+        oauthTimeoutRef.current = null;
+    }, []);
+
+    useEffect(() => clearOAuthTimeout, [clearOAuthTimeout]);
 
     useEffect(() => {
-        const channel = ensureBroadcastChannel();
-        if (!channel) {
-            return;
-        }
+        const channel = getBroadcastChannel();
+        if (!channel) return;
         const handleMessage = (event: MessageEvent<AuthBroadcastMessage>) => {
             const message = event.data;
-            if (!message || message.type !== 'user') {
-                return;
-            }
-            const nextUser = message.payload ?? null;
-            setUser(nextUser);
-            setStatus(nextUser ? 'authenticated' : 'unauthenticated');
+            if (!message || message.type !== 'session') return;
+            setSessionAvailable(message.authenticated);
+            setUser(message.user ?? null);
+            setStatus(message.authenticated
+                ? message.user ? 'authenticated' : 'degraded'
+                : 'unauthenticated');
             setError(null);
-            persistCachedUser(nextUser);
+            if (message.authenticated && message.user) persistCachedUser(message.user);
+            if (!message.authenticated) persistCachedUser(null);
         };
         channel.addEventListener('message', handleMessage as EventListener);
         return () => {
@@ -205,485 +199,306 @@ export function AuthProvider({children}: AuthProviderProps) {
             channel.close();
             broadcastChannelRef.current = null;
         };
-    }, [ensureBroadcastChannel]);
+    }, [getBroadcastChannel, setSessionAvailable]);
 
     useEffect(() => {
         let cancelled = false;
 
         const bootstrap = async () => {
-            try {
-                const tokens = await loadAuthTokens();
-                if (!tokens?.access) {
-                    setStatus('unauthenticated');
+            const tokens = await authClient.loadSession();
+            if (cancelled) return;
+            if (!tokens) {
+                if (isPrimaryWindow) {
+                    setSignedOut();
+                } else {
+                    setSessionAvailable(false);
                     setUser(null);
-                    persistCachedUser(null);
-                    broadcastUser(null);
-                    return;
+                    setStatus('unauthenticated');
+                    setError(null);
                 }
+                return;
+            }
 
-                const cachedUser = readCachedUser();
+            const cachedUser = readCachedUser();
+            setSessionAvailable(true);
+            setUser(cachedUser);
+            if (!isPrimaryWindow) {
+                setStatus(cachedUser ? 'authenticated' : 'degraded');
+                setError(null);
+                return;
+            }
 
-                // В auxiliary окнах (mic, result) доверяем кэшу
-                if (!isPrimaryWindow) {
-                    if (cachedUser) {
-                        setUser(cachedUser);
-                        setStatus('authenticated');
-                        setError(null);
-                    } else {
-                        // Нет кэша — ждём broadcast от главного окна
-                        setStatus('checking');
-                    }
-                    return;
-                }
-
-                // В primary window — всегда проверяем токен на сервере, не доверяя кэшу
-                // Это предотвращает загрузку экшенов и показ микрофона с невалидным токеном
-                setStatus('checking');
+            setStatus('checking');
+            try {
                 const profile = await authClient.getCurrentUser(true);
+                if (!cancelled) setAuthenticatedUser(profile);
+            } catch (bootstrapError) {
                 if (cancelled) return;
-                await syncAuthTokensToConfig();
-                setUser(profile);
-                setStatus('authenticated');
-                setError(null);
-                broadcastUser(profile);
-            } catch (err) {
-                if (cancelled) return;
-                const normalized = normalizeAuthError(err);
-                console.warn('[auth] Failed to restore session', {
-                    error: normalized.message,
-                    status: normalized.status
+                const normalized = normalizeAuthError(bootstrapError);
+                console.warn('[auth] Session verification failed', {
+                    status: normalized.status,
+                    code: normalized.code
                 });
-                if (shouldClearAuthTokens(normalized)) {
-                    await clearPersistedAuthTokens();
+                if (isTerminalAuthError(normalized)) {
+                    const cleared = await authClient.clearTokens();
+                    if (!cancelled) applyTerminalClear(cleared);
+                    return;
                 }
-                setUser(null);
-                setStatus('unauthenticated');
-                setError(null);
-                persistCachedUser(null);
-                broadcastUser(null);
+                setDegradedSession(normalized, cachedUser);
             }
         };
 
-        bootstrap().catch((err) => {
-            const normalized = normalizeAuthError(err);
-            console.error('[auth] Session bootstrap failed', {error: normalized.message, status: normalized.status});
+        void bootstrap().catch((bootstrapError) => {
+            if (cancelled) return;
+            const normalized = normalizeAuthError(bootstrapError);
+            console.error('[auth] Session bootstrap failed', {
+                status: normalized.status,
+                code: normalized.code
+            });
+            if (authClient.hasTokens()) {
+                setDegradedSession(normalized, readCachedUser());
+                return;
+            }
+            setSessionAvailable(false);
+            setUser(null);
+            setStatus('unauthenticated');
+            setError(normalized.message);
         });
-
         return () => {
             cancelled = true;
         };
-    }, [isPrimaryWindow, broadcastUser]);
+    }, [
+        applyTerminalClear,
+        isPrimaryWindow,
+        setAuthenticatedUser,
+        setDegradedSession,
+        setSessionAvailable,
+        setSignedOut
+    ]);
+
+    const finishOAuth = useCallback(async (payload: Extract<AuthDeepLinkPayload, {kind: 'code'}>) => {
+        clearOAuthTimeout();
+        setStatus('checking');
+        setError(null);
+        try {
+            const config = await appAuthBridge.exchangeOAuth(payload);
+            authClient.setSession(
+                config.auth,
+                config.backendDomain,
+                config.storageRevision,
+                config.authRevision
+            );
+            setSessionAvailable(true);
+            const profile = await authClient.getCurrentUser(true);
+            setAuthenticatedUser(profile);
+        } catch (oauthError) {
+            const normalized = normalizeAuthError(oauthError);
+            console.error('[auth] OAuth exchange failed', {
+                provider: payload.provider,
+                status: normalized.status,
+                code: normalized.code
+            });
+            if (isTerminalAuthError(normalized)) {
+                const cleared = await authClient.clearTokens();
+                applyTerminalClear(cleared);
+            } else {
+                setStatus(hasSessionRef.current ? 'degraded' : 'unauthenticated');
+                setError(normalized.message);
+            }
+        }
+    }, [applyTerminalClear, clearOAuthTimeout, setAuthenticatedUser, setSessionAvailable]);
 
     useEffect(() => {
+        if (!isPrimaryWindow) return;
         let cancelled = false;
-
+        let unsubscribe: (() => void) | null = null;
         const handleOAuthPayload = (payload: AuthDeepLinkPayload) => {
-            if (cancelled || !payload) return;
-            if (payload.kind === 'success') {
-                console.log('[auth] OAuth payload received', {provider: payload.provider});
-                try {
-                    authClient.storeTokens({
-                        access: payload.tokens.access,
-                        refresh: payload.tokens.refresh ?? null,
-                    });
-                } catch (error) {
-                    const normalized = normalizeAuthError(error);
-                    console.error('[auth] Failed to store OAuth tokens', {error: normalized.message});
-                    authClient.clearTokens();
-                    setStatus('unauthenticated');
-                    setUser(null);
-                    setError(normalized.message);
-                    broadcastUser(null);
-                    return;
-                }
-
-                setStatus('checking');
-                setError(null);
-
-                // СНАЧАЛА сохраняем токены в config, чтобы App.tsx мог их увидеть
-                console.log('[auth] Saving OAuth tokens to config...', {
-                    hasAccess: !!payload.tokens.access,
-                    hasRefresh: !!payload.tokens.refresh
-                });
-                
-                const saveTokensPromise = configBridge ? configBridge.setAuth({
-                    access: payload.tokens.access,
-                    refresh: payload.tokens.refresh ?? null,
-                    accessToken: payload.tokens.access,
-                    refreshToken: payload.tokens.refresh ?? ''
-                }).then((updatedConfig) => {
-                    console.log('[auth] Tokens saved to config successfully', {
-                        hasAccess: !!(updatedConfig.auth.access || updatedConfig.auth.accessToken),
-                        setupCompleted: updatedConfig.setupCompleted
-                    });
-                    return updatedConfig;
-                }) : Promise.resolve(null);
-
-                // Ждем сохранения токенов в config перед получением пользователя
-                saveTokensPromise
-                    .then(async () => {
-                        if (cancelled) return;
-                        
-                        console.log('[auth] OAuth tokens saved to config, fetching user profile...');
-                        // Теперь получаем профиль пользователя
-                        const profile = await authClient.getCurrentUser(true);
-                        if (cancelled) return;
-                        await syncAuthTokensToConfig();
-
-                        console.log('[auth] User profile fetched successfully', {userId: profile.id, email: profile.email});
-
-                        // Загружаем группы с экшенами
-                        try {
-                            await groupsBridge.fetch();
-                            console.log('[auth] Groups fetched successfully');
-                        } catch (groupsError) {
-                            console.warn('[auth] Failed to fetch groups, but continuing:', groupsError);
-                        }
-
-                        // Устанавливаем пользователя и статус
-                        setUser(profile);
-                        setStatus('authenticated');
-                        setError(null);
-                        broadcastUser(profile);
-
-                        // НЕ навигируем здесь - пусть App.tsx сам обработает навигацию через useNavigationSync
-                        // когда увидит что isAuthenticated === true и токены есть в config
-                        console.log('[auth] User authenticated, waiting for App.tsx to handle navigation...');
-                    })
-                    .catch(async (err: unknown) => {
-                        if (cancelled) return;
-                        const normalized = normalizeAuthError(err);
-                        console.error('[auth] OAuth flow failed', {error: normalized.message, step: 'save_tokens_or_fetch_user'});
-                        if (shouldClearAuthTokens(normalized)) {
-                            await clearPersistedAuthTokens();
-                        }
-                        setUser(null);
-                        setStatus('unauthenticated');
-                        setError(normalized.message);
-                        broadcastUser(null);
-                    });
-            } else {
-                console.warn('[auth] OAuth flow returned error', {provider: payload.provider, error: payload.error});
-                authClient.clearTokens();
-                setUser(null);
-                setStatus('unauthenticated');
-                setError(payload.error || 'OAuth authorization failed');
-                broadcastUser(null);
+            if (cancelled) return;
+            if (oauthPayloadsRef.current.has(payload.state)) return;
+            oauthPayloadsRef.current.add(payload.state);
+            if (payload.kind === 'code') {
+                void finishOAuth(payload);
+                return;
             }
+            clearOAuthTimeout();
+            console.warn('[auth] OAuth provider returned an error', {
+                provider: payload.provider
+            });
+            setStatus(hasSessionRef.current ? 'degraded' : 'unauthenticated');
+            setError(payload.error || 'OAuth authorization failed');
         };
 
-                const unsubscribe = appAuthBridge.onOAuthPayload(handleOAuthPayload);
-        appAuthBridge
-            .consumePendingOAuthPayloads()
-            .then((payloads) => {
-                if (Array.isArray(payloads)) {
-                    payloads.forEach((payload) => handleOAuthPayload(payload));
+        void appAuthBridge.onOAuthPayload(handleOAuthPayload)
+            .then(async (stop) => {
+                if (cancelled) {
+                    stop();
+                    return;
+                }
+                unsubscribe = stop;
+                try {
+                    const payloads = await appAuthBridge.consumePendingOAuthPayloads();
+                    if (!cancelled) payloads.forEach(handleOAuthPayload);
+                } catch (pendingError) {
+                    if (!cancelled) {
+                        console.warn('[auth] Pending OAuth result is unavailable', pendingError);
+                    }
                 }
             })
-            .catch((err) => {
-                console.warn('[auth] Failed to consume pending OAuth payloads', err);
+            .catch((subscriptionError) => {
+                if (!cancelled) {
+                    console.warn('[auth] OAuth callback subscription is unavailable', subscriptionError);
+                }
             });
 
         return () => {
             cancelled = true;
-            try {
-                unsubscribe?.();
-            } catch {
-            }
+            unsubscribe?.();
         };
-    }, []);
+    }, [clearOAuthTimeout, finishOAuth, isPrimaryWindow]);
 
-    const signIn = useCallback(async (email: string, password: string) => {
+    const signIn = useCallback(async (email: string, password: string): Promise<User> => {
         setStatus('signing-in');
         setError(null);
         try {
             const profile = await authClient.login(email, password);
-
-            // Синхронизируем токены с config
-            const tokens = authClient.getTokens();
-            if (tokens && configBridge) {
-                await configBridge.setAuth({
-                    access: tokens.access,
-                    refresh: tokens.refresh ?? null,
-                    accessToken: tokens.access,
-                    refreshToken: tokens.refresh ?? ''
-                }).catch((err) => {
-                    console.warn('[auth] Failed to save tokens to config', err);
-                });
-            }
-
-            // Загружаем группы с экшенами
-            try {
-                await groupsBridge.fetch();
-                console.log('[auth] Groups fetched after sign-in');
-            } catch (groupsError) {
-                console.warn('[auth] Failed to fetch groups after sign-in, but continuing:', groupsError);
-            }
-
-            setUser(profile);
-            setStatus('authenticated');
-            persistCachedUser(profile);
-            broadcastUser(profile);
+            setAuthenticatedUser(profile);
             return profile;
-        } catch (err) {
-            const normalized = normalizeAuthError(err);
-            setStatus('unauthenticated');
-            setUser(null);
+        } catch (signInError) {
+            const normalized = normalizeAuthError(signInError);
+            setStatus(hasSessionRef.current ? 'degraded' : 'unauthenticated');
             setError(normalized.message);
-            console.error('[auth] Sign-in failed', {error: normalized.message, status: normalized.status});
             throw normalized;
         }
-    }, [broadcastUser]);
+    }, [setAuthenticatedUser]);
 
-    // Ref для хранения интервала polling
-    const oauthPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    
-    // Очистка polling при размонтировании или успешной авторизации
-    const stopOAuthPolling = useCallback(() => {
-        if (oauthPollingRef.current) {
-            clearInterval(oauthPollingRef.current);
-            oauthPollingRef.current = null;
-            console.log('[auth] OAuth polling stopped');
-        }
-    }, []);
-    
-    // Запуск polling для проверки токенов после OAuth
-    const startOAuthPolling = useCallback(() => {
-        stopOAuthPolling();
-        
-        console.log('[auth] Starting OAuth polling...');
-        let attempts = 0;
-        const maxAttempts = 60; // 60 * 2 секунды = 2 минуты
-        
-        oauthPollingRef.current = setInterval(async () => {
-            attempts++;
-            console.log(`[auth] OAuth polling attempt ${attempts}/${maxAttempts}`);
-            
-            try {
-                // Проверяем, появились ли токены в config
-                const config = await configBridge.get();
-                const hasToken = config.auth.access || config.auth.accessToken;
-                
-                if (hasToken) {
-                    console.log('[auth] OAuth polling: tokens found in config!');
-                    stopOAuthPolling();
-                    
-                    // Сохраняем токены в authClient
-                    authClient.storeTokens({
-                        access: config.auth.access || config.auth.accessToken || '',
-                        refresh: config.auth.refresh || config.auth.refreshToken || null,
-                    });
-                    
-                    // Получаем профиль пользователя
-                    setStatus('checking');
-                    try {
-                        const profile = await authClient.getCurrentUser(true);
-                        await syncAuthTokensToConfig();
-                        // Загружаем группы с экшенами
-                        try {
-                            await groupsBridge.fetch();
-                            console.log('[auth] OAuth polling: groups fetched successfully');
-                        } catch (groupsError) {
-                            console.warn('[auth] OAuth polling: failed to fetch groups, but continuing:', groupsError);
-                        }
-                        setUser(profile);
-                        setStatus('authenticated');
-                        setError(null);
-                        broadcastUser(profile);
-                        console.log('[auth] OAuth polling: user authenticated successfully');
-                    } catch (err) {
-                        const normalized = normalizeAuthError(err);
-                        console.error('[auth] OAuth polling: failed to fetch user', normalized.message);
-                        if (shouldClearAuthTokens(normalized)) {
-                            await clearPersistedAuthTokens();
-                        }
-                        setUser(null);
-                        setStatus('unauthenticated');
-                        setError(normalized.message);
-                        broadcastUser(null);
-                    }
-                    return;
-                }
-                
-                // Также проверяем pending OAuth payloads
-                const payloads = await appAuthBridge.consumePendingOAuthPayloads();
-                if (Array.isArray(payloads) && payloads.length > 0) {
-                    console.log('[auth] OAuth polling: found pending payloads');
-                    stopOAuthPolling();
-                    // Payloads будут обработаны в useEffect выше
-                    return;
-                }
-            } catch (err) {
-                console.warn('[auth] OAuth polling error:', err);
-            }
-            
-            // Прекращаем polling после maxAttempts
-            if (attempts >= maxAttempts) {
-                console.log('[auth] OAuth polling timeout');
-                stopOAuthPolling();
-                setStatus('unauthenticated');
-                setError('OAuth timeout. Please try again.');
-            }
-        }, 2000); // Каждые 2 секунды
-    }, [stopOAuthPolling, broadcastUser]);
-    
-    // Очистка при размонтировании
-    useEffect(() => {
-        return () => {
-            stopOAuthPolling();
-        };
-    }, [stopOAuthPolling]);
-    
-    // Останавливаем polling при успешной авторизации
-    useEffect(() => {
-        if (status === 'authenticated') {
-            stopOAuthPolling();
-        }
-    }, [status, stopOAuthPolling]);
-
-    const startOAuth = useCallback(async (provider: OAuthProviderType) => {
-        setError(null);
+    const startOAuth = useCallback(async (provider: OAuthProviderType): Promise<void> => {
+        clearOAuthTimeout();
         setStatus('oauth');
-        if (!appAuthBridge) {
-            const normalized = normalizeAuthError(new AuthError('OAuth bridge unavailable'));
-            console.error('[auth] Failed to initiate OAuth', {provider, error: normalized.message});
-            setStatus('unauthenticated');
-            setError(normalized.message);
-            throw normalized;
-        }
+        setError(null);
         try {
             await appAuthBridge.startOAuth(provider);
-            // Запускаем polling для проверки токенов
-            startOAuthPolling();
-        } catch (err) {
-            const normalized = normalizeAuthError(err);
-            console.error('[auth] Failed to initiate OAuth', {provider, error: normalized.message});
-            setStatus('unauthenticated');
+            oauthTimeoutRef.current = window.setTimeout(() => {
+                oauthTimeoutRef.current = null;
+                setStatus(hasSessionRef.current ? 'degraded' : 'unauthenticated');
+                setError('OAuth authorization timed out. Try again.');
+            }, OAUTH_ATTEMPT_TIMEOUT_MS);
+        } catch (startError) {
+            clearOAuthTimeout();
+            const normalized = normalizeAuthError(startError);
+            setStatus(hasSessionRef.current ? 'degraded' : 'unauthenticated');
             setError(normalized.message);
             throw normalized;
         }
-    }, [startOAuthPolling]);
+    }, [clearOAuthTimeout]);
 
-    const getAuthMethods = useCallback(async () => {
-        if (appAuthBridge?.getAuthMethods) {
-            return appAuthBridge.getAuthMethods();
-        }
-        return authClient.getAuthMethods();
-    }, []);
+    const getAuthMethods = useCallback(() => appAuthBridge.getAuthMethods(), []);
 
-    const signOut = useCallback(() => {
-        authClient.clearTokens();
-
-        // Очищаем токены в config
-        if (configBridge) {
-            configBridge.setAuth({
-                access: '',
-                refresh: null,
-                accessToken: '',
-                refreshToken: ''
-            }).catch((err) => {
-                console.warn('[auth] Failed to clear tokens in config', err);
-            });
-        }
-
-        setUser(null);
-        setStatus('unauthenticated');
-        setError(null);
-        persistCachedUser(null);
-        broadcastUser(null);
+    const signOut = useCallback(async (): Promise<void> => {
+        let cleared = false;
         try {
-            window.winky?.mic?.hide?.({reason: 'sign-out'});
-        } catch {
-            /* ignore */
-        }
-        console.log('[auth] User signed out');
-    }, [broadcastUser]);
-
-    // Подписываемся на глобальное событие 401 (Unauthorized) от API клиента
-    // При получении 401 автоматически разлогиниваем пользователя
-    useEffect(() => {
-        const unsubscribe = onUnauthorized(() => {
-            // Проверяем, авторизован ли пользователь, чтобы избежать лишних вызовов signOut
-            if (status === 'unauthenticated') {
-                console.log('[auth] Received 401 but already unauthenticated, ignoring');
-                return;
+            cleared = await authClient.logout();
+        } finally {
+            applyTerminalClear(cleared);
+            try {
+                window.winky?.mic?.hide?.({reason: 'sign-out'});
+            } catch (micError) {
+                console.warn('[auth] Microphone window could not be hidden', micError);
             }
-            console.warn('[auth] Received 401 Unauthorized from API, signing out...');
-            signOut();
+        }
+    }, [applyTerminalClear]);
+
+    const reloadUser = useCallback(async (): Promise<User | null> => {
+        if (reloadPromiseRef.current) return reloadPromiseRef.current;
+        reloadPromiseRef.current = (async () => {
+            let tokens: AuthTokens | null;
+            try {
+                tokens = await authClient.loadSession();
+            } catch (storageError) {
+                const normalized = normalizeAuthError(storageError);
+                const cachedUser = readCachedUser();
+                if (authClient.hasTokens()) {
+                    setDegradedSession(normalized, cachedUser);
+                    return cachedUser;
+                }
+                setSessionAvailable(false);
+                setUser(null);
+                setStatus('unauthenticated');
+                setError(normalized.message);
+                return null;
+            }
+            if (!tokens) {
+                setSignedOut();
+                return null;
+            }
+            const cachedUser = readCachedUser();
+            setSessionAvailable(true);
+            setStatus('checking');
+            try {
+                const profile = await authClient.getCurrentUser(true);
+                setAuthenticatedUser(profile);
+                return profile;
+            } catch (reloadError) {
+                const normalized = normalizeAuthError(reloadError);
+                console.warn('[auth] Profile refresh failed', {
+                    status: normalized.status,
+                    code: normalized.code
+                });
+                if (isTerminalAuthError(normalized)) {
+                    const cleared = await authClient.clearTokens();
+                    applyTerminalClear(cleared);
+                    return null;
+                }
+                setDegradedSession(normalized, cachedUser);
+                return cachedUser;
+            }
+        })().finally(() => {
+            reloadPromiseRef.current = null;
         });
-        return unsubscribe;
-    }, [signOut, status]);
+        return reloadPromiseRef.current;
+    }, [applyTerminalClear, setAuthenticatedUser, setDegradedSession, setSessionAvailable]);
 
-    const reloadUser = useCallback(async () => {
-        console.log('[auth] reloadUser called');
-        const tokens = await loadAuthTokens();
-        if (!tokens?.access) {
-            console.log('[auth] No tokens found in authClient, clearing user');
-            authClient.clearTokens();
-            setUser(null);
-            setStatus('unauthenticated');
-            persistCachedUser(null);
-            broadcastUser(null);
-            return null;
-        }
-
-        console.log('[auth] Tokens found, fetching user profile...');
-        setStatus('checking');
-        try {
-            const profile = await authClient.getCurrentUser(true);
-            await syncAuthTokensToConfig();
-            console.log('[auth] User profile reloaded successfully', {userId: profile.id, email: profile.email});
-            setUser(profile);
-            setStatus('authenticated');
-            setError(null);
-            persistCachedUser(profile);
-            broadcastUser(profile);
-            return profile;
-        } catch (err) {
-            const normalized = normalizeAuthError(err);
-            console.warn('[auth] Failed to reload user', {error: normalized.message, status: normalized.status});
-            if (shouldClearAuthTokens(normalized)) {
-                await clearPersistedAuthTokens();
-            }
-            setUser(null);
-            setStatus('unauthenticated');
-            setError(normalized.message);
-            persistCachedUser(null);
-            broadcastUser(null);
-            return null;
-        }
-    }, [broadcastUser]);
+    useEffect(() => {
+        if (!isPrimaryWindow) return;
+        return onUnauthorized(() => {
+            if (!hasSessionRef.current) return;
+            void reloadUser();
+        });
+    }, [isPrimaryWindow, reloadUser]);
 
     const clearError = useCallback(() => setError(null), []);
-
     const value = useMemo<AuthContextValue>(() => ({
         status,
         user,
         error,
-        isAuthenticated: status === 'authenticated',
+        isAuthenticated: hasSession && status !== 'unauthenticated',
         signIn,
         startOAuth,
         getAuthMethods,
         signOut,
         reloadUser,
         clearError,
-        isBusy:
-            status === 'initializing' ||
-            status === 'checking' ||
-            status === 'signing-in',
-    }), [status, user, error, signIn, startOAuth, getAuthMethods, signOut, reloadUser, clearError]);
+        isBusy: status === 'initializing'
+            || status === 'checking'
+            || status === 'signing-in'
+            || status === 'oauth'
+    }), [
+        status,
+        user,
+        error,
+        hasSession,
+        signIn,
+        startOAuth,
+        getAuthMethods,
+        signOut,
+        reloadUser,
+        clearError
+    ]);
 
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    );
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
     const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
+    if (!context) throw new Error('useAuth must be used within an AuthProvider');
     return context;
 }

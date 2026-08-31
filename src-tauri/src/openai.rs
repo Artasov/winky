@@ -32,8 +32,7 @@ pub async fn chat_completions(api_key: &str, body: Value) -> Result<Value> {
         return Err(anyhow!("OpenAI API returned {}: {}", status, payload));
     }
 
-    serde_json::from_str(&payload)
-        .map_err(|e| anyhow!("Failed to parse OpenAI response: {}", e))
+    serde_json::from_str(&payload).map_err(|e| anyhow!("Failed to parse OpenAI response: {}", e))
 }
 
 pub async fn chat_completions_stream(

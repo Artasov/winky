@@ -1,6 +1,14 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useSyncExternalStore} from 'react';
 import type {FastWhisperStatus} from '@shared/types';
-import {localSpeechBridge} from '../services/winkyBridge';
+import {
+    getLocalSpeechState,
+    localSpeechManager,
+    normalizeLocalSpeechModelName,
+    subscribeToLocalSpeechState,
+    type LocalSpeechModelStatus,
+    type LocalSpeechServerAction,
+    type LocalSpeechState
+} from '../services/localSpeechModels';
 
 type UseLocalSpeechStatusOptions = {
     skip?: boolean;
@@ -14,6 +22,8 @@ type UseLocalSpeechStatusResult = {
     status: FastWhisperStatus | null;
     error: string | null;
     loading: boolean;
+    operation: LocalSpeechServerAction | null;
+    transcriptionInProgress: boolean;
     refresh: (checkHealth?: boolean) => Promise<FastWhisperStatus | null>;
     setStatus: (next: FastWhisperStatus | null) => void;
 };
@@ -21,26 +31,30 @@ type UseLocalSpeechStatusResult = {
 const hasDocument = typeof document !== 'undefined';
 const hasWindow = typeof window !== 'undefined';
 
+export const useLocalSpeechState = (): LocalSpeechState =>
+    useSyncExternalStore(subscribeToLocalSpeechState, getLocalSpeechState, getLocalSpeechState);
+
+export const useLocalSpeechModelStatus = (model: string): LocalSpeechModelStatus => {
+    const state = useLocalSpeechState();
+    const normalized = useMemo(() => normalizeLocalSpeechModelName(model), [model]);
+    return state.models[normalized] ?? {
+        model: normalized,
+        phase: state.serverStatus?.installed === false ? 'unavailable' : 'unknown',
+        downloaded: null,
+        updatedAt: 0
+    };
+};
+
 export const useLocalSpeechStatus = ({
     skip = false,
-    pollIntervalMs = 15000,
+    pollIntervalMs = 15_000,
     checkHealthOnMount = false,
     onStatus,
     onError
 }: UseLocalSpeechStatusOptions = {}): UseLocalSpeechStatusResult => {
-    const [status, setStatus] = useState<FastWhisperStatus | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
-    const mountedRef = useRef(true);
-    const onStatusRef = useRef<((status: FastWhisperStatus) => void) | undefined>(onStatus);
-    const onErrorRef = useRef<((message: string) => void) | undefined>(onError);
-
-    useEffect(() => {
-        mountedRef.current = true;
-        return () => {
-            mountedRef.current = false;
-        };
-    }, []);
+    const state = useLocalSpeechState();
+    const onStatusRef = useRef(onStatus);
+    const onErrorRef = useRef(onError);
 
     useEffect(() => {
         onStatusRef.current = onStatus;
@@ -50,111 +64,53 @@ export const useLocalSpeechStatus = ({
         onErrorRef.current = onError;
     }, [onError]);
 
-    const fetchStatus = useCallback(
+    const refresh = useCallback(
         async (checkHealth: boolean = false): Promise<FastWhisperStatus | null> => {
-            if (skip || !mountedRef.current) {
-                return null;
-            }
-            if (hasDocument && document.hidden) {
-                return null;
-            }
-            setLoading(true);
-            try {
-                const nextStatus = checkHealth
-                    ? await localSpeechBridge.checkHealth()
-                    : await localSpeechBridge.getStatus();
-                if (!mountedRef.current) {
-                    return nextStatus ?? null;
-                }
-                if (nextStatus) {
-                    setStatus(nextStatus);
-                    onStatusRef.current?.(nextStatus);
-                    setError(null);
-                }
-                return nextStatus ?? null;
-            } catch (err: any) {
-                if (!mountedRef.current) {
-                    return null;
-                }
-                const message = err?.message || 'Failed to request local server status.';
-                setError(message);
-                onErrorRef.current?.(message);
-                return null;
-            } finally {
-                if (mountedRef.current) {
-                    setLoading(false);
-                }
-            }
+            if (skip || (hasDocument && document.hidden)) return null;
+            return localSpeechManager.refreshServerStatus(checkHealth);
         },
         [skip]
     );
 
     useEffect(() => {
-        if (skip) {
-            setStatus(null);
-            return undefined;
-        }
+        if (skip) return;
+        void refresh(checkHealthOnMount);
 
-        void fetchStatus(checkHealthOnMount);
-
-        const handleFocus = () => {
-            void fetchStatus();
-        };
-
+        const handleFocus = () => void refresh();
         const handleVisibilityChange = () => {
-            if (!hasDocument || document.hidden) {
-                return;
-            }
-            void fetchStatus();
+            if (!hasDocument || !document.hidden) void refresh();
         };
 
-        if (hasWindow) {
-            window.addEventListener('focus', handleFocus);
-        }
-        if (hasDocument) {
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-        }
-
-        const pollTimer =
-            pollIntervalMs > 0 && hasWindow
-                ? window.setInterval(() => {
-                    if (!hasDocument || document.hidden) {
-                        return;
-                    }
-                    void fetchStatus();
-                }, pollIntervalMs)
-                : null;
-
-        const unsubscribe = hasWindow
-            ? localSpeechBridge.onStatus((nextStatus) => {
-                if (!mountedRef.current) {
-                    return;
-                }
-                setStatus(nextStatus);
-                onStatusRef.current?.(nextStatus);
-                setError(null);
-            })
-            : undefined;
+        if (hasWindow) window.addEventListener('focus', handleFocus);
+        if (hasDocument) document.addEventListener('visibilitychange', handleVisibilityChange);
+        const pollTimer = pollIntervalMs > 0 && hasWindow
+            ? window.setInterval(() => {
+                if (!hasDocument || !document.hidden) void refresh();
+            }, pollIntervalMs)
+            : null;
 
         return () => {
-            if (hasWindow) {
-                window.removeEventListener('focus', handleFocus);
-            }
-            if (hasDocument) {
-                document.removeEventListener('visibilitychange', handleVisibilityChange);
-            }
-            if (hasWindow && pollTimer !== null) {
-                window.clearInterval(pollTimer);
-            }
-            unsubscribe?.();
+            if (hasWindow) window.removeEventListener('focus', handleFocus);
+            if (hasDocument) document.removeEventListener('visibilitychange', handleVisibilityChange);
+            if (hasWindow && pollTimer !== null) window.clearInterval(pollTimer);
         };
-    }, [skip, fetchStatus, pollIntervalMs, checkHealthOnMount]);
+    }, [skip, refresh, pollIntervalMs, checkHealthOnMount]);
+
+    useEffect(() => {
+        if (!skip && state.serverStatus) onStatusRef.current?.(state.serverStatus);
+    }, [skip, state.serverStatus]);
+
+    useEffect(() => {
+        if (!skip && state.serverError) onErrorRef.current?.(state.serverError);
+    }, [skip, state.serverError]);
 
     return {
-        status,
-        error,
-        loading,
-        refresh: fetchStatus,
-        setStatus
+        status: skip ? null : state.serverStatus,
+        error: skip ? null : state.serverError,
+        loading: !skip && state.serverLoading,
+        operation: skip ? null : state.serverOperation,
+        transcriptionInProgress: !skip && state.activeTranscriptions.length > 0,
+        refresh,
+        setStatus: localSpeechManager.setServerStatus
     };
 };

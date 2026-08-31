@@ -1,18 +1,17 @@
 import React, {useCallback, useEffect, useMemo, useRef} from 'react';
 import {Route, Routes, useNavigate} from 'react-router-dom';
 import {getCurrentWindow} from '@tauri-apps/api/window';
-import {listen, type UnlistenFn} from '@tauri-apps/api/event';
 import {ConfigContext} from './context/ConfigContext';
 import {ToastContext, type ToastType} from './context/ToastContext';
-import {UserProvider, useUser} from './context/UserContext';
+import {UserProvider} from './context/UserContext';
 import {IconsProvider} from './context/IconsContext';
-import {AuthProvider} from './auth';
+import {AuthProvider, useAuth} from './auth';
 import {useWindowIdentity} from './app/hooks/useWindowIdentity';
 import {useConfigController} from './app/hooks/useConfigController';
 import {useNavigationSync} from './app/hooks/useNavigationSync';
 import {useToastBridge} from './app/hooks/useToastBridge';
 import {useWindowChrome} from './app/hooks/useWindowChrome';
-import {configBridge, groupsBridge} from './services/winkyBridge';
+import {groupsBridge} from './services/winkyBridge';
 import {Slide, ToastContainer, toast} from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './styles/ReactToastify.sass';
@@ -42,148 +41,24 @@ import ResultShell from './app/layouts/ResultShell';
 import ErrorShell from './app/layouts/ErrorShell';
 import StandaloneWindow from './app/layouts/StandaloneWindow';
 import {SPEECH_MODES} from '@shared/constants';
-import {onUnauthorized} from '@shared/api';
 import TitleBar from './components/TitleBar';
 import {checkLocalModelDownloaded, warmupLocalSpeechModel} from './services/localSpeechModels';
 import StyleUsageSentinel from './components/StyleUsageSentinel';
 import {useThemeMode} from './context/ThemeModeContext';
+import {useUpdateNotifications} from './features/updates/hooks/useUpdateNotifications';
 
 const LOCAL_SERVER_READY_TIMEOUT_MS = 2 * 60 * 1000;
 const LOCAL_SERVER_POLL_INTERVAL_MS = 2_000;
-const UPDATE_TOAST_ID = 'winky-update';
-
-type UpdateAvailablePayload = {
-    version: string;
-    currentVersion: string;
-    fileName: string;
-};
-
-type UpdateProgressPayload = {
-    percent: number;
-    downloadedBytes: number;
-    totalBytes?: number | null;
-};
-
-type UpdateStartedPayload = {
-    version: string;
-    fileName: string;
-};
-
-type UpdateErrorPayload = {
-    message: string;
-};
-
-const formatBytes = (bytes: number): string => {
-    if (!Number.isFinite(bytes) || bytes <= 0) {
-        return '0 MB';
-    }
-    const mb = bytes / 1_048_576;
-    return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
-};
-
-const useUpdateNotifications = (enabled: boolean) => {
-    useEffect(() => {
-        if (!enabled) {
-            return;
-        }
-
-        let unlisteners: UnlistenFn[] = [];
-        let cancelled = false;
-
-        const register = async () => {
-            try {
-                const nextUnlisteners = await Promise.all([
-                    listen<UpdateAvailablePayload>('update-available', (event) => {
-                        toast.info(`Update ${event.payload.version} is available. Downloading...`, {
-                            toastId: UPDATE_TOAST_ID,
-                            autoClose: false
-                        });
-                    }),
-                    listen<UpdateProgressPayload>('update-download-progress', (event) => {
-                        const {percent, downloadedBytes, totalBytes} = event.payload;
-                        const details = totalBytes
-                            ? `${percent}% (${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)})`
-                            : formatBytes(downloadedBytes);
-                        if (toast.isActive(UPDATE_TOAST_ID)) {
-                            toast.update(UPDATE_TOAST_ID, {
-                                render: `Downloading update: ${details}`,
-                                type: 'info',
-                                autoClose: false
-                            });
-                        } else {
-                            toast.info(`Downloading update: ${details}`, {
-                                toastId: UPDATE_TOAST_ID,
-                                autoClose: false
-                            });
-                        }
-                    }),
-                    listen<UpdateStartedPayload>('update-started', (event) => {
-                        const message = `Installing update ${event.payload.version}. Winky will close to finish setup.`;
-                        if (toast.isActive(UPDATE_TOAST_ID)) {
-                            toast.update(UPDATE_TOAST_ID, {
-                                render: message,
-                                type: 'info',
-                                autoClose: false
-                            });
-                        } else {
-                            toast.info(message, {
-                                toastId: UPDATE_TOAST_ID,
-                                autoClose: false
-                            });
-                        }
-                    }),
-                    listen<UpdateErrorPayload>('update-error', (event) => {
-                        const message = `Update failed: ${event.payload.message}`;
-                        if (toast.isActive(UPDATE_TOAST_ID)) {
-                            toast.update(UPDATE_TOAST_ID, {
-                                render: message,
-                                type: 'error',
-                                autoClose: 8000
-                            });
-                        } else {
-                            toast.error(message, {autoClose: 8000});
-                        }
-                    })
-                ]);
-                if (cancelled) {
-                    nextUnlisteners.forEach((unlisten) => void unlisten());
-                    return;
-                }
-                unlisteners = nextUnlisteners;
-            } catch (error) {
-                console.warn('[update] failed to subscribe to update events', error);
-            }
-        };
-
-        void register();
-        return () => {
-            cancelled = true;
-            unlisteners.forEach((unlisten) => void unlisten());
-        };
-    }, [enabled]);
-};
-
 const AppContent: React.FC = () => {
     const windowIdentity = useWindowIdentity();
     const {config, loading, preloadError, refreshConfig, updateConfig, setConfig} = useConfigController();
-    const {user, fetchUser, loading: userLoading} = useUser();
-    const userFetchAttempted = useRef(false);
+    const {isAuthenticated, isBusy: userLoading} = useAuth();
     const groupsFetched = useRef(false);
     const shouldRenderToasts = windowIdentity.allowsToasts;
-    const isAuthenticated = Boolean(user);
     const navigate = useNavigate();
     const warmupRequestedModelRef = useRef<string | null>(null);
     const {isDark} = useThemeMode();
     const toastTheme = isDark ? 'dark' : 'colored';
-    const clearAuthTokens = useCallback(async () => {
-        await configBridge.setAuth({
-            access: '',
-            refresh: null,
-            accessToken: '',
-            refreshToken: ''
-        });
-    }, []);
-
     const showToast = useCallback(
         (message: string, type: ToastType = 'info', options?: { durationMs?: number }) => {
             if (!shouldRenderToasts) {
@@ -217,21 +92,6 @@ const AppContent: React.FC = () => {
     useUpdateNotifications(shouldRenderToasts && !windowIdentity.isAuxWindow);
     useWindowChrome(windowIdentity);
     useNavigationSync({config, loading, windowIdentity, isAuthenticated});
-
-    useEffect(() => {
-        if (windowIdentity.isAuxWindow) {
-            return;
-        }
-        const unsubscribe = onUnauthorized(() => {
-            console.warn('[App] Unauthorized state detected, forcing auth screen');
-            userFetchAttempted.current = true;
-            groupsFetched.current = false;
-            void clearAuthTokens().finally(() => {
-                navigate('/auth', {replace: true});
-            });
-        });
-        return unsubscribe;
-    }, [clearAuthTokens, navigate, windowIdentity.isAuxWindow]);
 
     useEffect(() => {
         const shouldWarmup =
@@ -358,105 +218,6 @@ const AppContent: React.FC = () => {
     ]);
 
     useEffect(() => {
-        const hasToken = config?.auth.access || config?.auth.accessToken;
-        if (!hasToken) {
-            console.log('[App] Config updated: no tokens found, resetting userFetchAttempted');
-            userFetchAttempted.current = false;
-        } else {
-            console.log('[App] Config updated: tokens found', {
-                hasAccess: !!config?.auth.access,
-                hasAccessToken: !!config?.auth.accessToken
-            });
-        }
-    }, [config?.auth.access, config?.auth.accessToken]);
-
-    useEffect(() => {
-        if (windowIdentity.isAuxWindow) {
-            return;
-        }
-        if (userLoading) {
-            return;
-        }
-        if (user) {
-            userFetchAttempted.current = true;
-            return;
-        }
-        if (userFetchAttempted.current) {
-            return;
-        }
-        const hasToken = config?.auth.access || config?.auth.accessToken;
-        if (!hasToken || (hasToken.trim() === '')) {
-            console.log('[App] No token found, requiring authentication');
-            userFetchAttempted.current = true;
-            if (!windowIdentity.isAuxWindow) {
-                navigate('/', {replace: true});
-            }
-            return;
-        }
-        console.log('[App] Token found, fetching user from server...');
-        userFetchAttempted.current = true;
-        
-        // Таймаут для очистки токенов если авторизация не завершена
-        const timeoutId = setTimeout(() => {
-            if (!user && !userLoading) {
-                console.warn('[App] User fetch timeout, clearing tokens');
-                void clearAuthTokens().then(() => {
-                    if (!windowIdentity.isAuxWindow) {
-                        navigate('/', {replace: true});
-                    }
-                });
-            }
-        }, 10000); // 10 секунд
-        
-        void fetchUser()
-            .then((userData) => {
-                clearTimeout(timeoutId);
-                if (!userData && !windowIdentity.isAuxWindow) {
-                    console.warn('[App] Failed to fetch user, clearing tokens and redirecting to auth');
-                    // Очищаем токены если пользователь не найден
-                    void clearAuthTokens().then(() => {
-                        navigate('/', {replace: true});
-                    });
-                }
-            })
-            .catch((error) => {
-                clearTimeout(timeoutId);
-                console.error('[App] Failed to fetch user, clearing tokens', error);
-                userFetchAttempted.current = false;
-                // Очищаем токены при ошибке
-                void clearAuthTokens().then(() => {
-                    if (!windowIdentity.isAuxWindow) {
-                        navigate('/', {replace: true});
-                    }
-                });
-            });
-            
-        return () => {
-            clearTimeout(timeoutId);
-        };
-    }, [
-        config?.auth.access,
-        config?.auth.accessToken,
-        userLoading,
-        fetchUser,
-        navigate,
-        windowIdentity.isAuxWindow,
-        user,
-        clearAuthTokens
-    ]);
-
-    useEffect(() => {
-        if (windowIdentity.isAuxWindow) {
-            return;
-        }
-        // Не перенаправляем на /auth, если есть токены в конфигурации (возможно идет процесс OAuth)
-        const hasToken = config?.auth.access || config?.auth.accessToken;
-        if (userFetchAttempted.current && !isAuthenticated && !userLoading && !hasToken) {
-            navigate('/auth', {replace: true});
-        }
-    }, [isAuthenticated, userLoading, windowIdentity.isAuxWindow, navigate, config?.auth.access, config?.auth.accessToken]);
-
-    useEffect(() => {
         if (windowIdentity.isAuxWindow) {
             return;
         }
@@ -531,16 +292,6 @@ const AppContent: React.FC = () => {
             window.winky?.mic?.show?.('auto');
         }
     }, [config?.setupCompleted, config?.micShowOnLaunch, windowIdentity.isAuxWindow, isAuthenticated]);
-
-    useEffect(() => {
-        if (windowIdentity.isAuxWindow) {
-            return;
-        }
-        if (!config?.setupCompleted) {
-            return;
-        }
-        void ensureMicrophonePermission();
-    }, [windowIdentity.isAuxWindow, config?.setupCompleted, ensureMicrophonePermission]);
 
     useEffect(() => {
         if (windowIdentity.isAuxWindow) {

@@ -1,73 +1,28 @@
-import axios, {AxiosInstance} from 'axios';
+import axios, {type AxiosInstance} from 'axios';
 import {
     FAST_WHISPER_BASE_URL,
     SPEECH_LOCAL_MODEL_ALIASES,
     SPEECH_LOCAL_MODEL_DETAILS
 } from '@shared/constants';
+import type {FastWhisperStatus} from '@shared/types';
+import {
+    localSpeechBridge,
+    type LocalSpeechModelStatus,
+    type LocalSpeechModelStatusEvent
+} from '../winkyBridge/localSpeechBridge';
 
-const localSpeechClient: AxiosInstance = axios.create({
-    baseURL: FAST_WHISPER_BASE_URL,
-    timeout: 10000
-});
+export type {LocalSpeechModelPhase, LocalSpeechModelStatus} from '../winkyBridge/localSpeechBridge';
 
-localSpeechClient.interceptors.request.use(
-    (config) => {
-        const method = config.method?.toUpperCase() || 'GET';
-        const url = config.url || '';
-        const fullUrl = url.startsWith('http') ? url : `${config.baseURL}${url}`;
-        console.log(`%cLocalSpeech → %c[${method}] %c${fullUrl}`,
-            'color: #10b981; font-weight: bold',
-            'color: #3b82f6; font-weight: bold',
-            'color: #8b5cf6'
-        );
-        if (config.params) {
-            console.log('  📤 Request params:', config.params);
-        }
-        if (config.data) {
-            console.log('  📤 Request data:', config.data);
-        }
-        return config;
-    },
-    (error) => {
-        console.error('%cLocalSpeech → ERROR', 'color: #ef4444; font-weight: bold', error);
-        return Promise.reject(error);
-    }
-);
+export type LocalSpeechServerAction = 'install' | 'start' | 'restart' | 'reinstall' | 'stop';
 
-localSpeechClient.interceptors.response.use(
-    (response) => {
-        const method = response.config.method?.toUpperCase() || 'GET';
-        const url = response.config.url || '';
-        const fullUrl = url.startsWith('http') ? url : `${response.config.baseURL}${url}`;
-        const status = response.status;
-        console.log(`%cLocalSpeech ← %c[${method}] %c${fullUrl} %c[${status}]`,
-            'color: #10b981; font-weight: bold',
-            'color: #3b82f6; font-weight: bold',
-            'color: #8b5cf6',
-            'color: #22c55e; font-weight: bold'
-        );
-        console.log('  📥 Response data:', response.data);
-        return response;
-    },
-    (error) => {
-        const method = error.config?.method?.toUpperCase() || 'GET';
-        const url = error.config?.url || 'unknown';
-        const fullUrl = url.startsWith('http') ? url : `${error.config?.baseURL}${url}`;
-        const status = error.response?.status || 'N/A';
-        console.error(`%cLocalSpeech ← %c[${method}] %c${fullUrl} %c[${status}]`,
-            'color: #ef4444; font-weight: bold',
-            'color: #3b82f6; font-weight: bold',
-            'color: #8b5cf6',
-            'color: #ef4444; font-weight: bold'
-        );
-        if (error.response?.data) {
-            console.error('  ❌ Error data:', error.response.data);
-        } else {
-            console.error('  ❌ Error:', error.message);
-        }
-        return Promise.reject(error);
-    }
-);
+export interface LocalSpeechState {
+    serverStatus: FastWhisperStatus | null;
+    serverLoading: boolean;
+    serverError: string | null;
+    serverOperation: LocalSpeechServerAction | null;
+    models: Readonly<Record<string, LocalSpeechModelStatus>>;
+    activeTranscriptions: readonly number[];
+}
 
 export type LocalModelDownloadResponse = {
     status: 'downloaded' | 'already_present';
@@ -85,277 +40,400 @@ export type LocalModelWarmupResponse = {
     load_time: number;
 };
 
-const localModelCache = new Map<string, boolean>();
-const warmupModelsInProgress = new Set<string>();
-type WarmupListener = (activeModels: Set<string>) => void;
-const warmupListeners = new Set<WarmupListener>();
-const activeTranscriptions = new Set<number>();
-type TranscriptionListener = (inProgress: boolean) => void;
-const transcriptionListeners = new Set<TranscriptionListener>();
-let transcriptionCounter = 0;
-
-const log = (message: string, ...args: any[]) => {
-    console.log(`%c[LocalModel] %c${message}`, 'color:#0ea5e9;font-weight:600', 'color:#111827', ...args);
-};
-
-const logError = (message: string, error?: unknown) => {
-    console.error(`%c[LocalModel] %c${message}`, 'color:#ef4444;font-weight:600', 'color:#111827', error || '');
-};
-
-export type LocalModelExistsResponse = {
+type LocalModelExistsResponse = {
     exists: boolean;
     model: string;
     model_path?: string;
 };
 
+type LocalSpeechStateListener = () => void;
+type LocalSpeechApiError = {
+    detail?: string;
+    message?: string;
+};
+
 const localModelDetailsMap = SPEECH_LOCAL_MODEL_DETAILS as Record<string, {label: string; size: string}>;
 const legacyLocalModelMap = Object.entries(SPEECH_LOCAL_MODEL_ALIASES).reduce<Record<string, string>>(
-    (acc, [key, value]) => {
-        acc[key.toLowerCase()] = value;
-        return acc;
+    (result, [key, value]) => {
+        result[key.toLowerCase()] = value;
+        return result;
     },
     {}
 );
 
 export const normalizeLocalSpeechModelName = (model: string): string => {
     const trimmed = (model ?? '').trim();
-    if (!trimmed) {
-        return '';
-    }
-    const alias = legacyLocalModelMap[trimmed.toLowerCase()];
-    return alias ?? trimmed;
+    if (!trimmed) return '';
+    return legacyLocalModelMap[trimmed.toLowerCase()] ?? trimmed;
 };
 
 export const getLocalSpeechModelMetadata = (
     model: string
 ): {id: string; label: string; size: string} | null => {
     const normalized = normalizeLocalSpeechModelName(model);
-    if (!normalized) {
-        return null;
-    }
-    const details = localModelDetailsMap[normalized];
-    if (!details) {
-        return null;
-    }
-    return {id: normalized, label: details.label, size: details.size};
+    const details = normalized ? localModelDetailsMap[normalized] : undefined;
+    return details ? {id: normalized, label: details.label, size: details.size} : null;
 };
 
-const describeLocalSpeechModel = (model: string): string => {
-    const metadata = getLocalSpeechModelMetadata(model);
-    if (metadata) {
-        return `${metadata.label} (${metadata.size})`;
-    }
-    return model;
-};
-
-const notifyWarmupSubscribers = () => {
-    const snapshot = new Set(warmupModelsInProgress);
-    warmupListeners.forEach((listener) => {
-        try {
-            listener(snapshot);
-        } catch (error) {
-            console.error('[LocalModel] Warmup listener error', error);
-        }
+class LocalSpeechManager {
+    private readonly client: AxiosInstance = axios.create({
+        baseURL: FAST_WHISPER_BASE_URL,
+        timeout: 10_000
     });
-};
+    private readonly listeners = new Set<LocalSpeechStateListener>();
+    private readonly downloadRequests = new Map<string, Promise<LocalModelDownloadResponse>>();
+    private readonly warmupRequests = new Map<string, Promise<LocalModelWarmupResponse>>();
+    private readonly modelEventRevisions = new Map<string, number>();
+    private readonly sourceId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `renderer-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    private state: LocalSpeechState = {
+        serverStatus: null,
+        serverLoading: false,
+        serverError: null,
+        serverOperation: null,
+        models: {},
+        activeTranscriptions: []
+    };
+    private bridgeStarted = false;
+    private modelRevision = 0;
+    private transcriptionToken = 0;
+    private refreshRequest: Promise<FastWhisperStatus | null> | null = null;
+    private serverRequest: Promise<FastWhisperStatus> | null = null;
 
-const setWarmupState = (model: string, inProgress: boolean) => {
-    if (!model) {
-        return;
-    }
-    if (inProgress) {
-        if (warmupModelsInProgress.has(model)) {
+    getSnapshot = (): LocalSpeechState => this.state;
+
+    subscribe = (listener: LocalSpeechStateListener): (() => void) => {
+        this.startBridge();
+        this.listeners.add(listener);
+        return () => {
+            this.listeners.delete(listener);
+        };
+    };
+
+    setServerStatus = (status: FastWhisperStatus | null): void => {
+        if (!status) {
+            this.setState({serverStatus: null});
             return;
         }
-        warmupModelsInProgress.add(model);
-        notifyWarmupSubscribers();
-        return;
-    }
-    if (!warmupModelsInProgress.has(model)) {
-        return;
-    }
-    warmupModelsInProgress.delete(model);
-    notifyWarmupSubscribers();
-};
 
-const notifyTranscriptionSubscribers = () => {
-    const inProgress = activeTranscriptions.size > 0;
-    transcriptionListeners.forEach((listener) => {
-        try {
-            listener(inProgress);
-        } catch (error) {
-            console.error('[LocalModel] Transcription listener error', error);
-        }
-    });
-};
-
-const registerTranscription = (): number => {
-    transcriptionCounter += 1;
-    activeTranscriptions.add(transcriptionCounter);
-    notifyTranscriptionSubscribers();
-    return transcriptionCounter;
-};
-
-const unregisterTranscription = (token?: number) => {
-    if (typeof token !== 'number') {
-        return;
-    }
-    if (!activeTranscriptions.has(token)) {
-        return;
-    }
-    activeTranscriptions.delete(token);
-    notifyTranscriptionSubscribers();
-};
-
-const hasActiveTranscriptions = (): boolean => activeTranscriptions.size > 0;
-
-export const subscribeToLocalTranscriptions = (listener: TranscriptionListener): (() => void) => {
-    transcriptionListeners.add(listener);
-    listener(hasActiveTranscriptions());
-    return () => {
-        transcriptionListeners.delete(listener);
-    };
-};
-
-export const markLocalTranscriptionStart = (): number => registerTranscription();
-
-export const markLocalTranscriptionFinish = (token?: number): void => {
-    unregisterTranscription(token);
-};
-
-const waitForTranscriptionsToFinish = (timeoutMs: number = 15_000): Promise<boolean> => {
-    if (!hasActiveTranscriptions()) {
-        return Promise.resolve(true);
-    }
-    return new Promise((resolve) => {
-        let timeoutId: ReturnType<typeof setTimeout> | null = null;
-        let unsubscribe: (() => void) | null = null;
-        const handleUpdate = (inProgress: boolean) => {
-            if (inProgress) {
-                return;
-            }
-            if (timeoutId !== null) {
-                clearTimeout(timeoutId);
-            }
-            unsubscribe?.();
-            resolve(true);
+        const normalizedStatus = status.phase === 'error' ? status : {...status, error: undefined};
+        const models = this.getModelsForServerStatus(normalizedStatus);
+        this.state = {
+            ...this.state,
+            serverStatus: normalizedStatus,
+            serverLoading: false,
+            serverError: normalizedStatus.phase === 'error'
+                ? normalizedStatus.error || normalizedStatus.message || 'Local server error.'
+                : null,
+            models
         };
-        unsubscribe = subscribeToLocalTranscriptions(handleUpdate);
-        if (timeoutMs > 0) {
-            timeoutId = setTimeout(() => {
-                unsubscribe?.();
-                resolve(false);
-            }, timeoutMs);
-        }
-    });
-};
-
-export const subscribeToLocalModelWarmup = (listener: WarmupListener): (() => void) => {
-    warmupListeners.add(listener);
-    listener(new Set(warmupModelsInProgress));
-    return () => {
-        warmupListeners.delete(listener);
+        this.notify();
     };
-};
 
-export const checkLocalModelDownloaded = async (model: string, options: {force?: boolean} = {}): Promise<boolean> => {
-    const trimmed = normalizeLocalSpeechModelName(model);
-    if (!trimmed) {
-        console.log('[checkLocalModelDownloaded] Модель пустая, возвращаем false');
-        return false;
-    }
-    if (!options.force && localModelCache.has(trimmed)) {
-        const cached = Boolean(localModelCache.get(trimmed));
-        console.log(`[checkLocalModelDownloaded] Используем кэш для модели ${trimmed}: ${cached}`);
-        return cached;
-    }
-    console.log(`[checkLocalModelDownloaded] Запуск HTTP запроса для модели: ${trimmed}`);
-    try {
-        const {data} = await localSpeechClient.get<LocalModelExistsResponse>('/download/model/exists', {
-            params: {model: trimmed}
-        });
-        const exists = Boolean(data.exists);
-        localModelCache.set(trimmed, exists);
-        console.log(`[checkLocalModelDownloaded] Результат для модели ${trimmed}: ${exists}`);
-        return exists;
-    } catch (error: any) {
-        console.error(`[checkLocalModelDownloaded] Ошибка для модели ${trimmed}:`, error);
-        localModelCache.set(trimmed, false);
-        return false;
-    }
-};
+    refreshServerStatus = (checkHealth: boolean = false): Promise<FastWhisperStatus | null> => {
+        this.startBridge();
+        if (this.refreshRequest) return this.refreshRequest;
 
-export const downloadLocalSpeechModel = async (model: string): Promise<LocalModelDownloadResponse> => {
-    const trimmed = normalizeLocalSpeechModelName(model);
-    if (!trimmed) {
-        throw new Error('Model name is missing.');
-    }
-    log(`Запуск скачивания модели ${describeLocalSpeechModel(trimmed)}…`);
-    try {
-        const {data} = await localSpeechClient.post<LocalModelDownloadResponse>(
-            '/v1/models/download',
-            {model: trimmed},
-            {
-                headers: {'Content-Type': 'application/json'},
-                timeout: 30 * 60 * 1000 // 30 минут
+        this.setState({serverLoading: true});
+        const request = (async (): Promise<FastWhisperStatus | null> => {
+            try {
+                const status = checkHealth
+                    ? await localSpeechBridge.checkHealth()
+                    : await localSpeechBridge.getStatus();
+                this.setServerStatus(status);
+                return status;
+            } catch (error) {
+                const message = this.getErrorMessage(error, 'Failed to request local server status.');
+                this.setState({serverLoading: false, serverError: message});
+                console.error(`[LocalSpeech] Status request failed: ${message}`);
+                return null;
+            } finally {
+                this.refreshRequest = null;
             }
-        );
-        log(
-            `Скачивание завершено (${data.status}) для модели ${describeLocalSpeechModel(
-                trimmed
-            )}. Путь: ${data.model_path}`
-        );
-        localModelCache.set(trimmed, true);
-        return data;
-    } catch (error: any) {
-        logError(
-            `Скачивание модели ${describeLocalSpeechModel(trimmed)} завершилось ошибкой`,
-            error?.response?.data ?? error
-        );
-        throw error;
-    }
-};
+        })();
+        this.refreshRequest = request;
+        return request;
+    };
 
-// Отслеживаем активные warmup запросы для предотвращения дубликатов
-const activeWarmupRequests = new Map<string, Promise<LocalModelWarmupResponse>>();
+    install = (targetDir: string): Promise<FastWhisperStatus> =>
+        this.runServerOperation('install', () => localSpeechBridge.install(targetDir));
 
-export const warmupLocalSpeechModel = async (model: string, device?: string): Promise<LocalModelWarmupResponse> => {
-    const trimmed = normalizeLocalSpeechModelName(model);
-    if (!trimmed) {
-        throw new Error('Model name is missing.');
+    start = (): Promise<FastWhisperStatus> =>
+        this.runServerOperation('start', () => localSpeechBridge.start());
+
+    restart = (): Promise<FastWhisperStatus> =>
+        this.runServerOperation('restart', () => localSpeechBridge.restart());
+
+    reinstall = (targetDir: string): Promise<FastWhisperStatus> =>
+        this.runServerOperation('reinstall', () => localSpeechBridge.reinstall(targetDir));
+
+    stop = (): Promise<FastWhisperStatus> =>
+        this.runServerOperation('stop', () => localSpeechBridge.stop());
+
+    checkModelDownloaded = async (
+        model: string,
+        options: {force?: boolean} = {}
+    ): Promise<boolean> => {
+        this.startBridge();
+        const normalized = normalizeLocalSpeechModelName(model);
+        if (!normalized) return false;
+
+        const downloadRequest = this.downloadRequests.get(normalized);
+        if (downloadRequest) {
+            try {
+                await downloadRequest;
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
+        const current = this.getModelStatus(normalized);
+        if (!options.force && current.downloaded !== null && current.phase !== 'error') {
+            return current.downloaded;
+        }
+
+        this.updateModel(normalized, {phase: 'checking', error: undefined});
+        try {
+            const downloaded = this.state.serverStatus?.running
+                ? Boolean((await this.client.get<LocalModelExistsResponse>(
+                    '/download/model/exists',
+                    {params: {model: normalized}}
+                )).data.exists)
+                : await localSpeechBridge.isModelDownloaded(normalized);
+            this.updateModel(normalized, {
+                downloaded,
+                phase: downloaded ? 'installed' : 'missing',
+                error: undefined
+            });
+            return downloaded;
+        } catch (error) {
+            const message = this.getErrorMessage(error, 'Failed to verify the local speech model.');
+            this.updateModel(normalized, {
+                downloaded: current.downloaded,
+                phase: 'error',
+                error: message
+            });
+            console.error(`[LocalSpeech] Model check failed for ${normalized}: ${message}`);
+            return false;
+        }
+    };
+
+    downloadModel = (model: string): Promise<LocalModelDownloadResponse> => {
+        this.startBridge();
+        const normalized = this.getModelName(model);
+        const existingRequest = this.downloadRequests.get(normalized);
+        if (existingRequest) return existingRequest;
+
+        const request = this.runModelDownload(normalized);
+        this.downloadRequests.set(normalized, request);
+        void request.finally(() => {
+            if (this.downloadRequests.get(normalized) === request) this.downloadRequests.delete(normalized);
+        }).catch(() => undefined);
+        return request;
+    };
+
+    warmupModel = (model: string, device?: string): Promise<LocalModelWarmupResponse> => {
+        this.startBridge();
+        const normalized = this.getModelName(model);
+        const existingRequest = this.warmupRequests.get(normalized);
+        if (existingRequest) return existingRequest;
+
+        const request = this.runModelWarmup(normalized, device);
+        this.warmupRequests.set(normalized, request);
+        void request.finally(() => {
+            if (this.warmupRequests.get(normalized) === request) this.warmupRequests.delete(normalized);
+        }).catch(() => undefined);
+        return request;
+    };
+
+    startTranscription = (): number => {
+        this.transcriptionToken += 1;
+        this.setState({
+            activeTranscriptions: [...this.state.activeTranscriptions, this.transcriptionToken]
+        });
+        return this.transcriptionToken;
+    };
+
+    finishTranscription = (token?: number): void => {
+        if (typeof token !== 'number' || !this.state.activeTranscriptions.includes(token)) return;
+        this.setState({
+            activeTranscriptions: this.state.activeTranscriptions.filter((current) => current !== token)
+        });
+    };
+
+    getModelStatus = (model: string): LocalSpeechModelStatus => {
+        const normalized = normalizeLocalSpeechModelName(model);
+        return this.state.models[normalized] ?? {
+            model: normalized,
+            phase: this.state.serverStatus?.installed === false ? 'unavailable' : 'unknown',
+            downloaded: null,
+            updatedAt: 0
+        };
+    };
+
+    private startBridge(): void {
+        if (this.bridgeStarted || typeof window === 'undefined') return;
+        this.bridgeStarted = true;
+        localSpeechBridge.onStatus((status) => this.setServerStatus(status));
+        localSpeechBridge.onModelStatus((event) => this.applyModelEvent(event));
     }
-    
-    // Проверяем, есть ли уже активный запрос для этой модели
-    const existingRequest = activeWarmupRequests.get(trimmed);
-    if (existingRequest) {
-        log(`Прогрев модели ${describeLocalSpeechModel(trimmed)} уже выполняется, ожидаем…`);
-        return existingRequest;
+
+    private setState(partial: Partial<LocalSpeechState>): void {
+        this.state = {...this.state, ...partial};
+        this.notify();
     }
-    
-    if (hasActiveTranscriptions()) {
-        const idle = await waitForTranscriptionsToFinish();
-        if (!idle) {
-            log(`Пропускаем прогрев модели ${describeLocalSpeechModel(trimmed)}: идёт транскрибация.`);
-            return {
-                status: 'ready',
-                model: trimmed,
-                device: 'busy',
-                compute_type: 'skipped',
-                load_time: 0
+
+    private notify(): void {
+        this.listeners.forEach((listener) => {
+            try {
+                listener();
+            } catch (error) {
+                const message = this.getErrorMessage(error, 'Unknown listener error.');
+                console.error(`[LocalSpeech] State listener failed: ${message}`);
+            }
+        });
+    }
+
+    private getModelsForServerStatus(status: FastWhisperStatus): Readonly<Record<string, LocalSpeechModelStatus>> {
+        let changed = false;
+        const models: Record<string, LocalSpeechModelStatus> = {...this.state.models};
+
+        Object.entries(models).forEach(([model, current]) => {
+            let phase = current.phase;
+            let downloaded = current.downloaded;
+            let error = current.error;
+
+            if (!status.installed && status.phase !== 'installing') {
+                phase = 'unavailable';
+                downloaded = null;
+                error = undefined;
+            } else if (!status.running && !['checking', 'downloading'].includes(current.phase)) {
+                phase = downloaded === true ? 'installed' : downloaded === false ? 'missing' : 'unknown';
+                error = undefined;
+            } else if (status.running && current.phase === 'unavailable') {
+                phase = downloaded === true ? 'installed' : downloaded === false ? 'missing' : 'unknown';
+                error = undefined;
+            }
+
+            if (phase === current.phase && downloaded === current.downloaded && error === current.error) return;
+            changed = true;
+            models[model] = {
+                ...current,
+                phase,
+                downloaded,
+                error,
+                updatedAt: Math.max(Date.now(), current.updatedAt + 1)
             };
+        });
+
+        return changed ? models : this.state.models;
+    }
+
+    private runServerOperation(
+        action: LocalSpeechServerAction,
+        operation: () => Promise<FastWhisperStatus>
+    ): Promise<FastWhisperStatus> {
+        this.startBridge();
+        if (this.serverRequest) return this.serverRequest;
+
+        if (action === 'reinstall') {
+            const models = Object.fromEntries(
+                Object.keys(this.state.models).map((model) => [model, {
+                    model,
+                    phase: 'unavailable',
+                    downloaded: null,
+                    updatedAt: Date.now()
+                } satisfies LocalSpeechModelStatus])
+            );
+            this.setState({models});
+        }
+
+        this.setState({serverOperation: action, serverLoading: false, serverError: null});
+        const request = (async (): Promise<FastWhisperStatus> => {
+            try {
+                const status = await operation();
+                this.setServerStatus(status);
+                return status;
+            } catch (error) {
+                const message = this.getErrorMessage(error, `Failed to ${action} the local speech server.`);
+                this.setState({serverError: message});
+                console.error(`[LocalSpeech] Server operation ${action} failed: ${message}`);
+                throw error;
+            } finally {
+                this.serverRequest = null;
+                if (this.state.serverOperation === action) this.setState({serverOperation: null});
+            }
+        })();
+        this.serverRequest = request;
+        return request;
+    }
+
+    private async runModelDownload(model: string): Promise<LocalModelDownloadResponse> {
+        const running = await this.getServerRunning();
+        if (!running) {
+            const message = 'Start the local speech server before downloading a model.';
+            this.updateModel(model, {phase: 'unavailable', error: message});
+            throw new Error(message);
+        }
+
+        this.updateModel(model, {phase: 'downloading', downloaded: false, error: undefined});
+        console.info(`[LocalSpeech] Downloading model ${model}.`);
+        try {
+            const {data} = await this.client.post<LocalModelDownloadResponse>(
+                '/v1/models/download',
+                {model},
+                {
+                    headers: {'Content-Type': 'application/json'},
+                    timeout: 30 * 60 * 1000
+                }
+            );
+            this.updateModel(model, {phase: 'installed', downloaded: true, error: undefined});
+            console.info(`[LocalSpeech] Model ${model} downloaded.`);
+            return data;
+        } catch (error) {
+            const message = this.getErrorMessage(error, 'Failed to download the local speech model.');
+            this.updateModel(model, {phase: 'error', downloaded: false, error: message});
+            console.error(`[LocalSpeech] Model download failed for ${model}: ${message}`);
+            throw error;
         }
     }
-    
-    const payload: Record<string, string> = {model: trimmed};
-    if (device) {
-        payload.device = device;
-    }
-    log(`Прогрев модели ${describeLocalSpeechModel(trimmed)} (device=${device ?? 'auto'})…`);
-    setWarmupState(trimmed, true);
-    
-    const warmupPromise = (async (): Promise<LocalModelWarmupResponse> => {
+
+    private async runModelWarmup(model: string, device?: string): Promise<LocalModelWarmupResponse> {
+        const downloadRequest = this.downloadRequests.get(model);
+        if (downloadRequest) await downloadRequest;
+
+        const running = await this.getServerRunning();
+        if (!running) {
+            const message = 'Start the local speech server before warming up a model.';
+            this.updateModel(model, {phase: 'unavailable', error: message});
+            throw new Error(message);
+        }
+
+        const current = this.getModelStatus(model);
+        const downloaded = current.downloaded === true || await this.checkModelDownloaded(model, {force: true});
+        if (!downloaded) {
+            const message = 'Download the local speech model before warming it up.';
+            this.updateModel(model, {phase: 'missing', downloaded: false, error: message});
+            throw new Error(message);
+        }
+
+        if (this.state.activeTranscriptions.length > 0) {
+            const idle = await this.waitForTranscriptions(15_000);
+            if (!idle) {
+                this.updateModel(model, {phase: 'installed', downloaded: true, error: undefined});
+                return this.getBusyWarmupResponse(model);
+            }
+        }
+
+        const payload: Record<string, string> = {model};
+        if (device) payload.device = device;
+        this.updateModel(model, {phase: 'warming', downloaded: true, error: undefined});
+        console.info(`[LocalSpeech] Warming model ${model}.`);
+
         try {
-            const {data} = await localSpeechClient.post<LocalModelWarmupResponse>(
+            const {data} = await this.client.post<LocalModelWarmupResponse>(
                 '/v1/models/warmup',
                 payload,
                 {
@@ -363,37 +441,165 @@ export const warmupLocalSpeechModel = async (model: string, device?: string): Pr
                     timeout: 2 * 60 * 1000
                 }
             );
-            log(
-                `Модель ${describeLocalSpeechModel(trimmed)} прогрета: device=${data.device}, compute=${
-                    data.compute_type
-                }, t=${data.load_time.toFixed(2)}s`
-            );
+            this.updateModel(model, {phase: 'ready', downloaded: true, error: undefined});
+            console.info(`[LocalSpeech] Model ${model} is ready.`);
             return data;
-        } catch (error: any) {
-            const status = error?.response?.status;
-            // 409 Conflict означает, что модель занята (транскрипция или другой warmup)
-            // Это не ошибка - просто модель уже используется
-            if (status === 409) {
-                log(`Модель ${describeLocalSpeechModel(trimmed)} занята (409 Conflict), пропускаем прогрев.`);
-                return {
-                    status: 'ready',
-                    model: trimmed,
-                    device: 'busy',
-                    compute_type: 'skipped',
-                    load_time: 0
-                };
+        } catch (error) {
+            if (axios.isAxiosError(error) && error.response?.status === 409) {
+                this.updateModel(model, {phase: 'ready', downloaded: true, error: undefined});
+                return this.getBusyWarmupResponse(model);
             }
-            logError(
-                `Прогрев модели ${describeLocalSpeechModel(trimmed)} завершился ошибкой`,
-                error?.response?.data ?? error
-            );
+            const message = this.getErrorMessage(error, 'Failed to warm up the local speech model.');
+            this.updateModel(model, {phase: 'error', downloaded: true, error: message});
+            console.error(`[LocalSpeech] Model warmup failed for ${model}: ${message}`);
             throw error;
-        } finally {
-            setWarmupState(trimmed, false);
-            activeWarmupRequests.delete(trimmed);
         }
-    })();
-    
-    activeWarmupRequests.set(trimmed, warmupPromise);
-    return warmupPromise;
+    }
+
+    private async getServerRunning(): Promise<boolean> {
+        if (this.state.serverStatus?.running) return true;
+        const status = await this.refreshServerStatus(true);
+        return Boolean(status?.running);
+    }
+
+    private waitForTranscriptions(timeoutMs: number): Promise<boolean> {
+        if (this.state.activeTranscriptions.length === 0) return Promise.resolve(true);
+
+        return new Promise((resolve) => {
+            let settled = false;
+            let timer = 0;
+            let unsubscribe: () => void = () => undefined;
+            const finish = (idle: boolean) => {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(timer);
+                unsubscribe();
+                resolve(idle);
+            };
+            unsubscribe = this.subscribe(() => {
+                if (this.state.activeTranscriptions.length === 0) finish(true);
+            });
+            timer = window.setTimeout(() => finish(false), timeoutMs);
+        });
+    }
+
+    private updateModel(
+        model: string,
+        partial: Partial<Omit<LocalSpeechModelStatus, 'model' | 'updatedAt'>>
+    ): void {
+        const current = this.getModelStatus(model);
+        const status: LocalSpeechModelStatus = {
+            ...current,
+            ...partial,
+            model,
+            updatedAt: Math.max(Date.now(), current.updatedAt + 1)
+        };
+        this.state = {
+            ...this.state,
+            models: {...this.state.models, [model]: status}
+        };
+        this.notify();
+
+        this.modelRevision += 1;
+        const revisionKey = `${this.sourceId}:${model}`;
+        this.modelEventRevisions.set(revisionKey, this.modelRevision);
+        void localSpeechBridge.publishModelStatus({
+            sourceId: this.sourceId,
+            revision: this.modelRevision,
+            status
+        }).catch((error) => {
+            const message = this.getErrorMessage(error, 'Unknown event error.');
+            console.error(`[LocalSpeech] Failed to publish model status: ${message}`);
+        });
+    }
+
+    private applyModelEvent(event: LocalSpeechModelStatusEvent): void {
+        const model = normalizeLocalSpeechModelName(event.status.model);
+        if (!model) return;
+        const revisionKey = `${event.sourceId}:${model}`;
+        const previousRevision = this.modelEventRevisions.get(revisionKey) ?? 0;
+        if (event.revision <= previousRevision) return;
+        this.modelEventRevisions.set(revisionKey, event.revision);
+
+        const current = this.getModelStatus(model);
+        if (event.status.updatedAt < current.updatedAt) return;
+        this.state = {
+            ...this.state,
+            models: {
+                ...this.state.models,
+                [model]: {...event.status, model}
+            }
+        };
+        this.notify();
+    }
+
+    private getModelName(model: string): string {
+        const normalized = normalizeLocalSpeechModelName(model);
+        if (!normalized) throw new Error('Model name is missing.');
+        return normalized;
+    }
+
+    private getBusyWarmupResponse(model: string): LocalModelWarmupResponse {
+        return {
+            status: 'ready',
+            model,
+            device: 'busy',
+            compute_type: 'skipped',
+            load_time: 0
+        };
+    }
+
+    private getErrorMessage(error: unknown, fallback: string): string {
+        if (axios.isAxiosError<LocalSpeechApiError>(error)) {
+            const detail = error.response?.data?.detail || error.response?.data?.message;
+            if (detail) return detail;
+            if (error.message) return error.message;
+        }
+        if (error instanceof Error && error.message) return error.message;
+        if (typeof error === 'string' && error.trim()) return error;
+        return fallback;
+    }
+}
+
+export const localSpeechManager = new LocalSpeechManager();
+
+export const getLocalSpeechState = (): LocalSpeechState => localSpeechManager.getSnapshot();
+
+export const subscribeToLocalSpeechState = (listener: LocalSpeechStateListener): (() => void) =>
+    localSpeechManager.subscribe(listener);
+
+export const subscribeToLocalTranscriptions = (listener: (inProgress: boolean) => void): (() => void) => {
+    const emitState = () => listener(localSpeechManager.getSnapshot().activeTranscriptions.length > 0);
+    const unsubscribe = localSpeechManager.subscribe(emitState);
+    emitState();
+    return unsubscribe;
 };
+
+export const subscribeToLocalModelWarmup = (listener: (activeModels: Set<string>) => void): (() => void) => {
+    const emitState = () => {
+        const activeModels = new Set(
+            Object.values(localSpeechManager.getSnapshot().models)
+                .filter((status) => status.phase === 'warming')
+                .map((status) => status.model)
+        );
+        listener(activeModels);
+    };
+    const unsubscribe = localSpeechManager.subscribe(emitState);
+    emitState();
+    return unsubscribe;
+};
+
+export const markLocalTranscriptionStart = (): number => localSpeechManager.startTranscription();
+
+export const markLocalTranscriptionFinish = (token?: number): void => localSpeechManager.finishTranscription(token);
+
+export const checkLocalModelDownloaded = (
+    model: string,
+    options: {force?: boolean} = {}
+): Promise<boolean> => localSpeechManager.checkModelDownloaded(model, options);
+
+export const downloadLocalSpeechModel = (model: string): Promise<LocalModelDownloadResponse> =>
+    localSpeechManager.downloadModel(model);
+
+export const warmupLocalSpeechModel = (model: string, device?: string): Promise<LocalModelWarmupResponse> =>
+    localSpeechManager.warmupModel(model, device);

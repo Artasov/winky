@@ -1,21 +1,7 @@
-import {
-    LLM_GEMINI_API_MODELS,
-    LLM_OPENAI_API_MODELS,
-    LLM_WINKY_API_MODELS,
-    SPEECH_GOOGLE_API_MODELS,
-    SPEECH_OPENAI_API_MODELS,
-    SPEECH_WINKY_API_MODELS
-} from '@shared/constants';
 import type {LLMModel, TranscribeModel} from '@shared/types';
+import {getLlmProvider, getTranscriptionProvider} from '@shared/modelRegistry';
 import {normalizeOllamaModelName} from '../services/ollama';
 import {getLocalSpeechModelMetadata} from '../services/localSpeechModels';
-
-const OPENAI_API_MODEL_SET = new Set<string>([...LLM_OPENAI_API_MODELS]);
-const GEMINI_API_MODEL_SET = new Set<string>([...LLM_GEMINI_API_MODELS]);
-const WINKY_LLM_MODEL_SET = new Set<string>([...LLM_WINKY_API_MODELS]);
-const OPENAI_TRANSCRIBE_MODEL_SET = new Set<string>([...SPEECH_OPENAI_API_MODELS]);
-const GOOGLE_TRANSCRIBE_MODEL_SET = new Set<string>([...SPEECH_GOOGLE_API_MODELS]);
-const WINKY_TRANSCRIBE_MODEL_SET = new Set<string>([...SPEECH_WINKY_API_MODELS]);
 
 const LOCAL_LLM_SIZE_HINTS: Record<string, string> = {
     'gpt-oss:120b': '≈90 GB',
@@ -31,12 +17,12 @@ const LOCAL_LLM_SIZE_HINTS: Record<string, string> = {
     'qwen3:4b': '≈2.5 GB'
 };
 
-export const isGeminiApiModel = (model: LLMModel): boolean => GEMINI_API_MODEL_SET.has(model as string);
-export const isOpenAiApiModel = (model: LLMModel): boolean => OPENAI_API_MODEL_SET.has(model as string);
-export const isWinkyLLMModel = (model: LLMModel): boolean => WINKY_LLM_MODEL_SET.has(model as string);
-export const isOpenAiTranscribeModel = (model: TranscribeModel): boolean => OPENAI_TRANSCRIBE_MODEL_SET.has(model as string);
-export const isGoogleTranscribeModel = (model: TranscribeModel): boolean => GOOGLE_TRANSCRIBE_MODEL_SET.has(model as string);
-export const isWinkyTranscribeModel = (model: TranscribeModel): boolean => WINKY_TRANSCRIBE_MODEL_SET.has(model as string);
+export const isGeminiApiModel = (model: LLMModel): boolean => getLlmProvider(model) === 'google';
+export const isOpenAiApiModel = (model: LLMModel): boolean => getLlmProvider(model) === 'openai';
+export const isWinkyLLMModel = (model: LLMModel): boolean => getLlmProvider(model) === 'winky';
+export const isOpenAiTranscribeModel = (model: TranscribeModel): boolean => getTranscriptionProvider(model) === 'openai';
+export const isGoogleTranscribeModel = (model: TranscribeModel): boolean => getTranscriptionProvider(model) === 'google';
+export const isWinkyTranscribeModel = (model: TranscribeModel): boolean => getTranscriptionProvider(model) === 'winky';
 
 export const formatLabel = (value: string): string =>
     value

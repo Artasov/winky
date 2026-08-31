@@ -61,7 +61,9 @@ pub fn play_sound_sync(app: &AppHandle, sound_name: &str) -> Result<(), String> 
         "[Audio] Failed to play sound after {attempts} attempts: {path}. OS error: {os_error}"
     );
     logging::log_message(&message);
-    Err(format!("Failed to play sound: {path}. OS error: {os_error}"))
+    Err(format!(
+        "Failed to play sound: {path}. OS error: {os_error}"
+    ))
 }
 
 #[cfg(target_os = "macos")]

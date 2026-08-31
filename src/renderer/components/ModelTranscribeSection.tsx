@@ -5,6 +5,7 @@ import {SPEECH_MODES} from '@shared/constants';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LocalSpeechInstallControl from './LocalSpeechInstallControl';
 import {formatTranscribeLabel} from '../utils/modelFormatters';
+import type {LocalSpeechModelPhase} from '../services/localSpeechModels';
 
 type ModelTranscribeSectionProps = {
     values: {
@@ -14,12 +15,20 @@ type ModelTranscribeSectionProps = {
     emitChange: (partial: Partial<{transcribeMode: TranscribeMode; transcribeModel: TranscribeModel}>) => void;
     disableInputs: boolean;
     transcribeModelOptions: TranscribeModel[];
+    transcribeModelLabels: Record<string, string>;
+    currentModelUnavailable: boolean;
+    winkyCatalogLabel: string | null;
+    winkyCatalogError: string | null;
     localServerInstalled: boolean;
     localServerRunning: boolean;
+    localServerLoading: boolean;
+    localServerError: string | null;
+    localModelPhase: LocalSpeechModelPhase;
     checkingLocalModel: boolean;
     localModelDownloaded: boolean | null;
     downloadingLocalModel: boolean;
     handleDownloadModel: () => void;
+    handleWarmupModel: () => void;
     downloadButtonLabel: string;
     localModelError: string | null;
     localWarmupInProgress: boolean;
@@ -34,12 +43,20 @@ export const ModelTranscribeSection: React.FC<ModelTranscribeSectionProps> = ({
     emitChange,
     disableInputs,
     transcribeModelOptions,
+    transcribeModelLabels,
+    currentModelUnavailable,
+    winkyCatalogLabel,
+    winkyCatalogError,
     localServerInstalled,
     localServerRunning,
+    localServerLoading,
+    localServerError,
+    localModelPhase,
     checkingLocalModel,
     localModelDownloaded,
     downloadingLocalModel,
     handleDownloadModel,
+    handleWarmupModel,
     downloadButtonLabel,
     localModelError,
     localWarmupInProgress,
@@ -83,18 +100,48 @@ export const ModelTranscribeSection: React.FC<ModelTranscribeSectionProps> = ({
                         label="Transcribe Model"
                         value={values.transcribeModel}
                         onChange={(e) => emitChange({transcribeModel: e.target.value as TranscribeModel})}
-                        disabled={disableInputs || (values.transcribeMode === SPEECH_MODES.LOCAL && (!localServerInstalled || !localServerRunning))}
+                        disabled={disableInputs}
                     >
                         {transcribeModelOptions.map((model) => (
                             <MenuItem key={model} value={model}>
-                                {formatTranscribeLabel(model)}
+                                {transcribeModelLabels[model] || formatTranscribeLabel(model)}
                             </MenuItem>
                         ))}
                     </TextField>
                 )}
-                {values.transcribeMode === SPEECH_MODES.LOCAL && localServerInstalled && localServerRunning && (
-                    <div className={'fc w-full flex-grow'}>
-                        {(checkingLocalModel || localModelDownloaded === null) && (
+                {values.transcribeMode === SPEECH_MODES.API && currentModelUnavailable && (
+                    <Typography variant="caption" color="warning.main">
+                        This saved model is no longer in the supported catalog. Select another model to change it.
+                    </Typography>
+                )}
+                {values.transcribeMode === SPEECH_MODES.API
+                    && values.transcribeModel.startsWith('winky-transcribe-')
+                    && winkyCatalogLabel && (
+                    <Typography variant="caption" color="text.secondary">
+                        {winkyCatalogLabel}. Pricing is loaded from Winky backend.
+                    </Typography>
+                )}
+                {values.transcribeMode === SPEECH_MODES.API
+                    && values.transcribeModel.startsWith('winky-transcribe-')
+                    && winkyCatalogError && (
+                    <Typography variant="caption" color="warning.main">
+                        {winkyCatalogError}
+                    </Typography>
+                )}
+                {values.transcribeMode === SPEECH_MODES.LOCAL && (
+                    <div className={'fc w-full flex-grow gap-1'}>
+                        {localServerLoading && !localServerInstalled && (
+                            <Typography variant="body2" color="text.secondary" sx={{display: 'flex', gap: 1}}>
+                                <CircularProgress size={16} thickness={5} color="inherit"/>
+                                Checking local server status...
+                            </Typography>
+                        )}
+                        {!localServerLoading && !localServerInstalled && (
+                            <Typography variant="body2" color="warning.main">
+                                Local speech is unavailable. Install the server above; the selected model will stay saved.
+                            </Typography>
+                        )}
+                        {localServerInstalled && !localServerRunning && checkingLocalModel && (
                             <Typography
                                 variant="body2"
                                 color="text.secondary"
@@ -104,7 +151,35 @@ export const ModelTranscribeSection: React.FC<ModelTranscribeSectionProps> = ({
                                 {checkingMessage}
                             </Typography>
                         )}
-                        {!checkingLocalModel && localWarmupInProgress && (
+                        {localServerInstalled && !localServerRunning && !checkingLocalModel && localModelDownloaded === true && (
+                            <Typography variant="body2" color="info.main">
+                                The selected model is installed. Start the server to warm it up.
+                            </Typography>
+                        )}
+                        {localServerInstalled && !localServerRunning && !checkingLocalModel && localModelDownloaded === false && (
+                            <Typography variant="body2" color="text.secondary">
+                                The selected model is not installed. Start the server to download it.
+                            </Typography>
+                        )}
+                        {localServerRunning
+                            && (checkingLocalModel || (localModelDownloaded === null && localModelPhase === 'unknown'))
+                            && localModelPhase !== 'downloading' && (
+                            <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{display: 'flex', gap: 1}}
+                            >
+                                <CircularProgress size={16} thickness={5} color="inherit"/>
+                                {checkingMessage}
+                            </Typography>
+                        )}
+                        {localServerRunning && downloadingLocalModel && (
+                            <Typography variant="body2" color="info.main" sx={{display: 'flex', gap: 1}}>
+                                <CircularProgress size={16} thickness={5} color="inherit"/>
+                                {downloadButtonLabel}
+                            </Typography>
+                        )}
+                        {localServerRunning && !checkingLocalModel && localWarmupInProgress && (
                             <Typography
                                 variant="body2"
                                 color="warning.main"
@@ -118,7 +193,11 @@ export const ModelTranscribeSection: React.FC<ModelTranscribeSectionProps> = ({
                                 {warmupWarningMessage}
                             </Typography>
                         )}
-                        {!checkingLocalModel && !localWarmupInProgress && localModelDownloaded === true && (
+                        {localServerRunning
+                            && !checkingLocalModel
+                            && !localWarmupInProgress
+                            && localModelDownloaded === true
+                            && localModelPhase === 'ready' && (
                             <Typography
                                 variant="body2"
                                 color="success.main"
@@ -128,7 +207,17 @@ export const ModelTranscribeSection: React.FC<ModelTranscribeSectionProps> = ({
                                 {downloadedMessage}
                             </Typography>
                         )}
-                        {!checkingLocalModel && localModelDownloaded === false && (
+                        {localServerRunning
+                            && localModelPhase === 'installed'
+                            && localModelDownloaded === true && (
+                            <Typography variant="body2" color="info.main">
+                                The model is installed and will be ready after warmup.
+                            </Typography>
+                        )}
+                        {localServerRunning
+                            && !checkingLocalModel
+                            && localModelDownloaded === false
+                            && localModelPhase !== 'downloading' && (
                             <Button
                                 variant="contained"
                                 color="primary"
@@ -142,9 +231,20 @@ export const ModelTranscribeSection: React.FC<ModelTranscribeSectionProps> = ({
                                 {downloadButtonLabel}
                             </Button>
                         )}
-                        {localModelError && (
+                        {localServerRunning && localModelPhase === 'error' && localModelDownloaded === true && (
+                            <Button
+                                variant="outlined"
+                                color="warning"
+                                onClick={handleWarmupModel}
+                                disabled={disableInputs || localWarmupInProgress}
+                                sx={{mt: 0.5, minHeight: '44px'}}
+                            >
+                                Retry warmup
+                            </Button>
+                        )}
+                        {(localModelError || localServerError) && (
                             <Typography variant="body2" color="error" sx={{mt: 0.5}}>
-                                {localModelError}
+                                {localModelError || localServerError}
                             </Typography>
                         )}
                     </div>

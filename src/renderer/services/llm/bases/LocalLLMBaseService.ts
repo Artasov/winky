@@ -37,9 +37,9 @@ export abstract class LocalLLMBaseService implements BaseLLMService {
         return JSON.stringify(response);
     }
 
-    async process(text: string, prompt: string): Promise<string> {
+    async process(text: string, prompt: string, options?: {signal?: AbortSignal}): Promise<string> {
         const messages = this.buildMessages(text, prompt);
-        const data = await ollamaBridge.chatCompletions(this.model, messages);
+        const data = await ollamaBridge.chatCompletions(this.model, messages, options?.signal);
         return this.extractResult(data);
     }
 }

@@ -1,11 +1,16 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::constants::{BACKEND_DOMAIN_RU, DEFAULT_BACKEND_DOMAIN, OAUTH_APP_NAME};
 use crate::oauth_server;
+use crate::oauth_server::OAuthAttempt;
+use crate::types::AuthTokensPayload;
 
 const SUPPORTED_OAUTH_PROVIDERS: &[&str] = &["google", "github", "discord", "yandex"];
 const AUTH_METHODS_PATH: &str = "/api/v1/auth/methods/";
+const DESKTOP_OAUTH_EXCHANGE_PATH: &str = "/api/v1/auth/oauth/desktop/exchange/";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AuthMethods {
@@ -15,6 +20,15 @@ pub struct AuthMethods {
     pub email_password_allowed: bool,
     #[serde(default)]
     pub allowed_email_domains: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct DesktopOAuthExchangeRequest<'a> {
+    code: &'a str,
+    code_verifier: &'a str,
+    app: &'static str,
+    provider: &'a str,
+    state: &'a str,
 }
 
 fn normalize_base(input: Option<String>) -> Option<String> {
@@ -82,7 +96,10 @@ pub async fn load_auth_methods(backend_domain: Option<&str>) -> Result<AuthMetho
         url,
         backend_domain
     );
-    let response = reqwest::Client::new()
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()?;
+    let response = client
         .get(&url)
         .header(reqwest::header::ACCEPT, "application/json")
         .send()
@@ -158,37 +175,72 @@ pub fn is_running_as_admin() -> bool {
     false
 }
 
-/// Строит URL для OAuth с учётом режима работы.
-/// При запуске от администратора использует HTTP callback вместо deep link.
-pub fn build_oauth_start_url(provider: &str, backend_domain: Option<&str>) -> Result<String> {
+/// Строит URL браузерного OAuth и привязывает его к native PKCE-попытке.
+pub fn build_oauth_start_url(
+    provider: &str,
+    backend_domain: Option<&str>,
+    attempt: &OAuthAttempt,
+) -> Result<String> {
     let provider_lower = provider.to_lowercase();
     let key = format!("OAUTH_PROVIDER_URL_{}", provider_lower.to_uppercase());
-    if let Some(override_url) = env(&key) {
-        return Ok(override_url);
-    }
-
-    let base = normalize_base(env("OAUTH_START_BASE_URL"))
-        .or_else(|| normalize_base(env("OAUTH_SITE_URL")))
-        .or_else(|| normalize_base(env("OAUTH_BASE_URL")))
-        .or_else(|| normalize_base(env("APP_BASE_URL")))
-        .unwrap_or_else(|| resolve_site_base_by_domain(backend_domain));
-
-    let mut url = url::Url::parse(&base)?;
-    url.set_path(&format!("/auth/oauth/{}/start", provider_lower));
-
-    // Если запущено от администратора, используем HTTP callback
-    // потому что deep link не работает из-за UIPI
-    if is_running_as_admin() {
-        let callback_url = oauth_server::get_callback_url();
-        let encoded_callback = urlencoding::encode(&callback_url);
-        url.set_query(Some(&format!(
-            "app_auth={}&redirect_uri={}",
-            OAUTH_APP_NAME, encoded_callback
-        )));
-        log::info!(target: "auth", "Running as admin, using HTTP callback: {}", callback_url);
+    let mut url = if let Some(override_url) = env(&key) {
+        url::Url::parse(&override_url)?
     } else {
-        url.set_query(Some(&format!("app_auth={OAUTH_APP_NAME}")));
-    }
+        let base = normalize_base(env("OAUTH_START_BASE_URL"))
+            .or_else(|| normalize_base(env("OAUTH_SITE_URL")))
+            .or_else(|| normalize_base(env("OAUTH_BASE_URL")))
+            .or_else(|| normalize_base(env("APP_BASE_URL")))
+            .unwrap_or_else(|| resolve_site_base_by_domain(backend_domain));
+        let mut url = url::Url::parse(&base)?;
+        url.set_path(&format!("/auth/oauth/{provider_lower}/start"));
+        url
+    };
 
+    url.set_query(None);
+    {
+        let mut query = url.query_pairs_mut();
+        query.append_pair("app_auth", OAUTH_APP_NAME);
+        query.append_pair("state", &attempt.state);
+        query.append_pair("desktop_code_challenge", &attempt.code_challenge);
+        query.append_pair("desktop_code_challenge_method", "S256");
+        if is_running_as_admin() {
+            query.append_pair("redirect_uri", &oauth_server::get_callback_url());
+        }
+    }
+    if is_running_as_admin() {
+        log::info!(target: "auth", "Using loopback OAuth callback");
+    }
     Ok(url.to_string())
+}
+
+pub async fn exchange_desktop_code(
+    attempt: &OAuthAttempt,
+    code: &str,
+) -> Result<AuthTokensPayload> {
+    let mut url = url::Url::parse(&resolve_auth_api_base(Some(&attempt.backend_domain)))?;
+    url.set_path(DESKTOP_OAUTH_EXCHANGE_PATH);
+    url.set_query(None);
+    url.set_fragment(None);
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()?;
+    let response = client
+        .post(url)
+        .json(&DesktopOAuthExchangeRequest {
+            code,
+            code_verifier: &attempt.code_verifier,
+            app: OAUTH_APP_NAME,
+            provider: &attempt.provider,
+            state: &attempt.state,
+        })
+        .send()
+        .await?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(anyhow::anyhow!(
+            "Desktop OAuth exchange failed with HTTP {}",
+            status.as_u16()
+        ));
+    }
+    Ok(response.json::<AuthTokensPayload>().await?)
 }

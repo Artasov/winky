@@ -3,7 +3,6 @@ export const BACKEND_DOMAINS = ['xlartas.com', 'xlartas.ru'] as const;
 export type BackendDomain = (typeof BACKEND_DOMAINS)[number];
 export const DEFAULT_BACKEND_DOMAIN: BackendDomain = 'xlartas.com';
 
-const BACKEND_DOMAIN_STORAGE_KEY = 'winky.backend.domain';
 const DEV_PROXY_PREFIX = '/__winky_dev';
 const DEV_PROXY_SEGMENTS: Record<BackendDomain, string> = {
     'xlartas.com': 'com',
@@ -41,25 +40,7 @@ const getInternalApiBaseUrl = (domain: BackendDomain): string => {
     return `${getExternalSiteBaseUrl(domain)}/api/v1`;
 };
 
-const readStoredBackendDomain = (): BackendDomain => {
-    if (typeof window === 'undefined') return DEFAULT_BACKEND_DOMAIN;
-    try {
-        return resolveBackendDomain(window.localStorage?.getItem(BACKEND_DOMAIN_STORAGE_KEY));
-    } catch {
-        return DEFAULT_BACKEND_DOMAIN;
-    }
-};
-
-const persistBackendDomain = (domain: BackendDomain): void => {
-    if (typeof window === 'undefined') return;
-    try {
-        window.localStorage?.setItem(BACKEND_DOMAIN_STORAGE_KEY, domain);
-    } catch {
-        // Ignore persistence failures (private mode, blocked storage).
-    }
-};
-
-let currentBackendDomain: BackendDomain = readStoredBackendDomain();
+let currentBackendDomain: BackendDomain = DEFAULT_BACKEND_DOMAIN;
 
 export let SITE_BASE_URL = getExternalSiteBaseUrl(currentBackendDomain);
 export let WS_BASE_URL = getInternalWsBaseUrl(currentBackendDomain);
@@ -84,7 +65,6 @@ export const getBackendDomain = (): BackendDomain => currentBackendDomain;
 export const setBackendDomain = (domain: string | null | undefined): BackendDomain => {
     const resolved = resolveBackendDomain(domain);
     currentBackendDomain = resolved;
-    persistBackendDomain(resolved);
     syncBaseUrls();
     return resolved;
 };
@@ -112,30 +92,25 @@ export const LLM_MODES = {
 } as const;
 
 export const LLM_OPENAI_API_MODELS = [
-    'o4-mini',
-    'gpt-4.1-mini',
-    'gpt-4.1-nano',
-    'o3-mini',
-    'o1-mini',
-    'gpt-4o-mini',
-    'gpt-4-turbo',
-    'chatgpt-4o-latest',
-    'gpt-3.5-turbo',
     'gpt-5',
     'gpt-5-mini',
     'gpt-5-nano',
+    'gpt-4.1',
+    'gpt-4.1-mini',
+    'gpt-4o',
+    'gpt-4o-mini'
 ] as const;
 
 export const LLM_GEMINI_API_MODELS = [
-    'gemini-2.5-flash',
-    'gemini-3.0-pro',
-    'gemini-3.0-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-3.1-pro-preview',
     'gemini-2.5-pro',
-    'gemini-2.0-pro',
-    'gemini-2.0-flash',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash',
-    'gemini-1.0-pro'
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite'
 ] as const;
 
 export const LLM_WINKY_API_MODELS = ['winky-high', 'winky-mid', 'winky-low'] as const;
@@ -172,11 +147,16 @@ export const SPEECH_OPENAI_API_MODELS = [
 // Поддерживаемые форматы: WAV, MP3, AIFF, AAC, OGG Vorbis, FLAC
 // Максимальная длина аудио в одном запросе: 9.5 часов
 export const SPEECH_GOOGLE_API_MODELS = [
-    'gemini-2.5-flash',  // Последняя версия Flash, поддерживает аудио
-    'gemini-2.0-flash'   // Flash модель, поддерживает аудио
+    'gemini-3.5-transcribe',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-2.5-flash'
 ] as const;
 
-export const SPEECH_WINKY_API_MODELS = ['winky-transcribe'] as const;
+export const SPEECH_WINKY_API_MODELS = [
+    'winky-transcribe-high',
+    'winky-transcribe-low'
+] as const;
 
 export const SPEECH_API_MODELS = [
     ...SPEECH_WINKY_API_MODELS,

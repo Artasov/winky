@@ -42,13 +42,10 @@ pub struct FastWhisperManager {
 }
 
 fn install_hint_path(app: &AppHandle) -> Option<PathBuf> {
-    app.path()
-        .app_config_dir()
-        .ok()
-        .map(|mut dir| {
-            dir.push(FAST_WHISPER_INSTALL_HINT_FILE);
-            dir
-        })
+    app.path().app_config_dir().ok().map(|mut dir| {
+        dir.push(FAST_WHISPER_INSTALL_HINT_FILE);
+        dir
+    })
 }
 
 fn normalize_install_dir(raw: &str) -> Option<PathBuf> {
@@ -279,12 +276,12 @@ impl FastWhisperManager {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(2))
             .build();
-        
+
         let client = match client {
             Ok(c) => c,
             Err(_) => return false,
         };
-        
+
         let health_url = self.health_endpoint();
         client
             .get(&health_url)
@@ -297,13 +294,13 @@ impl FastWhisperManager {
     pub async fn check_health(self: &Arc<Self>, app: &AppHandle) -> FastWhisperStatus {
         let repo_exists = self.repo_path(app).exists();
         let health_url = self.health_endpoint();
-        
+
         // Быстрая проверка здоровья сервера
         let is_healthy = {
             let client = reqwest::Client::builder()
                 .timeout(Duration::from_secs(2))
                 .build();
-            
+
             if let Ok(client) = client {
                 client
                     .get(&health_url)
@@ -352,17 +349,18 @@ impl FastWhisperManager {
             // First check if server is already running - don't restart if healthy
             if manager.is_server_healthy().await {
                 // Update status to reflect running state
-                manager.update_status(&handle, |status| {
-                    status.phase = "running".into();
-                    status.running = true;
-                    status.installed = true;
-                    status.message = "Server is already running.".into();
-                    status.error = None;
-                })
-                .await;
+                manager
+                    .update_status(&handle, |status| {
+                        status.phase = "running".into();
+                        status.running = true;
+                        status.installed = true;
+                        status.message = "Server is already running.".into();
+                        status.error = None;
+                    })
+                    .await;
                 return Ok(manager.get_status().await);
             }
-            
+
             if !manager.repo_path(&handle).exists() {
                 manager.ensure_repository(&handle, false).await?;
             }
@@ -390,22 +388,19 @@ impl FastWhisperManager {
     pub async fn stop(self: &Arc<Self>, app: &AppHandle) -> Result<FastWhisperStatus> {
         self.execute(app, |manager, handle| async move {
             manager.stop_server(&handle).await?;
-            manager.update_status(&handle, |status| {
-                status.phase = "idle".into();
-                status.running = false;
-                status.message = "Server is stopped.".into();
-            })
-            .await;
+            manager
+                .update_status(&handle, |status| {
+                    status.phase = "idle".into();
+                    status.running = false;
+                    status.message = "Server is stopped.".into();
+                })
+                .await;
             Ok(manager.get_status().await)
         })
         .await
     }
 
-    pub async fn is_model_downloaded(
-        &self,
-        app: &AppHandle,
-        model: &str,
-    ) -> Result<bool> {
+    pub async fn is_model_downloaded(&self, app: &AppHandle, model: &str) -> Result<bool> {
         let trimmed = model.trim();
         if trimmed.is_empty() {
             return Ok(false);
@@ -508,7 +503,8 @@ impl FastWhisperManager {
         tokio::fs::create_dir_all(&repo_dir).await?;
         let repo_dir_for_extract = repo_dir.clone();
         let extraction_result =
-            spawn_blocking(move || Self::extract_repository_archive(archive, repo_dir_for_extract)).await;
+            spawn_blocking(move || Self::extract_repository_archive(archive, repo_dir_for_extract))
+                .await;
         let extraction_result = match extraction_result {
             Ok(result) => result,
             Err(join_error) => {
@@ -608,7 +604,11 @@ impl FastWhisperManager {
         Ok(())
     }
 
-    async fn start_server(self: &Arc<Self>, app: &AppHandle, action: &str) -> Result<FastWhisperStatus> {
+    async fn start_server(
+        self: &Arc<Self>,
+        app: &AppHandle,
+        action: &str,
+    ) -> Result<FastWhisperStatus> {
         self.stop_server(app).await.ok();
         self.update_status(app, |state| {
             state.phase = "starting".into();
@@ -673,7 +673,13 @@ impl FastWhisperManager {
         Ok(())
     }
 
-    async fn run_script(self: &Arc<Self>, app: &AppHandle, command: &str, args: &[String], label: &str) -> Result<()> {
+    async fn run_script(
+        self: &Arc<Self>,
+        app: &AppHandle,
+        command: &str,
+        args: &[String],
+        label: &str,
+    ) -> Result<()> {
         #[cfg(windows)]
         {
             Self::ensure_windows_batch_scripts(&self.repo_path(app))?;
@@ -722,7 +728,10 @@ impl FastWhisperManager {
             let message = trimmed.to_string();
             self.update_status(app, |state| {
                 state.log_line = Some(message.clone());
-                if matches!(state.phase.as_str(), "installing" | "starting" | "reinstalling") {
+                if matches!(
+                    state.phase.as_str(),
+                    "installing" | "starting" | "reinstalling"
+                ) {
                     state.message = message.clone();
                 }
             })
@@ -738,7 +747,9 @@ impl FastWhisperManager {
     }
 
     async fn wait_for_health(&self, expect_up: bool) -> Result<()> {
-        let client = reqwest::Client::builder().timeout(Duration::from_secs(5)).build()?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()?;
         let started = Instant::now();
         let health_url = self.health_endpoint();
         loop {
@@ -751,7 +762,11 @@ impl FastWhisperManager {
             if healthy == expect_up {
                 return Ok(());
             }
-            let timeout = if expect_up { HEALTH_TIMEOUT } else { STOP_TIMEOUT };
+            let timeout = if expect_up {
+                HEALTH_TIMEOUT
+            } else {
+                STOP_TIMEOUT
+            };
             if started.elapsed() > timeout {
                 break;
             }
@@ -802,7 +817,13 @@ impl FastWhisperManager {
         if cfg!(target_os = "windows") {
             (
                 "cmd.exe".into(),
-                vec!["/d".into(), "/s".into(), "/c".into(), "call".into(), "start.bat".into()],
+                vec![
+                    "/d".into(),
+                    "/s".into(),
+                    "/c".into(),
+                    "call".into(),
+                    "start.bat".into(),
+                ],
             )
         } else {
             (
@@ -820,7 +841,13 @@ impl FastWhisperManager {
         if cfg!(target_os = "windows") {
             (
                 "cmd.exe".into(),
-                vec!["/d".into(), "/s".into(), "/c".into(), "call".into(), "stop.bat".into()],
+                vec![
+                    "/d".into(),
+                    "/s".into(),
+                    "/c".into(),
+                    "call".into(),
+                    "stop.bat".into(),
+                ],
             )
         } else {
             (
@@ -837,7 +864,10 @@ impl FastWhisperManager {
     fn script_env(&self) -> Vec<(String, String)> {
         let mut env: Vec<(String, String)> = std::env::vars().collect();
         env.push(("PAUSE_SECONDS".into(), "0".into()));
-        env.push(("FAST_FAST_WHISPER_PORT".into(), Self::resolve_port().to_string()));
+        env.push((
+            "FAST_FAST_WHISPER_PORT".into(),
+            Self::resolve_port().to_string(),
+        ));
         env.push(("FAST_FAST_WHISPER_HOST".into(), Self::resolve_host()));
         env
     }

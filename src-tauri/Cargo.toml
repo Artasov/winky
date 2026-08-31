@@ -13,10 +13,12 @@ chrono = { version = "0.4", features = ["serde"] }
 once_cell = "1.19"
 rand = "0.8"
 reqwest = { version = "0.12", features = ["json", "multipart", "stream", "gzip", "brotli", "deflate"] }
+ring = "0.17"
+semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_with = { version = "3.9", features = ["macros"] }
-tauri = { version = "2.9.3", features = ["macos-private-api", "tray-icon", "devtools"] }
+tauri = { version = "2.9.3", features = ["macos-private-api", "tray-icon"] }
 tauri-plugin-deep-link = "2.4.5"
 tauri-plugin-global-shortcut = "2.3.1"
 tauri-plugin-opener = "2.3.1"
@@ -40,9 +42,9 @@ sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
-winapi = { version = "0.3", features = ["winuser", "processthreadsapi", "securitybaseapi", "handleapi", "winnt", "mmsystem"] }
+winapi = { version = "0.3", features = ["winuser", "processthreadsapi", "securitybaseapi", "handleapi", "winnt", "mmsystem", "dpapi", "wincrypt", "winbase", "minwindef"] }
 
 [features]
 default = ["custom-protocol"]
 custom-protocol = []
-devtools = []
+devtools = ["tauri/devtools"]

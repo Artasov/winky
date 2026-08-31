@@ -1,17 +1,19 @@
 import axios, {AxiosInstance} from 'axios';
 import {invoke} from '@tauri-apps/api/core';
-import {createApiClient, triggerUnauthorized} from '@shared/api';
+import {triggerUnauthorized} from '@shared/api';
 import {
     FAST_WHISPER_TRANSCRIBE_ENDPOINT,
     FAST_WHISPER_TRANSCRIBE_TIMEOUT,
-    getAuthRefreshEndpoint,
     LLM_GEMINI_API_MODELS,
     LLM_OPENAI_API_MODELS,
     SPEECH_MODES
 } from '@shared/constants';
 import type {ActionConfig, ActionGroup, ActionIcon, AppConfig, User, WinkyNote, WinkyProfile} from '@shared/types';
+import {getTranscriptionProvider} from '@shared/modelRegistry';
 import {createLLMService} from '../services/llm/factory';
 import {markLocalTranscriptionFinish, markLocalTranscriptionStart} from './localSpeechModels';
+import {authClient, isTerminalAuthError} from './authClient';
+import {winkyTranscriptionService} from './WinkyTranscriptionService';
 
 export type ActionCreatePayload = {
     name: string;
@@ -74,62 +76,46 @@ export type SpeechTranscribeOptions = {
 const DEFAULT_TRANSCRIBE_UI_TIMEOUT_MS = 120_000;
 const SLOW_TRANSCRIBE_WARNING_MS = 15_000;
 
+const getAudioExtension = (mimeType: string): string => {
+    const normalized = mimeType.toLowerCase();
+    if (normalized.includes('wav')) return 'wav';
+    if (normalized.includes('ogg')) return 'ogg';
+    if (normalized.includes('mpeg') || normalized.includes('mp3')) return 'mp3';
+    if (normalized.includes('mp4') || normalized.includes('m4a')) return 'm4a';
+    if (normalized.includes('aac')) return 'aac';
+    if (normalized.includes('flac')) return 'flac';
+    return 'webm';
+};
+
 const ACTIONS_API_PATH = 'winky/actions/';
 const GROUPS_API_PATH = 'winky/groups/';
 const ICONS_API_PATH = 'winky/icons/';
 const PROFILE_API_PATH = 'winky/profile/';
 const NOTES_API_PATH = 'winky/notes/';
 
-const GEMINI_MODEL_SET = new Set<string>([...LLM_GEMINI_API_MODELS]);
-
 const getConfig = async (): Promise<AppConfig> => invoke('config_get');
 
 const updateConfig = async (partial: Partial<AppConfig>): Promise<AppConfig> =>
     invoke('config_update', {payload: partial});
 
-const refreshAuthToken = async (config: AppConfig): Promise<string | null> => {
-    const refreshToken = config.auth?.refreshToken || config.auth?.refresh;
-    if (!refreshToken) return null;
-    const {data} = await axios.post(
-        getAuthRefreshEndpoint(config.backendDomain),
-        {refresh: refreshToken},
-        {headers: {'Content-Type': 'application/json'}}
-    );
-    const access = typeof data?.access === 'string' ? data.access : '';
-    if (!access) return null;
-    const refresh = typeof data?.refresh === 'string' ? data.refresh : refreshToken;
-    await updateConfig({
-        auth: {
-            access,
-            refresh,
-            accessToken: access,
-            refreshToken: refresh
-        }
-    });
-    return access;
-};
-
 const withAuthClient = async <T>(operation: (client: AxiosInstance, config: AppConfig) => Promise<T>): Promise<T> => {
     const config = await getConfig();
-    const token = config.auth?.accessToken || config.auth?.access;
-    if (!token) {
+    authClient.setSession(
+        config.auth,
+        config.backendDomain,
+        config.storageRevision,
+        config.authRevision
+    );
+    if (!authClient.hasTokens()) {
         triggerUnauthorized();
         throw new Error('Authentication is required.');
     }
-    const client = createApiClient(token, undefined, config.backendDomain, false);
+    const client = authClient.createHttpClient(config.backendDomain);
     try {
         return await operation(client, config);
     } catch (error) {
-        if (!axios.isAxiosError(error) || error.response?.status !== 401) {
-            throw error;
-        }
-        const nextToken = await refreshAuthToken(config).catch(() => null);
-        if (!nextToken) {
-            throw error;
-        }
-        const nextConfig = await getConfig();
-        const retryClient = createApiClient(nextToken, undefined, nextConfig.backendDomain, false);
-        return operation(retryClient, nextConfig);
+        if (isTerminalAuthError(error)) triggerUnauthorized();
+        throw error;
     }
 };
 
@@ -290,8 +276,7 @@ export const transcribeAudio = async (
     options: SpeechTranscribeOptions = {}
 ): Promise<string> => {
     const resolvedMimeType = options.mimeType || 'audio/webm';
-    const resolvedFileName = options.fileName
-        || (resolvedMimeType.includes('wav') ? 'audio.wav' : 'audio.webm');
+    const resolvedFileName = options.fileName || `audio.${getAudioExtension(resolvedMimeType)}`;
     const blob = new Blob([audioData], {type: resolvedMimeType});
     const buildFormData = (extraFields: Record<string, string> = {}) => {
         const formData = new FormData();
@@ -316,8 +301,10 @@ export const transcribeAudio = async (
         }
     }
     const timeoutMs = Math.max(5_000, uiTimeoutMs ?? DEFAULT_TRANSCRIBE_UI_TIMEOUT_MS);
+    let timedOut = false;
     const timeoutId = setTimeout(() => {
         if (!controller.signal.aborted) {
+            timedOut = true;
             controller.abort(new DOMException('Transcription request timed out.', 'AbortError'));
         }
     }, timeoutMs);
@@ -330,6 +317,16 @@ export const transcribeAudio = async (
     }, Math.min(SLOW_TRANSCRIBE_WARNING_MS, timeoutMs - 1_000));
 
     try {
+    if (config.mode === SPEECH_MODES.API && getTranscriptionProvider(config.model) === 'winky') {
+        const result = await winkyTranscriptionService.transcribe(audioData, {
+            mimeType: resolvedMimeType,
+            model: config.model.endsWith('-low') ? 'low' : 'high',
+            signal: controller.signal,
+            timeoutMs
+        });
+        return result.text;
+    }
+
     if (config.mode === SPEECH_MODES.LOCAL) {
         console.log(`%cTranscribe → %c[LOCAL] %c${config.model}`, 
             'color: #10b981; font-weight: bold',
@@ -339,7 +336,7 @@ export const transcribeAudio = async (
         console.log('  📤 Request:', {
             model: config.model,
             audioSize: `${audioSizeKB} KB`,
-            prompt: promptValue || '(none)'
+            hasPrompt: Boolean(promptValue)
         });
         const extraFields: Record<string, string> = {response_format: 'json'};
         if (promptValue) {
@@ -362,7 +359,6 @@ export const transcribeAudio = async (
                 'color: #22c55e; font-weight: bold'
             );
             console.log('  📥 Response:', {
-                transcription: result,
                 length: result.length
             });
             return result;
@@ -406,7 +402,10 @@ export const transcribeAudio = async (
     }
 
     // Google Gemini API для транскрибации (бесплатные квоты)
-    if (config.mode === SPEECH_MODES.API && GEMINI_MODEL_SET.has(config.model)) {
+    if (
+        config.mode === SPEECH_MODES.API
+        && getTranscriptionProvider(config.model) === 'google'
+    ) {
         if (!config.googleKey?.trim()) {
             throw new Error('Provide a Google AI API key to use Gemini models for transcription.');
         }
@@ -494,27 +493,23 @@ export const transcribeAudio = async (
         };
         
         const googleKey = config.googleKey.trim();
-        const fullUrl = `${url}?key=${googleKey.substring(0, 10)}...`;
-        
         console.log('  📤 Request:', {
-            url: fullUrl,
             model: config.model,
             audioSize: `${audioSizeKB} KB`,
             mimeType: mimeType,
-            prompt: promptValue || '(transcription only)',
-            systemInstruction: payload.systemInstruction?.parts?.[0]?.text || '(none)',
-            payload: payload
+            hasPrompt: Boolean(promptValue)
         });
         
         // Используем v1beta (стабильная версия для мультимодальных запросов)
         // Если модель не поддерживает аудио, получим понятную ошибку
         try {
             const {data} = await axios.post(
-                `${url}?key=${googleKey}`,
+                url,
                 payload,
                 {
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'x-goog-api-key': googleKey
                     },
                     timeout: FAST_WHISPER_TRANSCRIBE_TIMEOUT,
                     signal: controller.signal
@@ -539,9 +534,7 @@ export const transcribeAudio = async (
                             'color: #22c55e; font-weight: bold'
                         );
                         console.log('  📥 Response:', {
-                            transcription: text,
-                            length: text.length,
-                            fullResponse: data
+                            length: text.length
                         });
                         return text;
                     }
@@ -559,11 +552,7 @@ export const transcribeAudio = async (
                 'color: #8b5cf6',
                 'color: #ef4444; font-weight: bold'
             );
-            if (error?.response?.data) {
-                console.error('  ❌ Error data:', error.response.data);
-            } else {
-                console.error('  ❌ Error:', error.message);
-            }
+            console.error('  ❌ Request failed', {status});
             // Улучшаем сообщение об ошибке
             if (error?.response?.status === 404) {
                 const errorMessage =
@@ -608,11 +597,9 @@ export const transcribeAudio = async (
         console.warn('[winkyApi] OpenAI key contains invalid characters for HTTP headers, sanitizing...');
     }
     console.log('  📤 Request:', {
-        url: url,
         model: config.model,
         audioSize: `${audioSizeKB} KB`,
-        prompt: sanitizedPrompt || '(none)',
-        formDataFields: sanitizedPrompt ? {prompt: sanitizedPrompt, model: config.model, file: `Blob(${audioSizeKB} KB)`} : {model: config.model, file: `Blob(${audioSizeKB} KB)`}
+        hasPrompt: Boolean(sanitizedPrompt)
     });
 
     try {
@@ -632,9 +619,7 @@ export const transcribeAudio = async (
                 'color: #22c55e; font-weight: bold'
             );
             console.log('  📥 Response:', {
-                transcription: text,
-                length: text.length,
-                fullResponse: data
+                length: text.length
             });
             return text;
         }
@@ -650,14 +635,15 @@ export const transcribeAudio = async (
             'color: #8b5cf6',
             'color: #ef4444; font-weight: bold'
         );
-        if (error?.response?.data) {
-            console.error('  ❌ Error data:', error.response.data);
-        } else {
-            console.error('  ❌ Error:', error.message);
-        }
+        console.error('  ❌ Request failed', {status});
         throw error;
     }
     throw new Error('OpenAI returned an empty response.');
+    } catch (error) {
+        if (!timedOut) throw error;
+        const timeoutError = new Error('Transcription timed out. Please try a shorter recording or another model.');
+        timeoutError.name = 'TimeoutError';
+        throw timeoutError;
     } finally {
         clearTimeout(timeoutId);
         clearTimeout(slowWarnId);
@@ -691,8 +677,6 @@ export const processLLM = async (text: string, prompt: string, config: {
     console.log('  📤 Request:', {
         model: config.model,
         mode: config.mode,
-        text: text,
-        prompt: prompt,
         textLength: text.length,
         promptLength: prompt.length,
         streaming: shouldStream
@@ -705,9 +689,10 @@ export const processLLM = async (text: string, prompt: string, config: {
             accessToken: config.accessToken
         });
         const canStream = shouldStream && service.supportsStreaming && typeof service.processStream === 'function';
-        const result = canStream
-            ? await service.processStream!(text, prompt, options.onChunk!, {signal: options.signal})
-            : await service.process(text, prompt);
+        const request = canStream
+            ? service.processStream!(text, prompt, options.onChunk!, {signal: options.signal})
+            : service.process(text, prompt, {signal: options.signal});
+        const result = await runWithAbortSignal(request, options.signal);
         
         console.log(`%cLLM ← %c[${provider}] %c${config.model} %c[200]`, 
             'color: #10b981; font-weight: bold',
@@ -716,7 +701,6 @@ export const processLLM = async (text: string, prompt: string, config: {
             'color: #22c55e; font-weight: bold'
         );
         console.log('  📥 Response:', {
-            result: result,
             resultLength: result.length
         });
         
@@ -728,12 +712,19 @@ export const processLLM = async (text: string, prompt: string, config: {
             'color: #8b5cf6',
             'color: #ef4444; font-weight: bold'
         );
-        console.error('  ❌ Error:', error.message);
-        if (error?.response?.data) {
-            console.error('  ❌ Error data:', error.response.data);
-        }
+        console.error('  ❌ Request failed');
         throw error;
     }
+};
+
+const runWithAbortSignal = <T>(request: Promise<T>, signal?: AbortSignal): Promise<T> => {
+    if (!signal) return request;
+    if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
+    return new Promise<T>((resolve, reject) => {
+        const handleAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+        signal.addEventListener('abort', handleAbort, {once: true});
+        request.then(resolve, reject).finally(() => signal.removeEventListener('abort', handleAbort));
+    });
 };
 const fetchAllPages = async <T>(client: AxiosInstance, initialPath: string): Promise<T[]> => {
     const results: T[] = [];

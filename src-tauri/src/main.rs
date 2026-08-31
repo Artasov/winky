@@ -5,6 +5,7 @@ mod auth;
 mod config;
 mod constants;
 mod deep_link_file;
+mod durable_json;
 mod gemini;
 mod history;
 mod hotkeys;
@@ -16,13 +17,15 @@ mod oauth_server;
 mod ollama;
 mod openai;
 mod resources;
+#[cfg(windows)]
+mod secret_store;
 mod tray;
 mod types;
 mod update;
 
 use std::sync::{Arc, Mutex};
 
-use auth::AuthQueue;
+use auth::{AuthQueue, AUTH_OWNER_WINDOW_LABEL};
 use config::{should_auto_start_local_speech, ConfigState};
 use history::{
     append_history, clear_history, read_history, read_history_audio, save_history_audio,
@@ -43,9 +46,13 @@ use tauri::window::Color;
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_deep_link::DeepLinkExt;
-use types::{AppConfig, AuthDeepLinkPayload, AuthTokens, FastWhisperStatus};
+use tokio::sync::Mutex as AsyncMutex;
+use types::{AppConfig, AuthDeepLinkPayload, AuthTokens, FastWhisperStatus, OAuthExchangeInput};
 
 static PENDING_DEEP_LINKS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
+static CONFIG_COMMAND_LOCK: Lazy<AsyncMutex<()>> = Lazy::new(|| AsyncMutex::new(()));
+const MIC_WINDOW_LABEL: &str = "mic";
+const RESULT_WINDOW_LABEL: &str = "result";
 
 #[derive(Deserialize)]
 struct InstallArgs {
@@ -80,82 +87,213 @@ struct FrontendLogEntry {
     message: String,
 }
 
+fn is_owner_window(window: &tauri::WebviewWindow, message: &str) -> Result<(), String> {
+    if window.label() == AUTH_OWNER_WINDOW_LABEL {
+        return Ok(());
+    }
+    Err(message.to_string())
+}
+
+fn is_config_window(label: &str) -> bool {
+    label == AUTH_OWNER_WINDOW_LABEL || label == MIC_WINDOW_LABEL
+}
+
+fn config_for_window(mut config: AppConfig, label: &str) -> Result<AppConfig, String> {
+    if is_config_window(label) {
+        return Ok(config);
+    }
+    if label != RESULT_WINDOW_LABEL {
+        return Err("Configuration is not available to this window".to_string());
+    }
+
+    config.auth = AuthTokens::default();
+    config.api_keys = Default::default();
+    config.groups.clear();
+    config.actions.clear();
+    config.global_transcribe_prompt = None;
+    config.global_llm_prompt = None;
+    config.selected_microphone_id = None;
+    Ok(config)
+}
+
+fn emit_config_updated(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String> {
+    app.emit(
+        "config:updated",
+        json!({
+            "storageRevision": config.storage_revision,
+            "authRevision": config.auth_revision,
+        }),
+    )
+    .map_err(|error| error.to_string())
+}
+
 #[tauri::command]
-async fn config_get(state: State<'_, Arc<ConfigState>>) -> Result<AppConfig, String> {
-    Ok(state.get().await)
+async fn config_get(
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<ConfigState>>,
+) -> Result<AppConfig, String> {
+    config_for_window(state.get().await, window.label())
 }
 
 #[tauri::command]
 async fn config_update(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     state: State<'_, Arc<ConfigState>>,
     hotkeys: State<'_, Arc<HotkeyState>>,
     speech: State<'_, Arc<FastWhisperManager>>,
     payload: serde_json::Value,
 ) -> Result<AppConfig, String> {
-    // Проверяем, изменяется ли настройка автозапуска
-    let autostart_changed = payload
+    is_owner_window(
+        &window,
+        "Configuration can only be changed by the main window",
+    )?;
+    let _command_guard = CONFIG_COMMAND_LOCK.lock().await;
+    let previous = state.get().await;
+    let requested_autostart = payload
         .get("launchOnSystemStartup")
-        .and_then(|v| v.as_bool())
-        .is_some();
+        .and_then(|value| value.as_bool());
 
-    let updated = state
-        .update(payload)
-        .await
-        .map_err(|error| error.to_string())?;
-
-    // Обновляем автозапуск системы, если настройка изменилась
-    if autostart_changed {
-        update_autostart(&app, updated.launch_on_system_startup)
-            .map_err(|error| format!("Failed to update autostart: {}", error))?;
+    if let Some(enabled) = requested_autostart {
+        if enabled != previous.launch_on_system_startup {
+            update_autostart(&app, enabled)
+                .map_err(|error| format!("Failed to update autostart: {error}"))?;
+        }
     }
 
-    app.emit("config:updated", &updated)
-        .map_err(|error| error.to_string())?;
-    handle_config_effects(
+    let updated = match state.update(payload).await {
+        Ok(updated) => updated,
+        Err(error) => {
+            if requested_autostart.is_some()
+                && requested_autostart != Some(previous.launch_on_system_startup)
+            {
+                if let Err(rollback_error) =
+                    update_autostart(&app, previous.launch_on_system_startup)
+                {
+                    return Err(format!(
+                        "Failed to save config: {error}. Failed to restore autostart: {rollback_error}"
+                    ));
+                }
+            }
+            return Err(error.to_string());
+        }
+    };
+
+    emit_config_updated(&app, &updated)?;
+    handle_config_update_effects(
         &app,
+        &previous,
         &updated,
         hotkeys.inner().clone(),
         speech.inner().clone(),
     );
     Ok(updated)
+}
+
+#[tauri::command]
+async fn config_update_mic(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<ConfigState>>,
+    hotkeys: State<'_, Arc<HotkeyState>>,
+    speech: State<'_, Arc<FastWhisperManager>>,
+    payload: serde_json::Value,
+) -> Result<AppConfig, String> {
+    if !is_config_window(window.label()) {
+        return Err(
+            "Microphone configuration can only be changed by trusted app windows".to_string(),
+        );
+    }
+    let fields = payload
+        .as_object()
+        .ok_or_else(|| "Microphone configuration update must be an object".to_string())?;
+    if fields.is_empty()
+        || fields.keys().any(|key| {
+            !matches!(
+                key.as_str(),
+                "micWindowPosition" | "micAnchor" | "selectedGroupId"
+            )
+        })
+    {
+        return Err("Microphone configuration update contains unsupported fields".to_string());
+    }
+
+    let _command_guard = CONFIG_COMMAND_LOCK.lock().await;
+    let previous = state.get().await;
+    let updated = state
+        .update(payload)
+        .await
+        .map_err(|error| error.to_string())?;
+    emit_config_updated(&app, &updated)?;
+    handle_config_update_effects(
+        &app,
+        &previous,
+        &updated,
+        hotkeys.inner().clone(),
+        speech.inner().clone(),
+    );
+    config_for_window(updated, window.label())
 }
 
 #[tauri::command]
 async fn config_set_auth(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     state: State<'_, Arc<ConfigState>>,
-    hotkeys: State<'_, Arc<HotkeyState>>,
-    speech: State<'_, Arc<FastWhisperManager>>,
     tokens: AuthTokens,
+    expected_auth_revision: Option<u64>,
+    expected_backend_domain: Option<String>,
 ) -> Result<AppConfig, String> {
+    if !is_config_window(window.label()) {
+        return Err("Authentication state can only be changed by trusted app windows".to_string());
+    }
     let updated = state
-        .set_auth_tokens(tokens)
+        .set_auth_tokens(
+            tokens,
+            expected_auth_revision,
+            expected_backend_domain.as_deref(),
+        )
         .await
         .map_err(|error| error.to_string())?;
-    app.emit("config:updated", &updated)
-        .map_err(|error| error.to_string())?;
-    handle_config_effects(
-        &app,
-        &updated,
-        hotkeys.inner().clone(),
-        speech.inner().clone(),
-    );
-    Ok(updated)
+    emit_config_updated(&app, &updated)?;
+    config_for_window(updated, window.label())
 }
 
 #[tauri::command]
 async fn config_reset(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     state: State<'_, Arc<ConfigState>>,
     hotkeys: State<'_, Arc<HotkeyState>>,
     speech: State<'_, Arc<FastWhisperManager>>,
 ) -> Result<AppConfig, String> {
-    let updated = state.reset().await.map_err(|error| error.to_string())?;
-    app.emit("config:updated", &updated)
-        .map_err(|error| error.to_string())?;
-    handle_config_effects(
+    is_owner_window(
+        &window,
+        "Configuration can only be reset by the main window",
+    )?;
+    let _command_guard = CONFIG_COMMAND_LOCK.lock().await;
+    let previous = state.get().await;
+    if previous.launch_on_system_startup {
+        update_autostart(&app, false)
+            .map_err(|error| format!("Failed to disable autostart: {error}"))?;
+    }
+    let updated = match state.reset().await {
+        Ok(updated) => updated,
+        Err(error) => {
+            if previous.launch_on_system_startup {
+                if let Err(rollback_error) = update_autostart(&app, true) {
+                    return Err(format!(
+                        "Failed to reset config: {error}. Failed to restore autostart: {rollback_error}"
+                    ));
+                }
+            }
+            return Err(error.to_string());
+        }
+    };
+    emit_config_updated(&app, &updated)?;
+    handle_config_update_effects(
         &app,
+        &previous,
         &updated,
         hotkeys.inner().clone(),
         speech.inner().clone(),
@@ -164,7 +302,14 @@ async fn config_reset(
 }
 
 #[tauri::command]
-async fn config_path(state: State<'_, Arc<ConfigState>>) -> Result<String, String> {
+async fn config_path(
+    window: tauri::WebviewWindow,
+    state: State<'_, Arc<ConfigState>>,
+) -> Result<String, String> {
+    is_owner_window(
+        &window,
+        "Configuration path is only available to the main window",
+    )?;
     Ok(state.path().await.to_string_lossy().to_string())
 }
 
@@ -326,20 +471,29 @@ async fn resources_play_sound(app: tauri::AppHandle, sound_name: String) -> Resu
 
 #[tauri::command]
 async fn auth_consume_pending(
+    window: tauri::WebviewWindow,
     queue: State<'_, Arc<AuthQueue>>,
 ) -> Result<Vec<AuthDeepLinkPayload>, String> {
+    if window.label() != AUTH_OWNER_WINDOW_LABEL {
+        return Err("OAuth callbacks can only be consumed by the main window".to_string());
+    }
     Ok(queue.drain().await)
 }
 
 #[tauri::command]
 async fn auth_start_oauth(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     config_state: State<'_, Arc<ConfigState>>,
     queue: State<'_, Arc<AuthQueue>>,
     oauth_state: State<'_, Arc<OAuthServerState>>,
     provider: String,
 ) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
+
+    if window.label() != AUTH_OWNER_WINDOW_LABEL {
+        return Err("OAuth can only be started by the main window".to_string());
+    }
 
     let provider = provider.trim().to_lowercase();
     if !oauth::is_supported_provider(&provider) {
@@ -367,6 +521,10 @@ async fn auth_start_oauth(
         return Err(format!("OAuth provider is not allowed: {provider}"));
     }
 
+    let attempt = oauth_state
+        .create_attempt(&provider, &config.backend_domain)
+        .await;
+
     // Если работаем от админа и OAuth сервер еще не запущен - запускаем
     if oauth::is_running_as_admin() {
         logging::log_message("[auth_start_oauth] Running as admin, starting OAuth server...");
@@ -375,20 +533,9 @@ async fn auth_start_oauth(
         let state_clone = oauth_state.inner().clone();
 
         // Запускаем сервер если еще не запущен
-        match oauth_server::start_oauth_server(app_clone, queue_clone, state_clone.clone()).await {
+        match oauth_server::start_oauth_server(app_clone, queue_clone, state_clone).await {
             Ok(_) => {
-                logging::log_message(
-                    "[auth_start_oauth] OAuth server started successfully, waiting for listener...",
-                );
-                // Ждём пока сервер будет готов принимать соединения (с таймаутом 2 секунды)
-                tokio::select! {
-                    _ = state_clone.wait_until_ready() => {
-                        logging::log_message("[auth_start_oauth] OAuth server is ready");
-                    }
-                    _ = tokio::time::sleep(tokio::time::Duration::from_secs(2)) => {
-                        logging::log_message("[auth_start_oauth] OAuth server ready timeout, continuing anyway");
-                    }
-                }
+                logging::log_message("[auth_start_oauth] OAuth server is ready");
             }
             Err(e) => {
                 logging::log_message(&format!(
@@ -402,12 +549,66 @@ async fn auth_start_oauth(
         logging::log_message("[auth_start_oauth] Not running as admin, using deep link");
     }
 
-    let url = oauth::build_oauth_start_url(&provider, Some(config.backend_domain.as_str()))
-        .map_err(|error| error.to_string())?;
+    let url =
+        oauth::build_oauth_start_url(&provider, Some(config.backend_domain.as_str()), &attempt)
+            .map_err(|error| error.to_string())?;
     log::info!(target: "auth", "Opening OAuth URL: provider={provider}");
     app.opener()
         .open_url(url, None::<String>)
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn auth_exchange_oauth(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    config_state: State<'_, Arc<ConfigState>>,
+    oauth_state: State<'_, Arc<OAuthServerState>>,
+    payload: OAuthExchangeInput,
+) -> Result<AppConfig, String> {
+    if window.label() != AUTH_OWNER_WINDOW_LABEL {
+        return Err("OAuth codes can only be exchanged by the main window".to_string());
+    }
+    let provider = payload.provider.trim().to_lowercase();
+    let attempt = oauth_state
+        .get_attempt(&payload.state)
+        .await
+        .ok_or_else(|| "OAuth attempt expired or was not started by this app".to_string())?;
+    if attempt.provider != provider {
+        return Err("OAuth provider does not match the active attempt".to_string());
+    }
+    let config = config_state.get().await;
+    if config.backend_domain != attempt.backend_domain {
+        oauth_state.remove_attempt(&payload.state).await;
+        return Err("Authentication backend changed during OAuth".to_string());
+    }
+    let expected_auth_revision = config.auth_revision;
+    let tokens = oauth::exchange_desktop_code(&attempt, &payload.code)
+        .await
+        .map_err(|error| error.to_string())?;
+    let _flow_guard = oauth_state.lock_flow().await;
+    let active_attempt = oauth_state
+        .get_attempt(&payload.state)
+        .await
+        .ok_or_else(|| "OAuth attempt was superseded while exchanging the code".to_string())?;
+    if active_attempt != attempt {
+        return Err("OAuth attempt was superseded while exchanging the code".to_string());
+    }
+    let update_result = config_state
+        .set_auth_tokens(
+            AuthTokens {
+                access: tokens.access,
+                refresh: tokens.refresh,
+                ..AuthTokens::default()
+            },
+            Some(expected_auth_revision),
+            Some(&attempt.backend_domain),
+        )
+        .await;
+    oauth_state.remove_attempt(&payload.state).await;
+    let updated = update_result.map_err(|error| error.to_string())?;
+    emit_config_updated(&app, &updated)?;
+    Ok(updated)
 }
 
 #[tauri::command]
@@ -762,8 +963,9 @@ async fn ollama_warmup_model(model: String) -> Result<(), String> {
 async fn ollama_chat_completions(
     model: String,
     messages: Vec<ollama::ChatMessage>,
+    request_id: String,
 ) -> Result<serde_json::Value, String> {
-    ollama::chat_completions(&model, messages)
+    ollama::chat_completions(&model, messages, &request_id)
         .await
         .map_err(|error| error.to_string())
 }
@@ -774,10 +976,16 @@ async fn ollama_chat_completions_stream(
     model: String,
     messages: Vec<ollama::ChatMessage>,
     stream_id: String,
+    request_id: String,
 ) -> Result<String, String> {
-    ollama::chat_completions_stream(app, &model, messages, &stream_id)
+    ollama::chat_completions_stream(app, &model, messages, &stream_id, &request_id)
         .await
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn ollama_cancel_request(request_id: String) -> Result<(), String> {
+    ollama::cancel_request(&request_id).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -969,7 +1177,7 @@ fn main() {
     // Если да - записываем в файл для главного процесса (обход UIPI)
     let args: Vec<String> = std::env::args().collect();
     if let Some(url) = args.iter().find(|arg| arg.starts_with("winky://")) {
-        println!("[Main] Started with deep link argument: {}", url);
+        println!("[Main] OAuth deep link received");
         // Записываем URL в файл для главного процесса
         if let Err(e) = deep_link_file::write_deep_link_to_file(url) {
             eprintln!("[Main] Failed to write deep link to file: {}", e);
@@ -991,7 +1199,7 @@ fn main() {
         ))
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(url) = args.into_iter().find(|arg| arg.starts_with("winky://")) {
-                logging::log_message(&format!("[SingleInstance] Received deep link: {}", url));
+                logging::log_message("[SingleInstance] OAuth deep link received");
                 if let Some(state) = app.try_state::<Arc<AuthQueue>>() {
                     dispatch_deep_link(app, state.inner().clone(), url);
                 } else {
@@ -1007,6 +1215,7 @@ fn main() {
             // Инициализируем логирование в файл (безопасно, не падаем если не получилось)
             let _ = logging::init_logging(&app_handle);
             logging::log_message("Winky application started");
+            tauri::async_runtime::block_on(update::load_install_result(&app_handle));
             update::start_update_poll(app_handle.clone());
 
             let config_state = Arc::new(tauri::async_runtime::block_on(ConfigState::initialize(
@@ -1062,7 +1271,7 @@ fn main() {
                 eprintln!("Failed to sync autostart on init: {}", e);
             }
 
-            handle_config_effects(&app_handle, &initial_config, hotkeys, fast_whisper);
+            handle_config_startup_effects(&app_handle, &initial_config, hotkeys, fast_whisper);
 
             // Обрабатываем закрытие главного окна - скрываем его вместо закрытия приложения
             if let Some(main_window) = app.get_webview_window("main") {
@@ -1083,6 +1292,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             config_get,
             config_update,
+            config_update_mic,
             config_set_auth,
             config_reset,
             config_path,
@@ -1103,12 +1313,16 @@ fn main() {
             auth_consume_pending,
             auth_get_methods,
             auth_start_oauth,
+            auth_exchange_oauth,
             auth_is_admin,
             app_log_path,
             get_log_file_path,
             open_app_logs_folder,
             log_frontend,
+            update::get_update_state,
             update::check_app_update,
+            update::download_app_update,
+            update::install_app_update,
             open_file_path,
             local_speech_get_status,
             local_speech_check_health,
@@ -1125,6 +1339,7 @@ fn main() {
             ollama_warmup_model,
             ollama_chat_completions,
             ollama_chat_completions_stream,
+            ollama_cancel_request,
             openai_chat_completions,
             openai_chat_completions_stream,
             gemini_generate_content_stream,
@@ -1140,6 +1355,14 @@ fn main() {
 }
 
 fn setup_deep_link_listener(app: &tauri::AppHandle, queue: Arc<AuthQueue>) {
+    let queue_listener = queue.clone();
+    let app_listener = app.clone();
+    app.deep_link().on_open_url(move |event| {
+        for url in event.urls() {
+            dispatch_deep_link(&app_listener, queue_listener.clone(), url.to_string());
+        }
+    });
+
     let mut pending = PENDING_DEEP_LINKS.lock().unwrap();
     for url in pending.drain(..) {
         dispatch_deep_link(app, queue.clone(), url);
@@ -1150,14 +1373,6 @@ fn setup_deep_link_listener(app: &tauri::AppHandle, queue: Arc<AuthQueue>) {
             dispatch_deep_link(app, queue.clone(), url.to_string());
         }
     }
-
-    let queue_listener = queue.clone();
-    let app_listener = app.clone();
-    app.deep_link().on_open_url(move |event| {
-        for url in event.urls() {
-            dispatch_deep_link(&app_listener, queue_listener.clone(), url.to_string());
-        }
-    });
 }
 
 fn update_autostart(
@@ -1173,7 +1388,7 @@ fn update_autostart(
     Ok(())
 }
 
-fn handle_config_effects(
+fn handle_config_startup_effects(
     app: &tauri::AppHandle,
     config: &AppConfig,
     hotkeys: Arc<HotkeyState>,
@@ -1203,6 +1418,40 @@ fn handle_config_effects(
 
     if config.setup_completed && config.mic_show_on_launch {
         let _ = app.emit("mic:show-request", json!({ "reason": "auto" }));
+    }
+}
+
+fn handle_config_update_effects(
+    app: &tauri::AppHandle,
+    previous: &AppConfig,
+    updated: &AppConfig,
+    hotkeys: Arc<HotkeyState>,
+    speech: Arc<FastWhisperManager>,
+) {
+    if previous.mic_hotkey != updated.mic_hotkey {
+        let accelerator = {
+            let trimmed = updated.mic_hotkey.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        };
+        hotkeys.register_mic(app, accelerator);
+    }
+
+    let local_speech_changed = previous.auto_start_local_speech_server
+        != updated.auto_start_local_speech_server
+        || previous.setup_completed != updated.setup_completed
+        || previous.speech.mode != updated.speech.mode;
+    if local_speech_changed && should_auto_start_local_speech(updated) {
+        let manager = speech.clone();
+        let app_handle = app.clone();
+        tauri::async_runtime::spawn(async move {
+            if !manager.is_server_healthy().await {
+                let _ = manager.start_existing(&app_handle).await;
+            }
+        });
     }
 }
 

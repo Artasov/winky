@@ -16,7 +16,7 @@ export abstract class OllamaLLMServiceBase extends LocalLLMBaseService {
         text: string,
         prompt: string,
         onChunk: (chunk: string) => void,
-        _options?: {signal?: AbortSignal}
+        options?: {signal?: AbortSignal}
     ): Promise<string> {
         const messages = this.buildMessages(text, prompt);
         const streamId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -40,7 +40,12 @@ export abstract class OllamaLLMServiceBase extends LocalLLMBaseService {
         });
 
         try {
-            const data = await ollamaBridge.chatCompletionsStream(this.model, messages, streamId);
+            const data = await ollamaBridge.chatCompletionsStream(
+                this.model,
+                messages,
+                streamId,
+                options?.signal
+            );
             if (typeof data === 'string' && data.length > fullText.length) {
                 const tail = data.slice(fullText.length);
                 if (tail) {

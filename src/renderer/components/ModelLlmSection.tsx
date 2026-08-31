@@ -13,6 +13,7 @@ type ModelLlmSectionProps = {
     disableInputs: boolean;
     isLocalLLMMode: boolean;
     llmModelOptions: LLMModel[];
+    currentModelUnavailable: boolean;
     ollamaChecking: boolean;
     ollamaInstalled: boolean | null;
     ollamaError: string | null;
@@ -37,6 +38,7 @@ export const ModelLlmSection: React.FC<ModelLlmSectionProps> = ({
                                                                     disableInputs,
                                                                     isLocalLLMMode,
                                                                     llmModelOptions,
+                                                                    currentModelUnavailable,
                                                                     ollamaChecking,
                                                                     ollamaInstalled,
                                                                     ollamaError,
@@ -86,6 +88,11 @@ export const ModelLlmSection: React.FC<ModelLlmSectionProps> = ({
                             </MenuItem>
                         ))}
                     </TextField>
+                )}
+                {currentModelUnavailable && (
+                    <Typography variant="caption" color="warning.main">
+                        This saved model is no longer in the supported catalog. Select another model to change it.
+                    </Typography>
                 )}
                 {isLocalLLMMode && ollamaInstalled && (
                     <Box sx={{width: '100%'}}>

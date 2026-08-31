@@ -1,10 +1,9 @@
 {
   "name": "winky",
   "version": "1.4.4",
-  "description": "Winky - cute girl assistant.",
-  "main": "dist/main/main.js",
+  "description": "Winky desktop voice assistant built with Tauri.",
   "scripts": {
-    "pretauri": "node ./scripts/sync-tauri-version.mjs",
+    "pretauri": "node ./scripts/sync-tauri-version.mjs --check",
     "version": "node ./scripts/sync-tauri-version.mjs && git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock",
     "dev": "tauri dev",
     "build": "tauri build",
@@ -13,10 +12,11 @@
     "build:renderer": "vite build --config vite.config.mts",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
+    "check:versions": "node ./scripts/sync-tauri-version.mjs --check",
     "preview": "vite preview --config vite.config.mts"
   },
   "keywords": [
-    "electron",
+    "tauri",
     "react",
     "tailwindcss",
     "voice",
@@ -26,7 +26,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/placeholder/winky.git"
+    "url": "https://github.com/Artasov/winky.git"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

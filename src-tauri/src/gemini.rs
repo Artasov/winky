@@ -57,14 +57,15 @@ pub async fn stream_generate_content(
 
     let client = reqwest::Client::new();
     let url = format!(
-        "{}/{}:streamGenerateContent?key={}&alt=sse",
-        GEMINI_BASE_URL, model, token
+        "{}/{}:streamGenerateContent?alt=sse",
+        GEMINI_BASE_URL, model
     );
 
     let response = client
         .post(&url)
         .header(ACCEPT, "text/event-stream")
         .header(CONTENT_TYPE, "application/json")
+        .header("x-goog-api-key", token)
         .json(&body)
         .timeout(Duration::from_secs(120))
         .send()
@@ -146,7 +147,10 @@ pub async fn stream_generate_content(
 
     let tail = buffer.trim();
     if !tail.is_empty() {
-        let tail = tail.strip_prefix("data:").map(|value| value.trim()).unwrap_or(tail);
+        let tail = tail
+            .strip_prefix("data:")
+            .map(|value| value.trim())
+            .unwrap_or(tail);
         if tail != "[DONE]" && tail != "[" && tail != "]" {
             if let Ok(parsed) = serde_json::from_str::<Value>(tail) {
                 let chunk_text = extract_text(&parsed);

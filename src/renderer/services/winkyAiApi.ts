@@ -1,6 +1,12 @@
 import axios from 'axios';
 import {triggerUnauthorized} from '@shared/api';
 import {getApiBaseUrl, getWsBaseUrl} from '@shared/constants';
+import {
+    type WinkyTranscribeOptions,
+    type WinkyTranscribeResult,
+    winkyTranscriptionService
+} from './WinkyTranscriptionService';
+import {winkyWebSocketAuthService} from './WinkyWebSocketAuthService';
 import type {
     WinkyChat,
     WinkyChatMessage,
@@ -9,43 +15,29 @@ import type {
     WinkyChatBranchResponse,
     MessageChildrenResponse
 } from '@shared/types';
-import {uploadMediaFile} from './media/MediaApi';
-
-const getWinkyAiTranscribeEndpoint = (): string => `${getApiBaseUrl()}/ai/transcribe/media/`;
 const getWinkyAiLlmWsEndpoint = (): string => `${getWsBaseUrl()}/ws/ai/llm/`;
 const getWinkyAiChatsEndpoint = (): string => `${getApiBaseUrl()}/ai/chats/`;
 const getWinkyAiMessagesEndpoint = (): string => `${getApiBaseUrl()}/ai/messages/`;
 
 const LOG_PREFIX = 'WinkyAI';
 
-const logRequest = (method: string, url: string, paramsOrData?: any) => {
-    console.log(`${LOG_PREFIX} → [${method}] ${url}`);
-    if (paramsOrData) {
-        const label = method === 'GET' ? '  📤 Request params:' : '  📤 Request data:';
-        console.log(label, paramsOrData);
-    }
+const logRequest = (method: string, url: string, paramsOrData?: unknown) => {
+    console.log(`${LOG_PREFIX} → [${method}] ${url}`, {hasPayload: paramsOrData !== undefined});
 };
 
-const logResponse = (method: string, url: string, status: number, data: any) => {
+const logResponse = (method: string, url: string, status: number, _data: unknown) => {
     console.log(`${LOG_PREFIX} ← [${method}] ${url} [${status}]`);
-    console.log('  📥 Response data:', data);
 };
 
-const logError = (method: string, url: string, error: any) => {
-    const status = error.response?.status || 'ERR';
+const logError = (method: string, url: string, error: unknown) => {
+    const status = axios.isAxiosError(error) ? error.response?.status || 'ERR' : 'ERR';
     if (status === 401) triggerUnauthorized();
-    console.error(`${LOG_PREFIX} ← [${method}] ${url} [${status}]`);
-    console.error('  ❌ Error:', error.message || error);
+    console.error(`${LOG_PREFIX} ← [${method}] ${url} [${status}]`, {
+        errorType: error instanceof Error ? error.name : 'unknown'
+    });
 };
 
-export interface WinkyTranscribeResult {
-    id: string;
-    text: string;
-    model_level: 'low' | 'high';
-    credits: string;
-    language?: string;
-    created_at: string;
-}
+export type {WinkyTranscribeResult};
 
 export interface WinkyLLMParams {
     prompt: string;
@@ -75,41 +67,9 @@ export interface WinkyLLMStreamCallbacks {
 
 export const winkyTranscribe = async (
     audio: ArrayBuffer,
-    accessToken: string,
-    options?: {language?: string; mimeType?: string}
-): Promise<WinkyTranscribeResult> => {
-    const mimeType = options?.mimeType || 'audio/webm';
-    const extension = mimeType.includes('wav') ? 'wav' : mimeType.includes('mp3') ? 'mp3' : 'webm';
-    const file = new File([audio], `audio.${extension}`, {type: mimeType});
-    const endpoint = getWinkyAiTranscribeEndpoint();
-
-    try {
-        const media = await uploadMediaFile(file, accessToken, {
-            namespace: 'ai/transcribe',
-            visibility: 'private'
-        });
-        const payload = {
-            media_file_id: media.id,
-            language: options?.language
-        };
-        logRequest('POST', endpoint, payload);
-        const response = await axios.post<WinkyTranscribeResult>(
-            endpoint,
-            payload,
-            {
-                headers: {
-                    Authorization: `Bearer ${accessToken}`
-                },
-                timeout: 120_000
-            }
-        );
-        logResponse('POST', endpoint, response.status, response.data);
-        return response.data;
-    } catch (error) {
-        logError('POST', endpoint, error);
-        throw error;
-    }
-};
+    _accessToken: string,
+    options?: WinkyTranscribeOptions
+): Promise<WinkyTranscribeResult> => winkyTranscriptionService.transcribe(audio, options);
 
 type AIWSEvent =
     | {event: 'start'; chat_id: string; user_message_id: string; model_level: string}
@@ -125,12 +85,15 @@ export const winkyLLMStream = async (
     signal?: AbortSignal,
     callbacks?: WinkyLLMStreamCallbacks
 ): Promise<WinkyLLMResult> => {
+    const wsEndpoint = getWinkyAiLlmWsEndpoint();
+    const ws = await winkyWebSocketAuthService.create(wsEndpoint, signal);
     return new Promise((resolve, reject) => {
-        const wsEndpoint = getWinkyAiLlmWsEndpoint();
-        const wsUrl = `${wsEndpoint}?token=${accessToken}`;
         console.log(`${LOG_PREFIX} → [WS] ${wsEndpoint}`);
-        console.log('  📤 Request params:', {prompt: params.prompt.slice(0, 100) + '...', model_level: params.model_level, chat_id: params.chat_id, parent_message_id: params.parent_message_id});
-        const ws = new WebSocket(wsUrl);
+        console.log('  📤 Request metadata:', {
+            model_level: params.model_level,
+            has_chat: Boolean(params.chat_id),
+            has_parent: Boolean(params.parent_message_id)
+        });
 
         let fullContent = '';
         let chatId = params.chat_id || '';
@@ -166,25 +129,30 @@ export const winkyLLMStream = async (
         });
 
         const cleanup = () => {
+            signal?.removeEventListener('abort', handleAbort);
             if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
                 ws.close();
             }
         };
 
-        if (signal) {
-            signal.addEventListener('abort', () => {
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({action: 'cancel'}));
-                }
-                cleanup();
-                if (!resolved) {
-                    resolved = true;
-                    reject(new DOMException('Aborted', 'AbortError'));
-                }
-            });
-        }
+        const handleAbort = () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({action: 'cancel'}));
+            }
+            cleanup();
+            if (!resolved) {
+                resolved = true;
+                reject(new DOMException('Aborted', 'AbortError'));
+            }
+        };
+
+        signal?.addEventListener('abort', handleAbort, {once: true});
 
         ws.onopen = () => {
+            if (resolved || signal?.aborted) {
+                handleAbort();
+                return;
+            }
             ws.send(JSON.stringify({
                 action: 'generate',
                 prompt: params.prompt,
@@ -240,7 +208,7 @@ export const winkyLLMStream = async (
 
                     case 'error':
                         if (data.code === 'unauthorized' || data.code === 'authentication_failed') triggerUnauthorized();
-                        console.error(`${LOG_PREFIX} ← [WS] error`, {code: data.code, message: data.message});
+                        console.error(`${LOG_PREFIX} ← [WS] error`, {code: data.code});
                         cleanup();
                         if (!resolved) {
                             resolved = true;
@@ -250,8 +218,10 @@ export const winkyLLMStream = async (
                         }
                         break;
                 }
-            } catch (e) {
-                // Skip invalid JSON
+            } catch (error) {
+                console.warn(`${LOG_PREFIX} ← [WS] invalid event`, {
+                    errorType: error instanceof Error ? error.name : 'unknown'
+                });
             }
         };
 
@@ -265,6 +235,7 @@ export const winkyLLMStream = async (
         };
 
         ws.onclose = (event) => {
+            signal?.removeEventListener('abort', handleAbort);
             if (!resolved) {
                 resolved = true;
                 if (event.code !== 1000) {
@@ -274,6 +245,7 @@ export const winkyLLMStream = async (
                 }
             }
         };
+        if (signal?.aborted) handleAbort();
     });
 };
 

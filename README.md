@@ -21,7 +21,7 @@
 
 ## About Winky
 
-**Winky** is a cross-platform desktop voice assistant that helps you quickly convert voice to text and run intelligent LLM-powered actions. With a convenient floating microphone overlay, you can interact with Winky from anywhere on your screen, making it perfect for productivity workflows.
+**Winky** is a Windows desktop voice assistant that helps you quickly convert voice to text and run intelligent LLM-powered actions. With a convenient floating microphone overlay, you can interact with Winky from anywhere on your screen, making it perfect for productivity workflows.
 
 Winky supports both cloud-based and local AI processing, giving you the flexibility to choose between speed and privacy. Whether you need quick voice commands, transcription, or AI-powered responses, Winky is ready to help.
 
@@ -31,7 +31,7 @@ Winky supports both cloud-based and local AI processing, giving you the flexibil
 
 ## About This Repository
 
-This repository contains the source code for Winky, a cross-platform desktop application built with **Tauri + React + Vite**. The application provides a modern, efficient voice assistant experience with support for multiple AI providers and local processing options.
+This repository contains the source code for Winky, a desktop application built with **Tauri + React + Vite**. Official builds currently target Windows x86_64 and provide support for multiple AI providers and local processing options.
 
 ## Table of Contents
 
@@ -49,7 +49,8 @@ This repository contains the source code for Winky, a cross-platform desktop app
 - **Local Speech Recognition** - use local AI models for faster processing and privacy
 - **Quick Actions** - customizable hotkeys and actions for productivity
 - **Privacy controls** - local modes keep processing on the device; cloud modes send the required input to the configured provider
-- **Cross-platform** - works on Windows, macOS and Linux
+- **Protected credentials** - authentication tokens and provider keys are persisted with Windows DPAPI
+- **Windows support** - official signed releases target Windows x86_64
 - **Simple interface** - intuitive and easy to use
 - **Customizable** - configure transcription models, LLM providers, and actions
 
@@ -92,7 +93,7 @@ This repository contains the source code for Winky, a cross-platform desktop app
 
 ## How to Use Locally
 
-The examples below are implemented and tested on `Windows 11`. Steps may differ on other systems.
+The examples below are implemented and tested on `Windows 11`. Windows x86_64 is the only currently supported release target.
 
 ### The assistant works in two stages:
 
@@ -162,7 +163,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 #### Requirements
 
 - Node.js LTS and npm
-- stable Rust
+- Rust 1.85 (pinned in `rust-toolchain.toml`)
 - [platform prerequisites for Tauri 2](https://v2.tauri.app/start/prerequisites/)
 
 #### Installation
@@ -211,16 +212,16 @@ src-tauri/
 - `npm run typecheck` - same as lint
 - `npm run preview` - preview built frontend
 
-#### Building for Different Platforms
+#### Supported Release Target
 
 ```bash
 npm run build
 ```
 
-Tauri builds for the current host platform and writes installers/bundles under
-`src-tauri/target/release/bundle`. Cross-platform releases require a runner for
-each target operating system; macOS additionally requires Xcode Command Line
-Tools.
+The supported release pipeline creates a signed NSIS installer in
+`src-tauri/target/release/bundle/nsis/` for Windows x86_64.
+
+macOS and Linux release packaging is intentionally disabled until those platforms have an OS-protected persistent store for authentication tokens and provider keys. Do not distribute builds for those platforms yet.
 
 #### Technologies
 

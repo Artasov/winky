@@ -1,20 +1,10 @@
 import type {BaseLLMService} from './BaseLLMService';
 import type {LLMMode, LLMModel} from '@shared/types';
 import {LLM_MODES} from '@shared/constants';
+import {getLlmProvider} from '@shared/modelRegistry';
 
 // API models
-import O4MiniLLMService from './models/api/O4MiniLLMService';
-import Gpt41MiniLLMService from './models/api/Gpt41MiniLLMService';
-import Gpt41NanoLLMService from './models/api/Gpt41NanoLLMService';
-import O3MiniLLMService from './models/api/O3MiniLLMService';
-import O1MiniLLMService from './models/api/O1MiniLLMService';
-import Gpt4oMiniLLMService from './models/api/Gpt4oMiniLLMService';
-import Gpt4TurboLLMService from './models/api/Gpt4TurboLLMService';
-import ChatGpt4oLatestLLMService from './models/api/ChatGpt4oLatestLLMService';
-import Gpt35TurboLLMService from './models/api/Gpt35TurboLLMService';
-import Gpt5LLMService from './models/api/Gpt5LLMService';
-import Gpt5NanoLLMService from './models/api/Gpt5NanoLLMService';
-import Gpt5MiniLLMService from './models/api/Gpt5MiniLLMService';
+import OpenAiLLMService from './models/api/OpenAiLLMService';
 import GeminiLLMService from './models/api/GeminiLLMService';
 import WinkyHighLLMService from './models/api/WinkyHighLLMService';
 import WinkyMidLLMService from './models/api/WinkyMidLLMService';
@@ -52,6 +42,16 @@ export const createLLMService = (
     };
 
     if (mode === LLM_MODES.API) {
+        const provider = getLlmProvider(model);
+        if (provider === 'openai') {
+            return new OpenAiLLMService(model, requireOpenAIKey());
+        }
+        if (provider === 'google') {
+            if (!options.googleKey) {
+                throw new Error('A Google AI API key is required to use Google Gemini models.');
+            }
+            return new GeminiLLMService(model, options.googleKey);
+        }
         switch (model as string) {
             case 'winky-high':
                 if (!options.accessToken) {
@@ -68,43 +68,6 @@ export const createLLMService = (
                     throw new Error('Authentication is required to use Winky models.');
                 }
                 return new WinkyLowLLMService(options.accessToken);
-            case 'o4-mini':
-                return new O4MiniLLMService(requireOpenAIKey());
-            case 'gpt-4.1-mini':
-                return new Gpt41MiniLLMService(requireOpenAIKey());
-            case 'gpt-4.1-nano':
-                return new Gpt41NanoLLMService(requireOpenAIKey());
-            case 'o3-mini':
-                return new O3MiniLLMService(requireOpenAIKey());
-            case 'o1-mini':
-                return new O1MiniLLMService(requireOpenAIKey());
-            case 'gpt-4o-mini':
-                return new Gpt4oMiniLLMService(requireOpenAIKey());
-            case 'gpt-4-turbo':
-                return new Gpt4TurboLLMService(requireOpenAIKey());
-            case 'chatgpt-4o-latest':
-                return new ChatGpt4oLatestLLMService(requireOpenAIKey());
-            case 'gpt-3.5-turbo':
-                return new Gpt35TurboLLMService(requireOpenAIKey());
-            case 'gpt-5':
-                return new Gpt5LLMService(requireOpenAIKey());
-            case 'gpt-5-nano':
-                return new Gpt5NanoLLMService(requireOpenAIKey());
-            case 'gpt-5-mini':
-                return new Gpt5MiniLLMService(requireOpenAIKey());
-            case 'gemini-3.0-pro':
-            case 'gemini-3.0-flash':
-            case 'gemini-2.5-pro':
-            case 'gemini-2.5-flash':
-            case 'gemini-2.0-pro':
-            case 'gemini-2.0-flash':
-            case 'gemini-1.5-pro':
-            case 'gemini-1.5-flash':
-            case 'gemini-1.0-pro':
-                if (!options.googleKey) {
-                    throw new Error('A Google AI API key is required to use Google Gemini models.');
-                }
-                return new GeminiLLMService(model, options.googleKey);
             default:
                 throw new Error(`Unknown API LLM model: ${model}`);
         }

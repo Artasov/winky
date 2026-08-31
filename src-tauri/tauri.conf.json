@@ -25,12 +25,12 @@
         "shadow": false,
         "transparent": true,
         "backgroundColor": "#00000000",
-        "devtools": true,
+        "devtools": false,
         "userAgent": null
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' customprotocol: asset:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://xlartas.com https://*.xlartas.com wss://xlartas.com wss://*.xlartas.com https://xlartas.ru https://*.xlartas.ru wss://xlartas.ru wss://*.xlartas.ru https://api.openai.com https://generativelanguage.googleapis.com http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*; img-src 'self' asset: http://asset.localhost data: blob: https:; media-src 'self' asset: http://asset.localhost data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
     }
   },
   "plugins": {
@@ -54,6 +54,13 @@
     ],
     "resources": [
       "resources/**/*"
-    ]
+    ],
+    "windows": {
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com"
+    },
+    "macOS": {
+      "hardenedRuntime": true
+    }
   }
 }

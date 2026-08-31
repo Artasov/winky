@@ -27,7 +27,7 @@ import {
     SPEECH_OPENAI_API_MODELS,
     SPEECH_WINKY_API_MODELS
 } from '@shared/constants';
-import type {LLMMode, LLMModel, TranscribeMode, TranscribeModel} from '@shared/types';
+import type {BackendDomain, LLMMode, LLMModel, TranscribeMode, TranscribeModel} from '@shared/types';
 import {
     formatLLMLabel,
     isGeminiApiModel,
@@ -35,23 +35,24 @@ import {
     isOpenAiApiModel,
     isOpenAiTranscribeModel
 } from '../utils/modelFormatters';
-import {useUser} from '../context/UserContext';
 import {
     checkLocalModelDownloaded,
     downloadLocalSpeechModel,
     getLocalSpeechModelMetadata,
     normalizeLocalSpeechModelName,
-    subscribeToLocalModelWarmup,
-    subscribeToLocalTranscriptions,
     warmupLocalSpeechModel
 } from '../services/localSpeechModels';
 import {downloadOllamaModel, warmupOllamaModel as warmupOllamaModelService} from '../services/ollama';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
-import {useLocalSpeechStatus} from '../hooks/useLocalSpeechStatus';
+import {useLocalSpeechModelStatus, useLocalSpeechStatus} from '../hooks/useLocalSpeechStatus';
 import {useOllamaStatus} from '../hooks/useOllamaStatus';
 import ModelApiKeysSection from './ModelApiKeysSection';
 import ModelLlmSection from './ModelLlmSection';
 import ModelTranscribeSection from './ModelTranscribeSection';
+import {
+    type WinkyTranscriptionCatalog,
+    winkyTranscriptionCatalogService
+} from '../services/WinkyTranscriptionCatalogService';
 
 export interface ModelConfigFormData {
     openaiKey: string;
@@ -64,44 +65,32 @@ export interface ModelConfigFormData {
     globalLlmPrompt: string;
 }
 
-const resolveTranscribeOptions = (mode: TranscribeMode, openaiKey: string, googleKey: string, isAuthenticated: boolean): TranscribeModel[] => {
+const resolveTranscribeOptions = (
+    mode: TranscribeMode,
+    winkyCatalog: WinkyTranscriptionCatalog | null
+): TranscribeModel[] => {
     if (mode === SPEECH_MODES.API) {
-        const options: string[] = [];
-        // Winky модели первыми (если авторизован)
-        if (isAuthenticated) {
-            options.push(...SPEECH_WINKY_API_MODELS);
-        }
-        // OpenAI модели только если есть ключ
-        if (openaiKey.trim().length > 0) {
-            options.push(...SPEECH_OPENAI_API_MODELS);
-        }
-        // Google модели только если есть ключ
-        if (googleKey.trim().length > 0) {
-            options.push(...SPEECH_GOOGLE_API_MODELS);
-        }
-        return options as TranscribeModel[];
+        const winkyModels = winkyCatalog
+            ? winkyCatalog.options.map((option) => `winky-transcribe-${option.level}` as TranscribeModel)
+            : [...SPEECH_WINKY_API_MODELS];
+        return [
+            ...winkyModels,
+            ...SPEECH_OPENAI_API_MODELS,
+            ...SPEECH_GOOGLE_API_MODELS
+        ];
     }
-    return [...SPEECH_LOCAL_MODELS] as TranscribeModel[];
+    return [...SPEECH_LOCAL_MODELS];
 };
 
-const resolveLlmOptions = (mode: LLMMode, openaiKey: string, googleKey: string, isAuthenticated: boolean): LLMModel[] => {
+const resolveLlmOptions = (mode: LLMMode): LLMModel[] => {
     if (mode === LLM_MODES.API) {
-        const options: string[] = [];
-        // Winky модели первыми (если авторизован)
-        if (isAuthenticated) {
-            options.push(...LLM_WINKY_API_MODELS);
-        }
-        // OpenAI модели только если есть ключ
-        if (openaiKey.trim().length > 0) {
-            options.push(...LLM_OPENAI_API_MODELS);
-        }
-        // Google модели только если есть ключ
-        if (googleKey.trim().length > 0) {
-            options.push(...LLM_GEMINI_API_MODELS);
-        }
-        return options as LLMModel[];
+        return [
+            ...LLM_WINKY_API_MODELS,
+            ...LLM_OPENAI_API_MODELS,
+            ...LLM_GEMINI_API_MODELS
+        ];
     }
-    return [...LLM_LOCAL_MODELS] as LLMModel[];
+    return [...LLM_LOCAL_MODELS];
 };
 
 type ModeInfoDialogType = 'transcribe' | 'llm';
@@ -127,7 +116,7 @@ const MODE_INFO_DIALOG_CONTENT: Record<ModeInfoDialogType, {
         description:
             'Choose how your voice input is processed by a large language model. In API mode, requests are sent to cloud providers. In Local mode, everything runs on your machine via Ollama.',
         bullets: [
-            'API mode: Set your OpenAI or Google AI API key below, then select a model (GPT-4o, GPT-4o-mini, Gemini 2.0 Flash, etc.). Charges depend on the provider\'s pricing.',
+            'API mode: Set your OpenAI or Google AI API key below, then select a current GPT or Gemini model. Charges depend on the provider\'s pricing.',
             'Local mode: Install Ollama and download a model. Runs offline with no token costs, but requires a capable GPU for good performance.',
             'The model you pick affects response quality, speed, and cost. Experiment to find the best fit for your workflow.',
             'Get API keys: OpenAI — platform.openai.com/api-keys, Google AI — aistudio.google.com/app/apikey'
@@ -144,6 +133,7 @@ interface ModelConfigFormProps {
     onAutoSave?: (nextValues: ModelConfigFormData) => Promise<void>;
     onSubmit?: (e: React.FormEvent) => void;
     submitButtonText?: string;
+    backendDomain?: BackendDomain;
 }
 
 const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
@@ -154,18 +144,17 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                                                              autoSave = false,
                                                              onAutoSave,
                                                              onSubmit,
-                                                             submitButtonText = 'Save'
+                                                             submitButtonText = 'Save',
+                                                             backendDomain
                                                          }) => {
-    const {user} = useUser();
-    const isAuthenticated = Boolean(user);
     const shouldAutoSave = autoSave && typeof onAutoSave === 'function';
     const disableInputs = saving && !shouldAutoSave;
     const [modeInfoDialog, setModeInfoDialog] = useState<ModeInfoDialogType | null>(null);
     const [modeInfoDialogContentType, setModeInfoDialogContentType] = useState<ModeInfoDialogType>('transcribe');
     const [localGlobalTranscribePrompt, setLocalGlobalTranscribePrompt] = useState(values.globalTranscribePrompt);
     const [localGlobalLlmPrompt, setLocalGlobalLlmPrompt] = useState(values.globalLlmPrompt);
-    const promptDebounceTimerRef = useRef<number | null>(null);
-    const latestValuesRef = useRef(values);
+    const [winkyCatalog, setWinkyCatalog] = useState<WinkyTranscriptionCatalog | null>(null);
+    const [winkyCatalogError, setWinkyCatalogError] = useState<string | null>(null);
 
     // Keep local prompt state in sync when parent props change.
     useEffect(() => {
@@ -177,59 +166,73 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     }, [values.globalLlmPrompt]);
 
     useEffect(() => {
-        latestValuesRef.current = values;
-    }, [values]);
-
-    // Clear the debounce timer on unmount.
-    useEffect(() => {
+        let stopped = false;
+        setWinkyCatalog(null);
+        setWinkyCatalogError(null);
+        void winkyTranscriptionCatalogService.get(true)
+            .then((catalog) => {
+                if (stopped) return;
+                setWinkyCatalog(catalog);
+                setWinkyCatalogError(null);
+            })
+            .catch(() => {
+                if (!stopped) {
+                    setWinkyCatalogError('Live Winky pricing is temporarily unavailable; saved model choices remain usable.');
+                }
+            });
         return () => {
-            if (promptDebounceTimerRef.current !== null) {
-                clearTimeout(promptDebounceTimerRef.current);
-            }
+            stopped = true;
         };
-    }, []);
-    const [localModelDownloaded, setLocalModelDownloaded] = useState<boolean | null>(null);
-    const [localModelVerifiedFor, setLocalModelVerifiedFor] = useState<string | null>(null);
-    const [checkingLocalModel, setCheckingLocalModel] = useState(false);
-    const [downloadingLocalModel, setDownloadingLocalModel] = useState(false);
-    const [localModelError, setLocalModelError] = useState<string | null>(null);
-    const [localWarmupInProgress, setLocalWarmupInProgress] = useState(false);
-    const [localTranscriptionInProgress, setLocalTranscriptionInProgress] = useState(false);
-    const checkingRef = useRef<string | null>(null);
-    const warmupRequestRef = useRef<string | null>(null);
+    }, [backendDomain]);
+
     const transcribeSelectionByModeRef = useRef<Partial<Record<TranscribeMode, TranscribeModel>>>({
         [values.transcribeMode]: values.transcribeModel
     });
     const llmSelectionByModeRef = useRef<Partial<Record<LLMMode, LLMModel>>>({
         [values.llmMode]: values.llmModel
     });
-    const normalizedSpeechModel = useMemo(
-        () => normalizeLocalSpeechModelName(values.transcribeModel),
-        [values.transcribeModel]
-    );
     const transcribeModelOptions = useMemo<TranscribeModel[]>(
-        () => resolveTranscribeOptions(values.transcribeMode, values.openaiKey, values.googleKey, isAuthenticated),
-        [values.transcribeMode, values.openaiKey, values.googleKey, isAuthenticated]
+        () => resolveTranscribeOptions(values.transcribeMode, winkyCatalog),
+        [values.transcribeMode, winkyCatalog]
     );
+    const safeTranscribeModel = transcribeModelOptions.includes(values.transcribeModel)
+        ? values.transcribeModel
+        : transcribeModelOptions[0] ?? values.transcribeModel;
+    const normalizedSpeechModel = useMemo(
+        () => normalizeLocalSpeechModelName(safeTranscribeModel),
+        [safeTranscribeModel]
+    );
+    const winkyTranscribeLabels = useMemo<Record<string, string>>(() => {
+        if (!winkyCatalog) return {};
+        return Object.fromEntries(winkyCatalog.options.map((option) => [
+            `winky-transcribe-${option.level}`,
+            `Winky ${option.name} · ${option.credits_per_minute} credits/min`
+        ]));
+    }, [winkyCatalog]);
     const llmModelOptions = useMemo<LLMModel[]>(
-        () => resolveLlmOptions(values.llmMode, values.openaiKey, values.googleKey, isAuthenticated),
-        [values.llmMode, values.openaiKey, values.googleKey, isAuthenticated]
+        () => resolveLlmOptions(values.llmMode),
+        [values.llmMode]
     );
     const safeLlmModel = useMemo<LLMModel>(() => {
-        if (llmModelOptions.length === 0) {
-            // Keep the current value if no models are available so the UI stays stable.
-            return values.llmModel;
-        }
-        if (llmModelOptions.includes(values.llmModel)) {
-            return values.llmModel;
-        }
-        // Fall back to the first available model automatically.
-        return llmModelOptions[0];
+        if (llmModelOptions.includes(values.llmModel)) return values.llmModel;
+        return llmModelOptions[0] ?? values.llmModel;
     }, [llmModelOptions, values.llmModel]);
-    const {status: localServerStatus} = useLocalSpeechStatus({
+    const {
+        status: localServerStatus,
+        error: localServerError,
+        loading: localServerLoading,
+        operation: localServerOperation,
+        transcriptionInProgress: localTranscriptionInProgress
+    } = useLocalSpeechStatus({
         checkHealthOnMount: true,
         pollIntervalMs: 0
     });
+    const localModelStatus = useLocalSpeechModelStatus(normalizedSpeechModel);
+    const checkingLocalModel = localModelStatus.phase === 'unknown' || localModelStatus.phase === 'checking';
+    const downloadingLocalModel = localModelStatus.phase === 'downloading';
+    const localWarmupInProgress = localModelStatus.phase === 'warming';
+    const localModelDownloaded = localModelStatus.downloaded;
+    const localModelError = localModelStatus.error ?? null;
     const {
         installed: ollamaInstalled,
         checking: ollamaChecking,
@@ -250,29 +253,24 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
         model: safeLlmModel
     });
     const selectedLocalModelMeta = useMemo(
-        () => getLocalSpeechModelMetadata(values.transcribeModel),
-        [values.transcribeModel]
+        () => getLocalSpeechModelMetadata(safeTranscribeModel),
+        [safeTranscribeModel]
     );
     const selectedLocalModelDescription = selectedLocalModelMeta
         ? `${selectedLocalModelMeta.label} (${selectedLocalModelMeta.size})`
         : null;
 
     useEffect(() => {
-        transcribeSelectionByModeRef.current[values.transcribeMode] = values.transcribeModel;
-    }, [values.transcribeMode, values.transcribeModel]);
+        if (transcribeModelOptions.includes(values.transcribeModel)) {
+            transcribeSelectionByModeRef.current[values.transcribeMode] = values.transcribeModel;
+        }
+    }, [values.transcribeMode, values.transcribeModel, transcribeModelOptions]);
 
     useEffect(() => {
-        llmSelectionByModeRef.current[values.llmMode] = values.llmModel;
-    }, [values.llmMode, values.llmModel]);
-
-    useEffect(() => {
-        const unsubscribe = subscribeToLocalTranscriptions((inProgress) => {
-            setLocalTranscriptionInProgress(inProgress);
-        });
-        return () => {
-            unsubscribe();
-        };
-    }, []);
+        if (llmModelOptions.includes(values.llmModel)) {
+            llmSelectionByModeRef.current[values.llmMode] = values.llmModel;
+        }
+    }, [values.llmMode, values.llmModel, llmModelOptions]);
 
     const handleModeInfoClick = useCallback(
         (event: React.MouseEvent, dialogType: ModeInfoDialogType) => {
@@ -292,84 +290,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     }, []);
 
     useEffect(() => {
-        if (values.transcribeMode !== SPEECH_MODES.LOCAL) {
-            setLocalWarmupInProgress(false);
-            warmupRequestRef.current = null;
-            return;
-        }
-        if (!normalizedSpeechModel) {
-            setLocalWarmupInProgress(false);
-            warmupRequestRef.current = null;
-            return;
-        }
-        const unsubscribe = subscribeToLocalModelWarmup((activeModels) => {
-            setLocalWarmupInProgress(activeModels.has(normalizedSpeechModel));
-        });
-        return () => {
-            unsubscribe();
-        };
-    }, [values.transcribeMode, normalizedSpeechModel]);
-
-    useEffect(() => {
         const normalized = normalizedSpeechModel;
-
-        if (values.transcribeMode !== SPEECH_MODES.LOCAL || !normalized) {
-            setLocalModelDownloaded(null);
-            setLocalModelVerifiedFor(null);
-            setCheckingLocalModel(false);
-            setLocalModelError(null);
-            checkingRef.current = null;
-            return;
-        }
-
-        if (!localServerStatus?.installed || !localServerStatus?.running) {
-            setLocalModelDownloaded(null);
-            setLocalModelVerifiedFor(null);
-            setCheckingLocalModel(false);
-            setLocalModelError(null);
-            checkingRef.current = null;
-            return;
-        }
-
-        const modelKey = `${values.transcribeMode}:${normalized}`;
-        if (checkingRef.current === modelKey) {
-            return;
-        }
-
-        checkingRef.current = modelKey;
-        let cancelled = false;
-        setLocalModelDownloaded(null);
-        setLocalModelVerifiedFor(null);
-        setLocalModelError(null);
-
-        const checkModel = async () => {
-            setCheckingLocalModel(true);
-            setLocalModelError(null);
-            try {
-                const downloaded = await checkLocalModelDownloaded(normalized, {force: true});
-                if (!cancelled) {
-                    setLocalModelDownloaded(downloaded);
-                    setLocalModelVerifiedFor(downloaded ? normalized : null);
-                    setCheckingLocalModel(false);
-                }
-            } catch (error: any) {
-                if (!cancelled) {
-                    setLocalModelDownloaded(false);
-                    setLocalModelVerifiedFor(null);
-                    setCheckingLocalModel(false);
-                    setLocalModelError(error?.message || 'Failed to verify the model.');
-                }
-            }
-        };
-
-        void checkModel();
-
-        return () => {
-            cancelled = true;
-            if (checkingRef.current === modelKey) {
-                checkingRef.current = null;
-            }
-        };
+        if (values.transcribeMode !== SPEECH_MODES.LOCAL || !normalized || !localServerStatus?.installed) return;
+        void checkLocalModelDownloaded(normalized, {force: true});
     }, [
         values.transcribeMode,
         normalizedSpeechModel,
@@ -379,110 +302,43 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
 
     useEffect(() => {
         const normalized = normalizedSpeechModel;
-        if (values.transcribeMode !== SPEECH_MODES.LOCAL || !normalized) {
-            warmupRequestRef.current = null;
-            return;
-        }
-        if (!localServerStatus?.installed || !localServerStatus?.running) {
-            warmupRequestRef.current = null;
-            return;
-        }
-        if (checkingLocalModel || downloadingLocalModel || !localModelDownloaded) {
-            return;
-        }
-        if (localModelVerifiedFor !== normalized) {
-            return;
-        }
-        if (localTranscriptionInProgress) {
-            return;
-        }
-        if (localWarmupInProgress) {
-            return;
-        }
-        if (warmupRequestRef.current === normalized) {
-            return;
-        }
-
-        let cancelled = false;
-        warmupRequestRef.current = normalized;
-        const run = async () => {
-            try {
-                const result = await warmupLocalSpeechModel(normalized);
-                // If warmup was skipped because the device is busy, clear the ref later and retry.
-                if (result.device === 'busy' && result.compute_type === 'skipped') {
-                    // Delay the reset to avoid hammering warmup requests.
-                    if (!cancelled) {
-                        setTimeout(() => {
-                            if (warmupRequestRef.current === normalized) {
-                                warmupRequestRef.current = null;
-                            }
-                        }, 5000);
-                    }
-                }
-            } catch (error: any) {
-                console.error('[ModelConfigForm] Failed to warmup model', error);
-                // Ignore 409 here because it means another warmup is already in progress.
-                const status = error?.response?.status;
-                if (!cancelled && status !== 409) {
-                    setLocalModelError('Failed to warm up the model. Please try again later.');
-                }
-                // Delay the reset to avoid an endless retry loop.
-                if (!cancelled) {
-                    setTimeout(() => {
-                        if (warmupRequestRef.current === normalized) {
-                            warmupRequestRef.current = null;
-                        }
-                    }, 5000);
-                }
-            }
-        };
-        void run();
-
-        return () => {
-            cancelled = true;
-        };
+        const canWarmup = values.transcribeMode === SPEECH_MODES.LOCAL
+            && Boolean(normalized)
+            && Boolean(localServerStatus?.running)
+            && localModelStatus.phase === 'installed'
+            && localModelStatus.downloaded === true
+            && !localTranscriptionInProgress;
+        if (!canWarmup) return;
+        void warmupLocalSpeechModel(normalized).catch(() => undefined);
     }, [
         values.transcribeMode,
         normalizedSpeechModel,
-        localServerStatus?.installed,
         localServerStatus?.running,
-        localModelDownloaded,
-        localModelVerifiedFor,
-        checkingLocalModel,
-        downloadingLocalModel,
+        localModelStatus.phase,
+        localModelStatus.downloaded,
         localTranscriptionInProgress,
-        localWarmupInProgress
     ]);
 
     const handleDownloadModel = useCallback(async () => {
         if (values.transcribeMode !== SPEECH_MODES.LOCAL || downloadingLocalModel) {
             return;
         }
-        const metadata = getLocalSpeechModelMetadata(values.transcribeModel);
-        if (metadata) {
-        }
-        setLocalModelError(null);
-        setDownloadingLocalModel(true);
         try {
-            await downloadLocalSpeechModel(values.transcribeModel);
-            const downloaded = await checkLocalModelDownloaded(values.transcribeModel, {force: true});
-            setLocalModelDownloaded(downloaded);
-            if (metadata) {
-            }
-            try {
-                await warmupLocalSpeechModel(values.transcribeModel);
-            } catch {
-                setLocalModelError('The model was downloaded but warmup failed. Please try again later.');
-            }
-        } catch (error: any) {
-            const detail = error?.response?.data?.detail;
-            setLocalModelError(
-                detail || error?.message || 'Failed to download the model. Please check the local server.'
-            );
-        } finally {
-            setDownloadingLocalModel(false);
+            await downloadLocalSpeechModel(safeTranscribeModel);
+            await warmupLocalSpeechModel(safeTranscribeModel);
+        } catch {
+            // The shared local speech state exposes the actionable error to every window.
         }
-    }, [downloadingLocalModel, values.transcribeMode, values.transcribeModel]);
+    }, [downloadingLocalModel, values.transcribeMode, safeTranscribeModel]);
+
+    const handleWarmupModel = useCallback(async () => {
+        if (!localServerStatus?.running || localModelStatus.downloaded !== true) return;
+        try {
+            await warmupLocalSpeechModel(safeTranscribeModel);
+        } catch {
+            // The shared local speech state exposes the actionable error to every window.
+        }
+    }, [localServerStatus?.running, localModelStatus.downloaded, safeTranscribeModel]);
 
     const handleDownloadLlmModel = useCallback(async () => {
         if (values.llmMode !== LLM_MODES.LOCAL || ollamaDownloadingModel) {
@@ -523,56 +379,48 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
 
         // Подхватываем корректную модель сразу при смене режима, чтобы Select не мигал пустым значением.
         if (partial.transcribeMode && partial.transcribeModel === undefined) {
-            const options = resolveTranscribeOptions(partial.transcribeMode, partial.openaiKey ?? values.openaiKey, partial.googleKey ?? values.googleKey, isAuthenticated);
+            const options = resolveTranscribeOptions(partial.transcribeMode, winkyCatalog);
             const currentModel = nextValues.transcribeModel;
             const rememberedModel = transcribeSelectionByModeRef.current[partial.transcribeMode];
             const resolvedModel =
                 (rememberedModel && options.includes(rememberedModel)) ? rememberedModel
                     : options.includes(currentModel)
                         ? currentModel
-                        : options[0];
-            nextValues.transcribeModel = resolvedModel as TranscribeModel;
+                        : options[0] ?? currentModel;
+            nextValues.transcribeModel = resolvedModel;
         }
 
         if (partial.llmMode && partial.llmModel === undefined) {
-            const options = resolveLlmOptions(partial.llmMode, partial.openaiKey ?? values.openaiKey, partial.googleKey ?? values.googleKey, isAuthenticated);
+            const options = resolveLlmOptions(partial.llmMode);
             const currentModel = nextValues.llmModel;
             const rememberedModel = llmSelectionByModeRef.current[partial.llmMode];
             const resolvedModel =
                 (rememberedModel && options.includes(rememberedModel)) ? rememberedModel
                     : options.includes(currentModel)
                         ? currentModel
-                        : options[0];
-            nextValues.llmModel = resolvedModel as LLMModel;
+                        : options[0] ?? currentModel;
+            nextValues.llmModel = resolvedModel;
         }
 
-        latestValuesRef.current = nextValues;
         onChange(nextValues);
 
-        // Для промптов не вызываем автосохранение сразу - оно будет через дебаунс
-        const isPromptChange = 'globalTranscribePrompt' in partial || 'globalLlmPrompt' in partial;
-        if (shouldAutoSave && onAutoSave && !isPromptChange) {
-            void onAutoSave(nextValues);
-        }
-    }, [values, onChange, shouldAutoSave, onAutoSave, isAuthenticated]);
+        if (shouldAutoSave && onAutoSave) void onAutoSave(nextValues);
+    }, [values, onChange, shouldAutoSave, onAutoSave, winkyCatalog]);
 
     const emitPromptChange = useCallback((partial: Pick<Partial<ModelConfigFormData>, 'globalTranscribePrompt' | 'globalLlmPrompt'>) => {
         emitChange(partial);
+    }, [emitChange]);
 
-        if (promptDebounceTimerRef.current !== null) {
-            clearTimeout(promptDebounceTimerRef.current);
+    useEffect(() => {
+        const partial: Partial<ModelConfigFormData> = {};
+        if (safeTranscribeModel && safeTranscribeModel !== values.transcribeModel) {
+            partial.transcribeModel = safeTranscribeModel;
         }
-
-        if (!shouldAutoSave || !onAutoSave) {
-            promptDebounceTimerRef.current = null;
-            return;
+        if (safeLlmModel && safeLlmModel !== values.llmModel) {
+            partial.llmModel = safeLlmModel;
         }
-
-        promptDebounceTimerRef.current = window.setTimeout(() => {
-            promptDebounceTimerRef.current = null;
-            void onAutoSave(latestValuesRef.current);
-        }, 800);
-    }, [emitChange, shouldAutoSave, onAutoSave]);
+        if (Object.keys(partial).length > 0) emitChange(partial);
+    }, [emitChange, safeLlmModel, safeTranscribeModel, values.llmModel, values.transcribeModel]);
 
     useEffect(() => {
         if (values.transcribeMode !== SPEECH_MODES.LOCAL) {
@@ -582,26 +430,6 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
             emitChange({transcribeModel: selectedLocalModelMeta.id as TranscribeModel});
         }
     }, [values.transcribeMode, values.transcribeModel, selectedLocalModelMeta, emitChange]);
-
-    useEffect(() => {
-        // Keep the selected model when no options are available and show the warning instead.
-        if (values.transcribeMode === SPEECH_MODES.API && transcribeModelOptions.length === 0) {
-            return;
-        }
-        if (!transcribeModelOptions.includes(values.transcribeModel)) {
-            emitChange({transcribeModel: transcribeModelOptions[0] as TranscribeModel});
-        }
-    }, [transcribeModelOptions, values.transcribeModel, values.transcribeMode, emitChange]);
-
-    useEffect(() => {
-        // Keep the selected model when no options are available and show the warning instead.
-        if (values.llmMode === LLM_MODES.API && llmModelOptions.length === 0) {
-            return;
-        }
-        if (values.llmModel !== safeLlmModel) {
-            emitChange({llmModel: safeLlmModel});
-        }
-    }, [values.llmModel, safeLlmModel, values.llmMode, llmModelOptions.length, emitChange]);
 
     useEffect(() => {
         setOllamaModelError(null);
@@ -657,9 +485,9 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
     const requiresOpenAIKeyForLLM = values.llmMode === LLM_MODES.API && isOpenAiApiModel(safeLlmModel);
     const requiresGoogleKeyForLLM = values.llmMode === LLM_MODES.API && isGeminiApiModel(safeLlmModel);
     const requiresOpenAIKeyForTranscribe =
-        values.transcribeMode === SPEECH_MODES.API && isOpenAiTranscribeModel(values.transcribeModel);
+        values.transcribeMode === SPEECH_MODES.API && isOpenAiTranscribeModel(safeTranscribeModel);
     const requiresGoogleKeyForTranscribe =
-        values.transcribeMode === SPEECH_MODES.API && isGoogleTranscribeModel(values.transcribeModel);
+        values.transcribeMode === SPEECH_MODES.API && isGoogleTranscribeModel(safeTranscribeModel);
     const requiresOpenAIKey = requiresOpenAIKeyForLLM || requiresOpenAIKeyForTranscribe;
     const requiresGoogleKey = requiresGoogleKeyForLLM || requiresGoogleKeyForTranscribe;
     const googleKeyReasons: string[] = [];
@@ -743,16 +571,24 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                         }}
                     >
                         <ModelTranscribeSection
-                            values={{transcribeMode: values.transcribeMode, transcribeModel: values.transcribeModel}}
+                            values={{transcribeMode: values.transcribeMode, transcribeModel: safeTranscribeModel}}
                             emitChange={emitChange}
                             disableInputs={disableInputs}
                             transcribeModelOptions={transcribeModelOptions}
+                            transcribeModelLabels={winkyTranscribeLabels}
+                            currentModelUnavailable={!transcribeModelOptions.includes(values.transcribeModel)}
+                            winkyCatalogLabel={winkyCatalog?.group_label ?? null}
+                            winkyCatalogError={winkyCatalogError}
                             localServerInstalled={Boolean(localServerStatus?.installed)}
                             localServerRunning={Boolean(localServerStatus?.running)}
+                            localServerLoading={localServerLoading || localServerOperation !== null}
+                            localServerError={localServerError}
+                            localModelPhase={localModelStatus.phase}
                             checkingLocalModel={checkingLocalModel}
                             localModelDownloaded={localModelDownloaded}
                             downloadingLocalModel={downloadingLocalModel}
                             handleDownloadModel={handleDownloadModel}
+                            handleWarmupModel={handleWarmupModel}
                             downloadButtonLabel={downloadButtonLabel}
                             localModelError={localModelError}
                             localWarmupInProgress={localWarmupInProgress}
@@ -841,6 +677,7 @@ const ModelConfigForm: React.FC<ModelConfigFormProps> = ({
                             disableInputs={disableInputs}
                             isLocalLLMMode={isLocalLLMMode}
                             llmModelOptions={llmModelOptions}
+                            currentModelUnavailable={!llmModelOptions.includes(values.llmModel)}
                             ollamaChecking={ollamaChecking}
                             ollamaInstalled={ollamaInstalled}
                             ollamaError={ollamaError}

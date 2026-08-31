@@ -61,12 +61,12 @@ export abstract class ApiLLMBaseService implements BaseLLMService {
         return JSON.stringify(response);
     }
 
-    async process(text: string, prompt: string): Promise<string> {
+    async process(text: string, prompt: string, options?: {signal?: AbortSignal}): Promise<string> {
         const url = this.buildUrl();
         const body = this.buildBody(text, prompt);
         const headers = this.buildHeaders();
 
-        const {data} = await this.client.post(url, body, {headers});
+        const {data} = await this.client.post(url, body, {headers, signal: options?.signal});
         return this.extractResult(data);
     }
 
@@ -78,7 +78,7 @@ export abstract class ApiLLMBaseService implements BaseLLMService {
     ): Promise<string> {
         if (!this.supportsStreaming) {
             // Fallback to non-streaming
-            const result = await this.process(text, prompt);
+            const result = await this.process(text, prompt, options);
             onChunk(result);
             return result;
         }

@@ -25,13 +25,14 @@ const getLogUrl = (url: string, baseURL?: string): string => {
     if (!url) {
         return 'unknown';
     }
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-        return url;
-    }
-    if (!baseURL) {
-        return url;
-    }
     try {
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            const parsed = new URL(url);
+            parsed.search = '';
+            parsed.hash = '';
+            return parsed.toString();
+        }
+        if (!baseURL) return url.split(/[?#]/, 1)[0];
         const normalizedBase = baseURL.startsWith('http://') || baseURL.startsWith('https://')
             ? baseURL
             : typeof window !== 'undefined'
@@ -40,7 +41,10 @@ const getLogUrl = (url: string, baseURL?: string): string => {
         if (!normalizedBase) {
             return url;
         }
-        return new URL(url, normalizedBase).toString();
+        const parsed = new URL(url, normalizedBase);
+        parsed.search = '';
+        parsed.hash = '';
+        return parsed.toString();
     } catch {
         return url;
     }
@@ -48,7 +52,7 @@ const getLogUrl = (url: string, baseURL?: string): string => {
 
 export const createApiClient = (
     accessToken?: string,
-    sendToRenderer?: (message: string, data?: any) => void,
+    sendToRenderer?: (message: string, data?: unknown) => void,
     backendDomain?: string | null,
     emitUnauthorizedOn401: boolean = true
 ) => {
@@ -63,32 +67,22 @@ export const createApiClient = (
         instance.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
     }
 
-    // Request interceptor для логирования
     instance.interceptors.request.use(
         (config) => {
             const method = config.method?.toUpperCase() || 'GET';
             const url = config.url || '';
             const fullUrl = getLogUrl(url, config.baseURL);
 
-            console.log(`%cAPI → %c[${method}] %c${fullUrl}`,
-                'color: #10b981; font-weight: bold',
-                'color: #3b82f6; font-weight: bold',
-                'color: #8b5cf6'
-            );
+            console.debug(`[api] → [${method}] ${fullUrl}`);
 
-            if (config.data) {
-                console.log('  📤 Request data:', config.data);
-            }
-
-            // Отправляем в renderer если доступна функция
             if (sendToRenderer) {
-                sendToRenderer('api-request', {method, url: fullUrl, data: config.data});
+                sendToRenderer('api-request', {method, url: fullUrl});
             }
 
             return config;
         },
         (error) => {
-            console.error('%cAPI → ERROR', 'color: #ef4444; font-weight: bold', error);
+            console.error('[api] Request failed before receiving a response', error?.message ?? error);
             if (sendToRenderer) {
                 sendToRenderer('api-error', {error: error.message});
             }
@@ -96,7 +90,6 @@ export const createApiClient = (
         }
     );
 
-    // Response interceptor для логирования
     instance.interceptors.response.use(
         (response) => {
             const method = response.config.method?.toUpperCase() || 'GET';
@@ -104,18 +97,10 @@ export const createApiClient = (
             const fullUrl = getLogUrl(url, response.config.baseURL);
             const status = response.status;
 
-            console.log(`%cAPI ← %c[${method}] %c${fullUrl} %c[${status}]`,
-                'color: #10b981; font-weight: bold',
-                'color: #3b82f6; font-weight: bold',
-                'color: #8b5cf6',
-                'color: #22c55e; font-weight: bold'
-            );
+            console.debug(`[api] ← [${method}] ${fullUrl} [${status}]`);
 
-            console.log('  📥 Response data:', response.data);
-
-            // Отправляем в renderer если доступна функция
             if (sendToRenderer) {
-                sendToRenderer('api-response', {method, url: fullUrl, status, data: response.data});
+                sendToRenderer('api-response', {method, url: fullUrl, status});
             }
 
             return response;
@@ -126,31 +111,18 @@ export const createApiClient = (
             const fullUrl = url === 'unknown' ? url : getLogUrl(url, error.config?.baseURL);
             const status = error.response?.status || 'N/A';
 
-            console.error(`%cAPI ← %c[${method}] %c${fullUrl} %c[${status}]`,
-                'color: #ef4444; font-weight: bold',
-                'color: #3b82f6; font-weight: bold',
-                'color: #8b5cf6',
-                'color: #ef4444; font-weight: bold'
-            );
+            console.error(`[api] ← [${method}] ${fullUrl} [${status}]`, error.message);
 
-            if (error.response?.data) {
-                console.error('  ❌ Error data:', error.response.data);
-            } else {
-                console.error('  ❌ Error:', error.message);
-            }
-
-            // При 401 эмитим событие для глобальной обработки (разлогинивание)
             if (status === 401 && emitUnauthorizedOn401) {
                 triggerUnauthorized();
             }
 
-            // Отправляем в renderer если доступна функция
             if (sendToRenderer) {
                 sendToRenderer('api-response-error', {
                     method,
                     url: fullUrl,
                     status,
-                    error: error.response?.data || error.message
+                    error: error.message
                 });
             }
 

@@ -44,8 +44,12 @@ const SetupWindow: React.FC = () => {
     });
 
     const [saving, setSaving] = useState(false);
-    const bothLocalModes =
-        formData.transcribeMode === SPEECH_MODES.LOCAL && formData.llmMode === LLM_MODES.LOCAL;
+    const requiresApiKey =
+        (formData.transcribeMode === SPEECH_MODES.API
+            && (isOpenAiTranscribeModel(formData.transcribeModel)
+                || isGoogleTranscribeModel(formData.transcribeModel)))
+        || (formData.llmMode === LLM_MODES.API
+            && (isOpenAiApiModel(formData.llmModel) || isGoogleAiApiModel(formData.llmModel)));
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -124,12 +128,13 @@ const SetupWindow: React.FC = () => {
                     </div>
 
                     <ModelConfigForm
+                        backendDomain={config.backendDomain}
                         values={formData}
                         onChange={setFormData}
                         onSubmit={handleSubmit}
                         submitButtonText="Complete Setup"
                         saving={saving}
-                        requireApiKeys={!bothLocalModes}
+                        requireApiKeys={requiresApiKey}
                     />
                 </div>
             </div>

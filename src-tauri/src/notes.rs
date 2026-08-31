@@ -2,14 +2,20 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use tokio::fs;
+use tokio::sync::Mutex;
 use uuid::Uuid;
+
+use crate::durable_json::JsonFile;
 
 const NOTES_DIR_NAME: &str = "notes";
 const NOTES_FILE_NAME: &str = "notes.json";
 const LOCAL_PROFILE_ID: &str = "local";
+
+static NOTES_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -88,36 +94,23 @@ async fn notes_file_path(app: &AppHandle) -> Result<PathBuf> {
 
 async fn read_notes(app: &AppHandle) -> Result<Vec<NoteEntry>> {
     let path = notes_file_path(app).await?;
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    let contents = fs::read_to_string(&path)
-        .await
-        .with_context(|| format!("read notes from {}", path.display()))?;
-    if contents.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-    match serde_json::from_str::<Vec<NoteEntry>>(&contents) {
-        Ok(entries) => Ok(entries),
-        Err(error) => {
-            eprintln!("[notes] Failed to parse notes file: {error}");
-            Ok(Vec::new())
-        }
-    }
+    Ok(JsonFile::read::<Vec<NoteEntry>>(&path)
+        .await?
+        .unwrap_or_default())
 }
 
 async fn write_notes(app: &AppHandle, entries: &[NoteEntry]) -> Result<()> {
     let path = notes_file_path(app).await?;
-    let serialized = serde_json::to_string_pretty(entries).context("serialize notes")?;
-    fs::write(&path, serialized)
+    JsonFile::write(&path, &entries)
         .await
         .with_context(|| format!("write notes to {}", path.display()))
 }
 
 pub async fn list_notes(app: &AppHandle, page: u32, page_size: u32) -> Result<NoteListResponse> {
+    let _guard = NOTES_LOCK.lock().await;
     let page = page.max(1);
     let page_size = page_size.max(1);
-    let entries = read_notes(app).await.unwrap_or_default();
+    let entries = read_notes(app).await?;
     let total = entries.len();
     let start = (page as usize - 1) * page_size as usize;
     let end = usize::min(start + page_size as usize, total);
@@ -127,7 +120,11 @@ pub async fn list_notes(app: &AppHandle, page: u32, page_size: u32) -> Result<No
         Vec::new()
     };
     let next_page = if end < total { Some(page + 1) } else { None };
-    let previous_page = if page > 1 && start > 0 { Some(page - 1) } else { None };
+    let previous_page = if page > 1 && start > 0 {
+        Some(page - 1)
+    } else {
+        None
+    };
 
     Ok(NoteListResponse {
         count: total,
@@ -138,24 +135,15 @@ pub async fn list_notes(app: &AppHandle, page: u32, page_size: u32) -> Result<No
 }
 
 pub async fn create_note(app: &AppHandle, payload: NoteCreateInput) -> Result<NoteEntry> {
-    let mut entries = match read_notes(app).await {
-        Ok(existing) => existing,
-        Err(error) => {
-            eprintln!("[notes] Failed to read notes before create: {error}");
-            Vec::new()
-        }
-    };
+    let _guard = NOTES_LOCK.lock().await;
+    let mut entries = read_notes(app).await?;
 
     let trimmed_title = payload.title.trim();
     if trimmed_title.is_empty() {
         return Err(anyhow!("Title cannot be empty"));
     }
     let description = payload.description.unwrap_or_default();
-    let x_username = payload
-        .x_username
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+    let x_username = payload.x_username.unwrap_or_default().trim().to_string();
     let now = Utc::now().to_rfc3339();
 
     let entry = NoteEntry {
@@ -174,7 +162,8 @@ pub async fn create_note(app: &AppHandle, payload: NoteCreateInput) -> Result<No
 }
 
 pub async fn update_note(app: &AppHandle, payload: NoteUpdateInput) -> Result<NoteEntry> {
-    let mut entries = read_notes(app).await.unwrap_or_default();
+    let _guard = NOTES_LOCK.lock().await;
+    let mut entries = read_notes(app).await?;
     let mut updated_entry: Option<NoteEntry> = None;
 
     for entry in &mut entries {
@@ -204,7 +193,8 @@ pub async fn update_note(app: &AppHandle, payload: NoteUpdateInput) -> Result<No
 }
 
 pub async fn delete_note(app: &AppHandle, payload: NoteDeleteInput) -> Result<()> {
-    let mut entries = read_notes(app).await.unwrap_or_default();
+    let _guard = NOTES_LOCK.lock().await;
+    let mut entries = read_notes(app).await?;
     let before = entries.len();
     entries.retain(|entry| entry.id != payload.id);
     if entries.len() == before {
@@ -214,14 +204,18 @@ pub async fn delete_note(app: &AppHandle, payload: NoteDeleteInput) -> Result<()
     Ok(())
 }
 
-pub async fn bulk_delete_notes(app: &AppHandle, payload: NoteBulkDeleteInput) -> Result<NoteBulkDeleteResponse> {
+pub async fn bulk_delete_notes(
+    app: &AppHandle,
+    payload: NoteBulkDeleteInput,
+) -> Result<NoteBulkDeleteResponse> {
+    let _guard = NOTES_LOCK.lock().await;
     if payload.ids.is_empty() {
         return Err(anyhow!("Ids cannot be empty"));
     }
-    let mut entries = read_notes(app).await.unwrap_or_default();
+    let mut entries = read_notes(app).await?;
     let before = entries.len();
     entries.retain(|entry| !payload.ids.contains(&entry.id));
     let deleted_count = before.saturating_sub(entries.len());
     write_notes(app, &entries).await?;
-    Ok(NoteBulkDeleteResponse {deleted_count})
+    Ok(NoteBulkDeleteResponse { deleted_count })
 }

@@ -1,6 +1,8 @@
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import type {AppConfig} from '@shared/types';
 import {setBackendDomain} from '@shared/constants';
+import {triggerUnauthorized} from '@shared/api';
+import {authClient} from '../../services/authClient';
 
 const missingPreloadMessage = 'Preload script is not loaded.';
 
@@ -20,7 +22,26 @@ export const useConfigController = (): ConfigController => {
         typeof window !== 'undefined' && window.winky ? null : missingPreloadMessage
     );
 
-    const ensurePreload = useCallback(() => {
+    const updateQueueRef = useRef<Promise<void>>(Promise.resolve());
+    const pendingUpdatesRef = useRef(0);
+    const latestUpdateRef = useRef<AppConfig | null>(null);
+    const readSequenceRef = useRef(0);
+
+    const applyConfig = useCallback((next: AppConfig) => {
+        const hadAuth = authClient.hasTokens();
+        setBackendDomain(next.backendDomain);
+        authClient.setSession(
+            next.auth,
+            next.backendDomain,
+            next.storageRevision,
+            next.authRevision
+        );
+        if (hadAuth && !authClient.hasTokens()) triggerUnauthorized();
+        setConfigState(next);
+        setPreloadError(null);
+    }, []);
+
+    const getBridge = useCallback(() => {
         if (!window.winky) {
             setPreloadError(missingPreloadMessage);
             throw new Error(missingPreloadMessage);
@@ -29,47 +50,73 @@ export const useConfigController = (): ConfigController => {
     }, []);
 
     const refreshConfig = useCallback(async () => {
-        const api = ensurePreload();
+        const api = getBridge();
+        const sequence = ++readSequenceRef.current;
         const result = await api.config.get();
-        setBackendDomain(result.backendDomain);
-        setConfigState(result);
-        setPreloadError(null);
+        if (sequence === readSequenceRef.current && pendingUpdatesRef.current === 0) {
+            applyConfig(result);
+        }
         return result;
-    }, [ensurePreload]);
+    }, [applyConfig, getBridge]);
 
-    const updateConfig = useCallback(async (partial: Partial<AppConfig>) => {
-        const api = ensurePreload();
-        const result = await api.config.update(partial);
-        setBackendDomain(result.backendDomain);
-        setConfigState(result);
-        setPreloadError(null);
-        return result;
-    }, [ensurePreload]);
+    const updateConfig = useCallback((partial: Partial<AppConfig>): Promise<AppConfig> => {
+        pendingUpdatesRef.current += 1;
+        const operation = updateQueueRef.current.then(async () => {
+            const api = getBridge();
+            const result = await api.config.update(partial);
+            latestUpdateRef.current = result;
+            return result;
+        });
+
+        updateQueueRef.current = operation.then(
+            () => undefined,
+            () => undefined
+        );
+
+        return operation.finally(async () => {
+            pendingUpdatesRef.current = Math.max(0, pendingUpdatesRef.current - 1);
+            if (pendingUpdatesRef.current > 0) return;
+
+            try {
+                await refreshConfig();
+            } catch (error) {
+                const latestUpdate = latestUpdateRef.current;
+                if (pendingUpdatesRef.current === 0 && latestUpdate) applyConfig(latestUpdate);
+                console.warn('[useConfigController] Failed to reconcile config after update', error);
+            } finally {
+                if (pendingUpdatesRef.current === 0) latestUpdateRef.current = null;
+            }
+        });
+    }, [applyConfig, getBridge, refreshConfig]);
 
     const setConfig = useCallback((next: AppConfig) => {
-        setBackendDomain(next.backendDomain);
-        setConfigState(next);
-    }, []);
-
-    useEffect(() => {
-        const subscribe = window.winky?.config?.subscribe;
-        if (!subscribe) {
-            return;
-        }
-        const unsubscribe = subscribe((nextConfig: AppConfig) => {
-            setBackendDomain(nextConfig.backendDomain);
-            setConfigState(nextConfig);
-        });
-        return () => {
-            if (typeof unsubscribe === 'function') {
-                unsubscribe();
-            }
-        };
-    }, []);
+        readSequenceRef.current += 1;
+        applyConfig(next);
+    }, [applyConfig]);
 
     useEffect(() => {
         let cancelled = false;
-        const load = async () => {
+        let unsubscribe: (() => void) | null = null;
+
+        const initialize = async () => {
+            const subscribe = window.winky?.config?.subscribe;
+            if (subscribe) {
+                try {
+                    unsubscribe = await subscribe(() => {
+                        if (cancelled) return;
+                        void refreshConfig().catch((error) => {
+                            console.warn('[useConfigController] Failed to refresh config event', error);
+                        });
+                    });
+                } catch (error) {
+                    console.warn('[useConfigController] Failed to subscribe to config updates', error);
+                }
+            }
+
+            if (cancelled) {
+                unsubscribe?.();
+                return;
+            }
             try {
                 await refreshConfig();
             } catch (error) {
@@ -80,9 +127,11 @@ export const useConfigController = (): ConfigController => {
                 }
             }
         };
-        void load();
+
+        void initialize();
         return () => {
             cancelled = true;
+            unsubscribe?.();
         };
     }, [refreshConfig]);
 

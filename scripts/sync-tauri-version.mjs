@@ -1,60 +1,60 @@
 import fs from 'fs';
 import path from 'path';
 import {fileURLToPath} from 'url';
-import {execSync} from 'child_process';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const root = path.resolve(__dirname, '..');
-const pkgPath = path.join(root, 'package.json');
+const scriptPath = fileURLToPath(import.meta.url);
+const root = path.resolve(path.dirname(scriptPath), '..');
+const packagePath = path.join(root, 'package.json');
 const tauriConfigPath = path.join(root, 'src-tauri', 'tauri.conf.json');
 const cargoTomlPath = path.join(root, 'src-tauri', 'Cargo.toml');
+const cargoLockPath = path.join(root, 'src-tauri', 'Cargo.lock');
+const checkOnly = process.argv.includes('--check');
+const tagIndex = process.argv.indexOf('--tag');
+const expectedTag = tagIndex >= 0 ? process.argv[tagIndex + 1] : null;
+const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
-const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+const version = packageJson.version;
+if (!semverPattern.test(version)) {
+    throw new Error(`package.json contains an invalid SemVer version: ${version}`);
+}
+if (expectedTag !== null && expectedTag !== `v${version}`) {
+    throw new Error(`Release tag ${expectedTag} does not match package version v${version}`);
+}
+
 const tauriConfig = JSON.parse(fs.readFileSync(tauriConfigPath, 'utf8'));
-
-let updated = false;
-let cargoTomlUpdated = false;
-
-// Update tauri.conf.json
-if (tauriConfig.version !== pkg.version) {
-    tauriConfig.version = pkg.version;
-    fs.writeFileSync(tauriConfigPath, JSON.stringify(tauriConfig, null, 2) + '\n');
-    console.log(`[sync-tauri-version] Updated tauri.conf.json version -> ${pkg.version}`);
-    updated = true;
-} else {
-    console.log('[sync-tauri-version] Tauri config version already up to date.');
-}
-
-// Update Cargo.toml
 const cargoToml = fs.readFileSync(cargoTomlPath, 'utf8');
-const versionRegex = /^version\s*=\s*"([^"]+)"/m;
-const match = cargoToml.match(versionRegex);
+const cargoLock = fs.readFileSync(cargoLockPath, 'utf8');
+const cargoTomlPattern = /^(version\s*=\s*")([^"]+)(")/m;
+const cargoLockPattern = /(\[\[package\]\]\r?\nname = "winky"\r?\nversion = ")([^"]+)(")/;
+const cargoTomlMatch = cargoToml.match(cargoTomlPattern);
+const cargoLockMatch = cargoLock.match(cargoLockPattern);
+const mismatches = [];
 
-if (match && match[1] !== pkg.version) {
-    const updatedCargoToml = cargoToml.replace(versionRegex, `version = "${pkg.version}"`);
-    fs.writeFileSync(cargoTomlPath, updatedCargoToml);
-    console.log(`[sync-tauri-version] Updated Cargo.toml version -> ${pkg.version}`);
-    updated = true;
-    cargoTomlUpdated = true;
-} else if (match && match[1] === pkg.version) {
-    console.log('[sync-tauri-version] Cargo.toml version already up to date.');
-} else {
-    console.warn('[sync-tauri-version] Could not find version in Cargo.toml');
-}
+if (tauriConfig.version !== version) mismatches.push(`tauri.conf.json=${tauriConfig.version}`);
+if (cargoTomlMatch?.[2] !== version) mismatches.push(`Cargo.toml=${cargoTomlMatch?.[2] ?? 'missing'}`);
+if (cargoLockMatch?.[2] !== version) mismatches.push(`Cargo.lock=${cargoLockMatch?.[2] ?? 'missing'}`);
 
-// Update Cargo.lock if Cargo.toml was updated
-if (cargoTomlUpdated) {
-    try {
-        console.log('[sync-tauri-version] Updating Cargo.lock...');
-        execSync('cargo check', {
-            cwd: path.join(root, 'src-tauri'),
-            stdio: 'inherit'
-        });
-        console.log('[sync-tauri-version] Cargo.lock updated successfully.');
-    } catch (error) {
-        console.warn('[sync-tauri-version] Failed to update Cargo.lock:', error.message);
-        console.warn('[sync-tauri-version] Cargo.lock will be updated on next cargo build.');
+if (checkOnly) {
+    if (mismatches.length > 0) {
+        throw new Error(`Version mismatch: package.json=${version}; ${mismatches.join('; ')}`);
     }
+    console.log(`[sync-tauri-version] Version ${version} is consistent.`);
+    process.exit(0);
 }
+
+if (mismatches.length === 0) {
+    console.log(`[sync-tauri-version] Version ${version} is already consistent.`);
+    process.exit(0);
+}
+if (!cargoTomlMatch || !cargoLockMatch) {
+    throw new Error('Could not locate the Winky package version in Cargo files.');
+}
+
+tauriConfig.version = version;
+const nextCargoToml = cargoToml.replace(cargoTomlPattern, `$1${version}$3`);
+const nextCargoLock = cargoLock.replace(cargoLockPattern, `$1${version}$3`);
+fs.writeFileSync(tauriConfigPath, `${JSON.stringify(tauriConfig, null, 2)}\n`, 'utf8');
+fs.writeFileSync(cargoTomlPath, nextCargoToml, 'utf8');
+fs.writeFileSync(cargoLockPath, nextCargoLock, 'utf8');
+console.log(`[sync-tauri-version] Synchronized Tauri and Cargo to ${version}.`);

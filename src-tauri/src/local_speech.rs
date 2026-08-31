@@ -3,7 +3,6 @@ use std::fs::File;
 use std::future::Future;
 use std::io::Cursor;
 #[cfg(windows)]
-#[cfg(windows)]
 #[allow(unused_imports)]
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};

@@ -404,11 +404,19 @@ mod tests {
 
     #[test]
     fn validates_full_config_shadow() {
-        let mut config = AppConfig::default();
-        config.storage_revision = 5;
-        config.auth_revision = 2;
-        config.auth.access = "access-token".to_string();
-        config.api_keys.openai = "api-key".to_string();
+        let config = AppConfig {
+            storage_revision: 5,
+            auth_revision: 2,
+            auth: AuthTokens {
+                access: "access-token".to_string(),
+                ..AuthTokens::default()
+            },
+            api_keys: ApiKeys {
+                openai: "api-key".to_string(),
+                ..ApiKeys::default()
+            },
+            ..AppConfig::default()
+        };
         let secrets = StoredSecrets {
             storage_revision: config.storage_revision,
             auth_revision: config.auth_revision,

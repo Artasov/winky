@@ -238,7 +238,7 @@ impl ConfigState {
                 }
                 return Err(config_error).context("write config");
             }
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(not(windows))]

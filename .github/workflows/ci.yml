@@ -361,26 +361,33 @@ jobs:
         run: |
           set -euo pipefail
           for manifest_name in latest-v2.json latest.json; do
+            object_key="winky/${manifest_name}"
             published_manifest="published-${manifest_name}"
-            latest_url="${S3_ENDPOINT}/${S3_BUCKET}/winky/${manifest_name}"
-            latest_status="$(curl --silent --show-error \
-              --output "${published_manifest}" \
-              --write-out '%{http_code}' \
-              "${latest_url}")"
-            case "${latest_status}" in
-              200)
-                node scripts/release-manifest.mjs check-monotonic \
-                  "${published_manifest}" manifest.json
-                break
-                ;;
-              404)
-                rm -f "${published_manifest}"
-                ;;
-              *)
-                echo "Failed to read ${manifest_name}: HTTP ${latest_status}."
-                exit 1
-                ;;
-            esac
+            get_error="$(mktemp)"
+            get_status=0
+
+            aws s3api get-object \
+              --bucket "${S3_BUCKET}" \
+              --key "${object_key}" \
+              --endpoint-url "${S3_ENDPOINT}" \
+              "${published_manifest}" >/dev/null 2>"${get_error}" || get_status=$?
+
+            if [ "${get_status}" -eq 0 ]; then
+              rm -f "${get_error}"
+              node scripts/release-manifest.mjs check-monotonic \
+                "${published_manifest}" manifest.json
+              break
+            fi
+
+            if grep -Eq '(NoSuchKey|\(404\)|HTTP 404|Not Found)' "${get_error}"; then
+              rm -f "${published_manifest}" "${get_error}"
+              continue
+            fi
+
+            echo "GET failed for ${object_key}." >&2
+            cat "${get_error}" >&2
+            rm -f "${published_manifest}" "${get_error}"
+            exit 1
           done
 
           node scripts/release-manifest.mjs list-artifacts manifest.json >/dev/null

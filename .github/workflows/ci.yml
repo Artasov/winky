@@ -839,22 +839,19 @@ jobs:
               --cache-control 'public,max-age=60,must-revalidate' \
               --content-type application/json >"${put_output}" 2>"${put_error}" || put_status=$?
             if [ "${put_status}" -ne 0 ]; then
-              if ! grep -Eq '(409|412|ConditionalRequestConflict|PreconditionFailed)' "${put_error}"; then
-                cat "${put_error}" >&2
-                rm -f "${head_file}" "${head_error}" "${put_output}" "${put_error}"
-                return 1
-              fi
               raced_file="$(mktemp)"
-              aws s3api get-object \
-                --bucket "${S3_BUCKET}" \
-                --key "${object_key}" \
-                --endpoint-url "${S3_ENDPOINT}" \
-                "${raced_file}" >/dev/null
-              if ! cmp --silent "${source_file}" "${raced_file}"; then
+              if ! aws s3api get-object \
+                  --bucket "${S3_BUCKET}" \
+                  --key "${object_key}" \
+                  --endpoint-url "${S3_ENDPOINT}" \
+                  "${raced_file}" >/dev/null 2>/dev/null || \
+                ! cmp --silent "${source_file}" "${raced_file}"; then
+                cat "${put_error}" >&2
                 rm -f "${raced_file}" "${head_file}" "${head_error}" "${put_output}" "${put_error}"
-                echo "${object_key} changed during publication." >&2
+                echo "${object_key} does not contain the expected bytes after publication." >&2
                 return 1
               fi
+              echo "${object_key} contains the expected bytes despite the storage client error."
               rm -f "${raced_file}"
             fi
             rm -f "${head_file}" "${head_error}" "${put_output}" "${put_error}"

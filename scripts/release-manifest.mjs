@@ -99,7 +99,7 @@ class ReleaseManifest {
         fs.writeFileSync(outputPath, `${JSON.stringify(legacy)}\n`, 'utf8');
     }
 
-    static checkMonotonic(existingPath, nextPayloadPath) {
+    static checkMonotonic(existingPath, nextPayloadPath, expectedDocumentPath) {
         const existingDocument = JSON.parse(fs.readFileSync(existingPath, 'utf8'));
         const existingPayloadBytes = typeof existingDocument.payload === 'string'
             ? Buffer.from(existingDocument.payload, 'base64')
@@ -113,6 +113,10 @@ class ReleaseManifest {
         }
         if (comparison === 0 && !existingPayloadBytes.equals(nextPayloadBytes)) {
             throw new Error(`Published release ${nextPayload.version} has different immutable manifest bytes.`);
+        }
+        if (comparison === 0 && expectedDocumentPath
+            && !fs.readFileSync(existingPath).equals(fs.readFileSync(expectedDocumentPath))) {
+            throw new Error(`Published release ${nextPayload.version} has different current manifest bytes.`);
         }
     }
 

@@ -762,70 +762,76 @@ jobs:
         run: |
           set -euo pipefail
 
-          read_head() {
-            local object_key="$1"
-            local output_file="$2"
-            local error_file="$3"
-            if aws s3api head-object \
-              --bucket "${S3_BUCKET}" \
-              --key "${object_key}" \
-              --endpoint-url "${S3_ENDPOINT}" >"${output_file}" 2>"${error_file}"; then
-              return 0
-            fi
-            # Timeweb can emit this for a missing key; creation still uses If-None-Match.
-            if grep -Eq '(\(404\)|HTTP 404|Not Found|NoSuchKey|NoneType.*not a container or iterable)' "${error_file}"; then
-              return 44
-            fi
-            echo "HEAD failed for ${object_key}." >&2
-            cat "${error_file}" >&2
-            return 1
-          }
-
           publish_current() {
             local source_file="$1"
             local object_key="$2"
             local comparison_file="$3"
-            local head_file
-            local head_error
+            local current_headers
             local current_file
+            local current_status
+            local current_curl_status=0
             local etag
             local put_output
             local put_error
-            local raced_file
-            local head_status=0
+            local published_file
+            local published_status
+            local published_curl_status
+            local published=false
             local put_status=0
             local -a condition=()
 
-            head_file="$(mktemp)"
-            head_error="$(mktemp)"
-            read_head "${object_key}" "${head_file}" "${head_error}" || head_status=$?
-            case "${head_status}" in
-              0)
-                current_file="$(mktemp)"
-                aws s3api get-object \
-                  --bucket "${S3_BUCKET}" \
-                  --key "${object_key}" \
-                  --endpoint-url "${S3_ENDPOINT}" \
-                  "${current_file}" >/dev/null
+            current_headers="$(mktemp)"
+            current_file="$(mktemp)"
+            current_status="$(curl --silent --show-error \
+              --retry 5 \
+              --retry-all-errors \
+              --output "${current_file}" \
+              --dump-header "${current_headers}" \
+              --write-out '%{http_code}' \
+              --header 'Cache-Control: no-cache' \
+              --header 'Pragma: no-cache' \
+              --header 'Accept-Encoding: identity' \
+              "${S3_ENDPOINT}/${S3_BUCKET}/${object_key}?read=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${RANDOM}")" || current_curl_status=$?
+            if [ "${current_curl_status}" -ne 0 ]; then
+              rm -f "${current_headers}" "${current_file}"
+              echo "Failed to read ${object_key}." >&2
+              return 1
+            fi
+
+            case "${current_status}" in
+              200)
                 node scripts/release-manifest.mjs check-monotonic \
-                  "${current_file}" "${comparison_file}"
+                  "${current_file}" "${comparison_file}" "${source_file}"
                 if cmp --silent "${source_file}" "${current_file}"; then
                   echo "${object_key} already has the expected bytes."
-                  rm -f "${current_file}" "${head_file}" "${head_error}"
+                  rm -f "${current_headers}" "${current_file}"
                   return 0
                 fi
-                etag="$(node -e "const fs=require('fs'); const h=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); if (!h.ETag) throw new Error('Missing object ETag'); process.stdout.write(h.ETag)" "${head_file}")"
+                etag="$(node - "${current_headers}" <<'NODE'
+          const fs = require('fs');
+          const headers = fs.readFileSync(process.argv[2], 'utf8');
+          const blocks = headers.split(/\r?\n\r?\n/).filter(block => block.trim().length > 0);
+          const finalBlock = blocks.filter(block => /^HTTP\/\S+\s+200\b/im.test(block)).at(-1);
+          if (!finalBlock) throw new Error('Missing final HTTP 200 response headers');
+          const matches = [...finalBlock.matchAll(/^etag:\s*(.+?)\r?$/gim)];
+          if (matches.length !== 1) throw new Error('Expected one object ETag');
+          const etag = matches[0][1].trim();
+          if (!/^"[^"\r\n]+"$/.test(etag)) throw new Error('Object ETag is not a strong quoted tag');
+          process.stdout.write(etag);
+          NODE
+                )"
                 condition=(--if-match "${etag}")
-                rm -f "${current_file}"
                 ;;
-              44)
+              403|404)
                 condition=(--if-none-match '*')
                 ;;
               *)
-                rm -f "${head_file}" "${head_error}"
+                rm -f "${current_headers}" "${current_file}"
+                echo "Failed to read ${object_key}: HTTP ${current_status}." >&2
                 return 1
                 ;;
             esac
+            rm -f "${current_headers}" "${current_file}"
 
             put_output="$(mktemp)"
             put_error="$(mktemp)"
@@ -838,23 +844,38 @@ jobs:
               --acl public-read \
               --cache-control 'public,max-age=60,must-revalidate' \
               --content-type application/json >"${put_output}" 2>"${put_error}" || put_status=$?
-            if [ "${put_status}" -ne 0 ]; then
-              raced_file="$(mktemp)"
-              if ! aws s3api get-object \
-                  --bucket "${S3_BUCKET}" \
-                  --key "${object_key}" \
-                  --endpoint-url "${S3_ENDPOINT}" \
-                  "${raced_file}" >/dev/null 2>/dev/null || \
-                ! cmp --silent "${source_file}" "${raced_file}"; then
-                cat "${put_error}" >&2
-                rm -f "${raced_file}" "${head_file}" "${head_error}" "${put_output}" "${put_error}"
-                echo "${object_key} does not contain the expected bytes after publication." >&2
-                return 1
+            published_file="$(mktemp)"
+            for attempt in 1 2 3 4 5; do
+              published_curl_status=0
+              published_status="$(curl --silent --show-error \
+                --retry 5 \
+                --retry-all-errors \
+                --output "${published_file}" \
+                --write-out '%{http_code}' \
+                --header 'Cache-Control: no-cache' \
+                --header 'Pragma: no-cache' \
+                --header 'Accept-Encoding: identity' \
+                "${S3_ENDPOINT}/${S3_BUCKET}/${object_key}?verify=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${attempt}-${RANDOM}")" || published_curl_status=$?
+              if [ "${published_curl_status}" -eq 0 ] && \
+                [ "${published_status}" = 200 ] && \
+                cmp --silent "${source_file}" "${published_file}"; then
+                published=true
+                break
               fi
-              echo "${object_key} contains the expected bytes despite the storage client error."
-              rm -f "${raced_file}"
+              sleep 2
+            done
+            if [ "${published}" != true ]; then
+              if [ "${put_status}" -ne 0 ]; then
+                cat "${put_error}" >&2
+              fi
+              rm -f "${published_file}" "${put_output}" "${put_error}"
+              echo "${object_key} does not contain the expected bytes after publication." >&2
+              return 1
             fi
-            rm -f "${head_file}" "${head_error}" "${put_output}" "${put_error}"
+            if [ "${put_status}" -ne 0 ]; then
+              echo "${object_key} contains the expected bytes despite the storage client error."
+            fi
+            rm -f "${published_file}" "${put_output}" "${put_error}"
           }
 
           publish_current latest.json 'winky/latest-v2.json' manifest.json
@@ -864,14 +885,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          signed_manifest_url="${S3_ENDPOINT}/${S3_BUCKET}/winky/latest-v2.json?release=${GITHUB_SHA}"
-          curl --fail --silent --show-error --retry 5 --retry-all-errors \
-            --header 'Cache-Control: no-cache' \
-            "${signed_manifest_url}" --output published-current-latest-v2.json
-          cmp --silent latest.json published-current-latest-v2.json
 
-          legacy_manifest_url="${S3_ENDPOINT}/${S3_BUCKET}/winky/latest.json?release=${GITHUB_SHA}"
-          curl --fail --silent --show-error --retry 5 --retry-all-errors \
-            --header 'Cache-Control: no-cache' \
-            "${legacy_manifest_url}" --output published-current-legacy.json
-          cmp --silent legacy-latest.json published-current-legacy.json
+          verify_current() {
+            local source_file="$1"
+            local object_key="$2"
+            local output_file="$3"
+            local status
+            local curl_status
+
+            for attempt in 1 2 3 4 5; do
+              curl_status=0
+              status="$(curl --silent --show-error \
+                --retry 5 \
+                --retry-all-errors \
+                --output "${output_file}" \
+                --write-out '%{http_code}' \
+                --header 'Cache-Control: no-cache' \
+                --header 'Pragma: no-cache' \
+                --header 'Accept-Encoding: identity' \
+                "${S3_ENDPOINT}/${S3_BUCKET}/${object_key}?release=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${attempt}-${RANDOM}")" || curl_status=$?
+              if [ "${curl_status}" -eq 0 ] && \
+                [ "${status}" = 200 ] && \
+                cmp --silent "${source_file}" "${output_file}"; then
+                return 0
+              fi
+              sleep 2
+            done
+            echo "${object_key} does not contain the expected current manifest bytes." >&2
+            return 1
+          }
+
+          verify_current latest.json 'winky/latest-v2.json' published-current-latest-v2.json
+          verify_current legacy-latest.json 'winky/latest.json' published-current-legacy.json

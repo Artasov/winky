@@ -149,37 +149,6 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
-      - name: Configure optional Windows signing certificate
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-        run: |
-          if (-not $env:WINDOWS_CERTIFICATE -and -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
-            Add-Content -Path $env:GITHUB_ENV -Value 'WINKY_WINDOWS_PACKAGE_SIGNED=false'
-            Write-Host 'Windows signing secrets are not configured; building an unsigned package.'
-            exit 0
-          }
-          if (-not $env:WINDOWS_CERTIFICATE -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
-            throw 'WINDOWS_CERTIFICATE and WINDOWS_CERTIFICATE_PASSWORD must be configured together.'
-          }
-          $certificatePath = Join-Path $env:RUNNER_TEMP 'winky-signing.pfx'
-          [System.IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
-          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
-          $importedCertificates = @(Import-PfxCertificate -FilePath $certificatePath -CertStoreLocation Cert:\CurrentUser\My -Password $password)
-          $certificate = $importedCertificates | Where-Object HasPrivateKey | Select-Object -First 1
-          if (-not $certificate -or -not $certificate.Thumbprint) {
-            throw 'Failed to import the Windows code-signing certificate.'
-          }
-          $signerThumbprint = $certificate.Thumbprint.Replace(' ', '').ToUpperInvariant()
-          $tauriConfig = @{bundle = @{windows = @{certificateThumbprint = $certificate.Thumbprint}}} | ConvertTo-Json -Compress -Depth 5
-          Add-Content -Path $env:GITHUB_ENV -Value "TAURI_CONFIG=$tauriConfig"
-          Add-Content -Path $env:GITHUB_ENV -Value "WINDOWS_SIGNER_THUMBPRINT=$signerThumbprint"
-          Add-Content -Path $env:GITHUB_ENV -Value "WINKY_WINDOWS_SIGNER_THUMBPRINT=$signerThumbprint"
-          Add-Content -Path $env:GITHUB_ENV -Value 'WINKY_WINDOWS_PACKAGE_SIGNED=true'
-          Remove-Item -LiteralPath $certificatePath -Force
-
       - name: Build desktop package
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f
         env:
@@ -187,31 +156,6 @@ jobs:
         with:
           tauriScript: npm run tauri
           args: --verbose
-
-      - name: Verify Windows Authenticode signatures
-        if: runner.os == 'Windows' && env.WINKY_WINDOWS_PACKAGE_SIGNED == 'true'
-        shell: pwsh
-        run: |
-          if (-not $env:WINDOWS_SIGNER_THUMBPRINT) { throw 'Expected Windows signer thumbprint is missing.' }
-          $installers = @(
-            Get-ChildItem -Path 'src-tauri/target/release/bundle' -Recurse -File |
-              Where-Object { $_.Extension -in '.exe', '.msi' }
-          )
-          if ($installers.Count -eq 0) { throw 'No Windows installer was produced.' }
-          foreach ($installer in $installers) {
-            $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
-            if ($signature.Status -ne 'Valid') {
-              throw "Invalid Authenticode signature for $($installer.Name): $($signature.Status)"
-            }
-            if (-not $signature.SignerCertificate) {
-              throw "Authenticode signer certificate is missing for $($installer.Name)."
-            }
-            $actualThumbprint = $signature.SignerCertificate.Thumbprint.Replace(' ', '').ToUpperInvariant()
-            if ($actualThumbprint -ne $env:WINDOWS_SIGNER_THUMBPRINT) {
-              throw "Unexpected Authenticode signer for $($installer.Name): $actualThumbprint"
-            }
-            Write-Host "Verified $($installer.Name), signer $actualThumbprint"
-          }
 
       - name: Collect release artifacts
         shell: bash
@@ -269,7 +213,7 @@ jobs:
           retention-days: 7
 
   release:
-    name: Publish Signed Release
+    name: Publish S3 Release
     needs: package-tauri
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
@@ -627,7 +571,7 @@ jobs:
             -sigfile smoke-manifest.sig
           node scripts/release-manifest.mjs verify-artifacts smoke-manifest.json
 
-      - name: Publish or resume GitHub Release
+      - name: Publish GitHub Release links
         shell: bash
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -648,116 +592,69 @@ jobs:
             return 1
           }
 
-          refresh_release() {
-            local status=0
-            read_release "${release_file}" "${release_error}" || status=$?
-            if [ "${status}" -ne 0 ]; then
-              echo "GitHub Release ${RELEASE_TAG} is unavailable after publication." >&2
-              return 1
-            fi
-          }
-
-          get_asset_id() {
-            local asset_name="$1"
-            node - "${release_file}" "${asset_name}" <<'NODE'
-          const fs = require('fs');
-          const release = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          const matches = release.assets.filter(asset => asset.name === process.argv[3]);
-          if (matches.length > 1) throw new Error(`Duplicate GitHub asset: ${process.argv[3]}`);
-          if (matches.length === 1) process.stdout.write(String(matches[0].id));
-          NODE
-          }
-
-          verify_asset() {
-            local source_file="$1"
-            local asset_name="$2"
-            local asset_id="$3"
-            local remote_file
-            local local_hash
-            local local_size
-
-            remote_file="$(mktemp)"
-            gh api \
-              --header 'Accept: application/octet-stream' \
-              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >"${remote_file}"
-            if ! cmp --silent "${source_file}" "${remote_file}"; then
-              rm -f "${remote_file}"
-              echo "GitHub asset content mismatch: ${asset_name}." >&2
-              return 1
-            fi
-            local_hash="$(sha256sum "${source_file}" | awk '{print $1}')"
-            local_size="$(stat --format=%s "${source_file}")"
-            rm -f "${remote_file}"
-            echo "Verified GitHub asset ${asset_name} (${local_size} bytes, ${local_hash})."
-          }
-
           release_file="$(mktemp)"
           release_error="$(mktemp)"
+          release_body="$(mktemp)"
+          release_title="Winky ${RELEASE_TAG#v}"
+          node - "${RELEASE_TAG}" "${S3_ENDPOINT}/${S3_BUCKET}/winky" >"${release_body}" <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const tag = process.argv[2];
+          const baseUrl = process.argv[3].replace(/\/$/, '');
+          const packageRoot = 'release-package';
+          const artifacts = [];
+          for (const platformEntry of fs.readdirSync(packageRoot, {withFileTypes: true})) {
+            if (!platformEntry.isDirectory() || platformEntry.name === 'metadata') continue;
+            const platformPath = path.join(packageRoot, platformEntry.name);
+            for (const artifactEntry of fs.readdirSync(platformPath, {withFileTypes: true})) {
+              if (!artifactEntry.isFile()) continue;
+              artifacts.push({platform: platformEntry.name, name: artifactEntry.name});
+            }
+          }
+          artifacts.sort((left, right) => left.name.localeCompare(right.name));
+          if (artifacts.length === 0) throw new Error('No S3 release links were generated.');
+
+          const lines = ['## Downloads', ''];
+          for (const artifact of artifacts) {
+            const segments = [tag, artifact.platform, artifact.name].map(encodeURIComponent);
+            lines.push(`- [${artifact.name}](${baseUrl}/${segments.join('/')})`);
+          }
+          lines.push('');
+          process.stdout.write(lines.join('\n'));
+          NODE
+
           release_status=0
           read_release "${release_file}" "${release_error}" || release_status=$?
           case "${release_status}" in
             0)
-              echo "Resuming existing GitHub Release ${RELEASE_TAG}."
+              gh release edit "${RELEASE_TAG}" \
+                --title "${release_title}" \
+                --notes-file "${release_body}"
               ;;
             44)
-              create_output="$(mktemp)"
-              create_error="$(mktemp)"
-              create_status=0
               gh release create "${RELEASE_TAG}" \
                 --verify-tag \
-                --generate-notes \
-                --title "Winky ${RELEASE_TAG#v}" >"${create_output}" 2>"${create_error}" || create_status=$?
-              if [ "${create_status}" -ne 0 ]; then
-                echo "GitHub Release creation raced or failed; checking the tag again."
-              fi
-              if ! refresh_release; then
-                cat "${create_error}" >&2
-                rm -f "${create_output}" "${create_error}" "${release_file}" "${release_error}"
-                exit 1
-              fi
-              rm -f "${create_output}" "${create_error}"
+                --title "${release_title}" \
+                --notes-file "${release_body}"
               ;;
             *)
-              rm -f "${release_file}" "${release_error}"
+              rm -f "${release_file}" "${release_error}" "${release_body}"
               exit 1
               ;;
           esac
-
-          mapfile -d '' asset_sources < <(find release-package -type f ! -path '*/metadata/*' -print0)
-          asset_sources+=(manifest.json manifest.sig latest.json)
-          declare -A asset_names=()
-          for source_file in "${asset_sources[@]}"; do
-            asset_name="$(basename "${source_file}")"
-            if [ -n "${asset_names[${asset_name}]+present}" ]; then
-              echo "Duplicate local GitHub asset name: ${asset_name}." >&2
-              exit 1
-            fi
-            asset_names["${asset_name}"]="${source_file}"
-
-            asset_id="$(get_asset_id "${asset_name}")"
-            if [ -z "${asset_id}" ]; then
-              upload_output="$(mktemp)"
-              upload_error="$(mktemp)"
-              upload_status=0
-              gh release upload "${RELEASE_TAG}" "${source_file}" \
-                >"${upload_output}" 2>"${upload_error}" || upload_status=$?
-              refresh_release
-              asset_id="$(get_asset_id "${asset_name}")"
-              if [ -z "${asset_id}" ]; then
-                cat "${upload_error}" >&2
-                rm -f "${upload_output}" "${upload_error}"
-                exit 1
-              fi
-              if [ "${upload_status}" -ne 0 ]; then
-                echo "Another publisher created ${asset_name}; verifying its exact bytes."
-              fi
-              rm -f "${upload_output}" "${upload_error}"
-            else
-              echo "Reusing existing GitHub asset ${asset_name}."
-            fi
-            verify_asset "${source_file}" "${asset_name}" "${asset_id}"
-          done
-          rm -f "${release_file}" "${release_error}"
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" >"${release_file}"
+          node - "${release_file}" "${release_body}" "${release_title}" <<'NODE'
+          const fs = require('fs');
+          const release = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const expectedBody = fs.readFileSync(process.argv[3], 'utf8').trimEnd();
+          const expectedTitle = process.argv[4];
+          if (release.name !== expectedTitle) throw new Error('GitHub Release title mismatch.');
+          if (release.body.trimEnd() !== expectedBody) throw new Error('GitHub Release S3 links mismatch.');
+          if (release.assets.length !== 0) throw new Error('GitHub Release must not contain uploaded assets.');
+          if (release.draft || release.prerelease) throw new Error('GitHub Release must be published and stable.');
+          NODE
+          rm -f "${release_file}" "${release_error}" "${release_body}"
 
       - name: Publish current update manifests
         shell: bash

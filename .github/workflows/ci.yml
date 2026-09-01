@@ -13,7 +13,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Timeweb S3 rejects conditional overwrites, so tag releases share one
+  # monotonic read/write lock before updating the current manifests.
+  group: ${{ github.workflow }}-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -761,16 +763,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          aws configure set default.s3.addressing_style path
 
           publish_current() {
             local source_file="$1"
             local object_key="$2"
             local comparison_file="$3"
-            local current_headers
             local current_file
             local current_status
             local current_curl_status=0
-            local etag
             local put_output
             local put_error
             local published_file
@@ -778,22 +779,20 @@ jobs:
             local published_curl_status
             local published=false
             local put_status=0
-            local -a condition=()
+            local -a publish_command=()
 
-            current_headers="$(mktemp)"
             current_file="$(mktemp)"
             current_status="$(curl --silent --show-error \
               --retry 5 \
               --retry-all-errors \
               --output "${current_file}" \
-              --dump-header "${current_headers}" \
               --write-out '%{http_code}' \
               --header 'Cache-Control: no-cache' \
               --header 'Pragma: no-cache' \
               --header 'Accept-Encoding: identity' \
               "${S3_ENDPOINT}/${S3_BUCKET}/${object_key}?read=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${RANDOM}")" || current_curl_status=$?
             if [ "${current_curl_status}" -ne 0 ]; then
-              rm -f "${current_headers}" "${current_file}"
+              rm -f "${current_file}"
               echo "Failed to read ${object_key}." >&2
               return 1
             fi
@@ -804,42 +803,35 @@ jobs:
                   "${current_file}" "${comparison_file}" "${source_file}"
                 if cmp --silent "${source_file}" "${current_file}"; then
                   echo "${object_key} already has the expected bytes."
-                  rm -f "${current_headers}" "${current_file}"
+                  rm -f "${current_file}"
                   return 0
                 fi
-                etag="$(node - "${current_headers}" <<'NODE'
-          const fs = require('fs');
-          const headers = fs.readFileSync(process.argv[2], 'utf8');
-          const blocks = headers.split(/\r?\n\r?\n/).filter(block => block.trim().length > 0);
-          const finalBlock = blocks.filter(block => /^HTTP\/\S+\s+200\b/im.test(block)).at(-1);
-          if (!finalBlock) throw new Error('Missing final HTTP 200 response headers');
-          const matches = [...finalBlock.matchAll(/^etag:\s*(.+?)\r?$/gim)];
-          if (matches.length !== 1) throw new Error('Expected one object ETag');
-          const etag = matches[0][1].trim();
-          if (!/^"[^"\r\n]+"$/.test(etag)) throw new Error('Object ETag is not a strong quoted tag');
-          process.stdout.write(etag);
-          NODE
-                )"
-                condition=(--if-match "${etag}")
+                publish_command=(
+                  aws s3 cp
+                  "${source_file}"
+                  "s3://${S3_BUCKET}/${object_key}"
+                )
                 ;;
               403|404)
-                condition=(--if-none-match '*')
+                publish_command=(
+                  aws s3api put-object
+                  --bucket "${S3_BUCKET}"
+                  --key "${object_key}"
+                  --body "${source_file}"
+                  --if-none-match '*'
+                )
                 ;;
               *)
-                rm -f "${current_headers}" "${current_file}"
+                rm -f "${current_file}"
                 echo "Failed to read ${object_key}: HTTP ${current_status}." >&2
                 return 1
                 ;;
             esac
-            rm -f "${current_headers}" "${current_file}"
+            rm -f "${current_file}"
 
             put_output="$(mktemp)"
             put_error="$(mktemp)"
-            aws s3api put-object \
-              --bucket "${S3_BUCKET}" \
-              --key "${object_key}" \
-              --body "${source_file}" \
-              "${condition[@]}" \
+            "${publish_command[@]}" \
               --endpoint-url "${S3_ENDPOINT}" \
               --acl public-read \
               --cache-control 'public,max-age=60,must-revalidate' \

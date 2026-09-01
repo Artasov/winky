@@ -157,6 +157,9 @@ jobs:
           tauriScript: npm run tauri
           args: --verbose
 
+      - name: Validate renderer styles
+        run: npm run check:renderer-build
+
       - name: Collect release artifacts
         shell: bash
         env:

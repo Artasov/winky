@@ -1,6 +1,6 @@
 {
   "name": "winky",
-  "version": "1.4.9",
+  "version": "1.4.10",
   "description": "Winky desktop voice assistant built with Tauri.",
   "scripts": {
     "pretauri": "node ./scripts/sync-tauri-version.mjs --check",
@@ -13,6 +13,7 @@
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "check:versions": "node ./scripts/sync-tauri-version.mjs --check",
+    "check:renderer-build": "node ./scripts/check-renderer-build.mjs",
     "preview": "vite preview --config vite.config.mts"
   },
   "keywords": [
